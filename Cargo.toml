@@ -54,7 +54,7 @@ ic-crypto-test-utils-reproducible-rng = { git = "https://github.com/dfinity/ic",
 ic-test-utilities-load-wasm = { git = "https://github.com/dfinity/ic", rev = "release-2024-09-26_01-31-base" }
 itertools = "0.13"
 maplit = "1"
-pocket-ic = "5.0.0"
+pocket-ic = "6.0.0"
 proptest = { workspace = true }
 rand = "0.8"
 
