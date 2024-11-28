@@ -15,14 +15,13 @@ use evm_rpc_types::{
     InstallArgs, JsonRpcError, MultiRpcResult, Nat256, Provider, ProviderError, RpcApi, RpcConfig,
     RpcError, RpcResult, RpcService, RpcServices,
 };
+use ic_cdk::api::call::RejectionCode;
 use ic_cdk::api::management_canister::http_request::HttpHeader;
 use ic_cdk::api::management_canister::main::CanisterId;
 use ic_test_utilities_load_wasm::load_wasm;
 use maplit::hashmap;
 use mock::{MockOutcall, MockOutcallBuilder};
-use pocket_ic::common::rest::{
-    CanisterHttpMethod, CanisterHttpResponse, MockCanisterHttpResponse, RawMessageId,
-};
+use pocket_ic::common::rest::{CanisterHttpMethod, MockCanisterHttpResponse, RawMessageId};
 use pocket_ic::{CanisterSettings, PocketIc, WasmResult};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::json;
@@ -416,7 +415,7 @@ impl<R: CandidType + DeserializeOwned> CallFlow<R> {
         let response = MockCanisterHttpResponse {
             subnet_id: request.subnet_id,
             request_id: request.request_id,
-            response: CanisterHttpResponse::CanisterHttpReply(mock.response.clone()),
+            response: mock.response.clone(),
             additional_responses: vec![],
         };
         self.setup.env.mock_canister_http_response(response);
@@ -1342,6 +1341,79 @@ fn candid_rpc_should_return_inconsistent_results_with_error() {
             },
             ..Default::default()
         }
+    );
+}
+
+#[test]
+fn candid_rpc_should_return_inconsistent_results_with_consensus_error() {
+    const CONSENSUS_ERROR: &str =
+        "No consensus could be reached. Replicas had different responses.";
+
+    let setup = EvmRpcSetup::new().mock_api_keys();
+    let result = setup
+        .eth_get_transaction_count(
+            RpcServices::EthMainnet(None),
+            Some(RpcConfig {
+                response_consensus: Some(ConsensusStrategy::Threshold {
+                    total: Some(3),
+                    min: 2,
+                }),
+                ..Default::default()
+            }),
+            evm_rpc_types::GetTransactionCountArgs {
+                address: "0xdAC17F958D2ee523a2206206994597C13D831ec7"
+                    .parse()
+                    .unwrap(),
+                block: evm_rpc_types::BlockTag::Latest,
+            },
+        )
+        .mock_http_once(MockOutcallBuilder::new_error(
+            RejectionCode::SysTransient,
+            CONSENSUS_ERROR,
+        ))
+        .mock_http_once(MockOutcallBuilder::new(
+            200,
+            r#"{"jsonrpc":"2.0","id":0,"result":"0x1"}"#,
+        ))
+        .mock_http_once(MockOutcallBuilder::new_error(
+            RejectionCode::SysTransient,
+            CONSENSUS_ERROR,
+        ))
+        .wait()
+        .expect_inconsistent();
+
+    assert_eq!(
+        result,
+        vec![
+            (
+                RpcService::EthMainnet(EthMainnetService::PublicNode),
+                Ok(1_u8.into())
+            ),
+            (
+                RpcService::EthMainnet(EthMainnetService::BlockPi),
+                Err(RpcError::HttpOutcallError(HttpOutcallError::IcError {
+                    code: RejectionCode::SysTransient,
+                    message: CONSENSUS_ERROR.to_string()
+                }))
+            ),
+            (
+                RpcService::EthMainnet(EthMainnetService::Cloudflare),
+                Err(RpcError::HttpOutcallError(HttpOutcallError::IcError {
+                    code: RejectionCode::SysTransient,
+                    message: CONSENSUS_ERROR.to_string()
+                }))
+            ),
+        ]
+    );
+
+    let rpc_method = || RpcMethod::EthGetTransactionCount.into();
+    let err_http_outcall = setup.get_metrics().err_http_outcall;
+    assert_eq!(
+        err_http_outcall,
+        hashmap! {
+            (rpc_method(), BLOCKPI_ETH_HOSTNAME.into(), RejectionCode::SysTransient) => 1,
+            (rpc_method(), CLOUDFLARE_HOSTNAME.into(), RejectionCode::SysTransient) => 1,
+        },
     );
 }
 

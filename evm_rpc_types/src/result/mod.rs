@@ -4,6 +4,7 @@ mod tests;
 use crate::RpcService;
 use candid::{CandidType, Deserialize};
 use ic_cdk::api::call::RejectionCode;
+use std::fmt::Debug;
 use thiserror::Error;
 
 pub type RpcResult<T> = Result<T, RpcError>;
@@ -34,27 +35,25 @@ impl<T> MultiRpcResult<T> {
             ),
         }
     }
+}
 
-    pub fn consistent(self) -> Option<RpcResult<T>> {
-        match self {
-            MultiRpcResult::Consistent(result) => Some(result),
-            MultiRpcResult::Inconsistent(_) => None,
-        }
-    }
-
-    pub fn inconsistent(self) -> Option<Vec<(RpcService, RpcResult<T>)>> {
-        match self {
-            MultiRpcResult::Consistent(_) => None,
-            MultiRpcResult::Inconsistent(results) => Some(results),
-        }
-    }
-
+impl<T: Debug> MultiRpcResult<T> {
     pub fn expect_consistent(self) -> RpcResult<T> {
-        self.consistent().expect("expected consistent results")
+        match self {
+            MultiRpcResult::Consistent(result) => result,
+            MultiRpcResult::Inconsistent(inconsistent_result) => {
+                panic!("Expected consistent, but got: {:?}", inconsistent_result)
+            }
+        }
     }
 
     pub fn expect_inconsistent(self) -> Vec<(RpcService, RpcResult<T>)> {
-        self.inconsistent().expect("expected inconsistent results")
+        match self {
+            MultiRpcResult::Consistent(consistent_result) => {
+                panic!("Expected inconsistent:, but got: {:?}", consistent_result)
+            }
+            MultiRpcResult::Inconsistent(results) => results,
+        }
     }
 }
 

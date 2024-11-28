@@ -1,7 +1,7 @@
 use crate::{
     accounting::{get_cost_with_collateral, get_http_request_cost},
     add_metric_entry,
-    constants::{CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE, SERVICE_HOSTS_BLOCKLIST},
+    constants::{CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE},
     memory::is_demo_active,
     types::{MetricRpcHost, MetricRpcMethod, ResolvedRpcService},
     util::canonicalize_json,
@@ -69,14 +69,6 @@ pub async fn http_request(
         }
     };
     let rpc_host = MetricRpcHost(host.to_string());
-    if SERVICE_HOSTS_BLOCKLIST.contains(&rpc_host.0.as_str()) {
-        add_metric_entry!(err_host_not_allowed, rpc_host.clone(), 1);
-        return Err(ValidationError::Custom(format!(
-            "Disallowed RPC service host: {}",
-            rpc_host.0
-        ))
-        .into());
-    }
     if !is_demo_active() {
         let cycles_available = ic_cdk::api::call::msg_cycles_available128();
         let cycles_cost_with_collateral = get_cost_with_collateral(cycles_cost);
@@ -102,7 +94,7 @@ pub async fn http_request(
             Ok(response)
         }
         Err((code, message)) => {
-            add_metric_entry!(err_http_outcall, (rpc_method, rpc_host), 1);
+            add_metric_entry!(err_http_outcall, (rpc_method, rpc_host, code), 1);
             Err(HttpOutcallError::IcError { code, message }.into())
         }
     }

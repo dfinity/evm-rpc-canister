@@ -52,6 +52,8 @@ impl EncoderExtensions for ic_metrics_encoder::MetricsEncoder<Vec<u8>> {
 }
 
 pub fn encode_metrics(w: &mut ic_metrics_encoder::MetricsEncoder<Vec<u8>>) -> std::io::Result<()> {
+    const WASM_PAGE_SIZE_IN_BYTES: f64 = 65536.0;
+
     crate::memory::UNSTABLE_METRICS.with(|m| {
         let m = m.borrow();
 
@@ -66,20 +68,22 @@ pub fn encode_metrics(w: &mut ic_metrics_encoder::MetricsEncoder<Vec<u8>>) -> st
             "Canister version",
         )?;
         w.encode_gauge(
-            "evmrpc_stable_memory_pages",
-            ic_cdk::api::stable::stable_size().metric_value(),
-            "Size of the stable memory allocated by this canister measured in 64-bit Wasm pages",
+            "stable_memory_bytes",
+            ic_cdk::api::stable::stable_size() as f64 * WASM_PAGE_SIZE_IN_BYTES,
+            "Size of the stable memory allocated by this canister.",
         )?;
+
+        w.encode_gauge(
+            "heap_memory_bytes",
+            heap_memory_size_bytes() as f64,
+            "Size of the heap memory allocated by this canister.",
+        )?;
+
         w.counter_entries(
             "evmrpc_cycles_charged",
             &m.cycles_charged,
             "Number of cycles charged for RPC calls",
         );
-        w.encode_counter(
-            "evmrpc_cycles_withdrawn",
-            m.cycles_withdrawn.metric_value(),
-            "Number of accumulated cycles withdrawn by RPC providers",
-        )?;
         w.counter_entries(
             "evmrpc_requests",
             &m.requests,
@@ -100,17 +104,19 @@ pub fn encode_metrics(w: &mut ic_metrics_encoder::MetricsEncoder<Vec<u8>>) -> st
             &m.err_http_outcall,
             "Number of unsuccessful HTTP outcalls",
         );
-        w.counter_entries(
-            "evmrpc_err_host_not_allowed",
-            &m.err_host_not_allowed,
-            "Number of HostNotAllowed errors",
-        );
-        w.encode_counter(
-            "evmrpc_err_no_permission",
-            m.err_no_permission.metric_value(),
-            "Number of NoPermission errors",
-        )?;
 
         Ok(())
     })
+}
+
+/// Returns the amount of heap memory in bytes that has been allocated.
+#[cfg(target_arch = "wasm32")]
+pub fn heap_memory_size_bytes() -> usize {
+    const WASM_PAGE_SIZE_BYTES: usize = 65536;
+    core::arch::wasm32::memory_size(0) * WASM_PAGE_SIZE_BYTES
+}
+
+#[cfg(not(any(target_arch = "wasm32")))]
+pub fn heap_memory_size_bytes() -> usize {
+    0
 }

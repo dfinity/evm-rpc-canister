@@ -1,5 +1,7 @@
+use ic_cdk::api::call::RejectionCode;
 use pocket_ic::common::rest::{
-    CanisterHttpHeader, CanisterHttpMethod, CanisterHttpReply, CanisterHttpRequest,
+    CanisterHttpHeader, CanisterHttpMethod, CanisterHttpReject, CanisterHttpReply,
+    CanisterHttpRequest, CanisterHttpResponse,
 };
 use std::collections::BTreeSet;
 
@@ -32,11 +34,25 @@ impl MockOutcallBuilder {
             request_headers: None,
             request_body: None,
             max_response_bytes: None,
-            response: CanisterHttpReply {
+            response: CanisterHttpResponse::CanisterHttpReply(CanisterHttpReply {
                 status,
                 headers: vec![],
                 body: body.into().0,
-            },
+            }),
+        })
+    }
+
+    pub fn new_error(code: RejectionCode, message: impl ToString) -> Self {
+        Self(MockOutcall {
+            method: None,
+            url: None,
+            request_headers: None,
+            request_body: None,
+            max_response_bytes: None,
+            response: CanisterHttpResponse::CanisterHttpReject(CanisterHttpReject {
+                reject_code: code as u64,
+                message: message.to_string(),
+            }),
         })
     }
 
@@ -77,14 +93,6 @@ impl MockOutcallBuilder {
         self
     }
 
-    pub fn with_response_header(mut self, name: String, value: String) -> Self {
-        self.0
-            .response
-            .headers
-            .push(CanisterHttpHeader { name, value });
-        self
-    }
-
     pub fn build(self) -> MockOutcall {
         self.0
     }
@@ -103,7 +111,7 @@ pub struct MockOutcall {
     pub request_headers: Option<Vec<CanisterHttpHeader>>,
     pub request_body: Option<MockJsonRequestBody>,
     pub max_response_bytes: Option<u64>,
-    pub response: CanisterHttpReply,
+    pub response: CanisterHttpResponse,
 }
 
 impl MockOutcall {

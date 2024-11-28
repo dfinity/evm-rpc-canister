@@ -3,6 +3,7 @@ use crate::memory::get_api_key;
 use crate::util::hostname_from_url;
 use crate::validate::validate_api_key;
 use candid::CandidType;
+use ic_cdk::api::call::RejectionCode;
 use ic_cdk::api::management_canister::http_request::HttpHeader;
 use ic_stable_structures::storable::Bound;
 use ic_stable_structures::Storable;
@@ -115,6 +116,22 @@ impl MetricLabels for MetricHttpStatusCode {
     }
 }
 
+impl MetricLabels for RejectionCode {
+    fn metric_labels(&self) -> Vec<(&str, &str)> {
+        let code = match self {
+            RejectionCode::NoError => "NO_ERROR",
+            RejectionCode::SysFatal => "SYS_FATAL",
+            RejectionCode::SysTransient => "SYS_TRANSIENT",
+            RejectionCode::DestinationInvalid => "DESTINATION_INVALID",
+            RejectionCode::CanisterReject => "CANISTER_REJECT",
+            RejectionCode::CanisterError => "CANISTER_ERROR",
+            RejectionCode::Unknown => "UNKNOWN",
+        };
+
+        vec![("code", code)]
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, CandidType, Deserialize)]
 pub struct Metrics {
     pub requests: HashMap<(MetricRpcMethod, MetricRpcHost), u64>,
@@ -123,14 +140,8 @@ pub struct Metrics {
     pub inconsistent_responses: HashMap<(MetricRpcMethod, MetricRpcHost), u64>,
     #[serde(rename = "cyclesCharged")]
     pub cycles_charged: HashMap<(MetricRpcMethod, MetricRpcHost), u128>,
-    #[serde(rename = "cyclesWithdrawn")]
-    pub cycles_withdrawn: u128,
-    #[serde(rename = "errNoPermission")]
-    pub err_no_permission: u64,
     #[serde(rename = "errHttpOutcall")]
-    pub err_http_outcall: HashMap<(MetricRpcMethod, MetricRpcHost), u64>,
-    #[serde(rename = "errHostNotAllowed")]
-    pub err_host_not_allowed: HashMap<MetricRpcHost, u64>,
+    pub err_http_outcall: HashMap<(MetricRpcMethod, MetricRpcHost, RejectionCode), u64>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

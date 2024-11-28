@@ -43,5 +43,3 @@ pub const ETH_SEPOLIA_CHAIN_ID: u64 = 11155111;
 pub const ARBITRUM_ONE_CHAIN_ID: u64 = 42161;
 pub const BASE_MAINNET_CHAIN_ID: u64 = 8453;
 pub const OPTIMISM_MAINNET_CHAIN_ID: u64 = 10;
-
-pub const SERVICE_HOSTS_BLOCKLIST: &[&str] = &[];
