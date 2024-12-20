@@ -22,7 +22,7 @@ use ic_test_utilities_load_wasm::load_wasm;
 use maplit::hashmap;
 use mock::{MockOutcall, MockOutcallBuilder};
 use pocket_ic::common::rest::{CanisterHttpMethod, MockCanisterHttpResponse, RawMessageId};
-use pocket_ic::{management_canister::CanisterSettings, PocketIc, WasmResult};
+use pocket_ic::{management_canister::CanisterSettings, PocketIc, PocketIcBuilder, WasmResult};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
@@ -98,7 +98,12 @@ impl EvmRpcSetup {
     }
 
     pub fn with_args(args: InstallArgs) -> Self {
-        let env = Arc::new(PocketIc::new());
+        let env = Arc::new(
+            PocketIcBuilder::new()
+                .with_application_subnet()
+                .with_max_request_time_ms(Some(1_000_000))
+                .build(),
+        );
 
         let controller = DEFAULT_CONTROLLER_TEST_ID;
         let canister_id = env.create_canister_with_settings(
