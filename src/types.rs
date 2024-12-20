@@ -6,6 +6,7 @@ use crate::memory::get_api_key;
 use crate::util::hostname_from_url;
 use crate::validate::validate_api_key;
 use candid::CandidType;
+use evm_rpc_types::RpcApi;
 use ic_cdk::api::call::RejectionCode;
 use ic_cdk::api::management_canister::http_request::HttpHeader;
 use ic_stable_structures::storable::Bound;
