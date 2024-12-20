@@ -98,7 +98,7 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
         
       - name: Run anvil
-        run: anvil
+        run: anvil &
 
       - name: Run local examples with Foundry
         run: scripts/examples evm_rpc_local 'Number = 0'
