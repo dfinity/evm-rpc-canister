@@ -1,4 +1,4 @@
-use super::{LogFilter, OverrideProvider, RegexString};
+use super::{LogFilter, OverrideProvider, RegexString, RegexSubstitution};
 use ic_stable_structures::Storable;
 use proptest::prelude::{Just, Strategy};
 use proptest::{option, prop_oneof, proptest};
@@ -20,6 +20,13 @@ fn arb_regex() -> impl Strategy<Value = RegexString> {
     ".*".prop_map(|r| RegexString::from(r.as_str()))
 }
 
+fn arb_regex_substitution() -> impl Strategy<Value = RegexSubstitution> {
+    (arb_regex(), ".*").prop_map(|(pattern, replacement)| RegexSubstitution {
+        pattern,
+        replacement,
+    })
+}
+
 fn arb_log_filter() -> impl Strategy<Value = LogFilter> {
     prop_oneof![
         Just(LogFilter::ShowAll),
@@ -30,7 +37,7 @@ fn arb_log_filter() -> impl Strategy<Value = LogFilter> {
 }
 
 fn arb_override_provider() -> impl Strategy<Value = OverrideProvider> {
-    option::of(arb_regex()).prop_map(|override_url| OverrideProvider { override_url })
+    option::of(arb_regex_substitution()).prop_map(|override_url| OverrideProvider { override_url })
 }
 
 fn test_encoding_decoding_roundtrip<T: Storable + PartialEq + Debug>(value: &T) {

@@ -116,10 +116,14 @@ type LogFilter = variant {
   ShowPattern : Regex;
   HidePattern : Regex;
 };
+type RegexSubstitution = record {
+  pattern : Regex;
+  replacement: text;
+};
 // Override resolved provider.
 // Useful for testing with a local Ethereum developer environment such as foundry.
 type OverrideProvider = record {
-  overrideUrl : opt Regex
+  overrideUrl : opt RegexSubstitution
 };
 type JsonRpcError = record { code : int64; message : text };
 type LogEntry = record {

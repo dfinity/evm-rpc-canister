@@ -23,8 +23,14 @@ pub enum LogFilter {
 #[derive(Clone, Debug, Default, PartialEq, Eq, CandidType, Serialize, Deserialize)]
 pub struct OverrideProvider {
     #[serde(rename = "overrideUrl")]
-    pub override_url: Option<RegexString>,
+    pub override_url: Option<RegexSubstitution>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, CandidType, Serialize, Deserialize)]
 pub struct RegexString(pub String);
+
+#[derive(Clone, Debug, PartialEq, Eq, CandidType, Serialize, Deserialize)]
+pub struct RegexSubstitution {
+    pub pattern: RegexString,
+    pub replacement: String,
+}

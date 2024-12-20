@@ -347,6 +347,12 @@ impl RegexString {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RegexSubstitution {
+    pub pattern: RegexString,
+    pub replacement: String,
+}
+
 impl LogFilter {
     pub fn is_match(&self, message: &str) -> bool {
         match self {
@@ -380,7 +386,7 @@ impl Storable for LogFilter {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct OverrideProvider {
-    pub override_url: Option<RegexString>,
+    pub override_url: Option<RegexSubstitution>,
 }
 
 impl From<evm_rpc_types::OverrideProvider> for OverrideProvider {
@@ -388,7 +394,10 @@ impl From<evm_rpc_types::OverrideProvider> for OverrideProvider {
         evm_rpc_types::OverrideProvider { override_url }: evm_rpc_types::OverrideProvider,
     ) -> Self {
         Self {
-            override_url: override_url.map(RegexString::from),
+            override_url: override_url.map(|substitution| RegexSubstitution {
+                pattern: RegexString::from(substitution.pattern),
+                replacement: substitution.replacement,
+            }),
         }
     }
 }
