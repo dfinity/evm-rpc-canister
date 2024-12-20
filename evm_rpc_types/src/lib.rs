@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Display, Formatter};
 use std::str::FromStr;
 
-pub use lifecycle::{InstallArgs, LogFilter, OverrideProvider, RegexString};
+pub use lifecycle::{InstallArgs, LogFilter, OverrideProvider, RegexString, RegexSubstitution};
 pub use request::{
     AccessList, AccessListEntry, BlockTag, CallArgs, FeeHistoryArgs, GetLogsArgs,
     GetTransactionCountArgs, TransactionRequest,

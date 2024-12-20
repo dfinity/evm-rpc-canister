@@ -314,23 +314,32 @@ pub enum LogFilter {
     HidePattern(RegexString),
 }
 
-impl From<evm_rpc_types::LogFilter> for LogFilter {
-    fn from(value: evm_rpc_types::LogFilter) -> Self {
-        match value {
+impl TryFrom<evm_rpc_types::LogFilter> for LogFilter {
+    type Error = regex::Error;
+
+    fn try_from(value: evm_rpc_types::LogFilter) -> Result<Self, Self::Error> {
+        Ok(match value {
             evm_rpc_types::LogFilter::ShowAll => LogFilter::ShowAll,
             evm_rpc_types::LogFilter::HideAll => LogFilter::HideAll,
-            evm_rpc_types::LogFilter::ShowPattern(regex) => LogFilter::ShowPattern(regex.into()),
-            evm_rpc_types::LogFilter::HidePattern(regex) => LogFilter::HidePattern(regex.into()),
-        }
+            evm_rpc_types::LogFilter::ShowPattern(regex) => {
+                LogFilter::ShowPattern(RegexString::try_from(regex)?)
+            }
+            evm_rpc_types::LogFilter::HidePattern(regex) => {
+                LogFilter::HidePattern(RegexString::try_from(regex)?)
+            }
+        })
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct RegexString(String);
 
-impl From<evm_rpc_types::RegexString> for RegexString {
-    fn from(value: evm_rpc_types::RegexString) -> Self {
-        RegexString(value.0)
+impl TryFrom<evm_rpc_types::RegexString> for RegexString {
+    type Error = regex::Error;
+
+    fn try_from(value: evm_rpc_types::RegexString) -> Result<Self, Self::Error> {
+        let ensure_regex_is_valid = Regex::new(&value.0)?;
+        Ok(Self(ensure_regex_is_valid.as_str().to_string()))
     }
 }
 
@@ -351,6 +360,17 @@ impl RegexString {
 pub struct RegexSubstitution {
     pub pattern: RegexString,
     pub replacement: String,
+}
+
+impl TryFrom<evm_rpc_types::RegexSubstitution> for RegexSubstitution {
+    type Error = regex::Error;
+
+    fn try_from(value: evm_rpc_types::RegexSubstitution) -> Result<Self, Self::Error> {
+        Ok(Self {
+            pattern: RegexString::try_from(value.pattern)?,
+            replacement: value.replacement,
+        })
+    }
 }
 
 impl LogFilter {
@@ -389,16 +409,18 @@ pub struct OverrideProvider {
     pub override_url: Option<RegexSubstitution>,
 }
 
-impl From<evm_rpc_types::OverrideProvider> for OverrideProvider {
-    fn from(
+impl TryFrom<evm_rpc_types::OverrideProvider> for OverrideProvider {
+    type Error = regex::Error;
+
+    fn try_from(
         evm_rpc_types::OverrideProvider { override_url }: evm_rpc_types::OverrideProvider,
-    ) -> Self {
-        Self {
-            override_url: override_url.map(|substitution| RegexSubstitution {
-                pattern: RegexString::from(substitution.pattern),
-                replacement: substitution.replacement,
-            }),
-        }
+    ) -> Result<Self, Self::Error> {
+        override_url
+            .map(RegexSubstitution::try_from)
+            .transpose()
+            .map(|substitution| Self {
+                override_url: substitution,
+            })
     }
 }
 
