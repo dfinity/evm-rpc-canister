@@ -40,7 +40,7 @@ jobs:
       - name: Install PocketIC server
         uses: dfinity/pocketic@main
         with:
-          pocket-ic-server-version: "6.0.0"
+          pocket-ic-server-version: "7.0.0"
 
       - uses: Swatinem/rust-cache@v2
 
