@@ -6,7 +6,7 @@ use crate::memory::get_api_key;
 use crate::util::hostname_from_url;
 use crate::validate::validate_api_key;
 use candid::CandidType;
-use evm_rpc_types::RpcApi;
+use evm_rpc_types::{RpcApi, RpcError, ValidationError};
 use ic_cdk::api::call::RejectionCode;
 use ic_cdk::api::management_canister::http_request::HttpHeader;
 use ic_stable_structures::storable::Bound;
@@ -19,16 +19,21 @@ use std::fmt;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 pub enum ResolvedRpcService {
-    Api(evm_rpc_types::RpcApi),
+    Api(RpcApi),
     Provider(Provider),
 }
 
 impl ResolvedRpcService {
-    pub fn api(&self) -> evm_rpc_types::RpcApi {
-        match self {
+    pub fn api(&self, override_provider: &OverrideProvider) -> Result<RpcApi, RpcError> {
+        let initial_api = match self {
             Self::Api(api) => api.clone(),
             Self::Provider(provider) => provider.api(),
-        }
+        };
+        override_provider.apply(initial_api).map_err(|regex_error| {
+            RpcError::ValidationError(ValidationError::Custom(format!(
+                "BUG: regex should have been validated when initially set. Error: {regex_error}"
+            )))
+        })
     }
 }
 
@@ -415,6 +420,34 @@ pub struct OverrideProvider {
     pub override_url: Option<RegexSubstitution>,
 }
 
+impl OverrideProvider {
+    /// Override the resolved provider API (url and headers).
+    ///
+    /// # Limitations
+    ///
+    /// Currently, only the url can be replaced by regular expression. Headers will be reset.
+    ///
+    /// # Security considerations
+    ///
+    /// The resolved provider API may contain sensitive data (such as API keys) that may be extracted
+    /// by using the override mechanism. Since only the controller of the canister can set the override parameters,
+    /// upon canister initialization or upgrade, it's the controller's responsibility to ensure that this is not a problem
+    /// (e.g., if only used for local development).
+    pub fn apply(&self, api: RpcApi) -> Result<RpcApi, regex::Error> {
+        match &self.override_url {
+            None => Ok(api),
+            Some(substitution) => {
+                let regex = substitution.pattern.compile()?;
+                let new_url = regex.replace_all(&api.url, &substitution.replacement);
+                Ok(RpcApi {
+                    url: new_url.to_string(),
+                    headers: None,
+                })
+            }
+        }
+    }
+}
+
 impl TryFrom<evm_rpc_types::OverrideProvider> for OverrideProvider {
     type Error = regex::Error;
 
@@ -442,34 +475,6 @@ impl Storable for OverrideProvider {
     }
 
     const BOUND: Bound = Bound::Unbounded;
-}
-
-impl OverrideProvider {
-    /// Override the resolved provider API (url and headers).
-    ///
-    /// # Limitations
-    ///
-    /// Currently, only the url can be replaced by regular expression. Headers will be reset.
-    ///
-    /// # Security considerations
-    ///
-    /// The resolved provider API may contain sensitive data (such as API keys) that may be extracted
-    /// by using the override mechanism. Since only the controller of the canister can set the override parameters,
-    /// upon canister initialization or upgrade, it's the controller's responsibility to ensure that this is not a problem
-    /// (e.g., if only used for local development).
-    pub fn apply(&self, api: RpcApi) -> Result<RpcApi, regex::Error> {
-        match &self.override_url {
-            None => Ok(api),
-            Some(substitution) => {
-                let regex = substitution.pattern.compile()?;
-                let new_url = regex.replace_all(&api.url, &substitution.replacement);
-                Ok(RpcApi {
-                    url: new_url.to_string(),
-                    headers: None,
-                })
-            }
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

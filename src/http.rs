@@ -1,3 +1,4 @@
+use crate::memory::get_override_provider;
 use crate::{
     accounting::{get_cost_with_collateral, get_http_request_cost},
     add_metric_entry,
@@ -20,7 +21,7 @@ pub async fn json_rpc_request(
     max_response_bytes: u64,
 ) -> RpcResult<HttpResponse> {
     let cycles_cost = get_http_request_cost(json_rpc_payload.len() as u64, max_response_bytes);
-    let api = service.api();
+    let api = service.api(&get_override_provider())?;
     let mut request_headers = api.headers.unwrap_or_default();
     if !request_headers
         .iter()
