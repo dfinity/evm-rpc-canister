@@ -350,9 +350,15 @@ impl From<&str> for RegexString {
 }
 
 impl RegexString {
+    /// Compile the string into a regular expression.
+    ///
+    /// This is a relatively expensive operation that's currently not cached.
+    pub fn compile(&self) -> Result<Regex, regex::Error> {
+        Regex::new(&self.0)
+    }
+
     pub fn try_is_valid(&self, value: &str) -> Result<bool, regex::Error> {
-        // Currently only used in the local replica. This can be optimized if eventually used in production.
-        Ok(Regex::new(&self.0)?.is_match(value))
+        Ok(self.compile()?.is_match(value))
     }
 }
 
@@ -436,6 +442,34 @@ impl Storable for OverrideProvider {
     }
 
     const BOUND: Bound = Bound::Unbounded;
+}
+
+impl OverrideProvider {
+    /// Override the resolved provider API (url and headers).
+    ///
+    /// # Limitations
+    ///
+    /// Currently, only the url can be replaced by regular expression. Headers will be reset.
+    ///
+    /// # Security considerations
+    ///
+    /// The resolved provider API may contain sensitive data (such as API keys) that may be extracted
+    /// by using the override mechanism. Since only the controller of the canister can set the override parameters,
+    /// upon canister initialization or upgrade, it's the controller's responsibility to ensure that this is not a problem
+    /// (e.g., if only used for local development).
+    pub fn apply(&self, api: RpcApi) -> Result<RpcApi, regex::Error> {
+        match &self.override_url {
+            None => Ok(api),
+            Some(substitution) => {
+                let regex = substitution.pattern.compile()?;
+                let new_url = regex.replace_all(&api.url, &substitution.replacement);
+                Ok(RpcApi {
+                    url: new_url.to_string(),
+                    headers: None,
+                })
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

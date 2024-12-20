@@ -45,3 +45,86 @@ fn test_encoding_decoding_roundtrip<T: Storable + PartialEq + Debug>(value: &T) 
     let decoded_value = T::from_bytes(bytes);
     assert_eq!(value, &decoded_value);
 }
+
+mod override_provider {
+    use crate::providers::PROVIDERS;
+    use crate::types::{OverrideProvider, RegexSubstitution};
+    use evm_rpc_types::RpcApi;
+    use ic_cdk::api::management_canister::http_request::HttpHeader;
+
+    #[test]
+    fn should_override_provider_with_localhost() {
+        let override_provider = override_to_localhost();
+        for provider in PROVIDERS {
+            let overriden_provider = override_provider.apply(provider.api());
+            assert_eq!(
+                overriden_provider,
+                Ok(RpcApi {
+                    url: "http://localhost:8545".to_string(),
+                    headers: None
+                })
+            )
+        }
+    }
+
+    #[test]
+    fn should_be_noop_when_empty() {
+        let no_override = OverrideProvider::default();
+        for provider in PROVIDERS {
+            let initial_api = provider.api();
+            let overriden_api = no_override.apply(initial_api.clone());
+            assert_eq!(Ok(initial_api), overriden_api);
+        }
+    }
+
+    #[test]
+    fn should_use_replacement_pattern() {
+        let identity_override = OverrideProvider {
+            override_url: Some(RegexSubstitution {
+                pattern: "(?<url>.*)".into(),
+                replacement: "$url".to_string(),
+            }),
+        };
+        for provider in PROVIDERS {
+            let initial_api = provider.api();
+            let overriden_provider = identity_override.apply(initial_api.clone());
+            assert_eq!(overriden_provider, Ok(initial_api))
+        }
+    }
+
+    #[test]
+    fn should_override_headers() {
+        let identity_override = OverrideProvider {
+            override_url: Some(RegexSubstitution {
+                pattern: "(.*)".into(),
+                replacement: "$1".to_string(),
+            }),
+        };
+        for provider in PROVIDERS {
+            let provider_with_headers = RpcApi {
+                headers: Some(vec![HttpHeader {
+                    name: "key".to_string(),
+                    value: "123".to_string(),
+                }]),
+                ..provider.api()
+            };
+            let overriden_provider = identity_override.apply(provider_with_headers.clone());
+            assert_eq!(
+                overriden_provider,
+                Ok(RpcApi {
+                    url: provider_with_headers.url,
+                    headers: None
+                })
+            )
+        }
+    }
+
+    fn override_to_localhost() -> OverrideProvider {
+        OverrideProvider {
+            override_url: Some(RegexSubstitution {
+                pattern: "^https://.*".into(),
+                replacement: "http://localhost:8545".to_string(),
+            }),
+        }
+    }
+}
