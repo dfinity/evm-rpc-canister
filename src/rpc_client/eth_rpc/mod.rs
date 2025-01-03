@@ -3,7 +3,7 @@
 
 use crate::accounting::get_http_request_cost;
 use crate::logs::{DEBUG, TRACE_HTTP};
-use crate::memory::{get_override_provider, next_request_id};
+use crate::memory::{get_num_subnet_nodes, get_override_provider, next_request_id};
 use crate::providers::resolve_rpc_service;
 use crate::rpc_client::eth_rpc_error::{sanitize_send_raw_transaction_result, Parser};
 use crate::rpc_client::json::requests::JsonRpcRequest;
@@ -284,6 +284,7 @@ async fn http_request(
     effective_response_size_estimate: u64,
 ) -> Result<HttpResponse, RpcError> {
     let cycles_cost = get_http_request_cost(
+        get_num_subnet_nodes(),
         request
             .body
             .as_ref()

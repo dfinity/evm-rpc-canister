@@ -1,15 +1,5 @@
-// HTTP outcall cost calculation
-// See https://internetcomputer.org/docs/current/developer-docs/gas-cost#special-features
+// Constant used in HTTP outcall cost calculation
 pub const INGRESS_OVERHEAD_BYTES: u128 = 100;
-pub const INGRESS_MESSAGE_RECEIVED_COST: u128 = 1_200_000;
-pub const INGRESS_MESSAGE_BYTE_RECEIVED_COST: u128 = 2_000;
-pub const HTTP_OUTCALL_REQUEST_BASE_COST: u128 = 3_000_000;
-pub const HTTP_OUTCALL_REQUEST_PER_NODE_COST: u128 = 60_000;
-pub const HTTP_OUTCALL_REQUEST_COST_PER_BYTE: u128 = 400;
-pub const HTTP_OUTCALL_RESPONSE_COST_PER_BYTE: u128 = 800;
-
-// Additional cost of operating the canister per subnet node
-pub const CANISTER_OVERHEAD: u128 = 1_000_000;
 
 // Cycles which must be passed with each RPC request in case the
 // third-party JSON-RPC prices increase in the future (currently always refunded)

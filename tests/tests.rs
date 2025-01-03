@@ -94,6 +94,7 @@ impl EvmRpcSetup {
     pub fn new() -> Self {
         Self::with_args(InstallArgs {
             demo: Some(true),
+            nodes_in_subnet: Some(13),
             ..Default::default()
         })
     }

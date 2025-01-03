@@ -2,7 +2,7 @@ use crate::{
     accounting::{get_cost_with_collateral, get_http_request_cost},
     add_metric_entry,
     constants::{CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE},
-    memory::{get_override_provider, is_demo_active},
+    memory::{get_num_subnet_nodes, get_override_provider, is_demo_active},
     types::{MetricRpcHost, MetricRpcMethod, ResolvedRpcService},
     util::canonicalize_json,
 };
@@ -19,7 +19,11 @@ pub async fn json_rpc_request(
     json_rpc_payload: &str,
     max_response_bytes: u64,
 ) -> RpcResult<HttpResponse> {
-    let cycles_cost = get_http_request_cost(json_rpc_payload.len() as u64, max_response_bytes);
+    let cycles_cost = get_http_request_cost(
+        get_num_subnet_nodes(),
+        json_rpc_payload.len() as u64,
+        max_response_bytes,
+    );
     let api = service.api(&get_override_provider())?;
     let mut request_headers = api.headers.unwrap_or_default();
     if !request_headers
@@ -70,7 +74,8 @@ pub async fn http_request(
     let rpc_host = MetricRpcHost(host.to_string());
     if !is_demo_active() {
         let cycles_available = ic_cdk::api::call::msg_cycles_available128();
-        let cycles_cost_with_collateral = get_cost_with_collateral(cycles_cost);
+        let cycles_cost_with_collateral =
+            get_cost_with_collateral(get_num_subnet_nodes(), cycles_cost);
         if cycles_available < cycles_cost_with_collateral {
             return Err(ProviderError::TooFewCycles {
                 expected: cycles_cost_with_collateral,
