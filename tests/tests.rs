@@ -22,7 +22,7 @@ use ic_test_utilities_load_wasm::load_wasm;
 use maplit::hashmap;
 use mock::{MockOutcall, MockOutcallBuilder};
 use pocket_ic::common::rest::{CanisterHttpMethod, MockCanisterHttpResponse, RawMessageId};
-use pocket_ic::{CanisterSettings, PocketIc, WasmResult};
+use pocket_ic::{management_canister::CanisterSettings, PocketIc, WasmResult};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
