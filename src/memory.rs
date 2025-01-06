@@ -115,7 +115,7 @@ pub fn next_request_id() -> u64 {
 }
 
 pub fn get_num_subnet_nodes() -> u32 {
-    NUM_SUBNET_NODES.with_borrow(|nodes| nodes.get().clone())
+    NUM_SUBNET_NODES.with_borrow(|state| *state.get())
 }
 
 pub fn set_num_subnet_nodes(nodes: u32) {
