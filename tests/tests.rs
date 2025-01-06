@@ -1784,10 +1784,10 @@ fn should_prevent_unknown_provider_update_api_keys() {
 }
 
 #[test]
-fn should_get_notes_in_subnet() {
+fn should_get_nodes_in_subnet() {
     let setup = EvmRpcSetup::new();
     let nodes_in_subnet = setup.get_nodes_in_subnet();
-    assert_eq!(nodes_in_subnet, 34);
+    assert_eq!(nodes_in_subnet, 13);
 }
 
 #[test]
