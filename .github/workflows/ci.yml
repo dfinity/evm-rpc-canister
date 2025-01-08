@@ -48,7 +48,7 @@ jobs:
         uses: arduino/setup-protoc@v3
 
       - name: Cargo test
-        run: unset CI && cargo test
+        run: unset CI && cargo test -- --show-output --nocapture
 
   docker-build:
     runs-on: ubuntu-latest
