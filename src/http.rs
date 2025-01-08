@@ -1,9 +1,8 @@
-use crate::memory::get_override_provider;
 use crate::{
     accounting::{get_cost_with_collateral, get_http_request_cost},
     add_metric_entry,
     constants::{CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE},
-    memory::is_demo_active,
+    memory::{get_override_provider, is_demo_active},
     types::{MetricRpcHost, MetricRpcMethod, ResolvedRpcService},
     util::canonicalize_json,
 };
