@@ -48,7 +48,7 @@ jobs:
         uses: arduino/setup-protoc@v3
 
       - name: Cargo test
-        run: unset CI && cargo test -- --test-threads=1
+        run: unset CI && cargo test -- --test-threads=2
 
   docker-build:
     runs-on: ubuntu-latest
