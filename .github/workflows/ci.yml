@@ -40,7 +40,7 @@ jobs:
       - name: Install PocketIC server
         uses: dfinity/pocketic@main
         with:
-          pocket-ic-server-version: "6.0.0"
+          pocket-ic-server-version: "7.0.0"
 
       - uses: Swatinem/rust-cache@v2
 
@@ -48,7 +48,7 @@ jobs:
         uses: arduino/setup-protoc@v3
 
       - name: Cargo test
-        run: unset CI && cargo test
+        run: unset CI && cargo test -- --test-threads=2
 
   docker-build:
     runs-on: ubuntu-latest
