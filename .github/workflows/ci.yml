@@ -92,7 +92,16 @@ jobs:
         run: scripts/e2e
 
       - name: Run examples
-        run: scripts/examples
+        run: scripts/examples evm_rpc 'Number = 20000000'
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Run anvil
+        run: anvil &
+
+      - name: Run local examples with Foundry
+        run: scripts/examples evm_rpc_local 'Number = 0'
       
       - name: Check formatting
         run: cargo fmt --all -- --check

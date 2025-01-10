@@ -91,9 +91,8 @@ impl Default for EvmRpcSetup {
 impl EvmRpcSetup {
     pub fn new() -> Self {
         Self::with_args(InstallArgs {
-            manage_api_keys: None,
             demo: Some(true),
-            log_filter: None,
+            ..Default::default()
         })
     }
 

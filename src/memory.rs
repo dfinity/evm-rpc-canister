@@ -7,12 +7,13 @@ use ic_stable_structures::{
 use ic_stable_structures::{Cell, StableBTreeMap};
 use std::cell::RefCell;
 
-use crate::types::{ApiKey, LogFilter, Metrics, ProviderId};
+use crate::types::{ApiKey, LogFilter, Metrics, OverrideProvider, ProviderId};
 
 const IS_DEMO_ACTIVE_MEMORY_ID: MemoryId = MemoryId::new(4);
 const API_KEY_MAP_MEMORY_ID: MemoryId = MemoryId::new(5);
 const MANAGE_API_KEYS_MEMORY_ID: MemoryId = MemoryId::new(6);
 const LOG_FILTER_MEMORY_ID: MemoryId = MemoryId::new(7);
+const OVERRIDE_PROVIDER_MEMORY_ID: MemoryId = MemoryId::new(8);
 
 type StableMemory = VirtualMemory<DefaultMemoryImpl>;
 
@@ -31,7 +32,9 @@ thread_local! {
     static MANAGE_API_KEYS: RefCell<ic_stable_structures::Vec<Principal, StableMemory>> =
         RefCell::new(ic_stable_structures::Vec::init(MEMORY_MANAGER.with_borrow(|m| m.get(MANAGE_API_KEYS_MEMORY_ID))).expect("Unable to read API key principals from stable memory"));
     static LOG_FILTER: RefCell<Cell<LogFilter, StableMemory>> =
-        RefCell::new(ic_stable_structures::Cell::init(MEMORY_MANAGER.with_borrow(|m| m.get(LOG_FILTER_MEMORY_ID)), LogFilter::default()).expect("Unable to read log message filter from stable memory"));
+        RefCell::new(Cell::init(MEMORY_MANAGER.with_borrow(|m| m.get(LOG_FILTER_MEMORY_ID)), LogFilter::default()).expect("Unable to read log message filter from stable memory"));
+    static OVERRIDE_PROVIDER: RefCell<Cell<OverrideProvider, StableMemory>> =
+        RefCell::new(Cell::init(MEMORY_MANAGER.with_borrow(|m| m.get(OVERRIDE_PROVIDER_MEMORY_ID)), OverrideProvider::default()).expect("Unable to read provider override from stable memory"));
 }
 
 pub fn get_api_key(provider_id: ProviderId) -> Option<ApiKey> {
@@ -83,6 +86,18 @@ pub fn set_log_filter(filter: LogFilter) {
         state
             .set(filter)
             .expect("Error while updating log message filter")
+    });
+}
+
+pub fn get_override_provider() -> OverrideProvider {
+    OVERRIDE_PROVIDER.with_borrow(|provider| provider.get().clone())
+}
+
+pub fn set_override_provider(provider: OverrideProvider) {
+    OVERRIDE_PROVIDER.with_borrow_mut(|state| {
+        state
+            .set(provider)
+            .expect("Error while updating override provider")
     });
 }
 

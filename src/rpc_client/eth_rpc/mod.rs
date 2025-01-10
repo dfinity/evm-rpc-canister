@@ -3,7 +3,7 @@
 
 use crate::accounting::get_http_request_cost;
 use crate::logs::{DEBUG, TRACE_HTTP};
-use crate::memory::next_request_id;
+use crate::memory::{get_override_provider, next_request_id};
 use crate::providers::resolve_rpc_service;
 use crate::rpc_client::eth_rpc_error::{sanitize_send_raw_transaction_result, Parser};
 use crate::rpc_client::json::requests::JsonRpcRequest;
@@ -11,9 +11,9 @@ use crate::rpc_client::json::responses::{
     Block, FeeHistory, JsonRpcReply, JsonRpcResult, LogEntry, TransactionReceipt,
 };
 use crate::rpc_client::numeric::{TransactionCount, Wei};
-use crate::types::MetricRpcMethod;
+use crate::types::{MetricRpcMethod, OverrideProvider};
 use candid::candid_method;
-use evm_rpc_types::{HttpOutcallError, ProviderError, RpcApi, RpcError, RpcService};
+use evm_rpc_types::{HttpOutcallError, RpcApi, RpcError, RpcService};
 use ic_canister_log::log;
 use ic_cdk::api::call::RejectionCode;
 use ic_cdk::api::management_canister::http_request::{
@@ -181,7 +181,7 @@ where
         method: eth_method.clone(),
         id: 1,
     };
-    let api = resolve_api(provider)?;
+    let api = resolve_api(provider, &get_override_provider())?;
     let url = &api.url;
     let mut headers = vec![HttpHeader {
         name: "Content-Type".to_string(),
@@ -221,9 +221,7 @@ where
             )),
         };
 
-        let response = match http_request(provider, &eth_method, request, effective_size_estimate)
-            .await
-        {
+        let response = match http_request(&eth_method, request, effective_size_estimate).await {
             Err(RpcError::HttpOutcallError(HttpOutcallError::IcError { code, message }))
                 if is_response_too_large(&code, &message) =>
             {
@@ -273,17 +271,18 @@ where
     }
 }
 
-fn resolve_api(service: &RpcService) -> Result<RpcApi, ProviderError> {
-    Ok(resolve_rpc_service(service.clone())?.api())
+fn resolve_api(
+    service: &RpcService,
+    override_provider: &OverrideProvider,
+) -> Result<RpcApi, RpcError> {
+    resolve_rpc_service(service.clone())?.api(override_provider)
 }
 
 async fn http_request(
-    service: &RpcService,
     method: &str,
     request: CanisterHttpRequestArgument,
     effective_response_size_estimate: u64,
 ) -> Result<HttpResponse, RpcError> {
-    let service = resolve_rpc_service(service.clone())?;
     let cycles_cost = get_http_request_cost(
         request
             .body
@@ -293,7 +292,7 @@ async fn http_request(
         effective_response_size_estimate,
     );
     let rpc_method = MetricRpcMethod(method.to_string());
-    crate::http::http_request(rpc_method, service, request, cycles_cost).await
+    crate::http::http_request(rpc_method, request, cycles_cost).await
 }
 
 fn http_status_code(response: &HttpResponse) -> u16 {

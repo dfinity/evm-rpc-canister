@@ -24,6 +24,13 @@
       "gzip": true,
       "init_arg": "(record {demo = opt true})"
     },
+    "evm_rpc_local": {
+      "candid": "candid/evm_rpc.did",
+      "type": "rust",
+      "package": "evm_rpc",
+      "gzip": true,
+      "init_arg": "( record {  overrideProvider = opt record { overrideUrl = opt record { pattern = \".*\"; replacement = \"http://127.0.0.1:8545\" } } })"
+    },
     "evm_rpc_staging": {
       "candid": "candid/evm_rpc.did",
       "type": "rust",

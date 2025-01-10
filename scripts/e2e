@@ -4,6 +4,7 @@
     dfx canister create --all &&
     npm run generate &&
     dfx deploy evm_rpc --mode reinstall -y &&
+    dfx deploy evm_rpc_local --mode reinstall -y &&
     dfx deploy evm_rpc_demo --mode reinstall -y &&
     dfx deploy evm_rpc_staging --mode reinstall -y &&
     dfx deploy e2e_rust &&
