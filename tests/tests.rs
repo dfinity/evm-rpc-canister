@@ -23,7 +23,8 @@ use maplit::hashmap;
 use mock::{MockOutcall, MockOutcallBuilder};
 use pocket_ic::common::rest::{CanisterHttpMethod, MockCanisterHttpResponse, RawMessageId};
 use pocket_ic::{
-    management_canister::CanisterSettings, CallError, ErrorCode, PocketIc, UserError, WasmResult,
+    management_canister::CanisterSettings, CallError, ErrorCode, PocketIc, PocketIcBuilder,
+    UserError, WasmResult,
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::json;
@@ -94,13 +95,18 @@ impl EvmRpcSetup {
     pub fn new() -> Self {
         Self::with_args(InstallArgs {
             demo: Some(true),
-            nodes_in_subnet: Some(13),
+            nodes_in_subnet: Some(34),
             ..Default::default()
         })
     }
 
     pub fn with_args(args: InstallArgs) -> Self {
-        let env = Arc::new(PocketIc::new());
+        // The `with_fiduciary_subnet` setup below requires that `nodes_in_subnet`
+        // setting (part of InstallArgs) to be set appropriately. Otherwise
+        // http outcall will fail due to insufficient cycles, even when `demo` is
+        // enabled (which is the default above).
+        let pocket_ic = PocketIcBuilder::new().with_fiduciary_subnet().build();
+        let env = Arc::new(pocket_ic);
 
         let controller = DEFAULT_CONTROLLER_TEST_ID;
         let canister_id = env.create_canister_with_settings(
@@ -1044,6 +1050,38 @@ fn candid_rpc_should_err_without_cycles() {
 }
 
 #[test]
+fn candid_rpc_should_err_with_insufficient_cycles() {
+    let setup = EvmRpcSetup::with_args(InstallArgs {
+        demo: Some(true),
+        nodes_in_subnet: Some(33),
+        ..Default::default()
+    })
+    .mock_api_keys();
+    let mut result = setup
+        .eth_get_transaction_receipt(
+            RpcServices::EthMainnet(None),
+            None,
+            "0xdd5d4b18923d7aae953c7996d791118102e889bea37b48a651157a4890e4746f",
+        )
+        .wait()
+        .expect_inconsistent();
+    let regex = regex::Regex::new(
+        "http_request request sent with [0-9_]+ cycles, but [0-9_]+ cycles are required.",
+    )
+    .unwrap();
+    assert_matches!(
+        result.pop().unwrap(),
+        (
+            RpcService::EthMainnet(EthMainnetService::Cloudflare),
+            Err(RpcError::HttpOutcallError(HttpOutcallError::IcError {
+                code: RejectionCode::CanisterReject,
+                message
+            }))
+        ) if regex.is_match(&message)
+    );
+}
+
+#[test]
 fn candid_rpc_should_err_when_service_unavailable() {
     let setup = EvmRpcSetup::new().mock_api_keys();
     let result = setup
@@ -1787,7 +1825,7 @@ fn should_prevent_unknown_provider_update_api_keys() {
 fn should_get_nodes_in_subnet() {
     let setup = EvmRpcSetup::new();
     let nodes_in_subnet = setup.get_nodes_in_subnet();
-    assert_eq!(nodes_in_subnet, 13);
+    assert_eq!(nodes_in_subnet, 34);
 }
 
 #[test]
