@@ -65,7 +65,7 @@ jobs:
         with:
           name: evm_rpc.wasm.gz
       
-      - name: Set EVM_RPC_WASM_PATH
+      - name: Set EVM_RPC_WASM_PATH for load_wasm
         run: |
           echo "EVM_RPC_WASM_PATH=$GITHUB_WORKSPACE/evm_rpc.wasm.gz" >> "$GITHUB_ENV"
  
