@@ -32,7 +32,7 @@ jobs:
           cargo clippy --tests --benches -- -D clippy::all -D warnings -A clippy::manual_range_contains
 
   cargo-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
         uses: actions/checkout@master
@@ -48,10 +48,10 @@ jobs:
         uses: arduino/setup-protoc@v3
 
       - name: Cargo test
-        run: unset CI && cargo test -- --test-threads=2
+        run: cargo test -- --test-threads=2 --nocapture
 
-  docker-build:
-    runs-on: ubuntu-latest
+  reproducible-build:
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
         uses: actions/checkout@master
