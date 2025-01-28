@@ -95,7 +95,6 @@ impl EvmRpcSetup {
     pub fn new() -> Self {
         Self::with_args(InstallArgs {
             demo: Some(true),
-            nodes_in_subnet: Some(34),
             ..Default::default()
         })
     }
@@ -105,6 +104,9 @@ impl EvmRpcSetup {
         // setting (part of InstallArgs) to be set appropriately. Otherwise
         // http outcall will fail due to insufficient cycles, even when `demo` is
         // enabled (which is the default above).
+        //
+        // As of writing, the default value of `nodes_in_subnet` is 34, which is
+        // also the node count in fiduciary subnet.
         let pocket_ic = PocketIcBuilder::new().with_fiduciary_subnet().build();
         let env = Arc::new(pocket_ic);
 
@@ -1079,6 +1081,24 @@ fn candid_rpc_should_err_with_insufficient_cycles() {
             }))
         ) if regex.is_match(&message)
     );
+
+    // Same request should succeed after upgrade to the expected node count
+    setup.upgrade_canister(InstallArgs {
+        nodes_in_subnet: Some(34),
+        ..Default::default()
+    });
+
+    let result = setup
+        .eth_get_transaction_receipt(
+            RpcServices::EthMainnet(None),
+            None,
+            "0xdd5d4b18923d7aae953c7996d791118102e889bea37b48a651157a4890e4746f",
+        )
+        .mock_http(MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":2,"result":{"blockHash":"0x5115c07eb1f20a9d6410db0916ed3df626cfdab161d3904f45c8c8b65c90d0be","blockNumber":"0x11a85ab","contractAddress":null,"cumulativeGasUsed":"0xf02aed","effectiveGasPrice":"0x63c00ee76","from":"0x0aa8ebb6ad5a8e499e550ae2c461197624c6e667","gasUsed":"0x7d89","logs":[],"logsBloom":"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","status":"0x1","to":"0x356cfd6e6d0000400000003900b415f80669009e","transactionHash":"0xdd5d4b18923d7aae953c7996d791118102e889bea37b48a651157a4890e4746f","transactionIndex":"0xd9","type":"0x2"}}"#))
+        .wait()
+        .expect_consistent()
+        .unwrap();
+    assert_matches!(result, Some(evm_rpc_types::TransactionReceipt { .. }));
 }
 
 #[test]

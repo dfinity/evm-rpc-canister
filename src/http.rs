@@ -1,7 +1,7 @@
 use crate::{
     accounting::{get_cost_with_collateral, get_http_request_cost},
     add_metric_entry,
-    constants::{CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE},
+    constants::{CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE, DEFAULT_MAX_RESPONSE_BYTES},
     memory::{get_num_subnet_nodes, get_override_provider, is_demo_active},
     types::{MetricRpcHost, MetricRpcMethod, ResolvedRpcService},
     util::canonicalize_json,
@@ -19,11 +19,6 @@ pub async fn json_rpc_request(
     json_rpc_payload: &str,
     max_response_bytes: u64,
 ) -> RpcResult<HttpResponse> {
-    let cycles_cost = get_http_request_cost(
-        get_num_subnet_nodes(),
-        json_rpc_payload.len() as u64,
-        max_response_bytes,
-    );
     let api = service.api(&get_override_provider())?;
     let mut request_headers = api.headers.unwrap_or_default();
     if !request_headers
@@ -46,14 +41,24 @@ pub async fn json_rpc_request(
             vec![],
         )),
     };
-    http_request(rpc_method, request, cycles_cost).await
+    http_request(rpc_method, request).await
 }
 
 pub async fn http_request(
     rpc_method: MetricRpcMethod,
     request: CanisterHttpRequestArgument,
-    cycles_cost: u128,
 ) -> RpcResult<HttpResponse> {
+    let cycles_cost = get_http_request_cost(
+        get_num_subnet_nodes(),
+        request
+            .body
+            .as_ref()
+            .map(|body| body.len())
+            .unwrap_or_default() as u64,
+        request
+            .max_response_bytes
+            .unwrap_or(DEFAULT_MAX_RESPONSE_BYTES),
+    );
     let url = request.url.clone();
     let parsed_url = match url::Url::parse(&url) {
         Ok(url) => url,

@@ -1,6 +1,10 @@
 // Constant used in HTTP outcall cost calculation
 pub const INGRESS_OVERHEAD_BYTES: u128 = 100;
 
+// The default value of max_resposne_bytes is 2MiB, according to
+// https://docs.rs/ic-cdk/latest/ic_cdk/api/management_canister/http_request/struct.CanisterHttpRequestArgument.html
+pub const DEFAULT_MAX_RESPONSE_BYTES: u64 = 2 * (1 << 20);
+
 // Cycles which must be passed with each RPC request in case the
 // third-party JSON-RPC prices increase in the future (currently always refunded)
 pub const COLLATERAL_CYCLES_PER_NODE: u128 = 10_000_000;

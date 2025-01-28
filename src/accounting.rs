@@ -8,13 +8,21 @@ pub fn get_http_request_cost(
     max_response_bytes: u64,
 ) -> u128 {
     let n = nodes_in_subnet as u128;
-    let ingress_bytes =
+    let request_bytes =
         payload_size_bytes as u128 + RPC_URL_COST_BYTES as u128 + INGRESS_OVERHEAD_BYTES;
-    let response_bytes = max_response_bytes as u128;
-    let base_fee = (3_000_000 + 60_000 * n) * n;
-    let request_fee = 400 * n * ingress_bytes;
-    let response_fee = 800 * n * response_bytes;
-    base_fee + request_fee + response_fee
+    base_fee(n) + request_fee(n, request_bytes) + response_fee(n, max_response_bytes as u128)
+}
+
+fn base_fee(nodes: u128) -> u128 {
+    (3_000_000 + 60_000 * nodes) * nodes
+}
+
+fn request_fee(nodes: u128, bytes: u128) -> u128 {
+    400 * nodes * bytes
+}
+
+fn response_fee(nodes: u128, bytes: u128) -> u128 {
+    800 * nodes * bytes
 }
 
 /// Calculate the cost + collateral cycles for an HTTP request.
@@ -35,6 +43,19 @@ mod test {
             get_http_request_cost(nodes_in_subnet, payload.len() as u64 + 10, 1000);
         let estimated_cost_10_extra_bytes = base_cost + 400 * nodes_in_subnet as u128 * 10;
         assert_eq!(base_cost_10_extra_bytes, estimated_cost_10_extra_bytes);
+    }
+
+    #[test]
+    fn test_http_request_fee_components() {
+        // Assert the calculation matches the cost table at
+        // https://internetcomputer.org/docs/current/developer-docs/gas-cost#cycles-price-breakdown
+        assert_eq!(base_fee(13), 49_140_000);
+        assert_eq!(request_fee(13, 1), 5_200);
+        assert_eq!(response_fee(13, 1), 10_400);
+
+        assert_eq!(base_fee(34), 171_360_000);
+        assert_eq!(request_fee(34, 1), 13_600);
+        assert_eq!(response_fee(34, 1), 27_200);
     }
 
     #[test]
