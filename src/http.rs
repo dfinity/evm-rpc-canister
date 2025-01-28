@@ -2,7 +2,7 @@ use crate::{
     accounting::{get_cost_with_collateral, get_http_request_cost},
     add_metric_entry,
     constants::{CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE},
-    memory::is_demo_active,
+    memory::{get_override_provider, is_demo_active},
     types::{MetricRpcHost, MetricRpcMethod, ResolvedRpcService},
     util::canonicalize_json,
 };
@@ -20,7 +20,7 @@ pub async fn json_rpc_request(
     max_response_bytes: u64,
 ) -> RpcResult<HttpResponse> {
     let cycles_cost = get_http_request_cost(json_rpc_payload.len() as u64, max_response_bytes);
-    let api = service.api();
+    let api = service.api(&get_override_provider())?;
     let mut request_headers = api.headers.unwrap_or_default();
     if !request_headers
         .iter()
@@ -42,20 +42,19 @@ pub async fn json_rpc_request(
             vec![],
         )),
     };
-    http_request(rpc_method, service, request, cycles_cost).await
+    http_request(rpc_method, request, cycles_cost).await
 }
 
 pub async fn http_request(
     rpc_method: MetricRpcMethod,
-    service: ResolvedRpcService,
     request: CanisterHttpRequestArgument,
     cycles_cost: u128,
 ) -> RpcResult<HttpResponse> {
-    let api = service.api();
-    let parsed_url = match url::Url::parse(&api.url) {
+    let url = request.url.clone();
+    let parsed_url = match url::Url::parse(&url) {
         Ok(url) => url,
         Err(_) => {
-            return Err(ValidationError::Custom(format!("Error parsing URL: {}", api.url)).into())
+            return Err(ValidationError::Custom(format!("Error parsing URL: {}", url)).into())
         }
     };
     let host = match parsed_url.host_str() {
@@ -63,7 +62,7 @@ pub async fn http_request(
         None => {
             return Err(ValidationError::Custom(format!(
                 "Error parsing hostname from URL: {}",
-                api.url
+                url
             ))
             .into())
         }

@@ -31,27 +31,8 @@ jobs:
           cargo clippy -- -D clippy::all -D warnings -A clippy::manual_range_contains
           cargo clippy --tests --benches -- -D clippy::all -D warnings -A clippy::manual_range_contains
 
-  cargo-test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@master
-
-      - name: Install PocketIC server
-        uses: dfinity/pocketic@main
-        with:
-          pocket-ic-server-version: "7.0.0"
-
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-
-      - name: Cargo test
-        run: unset CI && cargo test -- --test-threads=2
-
-  docker-build:
-    runs-on: ubuntu-latest
+  reproducible-build:
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
         uses: actions/checkout@master
@@ -65,11 +46,41 @@ jobs:
         with:
           name: evm_rpc.wasm.gz
           path: evm_rpc.wasm.gz
+          if-no-files-found: error
 
       - name: Add summary
         run: |
           hash=`sha256sum evm_rpc.wasm.gz`
           echo "SHA-256 :hash: ${hash}" >> $GITHUB_STEP_SUMMARY
+
+  cargo-test:
+    needs: [ reproducible-build ]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@master
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: evm_rpc.wasm.gz
+      
+      - name: Set EVM_RPC_WASM_PATH for load_wasm
+        run: |
+          echo "EVM_RPC_WASM_PATH=$GITHUB_WORKSPACE/evm_rpc.wasm.gz" >> "$GITHUB_ENV"
+ 
+      - name: Install PocketIC server
+        uses: dfinity/pocketic@main
+        with:
+          pocket-ic-server-version: "7.0.0"
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+
+      - name: Cargo test
+        run: cargo test -- --test-threads=2 --nocapture
 
   e2e:
     runs-on: ubuntu-latest
@@ -92,7 +103,16 @@ jobs:
         run: scripts/e2e
 
       - name: Run examples
-        run: scripts/examples
-      
+        run: scripts/examples evm_rpc 'Number = 20000000'
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Run anvil
+        run: anvil &
+
+      - name: Run local examples with Foundry
+        run: scripts/examples evm_rpc_local 'Number = 0'
+
       - name: Check formatting
         run: cargo fmt --all -- --check

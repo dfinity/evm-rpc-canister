@@ -1,8 +1,12 @@
+#[cfg(test)]
+mod tests;
+
 use crate::constants::{API_KEY_MAX_SIZE, API_KEY_REPLACE_STRING, MESSAGE_FILTER_MAX_SIZE};
 use crate::memory::get_api_key;
 use crate::util::hostname_from_url;
 use crate::validate::validate_api_key;
 use candid::CandidType;
+use evm_rpc_types::{RpcApi, RpcError, ValidationError};
 use ic_cdk::api::call::RejectionCode;
 use ic_cdk::api::management_canister::http_request::HttpHeader;
 use ic_stable_structures::storable::Bound;
@@ -15,16 +19,21 @@ use std::fmt;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 pub enum ResolvedRpcService {
-    Api(evm_rpc_types::RpcApi),
+    Api(RpcApi),
     Provider(Provider),
 }
 
 impl ResolvedRpcService {
-    pub fn api(&self) -> evm_rpc_types::RpcApi {
-        match self {
+    pub fn api(&self, override_provider: &OverrideProvider) -> Result<RpcApi, RpcError> {
+        let initial_api = match self {
             Self::Api(api) => api.clone(),
             Self::Provider(provider) => provider.api(),
-        }
+        };
+        override_provider.apply(initial_api).map_err(|regex_error| {
+            RpcError::ValidationError(ValidationError::Custom(format!(
+                "BUG: regex should have been validated when initially set. Error: {regex_error}"
+            )))
+        })
     }
 }
 
@@ -310,23 +319,32 @@ pub enum LogFilter {
     HidePattern(RegexString),
 }
 
-impl From<evm_rpc_types::LogFilter> for LogFilter {
-    fn from(value: evm_rpc_types::LogFilter) -> Self {
-        match value {
+impl TryFrom<evm_rpc_types::LogFilter> for LogFilter {
+    type Error = regex::Error;
+
+    fn try_from(value: evm_rpc_types::LogFilter) -> Result<Self, Self::Error> {
+        Ok(match value {
             evm_rpc_types::LogFilter::ShowAll => LogFilter::ShowAll,
             evm_rpc_types::LogFilter::HideAll => LogFilter::HideAll,
-            evm_rpc_types::LogFilter::ShowPattern(regex) => LogFilter::ShowPattern(regex.into()),
-            evm_rpc_types::LogFilter::HidePattern(regex) => LogFilter::HidePattern(regex.into()),
-        }
+            evm_rpc_types::LogFilter::ShowPattern(regex) => {
+                LogFilter::ShowPattern(RegexString::try_from(regex)?)
+            }
+            evm_rpc_types::LogFilter::HidePattern(regex) => {
+                LogFilter::HidePattern(RegexString::try_from(regex)?)
+            }
+        })
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct RegexString(String);
 
-impl From<evm_rpc_types::RegexString> for RegexString {
-    fn from(value: evm_rpc_types::RegexString) -> Self {
-        RegexString(value.0)
+impl TryFrom<evm_rpc_types::RegexString> for RegexString {
+    type Error = regex::Error;
+
+    fn try_from(value: evm_rpc_types::RegexString) -> Result<Self, Self::Error> {
+        let ensure_regex_is_valid = Regex::new(&value.0)?;
+        Ok(Self(ensure_regex_is_valid.as_str().to_string()))
     }
 }
 
@@ -337,9 +355,32 @@ impl From<&str> for RegexString {
 }
 
 impl RegexString {
+    /// Compile the string into a regular expression.
+    ///
+    /// This is a relatively expensive operation that's currently not cached.
+    pub fn compile(&self) -> Result<Regex, regex::Error> {
+        Regex::new(&self.0)
+    }
+
     pub fn try_is_valid(&self, value: &str) -> Result<bool, regex::Error> {
-        // Currently only used in the local replica. This can be optimized if eventually used in production.
-        Ok(Regex::new(&self.0)?.is_match(value))
+        Ok(self.compile()?.is_match(value))
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RegexSubstitution {
+    pub pattern: RegexString,
+    pub replacement: String,
+}
+
+impl TryFrom<evm_rpc_types::RegexSubstitution> for RegexSubstitution {
+    type Error = regex::Error;
+
+    fn try_from(value: evm_rpc_types::RegexSubstitution) -> Result<Self, Self::Error> {
+        Ok(Self {
+            pattern: RegexString::try_from(value.pattern)?,
+            replacement: value.replacement,
+        })
     }
 }
 
@@ -374,6 +415,68 @@ impl Storable for LogFilter {
     };
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct OverrideProvider {
+    pub override_url: Option<RegexSubstitution>,
+}
+
+impl OverrideProvider {
+    /// Override the resolved provider API (url and headers).
+    ///
+    /// # Limitations
+    ///
+    /// Currently, only the url can be replaced by regular expression. Headers will be reset.
+    ///
+    /// # Security considerations
+    ///
+    /// The resolved provider API may contain sensitive data (such as API keys) that may be extracted
+    /// by using the override mechanism. Since only the controller of the canister can set the override parameters,
+    /// upon canister initialization or upgrade, it's the controller's responsibility to ensure that this is not a problem
+    /// (e.g., if only used for local development).
+    pub fn apply(&self, api: RpcApi) -> Result<RpcApi, regex::Error> {
+        match &self.override_url {
+            None => Ok(api),
+            Some(substitution) => {
+                let regex = substitution.pattern.compile()?;
+                let new_url = regex.replace_all(&api.url, &substitution.replacement);
+                Ok(RpcApi {
+                    url: new_url.to_string(),
+                    headers: None,
+                })
+            }
+        }
+    }
+}
+
+impl TryFrom<evm_rpc_types::OverrideProvider> for OverrideProvider {
+    type Error = regex::Error;
+
+    fn try_from(
+        evm_rpc_types::OverrideProvider { override_url }: evm_rpc_types::OverrideProvider,
+    ) -> Result<Self, Self::Error> {
+        override_url
+            .map(RegexSubstitution::try_from)
+            .transpose()
+            .map(|substitution| Self {
+                override_url: substitution,
+            })
+    }
+}
+
+impl Storable for OverrideProvider {
+    fn to_bytes(&self) -> Cow<[u8]> {
+        serde_json::to_vec(self)
+            .expect("Error while serializing `OverrideProvider`")
+            .into()
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        serde_json::from_slice(&bytes).expect("Error while deserializing `Storable`")
+    }
+
+    const BOUND: Bound = Bound::Unbounded;
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RpcAuth {
     /// API key will be used in an Authorization header as Bearer token, e.g.,
@@ -384,46 +487,4 @@ pub enum RpcAuth {
     UrlParameter {
         url_pattern: &'static str,
     },
-}
-
-#[cfg(test)]
-mod test {
-    use super::{LogFilter, RegexString};
-    use ic_stable_structures::Storable;
-
-    #[test]
-    fn test_message_filter_storable() {
-        let patterns: &[RegexString] =
-            &["[.]", "^DEBUG ", "(.*)?", "\\?"].map(|regex| regex.into());
-        let cases = [
-            vec![
-                (LogFilter::ShowAll, r#""ShowAll""#.to_string()),
-                (LogFilter::HideAll, r#""HideAll""#.to_string()),
-            ],
-            patterns
-                .iter()
-                .map(|regex| {
-                    (
-                        LogFilter::ShowPattern(regex.clone()),
-                        format!(r#"{{"ShowPattern":{:?}}}"#, regex.0),
-                    )
-                })
-                .collect(),
-            patterns
-                .iter()
-                .map(|regex| {
-                    (
-                        LogFilter::HidePattern(regex.clone()),
-                        format!(r#"{{"HidePattern":{:?}}}"#, regex.0),
-                    )
-                })
-                .collect(),
-        ]
-        .concat();
-        for (filter, expected_json) in cases {
-            let bytes = filter.to_bytes();
-            assert_eq!(String::from_utf8(bytes.to_vec()).unwrap(), expected_json);
-            assert_eq!(filter, LogFilter::from_bytes(bytes));
-        }
-    }
 }

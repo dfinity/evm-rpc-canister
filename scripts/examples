@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 # Run a variety of example RPC calls.
 
+CANISTER_ID=${1:-evm_rpc}
+# Use concrete block height to avoid flakiness on CI
+BLOCK_HEIGHT=${2:-'Number = 20000000'}
+
 NETWORK=local
 IDENTITY=default
-CANISTER_ID=evm_rpc
 CYCLES=10000000000
 WALLET=$(dfx identity get-wallet --network=$NETWORK --identity=$IDENTITY)
 RPC_SERVICE="EthMainnet=variant {PublicNode}"
 RPC_SERVICES=EthMainnet
 RPC_CONFIG="opt record {responseConsensus = opt variant {Threshold = record {total = opt (3 : nat8); min = 2 : nat8}}}"
-# Use concrete block height to avoid flakiness on CI
-BLOCK_HEIGHT="Number = 20000000"
 
 FLAGS="--network=$NETWORK --identity=$IDENTITY --with-cycles=$CYCLES --wallet=$WALLET"
 
