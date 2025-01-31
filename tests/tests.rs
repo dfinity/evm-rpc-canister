@@ -22,7 +22,9 @@ use ic_test_utilities_load_wasm::load_wasm;
 use maplit::hashmap;
 use mock::{MockOutcall, MockOutcallBuilder};
 use pocket_ic::common::rest::{CanisterHttpMethod, MockCanisterHttpResponse, RawMessageId};
-use pocket_ic::{management_canister::CanisterSettings, PocketIc, WasmResult};
+use pocket_ic::{
+    management_canister::CanisterSettings, CallError, ErrorCode, PocketIc, UserError, WasmResult,
+};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
@@ -126,18 +128,26 @@ impl EvmRpcSetup {
     }
 
     pub fn upgrade_canister(&self, args: InstallArgs) {
-        self.env.tick();
-        // Avoid `CanisterInstallCodeRateLimited` error
-        self.env.advance_time(Duration::from_secs(600));
-        self.env.tick();
-        self.env
-            .upgrade_canister(
+        for _ in 0..100 {
+            self.env.tick();
+            // Avoid `CanisterInstallCodeRateLimited` error
+            self.env.advance_time(Duration::from_secs(600));
+            self.env.tick();
+            match self.env.upgrade_canister(
                 self.canister_id,
                 evm_rpc_wasm(),
                 Encode!(&args).unwrap(),
                 Some(self.controller),
-            )
-            .expect("Error while upgrading canister");
+            ) {
+                Ok(_) => return,
+                Err(CallError::UserError(UserError {
+                    code: ErrorCode::CanisterInstallCodeRateLimited,
+                    description: _,
+                })) => continue,
+                Err(e) => panic!("Error while upgrading canister: {e:?}"),
+            }
+        }
+        panic!("Failed to upgrade canister after many trials!")
     }
 
     /// Shorthand for deriving an `EvmRpcSetup` with the caller as the canister controller.

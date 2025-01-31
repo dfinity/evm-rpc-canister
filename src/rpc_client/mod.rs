@@ -72,12 +72,12 @@ impl Providers {
     ];
 
     const DEFAULT_ETH_SEPOLIA_SERVICES: &'static [EthSepoliaService] = &[
-        EthSepoliaService::Sepolia,
+        EthSepoliaService::Ankr,
         EthSepoliaService::BlockPi,
         EthSepoliaService::PublicNode,
     ];
     const NON_DEFAULT_ETH_SEPOLIA_SERVICES: &'static [EthSepoliaService] =
-        &[EthSepoliaService::Alchemy, EthSepoliaService::Ankr];
+        &[EthSepoliaService::Alchemy, EthSepoliaService::Sepolia];
 
     const DEFAULT_L2_MAINNET_SERVICES: &'static [L2MainnetService] = &[
         L2MainnetService::Llama,
