@@ -52,7 +52,7 @@ itertools = "0.14.0"
 maplit = "1"
 pocket-ic = "6.0.0"
 proptest = { workspace = true }
-rand = "0.8"
+rand = "0.9"
 
 [workspace.dependencies]
 candid = { version = "0.10.13" }
