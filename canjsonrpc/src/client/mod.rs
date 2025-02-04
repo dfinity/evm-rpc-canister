@@ -1,12 +1,24 @@
+use crate::cycles::{CyclesChargingStrategy, EstimateRequestCyclesCost};
 use crate::http::{RequestBuilder, RequestError, ResponseError};
 use crate::json::{JsonRpcRequest, JsonRpcResponse};
-use ic_cdk::api::management_canister::http_request::{CanisterHttpRequestArgument, HttpMethod, HttpResponse};
+use ic_cdk::api::call::RejectionCode;
+use ic_cdk::api::management_canister::http_request::{
+    CanisterHttpRequestArgument, HttpMethod, HttpResponse,
+};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::sync::Arc;
 use url::Url;
 
 #[derive(Clone)]
-pub struct Client {}
+pub struct Client {
+    config: Arc<ClientConfig>,
+}
+
+pub struct ClientConfig {
+    request_cost: Arc<dyn EstimateRequestCyclesCost>,
+    charging: CyclesChargingStrategy,
+}
 
 pub enum JsonRpcError {}
 
@@ -16,6 +28,14 @@ pub enum CallerError {
 
 pub enum HttpOutcallError {
     RequestError(RequestError),
+    InsufficientCyclesError {
+        expected: u128,
+        received: u128,
+    },
+    IcError {
+        code: RejectionCode,
+        message: String,
+    },
 }
 
 impl Client {
@@ -50,6 +70,30 @@ impl Client {
         &self,
         request: CanisterHttpRequestArgument,
     ) -> Result<HttpResponse, HttpOutcallError> {
-        todo!()
+        let cycles_cost = self.config.request_cost.cycles_cost(&request);
+        match self.config.charging {
+            CyclesChargingStrategy::PaidByCaller => {
+                let cycles_available = ic_cdk::api::call::msg_cycles_available128();
+                if cycles_available < cycles_cost {
+                    return Err(HttpOutcallError::InsufficientCyclesError {
+                        expected: cycles_cost,
+                        received: cycles_available,
+                    }
+                    .into());
+                }
+                assert_eq!(
+                    ic_cdk::api::call::msg_cycles_accept128(cycles_cost),
+                    cycles_cost
+                );
+            }
+            CyclesChargingStrategy::PaidByCanister => {}
+        };
+
+        match ic_cdk::api::management_canister::http_request::http_request(request, cycles_cost)
+            .await
+        {
+            Ok((response,)) => Ok(response),
+            Err((code, message)) => Err(HttpOutcallError::IcError { code, message }.into()),
+        }
     }
 }
