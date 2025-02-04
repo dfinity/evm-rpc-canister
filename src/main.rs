@@ -1,5 +1,4 @@
 use candid::candid_method;
-use evm_rpc::accounting::{get_cost_with_collateral, get_http_request_cost};
 use evm_rpc::candid_rpc::CandidRpcClient;
 use evm_rpc::http::get_http_response_body;
 use evm_rpc::logs::INFO;
@@ -12,7 +11,9 @@ use evm_rpc::metrics::encode_metrics;
 use evm_rpc::providers::{find_provider, resolve_rpc_service, PROVIDERS, SERVICE_PROVIDER_MAP};
 use evm_rpc::types::{LogFilter, OverrideProvider, Provider, ProviderId, RpcAccess, RpcAuth};
 use evm_rpc::{
-    http::{json_rpc_request, transform_http_request},
+    http::{
+        get_http_request_arg_cost, json_rpc_request, json_rpc_request_arg, transform_http_request,
+    },
     http_types,
     memory::UNSTABLE_METRICS,
     types::{MetricRpcMethod, Metrics},
@@ -148,22 +149,19 @@ async fn request(
 #[query(name = "requestCost")]
 #[candid_method(query, rename = "requestCost")]
 fn request_cost(
-    _service: evm_rpc_types::RpcService,
+    service: evm_rpc_types::RpcService,
     json_rpc_payload: String,
     max_response_bytes: u64,
 ) -> RpcResult<u128> {
     if is_demo_active() {
         Ok(0)
     } else {
-        let nodes_in_subnet = get_num_subnet_nodes();
-        Ok(get_cost_with_collateral(
-            nodes_in_subnet,
-            get_http_request_cost(
-                nodes_in_subnet,
-                json_rpc_payload.len() as u64,
-                max_response_bytes,
-            ),
-        ))
+        let request = json_rpc_request_arg(
+            resolve_rpc_service(service)?,
+            &json_rpc_payload,
+            max_response_bytes,
+        )?;
+        Ok(get_http_request_arg_cost(&request))
     }
 }
 

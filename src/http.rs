@@ -13,12 +13,11 @@ use ic_cdk::api::management_canister::http_request::{
 };
 use num_traits::ToPrimitive;
 
-pub async fn json_rpc_request(
+pub fn json_rpc_request_arg(
     service: ResolvedRpcService,
-    rpc_method: MetricRpcMethod,
     json_rpc_payload: &str,
     max_response_bytes: u64,
-) -> RpcResult<HttpResponse> {
+) -> RpcResult<CanisterHttpRequestArgument> {
     let api = service.api(&get_override_provider())?;
     let mut request_headers = api.headers.unwrap_or_default();
     if !request_headers
@@ -30,7 +29,7 @@ pub async fn json_rpc_request(
             value: CONTENT_TYPE_VALUE.to_string(),
         });
     }
-    let request = CanisterHttpRequestArgument {
+    Ok(CanisterHttpRequestArgument {
         url: api.url,
         max_response_bytes: Some(max_response_bytes),
         method: HttpMethod::POST,
@@ -40,7 +39,16 @@ pub async fn json_rpc_request(
             "__transform_json_rpc".to_string(),
             vec![],
         )),
-    };
+    })
+}
+
+pub async fn json_rpc_request(
+    service: ResolvedRpcService,
+    rpc_method: MetricRpcMethod,
+    json_rpc_payload: &str,
+    max_response_bytes: u64,
+) -> RpcResult<HttpResponse> {
+    let request = json_rpc_request_arg(service, json_rpc_payload, max_response_bytes)?;
     http_request(rpc_method, request).await
 }
 
@@ -48,17 +56,7 @@ pub async fn http_request(
     rpc_method: MetricRpcMethod,
     request: CanisterHttpRequestArgument,
 ) -> RpcResult<HttpResponse> {
-    let cycles_cost = get_http_request_cost(
-        get_num_subnet_nodes(),
-        request
-            .body
-            .as_ref()
-            .map(|body| body.len())
-            .unwrap_or_default() as u64,
-        request
-            .max_response_bytes
-            .unwrap_or(DEFAULT_MAX_RESPONSE_BYTES),
-    );
+    let cycles_cost = get_http_request_arg_cost(&request);
     let url = request.url.clone();
     let parsed_url = match url::Url::parse(&url) {
         Ok(url) => url,
@@ -131,4 +129,25 @@ pub fn get_http_response_body(response: HttpResponse) -> Result<String, RpcError
         }
         .into()
     })
+}
+
+pub fn get_http_request_arg_cost(arg: &CanisterHttpRequestArgument) -> u128 {
+    let payload_body_bytes = arg.body.as_ref().map(|body| body.len()).unwrap_or_default();
+    let extra_payload_bytes = arg.url.len()
+        + arg
+            .headers
+            .iter()
+            .map(|header| header.name.len() + header.value.len())
+            .sum::<usize>()
+        + arg.transform.as_ref().map_or(0, |transform| {
+            transform.function.0.method.len() + transform.context.len()
+        });
+    let max_response_bytes = arg.max_response_bytes.unwrap_or(DEFAULT_MAX_RESPONSE_BYTES);
+
+    get_http_request_cost(
+        get_num_subnet_nodes(),
+        payload_body_bytes as u64,
+        extra_payload_bytes as u64,
+        max_response_bytes,
+    )
 }
