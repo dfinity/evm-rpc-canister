@@ -1,6 +1,5 @@
-// The default value of max_resposne_bytes is 2MiB, according to
-// https://docs.rs/ic-cdk/latest/ic_cdk/api/management_canister/http_request/struct.CanisterHttpRequestArgument.html
-pub const DEFAULT_MAX_RESPONSE_BYTES: u64 = 2 * (1 << 20);
+// The default value of max_resposne_bytes is 2_000_000.
+pub const DEFAULT_MAX_RESPONSE_BYTES: u64 = 2_000_000;
 
 // Cycles which must be passed with each RPC request in case the
 // third-party JSON-RPC prices increase in the future (currently always refunded)
