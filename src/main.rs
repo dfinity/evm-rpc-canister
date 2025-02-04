@@ -1,4 +1,5 @@
 use candid::candid_method;
+use evm_rpc::accounting::get_cost_with_collateral;
 use evm_rpc::candid_rpc::CandidRpcClient;
 use evm_rpc::http::get_http_response_body;
 use evm_rpc::logs::INFO;
@@ -161,7 +162,10 @@ fn request_cost(
             &json_rpc_payload,
             max_response_bytes,
         )?;
-        Ok(get_http_request_arg_cost(&request))
+        let cycles_cost = get_http_request_arg_cost(&request);
+        let cycles_cost_with_collateral =
+            get_cost_with_collateral(get_num_subnet_nodes(), cycles_cost);
+        Ok(cycles_cost_with_collateral)
     }
 }
 
