@@ -86,7 +86,7 @@ pub async fn http_request(
             }
             .into());
         }
-        ic_cdk::api::call::msg_cycles_accept128(cycles_cost);
+        ic_cdk::api::call::msg_cycles_accept128(cycles_cost_with_collateral);
         add_metric_entry!(
             cycles_charged,
             (rpc_method.clone(), rpc_host.clone()),
