@@ -10,4 +10,8 @@ include = ["src", "Cargo.toml", "CHANGELOG.md", "LICENSE", "README.md"]
 documentation = "https://docs.rs/canjsonrpc"
 
 [dependencies]
+http = "1.2.0"
+ic-cdk = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
+url = "2.5.4"

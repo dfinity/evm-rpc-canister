@@ -18,6 +18,7 @@ inherits = "release"
 
 [dependencies]
 candid = { workspace = true }
+canjsonrpc = {path = "canjsonrpc"}
 ethnum = { workspace = true }
 evm_rpc_types = { path = "evm_rpc_types" }
 futures = { workspace = true }
