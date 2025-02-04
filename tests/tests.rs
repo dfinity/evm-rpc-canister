@@ -1041,14 +1041,18 @@ fn candid_rpc_should_err_without_cycles() {
             "0xdd5d4b18923d7aae953c7996d791118102e889bea37b48a651157a4890e4746f",
         )
         .wait()
-        .expect_consistent();
-    assert_matches!(
-        result,
-        Err(RpcError::ProviderError(ProviderError::TooFewCycles {
-            expected: _,
-            received: 0,
-        }))
-    );
+        .expect_inconsistent();
+    // Because the expected cycles are different for each provider, the results are inconsistent
+    // but should all be `TooFewCycles` error.
+    for (_, err) in result {
+        assert_matches!(
+            err,
+            Err(RpcError::ProviderError(ProviderError::TooFewCycles {
+                expected: _,
+                received: 0,
+            }))
+        )
+    }
 }
 
 #[test]
