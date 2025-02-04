@@ -1,11 +1,12 @@
-use crate::http::RequestBuilder;
+use crate::http::{RequestBuilder, RequestError, ResponseError};
 use crate::json::{JsonRpcRequest, JsonRpcResponse};
-use ic_cdk::api::management_canister::http_request::HttpMethod;
+use ic_cdk::api::management_canister::http_request::{CanisterHttpRequestArgument, HttpMethod, HttpResponse};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use url::Url;
 
-pub struct JsonRpcClient {}
+#[derive(Clone)]
+pub struct Client {}
 
 pub enum JsonRpcError {}
 
@@ -13,7 +14,11 @@ pub enum CallerError {
     InvalidUrl { reason: String },
 }
 
-impl JsonRpcClient {
+pub enum HttpOutcallError {
+    RequestError(RequestError),
+}
+
+impl Client {
     pub async fn call<Params, Res>(
         &self,
         request: JsonRpcRequest<Params>,
@@ -38,6 +43,13 @@ impl JsonRpcClient {
     }
 
     pub fn post(&self, url: &str) -> RequestBuilder {
-        RequestBuilder::new(HttpMethod::POST, url)
+        RequestBuilder::new(self.clone(), HttpMethod::POST, url)
+    }
+
+    pub async fn execute_request(
+        &self,
+        request: CanisterHttpRequestArgument,
+    ) -> Result<HttpResponse, HttpOutcallError> {
+        todo!()
     }
 }

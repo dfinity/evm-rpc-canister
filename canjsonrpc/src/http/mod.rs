@@ -1,12 +1,15 @@
+use crate::client::{Client, HttpOutcallError};
 use http::header::CONTENT_TYPE;
 use http::{HeaderName, HeaderValue};
 use ic_cdk::api::management_canister::http_request::{
-    CanisterHttpRequestArgument, HttpHeader, HttpMethod,
+    CanisterHttpRequestArgument, HttpHeader, HttpMethod, HttpResponse,
 };
 use serde::Serialize;
 use url::Url;
 
+#[must_use = "RequestBuilder does nothing until you 'send' it"]
 pub struct RequestBuilder {
+    client: Client,
     request: Result<CanisterHttpRequestArgument, RequestError>,
 }
 
@@ -16,8 +19,10 @@ pub enum RequestError {
     InvalidJson { reason: String },
 }
 
+pub enum ResponseError {}
+
 impl RequestBuilder {
-    pub fn new(http_method: HttpMethod, url: &str) -> Self {
+    pub fn new(client: Client, http_method: HttpMethod, url: &str) -> Self {
         let request = match Url::parse(url) {
             Ok(url) => Ok(CanisterHttpRequestArgument {
                 url: url.to_string(),
@@ -28,7 +33,7 @@ impl RequestBuilder {
                 reason: e.to_string(),
             }),
         };
-        Self { request }
+        Self { client, request }
     }
 
     /// Add a header to the request.
@@ -88,5 +93,12 @@ impl RequestBuilder {
             }
         }
         self
+    }
+
+    pub async fn send(self) -> Result<HttpResponse, HttpOutcallError> {
+        match self.request {
+            Ok(req) => self.client.execute_request(req).await,
+            Err(err) => Err(HttpOutcallError::RequestError(err)),
+        }
     }
 }
