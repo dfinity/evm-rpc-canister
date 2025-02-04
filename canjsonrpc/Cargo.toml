@@ -10,3 +10,4 @@ include = ["src", "Cargo.toml", "CHANGELOG.md", "LICENSE", "README.md"]
 documentation = "https://docs.rs/canjsonrpc"
 
 [dependencies]
+serde = { workspace = true }
