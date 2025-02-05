@@ -1,13 +1,17 @@
-use crate::cycles::{CyclesChargingStrategy, EstimateRequestCyclesCost};
+use crate::cycles::{CyclesChargingStrategy, DefaultRequestCost, EstimateRequestCyclesCost};
 use crate::http::{RequestBuilder, RequestError, ResponseError};
 use crate::json::{JsonRpcRequest, JsonRpcResponse};
-use ic_cdk::api::call::RejectionCode;
+use ic_cdk::api::call::{CallResult, RejectionCode};
 use ic_cdk::api::management_canister::http_request::{
     CanisterHttpRequestArgument, HttpMethod, HttpResponse,
 };
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{Context, Poll};
+use tower::Service;
 
 #[derive(Clone)]
 pub struct Client {
@@ -48,28 +52,41 @@ impl IcError {
 }
 
 impl Client {
-    pub async fn call<Params, Res>(
-        &self,
-        request: JsonRpcRequest<Params>,
-        url: String,
-    ) -> Result<JsonRpcResponse<Res>, JsonRpcError>
-    where
-        Params: Serialize,
-        Res: DeserializeOwned,
-    {
-        // let request = CanisterHttpRequestArgument {
-        //     url: url.clone(),
-        //     max_response_bytes: Some(effective_size_estimate),
-        //     method: HttpMethod::POST,
-        //     headers: headers.clone(),
-        //     body: Some(payload.as_bytes().to_vec()),
-        //     transform: Some(TransformContext::from_name(
-        //         "cleanup_response".to_owned(),
-        //         transform_op,
-        //     )),
-        // };
-        todo!()
+    pub fn new(num_nodes: u32) -> Self {
+        Self {
+            config: Arc::new(ClientConfig {
+                request_cost: Arc::new(DefaultRequestCost::new(num_nodes)),
+                charging: CyclesChargingStrategy::PaidByCaller,
+                retry: Arc::new(DoubleMaxResponseBytes {}),
+                cycles_cost_observer: Arc::new(RequestObserverNoOp {}),
+                http_response_observer: Arc::new(RequestObserverNoOp {}),
+                http_response_error_observer: Arc::new(RequestObserverNoOp {}),
+            }),
+        }
     }
+
+    // pub async fn call<Params, Res>(
+    //     &self,
+    //     request: JsonRpcRequest<Params>,
+    //     url: String,
+    // ) -> Result<JsonRpcResponse<Res>, JsonRpcError>
+    // where
+    //     Params: Serialize,
+    //     Res: DeserializeOwned,
+    // {
+    //     let request = CanisterHttpRequestArgument {
+    //         url: url.clone(),
+    //         max_response_bytes: Some(effective_size_estimate),
+    //         method: HttpMethod::POST,
+    //         headers: headers.clone(),
+    //         body: Some(payload.as_bytes().to_vec()),
+    //         transform: Some(TransformContext::from_name(
+    //             "cleanup_response".to_owned(),
+    //             transform_op,
+    //         )),
+    //     };
+    //     todo!()
+    // }
 
     pub fn post(&self, url: &str) -> RequestBuilder {
         RequestBuilder::new(self.clone(), HttpMethod::POST, url)
@@ -133,6 +150,13 @@ impl Client {
                 }
             }
         }
+    }
+
+    pub async fn execute_request2(
+        &mut self,
+        request: CanisterHttpRequestArgument,
+    ) -> Result<HttpResponse, HttpOutcallError> {
+        self.call(request).await
     }
 }
 
@@ -202,5 +226,30 @@ impl RetryStrategy for DoubleMaxResponseBytes {
             }
         }
         None
+    }
+}
+
+impl Service<CanisterHttpRequestArgument> for Client {
+    type Response = HttpResponse;
+    type Error = HttpOutcallError;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
+
+    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn call(&mut self, request: CanisterHttpRequestArgument) -> Self::Future {
+        let cycles_cost = self.config.request_cost.cycles_cost(&request);
+        Box::pin(async move {
+            match ic_cdk::api::management_canister::http_request::http_request(
+                request.clone(),
+                cycles_cost,
+            )
+            .await
+            {
+                Ok((response,)) => Ok(response),
+                Err((code, message)) => Err(HttpOutcallError::IcError(IcError { code, message })),
+            }
+        })
     }
 }

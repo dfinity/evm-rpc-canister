@@ -221,6 +221,9 @@ where
             )),
         };
 
+        let mut client = canjsonrpc::client::Client::new(34);
+        let _response = client.execute_request2(request.clone()).await;
+
         let response = match http_request(&eth_method, request, effective_size_estimate).await {
             Err(RpcError::HttpOutcallError(HttpOutcallError::IcError { code, message }))
                 if is_response_too_large(&code, &message) =>

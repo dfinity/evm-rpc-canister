@@ -116,3 +116,20 @@ impl RequestBuilder {
         }
     }
 }
+
+#[must_use = "JsonRpcRequestBuilder does nothing until you 'send' it"]
+pub struct JsonRpcRequestBuilder {
+    method: String,
+    params: serde_json::Value,
+    inner: RequestBuilder,
+}
+
+// impl JsonRpcRequestBuilder {
+//     pub fn new<T>(client: Client, id: u64, method: &str, params: T, url: &str) -> Self
+//     where
+//         T: Serialize,
+//     {
+//         let request = JsonRpcRequest::new(id, method.to_string(), params);
+//         let inner = RequestBuilder::new(client, HttpMethod::POST, url).json(&request);
+//     }
+// }
