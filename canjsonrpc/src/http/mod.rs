@@ -2,7 +2,7 @@ use crate::client::{Client, HttpOutcallError};
 use http::header::CONTENT_TYPE;
 use http::{HeaderName, HeaderValue};
 use ic_cdk::api::management_canister::http_request::{
-    CanisterHttpRequestArgument, HttpHeader, HttpMethod, HttpResponse,
+    CanisterHttpRequestArgument, HttpHeader, HttpMethod, HttpResponse, TransformContext,
 };
 use serde::Serialize;
 use url::Url;
@@ -34,6 +34,20 @@ impl RequestBuilder {
             }),
         };
         Self { client, request }
+    }
+
+    pub fn max_response_bytes(mut self, max_response_bytes: u64) -> Self {
+        if let Ok(request) = self.request.as_mut() {
+            request.max_response_bytes = Some(max_response_bytes)
+        }
+        self
+    }
+
+    pub fn transform_context(mut self, transform: TransformContext) -> Self {
+        if let Ok(request) = self.request.as_mut() {
+            request.transform = Some(transform);
+        }
+        self
     }
 
     /// Add a header to the request.
