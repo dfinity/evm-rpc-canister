@@ -14,5 +14,6 @@ http = "1.2.0"
 ic-cdk = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-tower = { version = "0.5.2", default-features = false }
+thiserror = {workspace = true}
+tower = { version = "0.5.2", default-features = false, features = ["filter"] }
 url = "2.5.4"

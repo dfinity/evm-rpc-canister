@@ -311,6 +311,7 @@ dependencies = [
  "ic-cdk",
  "serde",
  "serde_json",
+ "thiserror 2.0.8",
  "tower",
  "url",
 ]
@@ -781,6 +782,7 @@ dependencies = [
  "serde_bytes",
  "serde_json",
  "thousands",
+ "tower-service",
  "url",
  "zeroize",
 ]
@@ -3224,6 +3226,9 @@ version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d039ad9159c98b70ecfd540b2573b97f7f52c3e8d9f8ad57a24b916a536975f9"
 dependencies = [
+ "futures-core",
+ "futures-util",
+ "pin-project-lite",
  "tower-layer",
  "tower-service",
 ]

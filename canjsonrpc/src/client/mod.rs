@@ -1,4 +1,6 @@
-use crate::cycles::{CyclesChargingStrategy, DefaultRequestCost, EstimateRequestCyclesCost};
+use crate::cycles::{
+    ChargeCaller, CyclesChargingStrategy, DefaultRequestCost, EstimateRequestCyclesCost,
+};
 use crate::http::{RequestBuilder, RequestError, ResponseError};
 use crate::json::{JsonRpcRequest, JsonRpcResponse};
 use ic_cdk::api::call::{CallResult, RejectionCode};
@@ -11,7 +13,8 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use tower::Service;
+use thiserror::Error;
+use tower::{Service, ServiceBuilder};
 
 #[derive(Clone)]
 pub struct Client {
@@ -33,12 +36,18 @@ pub enum CallerError {
     InvalidUrl { reason: String },
 }
 
+#[derive(Error, Debug)]
 pub enum HttpOutcallError {
+    #[error("invalid request {0}")]
     RequestError(RequestError),
+    #[error("insufficient cycles (expected {expected:?}, received {received:?})")]
     InsufficientCyclesError { expected: u128, received: u128 },
+    #[error("{0}")]
     IcError(IcError),
 }
 
+#[derive(Error, Debug)]
+#[error("Error from ICP: (code {code:?}, message {message})")]
 pub struct IcError {
     code: RejectionCode,
     message: String,
@@ -63,6 +72,13 @@ impl Client {
                 http_response_error_observer: Arc::new(RequestObserverNoOp {}),
             }),
         }
+    }
+
+    pub fn new2(num_nodes: u32) -> impl Service<CanisterHttpRequestArgument> {
+        let request_cost_estimator = DefaultRequestCost::new(num_nodes);
+        ServiceBuilder::new()
+            .filter(ChargeCaller::new(request_cost_estimator))
+            .service(Client::new(num_nodes))
     }
 
     // pub async fn call<Params, Res>(
@@ -158,6 +174,15 @@ impl Client {
     ) -> Result<HttpResponse, HttpOutcallError> {
         self.call(request).await
     }
+}
+
+pub trait RequestExecutor<Request> {
+    type Response;
+    type Error;
+    type Future: Future<Output = Result<Self::Response, Self::Error>>;
+
+    #[must_use = "futures do nothing unless you `.await` or poll them"]
+    fn send(&mut self, req: Request) -> Self::Future;
 }
 
 /// Observe the request with some context.

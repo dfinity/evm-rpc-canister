@@ -5,6 +5,7 @@ use ic_cdk::api::management_canister::http_request::{
     CanisterHttpRequestArgument, HttpHeader, HttpMethod, HttpResponse, TransformContext,
 };
 use serde::Serialize;
+use thiserror::Error;
 use url::Url;
 
 #[must_use = "RequestBuilder does nothing until you 'send' it"]
@@ -13,9 +14,13 @@ pub struct RequestBuilder {
     request: Result<CanisterHttpRequestArgument, RequestError>,
 }
 
+#[derive(Error, Debug)]
 pub enum RequestError {
+    #[error("URL is invalid (reason: {reason})")]
     InvalidUrl { reason: String },
+    #[error("HTTP header is invalid (reason: {reason})")]
     InvalidHeader { reason: String },
+    #[error("JSON body is invalid (reason: {reason})")]
     InvalidJson { reason: String },
 }
 

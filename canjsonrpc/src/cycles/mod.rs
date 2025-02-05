@@ -1,4 +1,9 @@
+use crate::client::HttpOutcallError;
 use ic_cdk::api::management_canister::http_request::CanisterHttpRequestArgument;
+use std::task::{Context, Poll};
+use thiserror::Error;
+use tower::filter::Predicate;
+use tower::{BoxError, Service};
 
 pub enum CyclesError {
     TooFewCycles {},
@@ -8,6 +13,7 @@ pub trait EstimateRequestCyclesCost {
     fn cycles_cost(&self, request: &CanisterHttpRequestArgument) -> u128;
 }
 
+#[derive(Debug, Clone)]
 pub struct DefaultRequestCost {
     num_nodes_in_subnet: u32,
 }
@@ -73,4 +79,45 @@ impl EstimateRequestCyclesCost for DefaultRequestCost {
 pub enum CyclesChargingStrategy {
     PaidByCaller,
     PaidByCanister,
+}
+
+/// Charge estimated request cycles cost to the caller.
+#[derive(Debug, Clone)]
+pub struct ChargeCaller<E> {
+    estimator: E,
+}
+
+impl<E> ChargeCaller<E> {
+    pub fn new(estimator: E) -> Self {
+        Self { estimator }
+    }
+}
+
+impl<E> Predicate<CanisterHttpRequestArgument> for ChargeCaller<E>
+where
+    E: EstimateRequestCyclesCost,
+{
+    type Request = CanisterHttpRequestArgument;
+
+    fn check(&mut self, request: CanisterHttpRequestArgument) -> Result<Self::Request, BoxError> {
+        let cycles_cost = self.estimator.cycles_cost(&request);
+        let cycles_available = ic_cdk::api::call::msg_cycles_available128();
+        if cycles_available < cycles_cost {
+            return Err(Box::new(ChargeCallerError::InsufficientCyclesError {
+                expected: cycles_cost,
+                received: cycles_available,
+            }));
+        }
+        assert_eq!(
+            ic_cdk::api::call::msg_cycles_accept128(cycles_cost),
+            cycles_cost
+        );
+        Ok(request)
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum ChargeCallerError {
+    #[error("insufficient cycles (expected {expected:?}, received {received:?})")]
+    InsufficientCyclesError { expected: u128, received: u128 },
 }
