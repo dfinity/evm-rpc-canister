@@ -1,8 +1,8 @@
 // The default value of max_resposne_bytes is 2_000_000.
 pub const DEFAULT_MAX_RESPONSE_BYTES: u64 = 2_000_000;
 
-// Cycles which must be passed with each RPC request in case the
-// third-party JSON-RPC prices increase in the future (currently always refunded)
+// Cycles (per node) which must be passed with each RPC request
+// as processing fee.
 pub const COLLATERAL_CYCLES_PER_NODE: u128 = 10_000_000;
 
 pub const MINIMUM_WITHDRAWAL_CYCLES: u128 = 1_000_000_000;
