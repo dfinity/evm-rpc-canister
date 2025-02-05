@@ -9,6 +9,17 @@ pub struct JsonRpcRequest<T> {
     pub params: T,
 }
 
+impl<T> JsonRpcRequest<T> {
+    pub fn new(id: u64, method: String, params: T) -> Self {
+        Self {
+            jsonrpc: "2.0".to_string(),
+            method,
+            id,
+            params,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct JsonRpcResponse<T> {
     pub id: u64,
