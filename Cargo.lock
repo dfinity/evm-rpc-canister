@@ -3229,6 +3229,8 @@ dependencies = [
  "futures-core",
  "futures-util",
  "pin-project-lite",
+ "sync_wrapper",
+ "tokio",
  "tower-layer",
  "tower-service",
 ]

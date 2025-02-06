@@ -3,6 +3,7 @@ use crate::cycles::{
 };
 use crate::http::{RequestBuilder, RequestError, ResponseError};
 use crate::json::{JsonRpcRequest, JsonRpcResponse};
+use crate::retry::DoubleMaxResponseBytes;
 use ic_cdk::api::call::{CallResult, RejectionCode};
 use ic_cdk::api::management_canister::http_request::{
     CanisterHttpRequestArgument, HttpMethod, HttpResponse,
@@ -66,7 +67,7 @@ impl Client {
             config: Arc::new(ClientConfig {
                 request_cost: Arc::new(DefaultRequestCost::new(num_nodes)),
                 charging: CyclesChargingStrategy::PaidByCaller,
-                retry: Arc::new(DoubleMaxResponseBytes {}),
+                retry: Arc::new(DoubleMaxResponseBytesOld {}),
                 cycles_cost_observer: Arc::new(RequestObserverNoOp {}),
                 http_response_observer: Arc::new(RequestObserverNoOp {}),
                 http_response_error_observer: Arc::new(RequestObserverNoOp {}),
@@ -78,6 +79,7 @@ impl Client {
         let request_cost_estimator = DefaultRequestCost::new(num_nodes);
         ServiceBuilder::new()
             .filter(ChargeCaller::new(request_cost_estimator))
+            .retry(DoubleMaxResponseBytes {})
             .service(Client::new(num_nodes))
     }
 
@@ -223,9 +225,9 @@ impl RetryStrategy for NoRetry {
 }
 
 /// Double the `max_response_bytes` in case the IC error indicates the response was too big.
-struct DoubleMaxResponseBytes {}
+struct DoubleMaxResponseBytesOld {}
 
-impl RetryStrategy for DoubleMaxResponseBytes {
+impl RetryStrategy for DoubleMaxResponseBytesOld {
     fn maybe_retry(
         &self,
         _num_requests_sent: u32,
