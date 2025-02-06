@@ -2,7 +2,10 @@ use crate::cycles::{
     ChargeCaller, CyclesChargingStrategy, DefaultRequestCost, EstimateRequestCyclesCost,
 };
 use crate::http::{RequestBuilder, RequestError, ResponseError};
-use crate::json::{JsonRpcRequest, JsonRpcResponse};
+use crate::json::{
+    http_status_code, is_successful_http_code, CanisterJsonRpcRequestArgument, JsonRpcRequest,
+    JsonRpcResponse,
+};
 use crate::retry::DoubleMaxResponseBytes;
 use ic_cdk::api::call::{CallResult, RejectionCode};
 use ic_cdk::api::management_canister::http_request::{
@@ -15,7 +18,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use thiserror::Error;
-use tower::{Service, ServiceBuilder};
+use tower::{BoxError, Service, ServiceBuilder, ServiceExt};
 
 #[derive(Clone)]
 pub struct Client {
@@ -81,6 +84,47 @@ impl Client {
             .filter(ChargeCaller::new(request_cost_estimator))
             .retry(DoubleMaxResponseBytes {})
             .service(Client::new(num_nodes))
+    }
+
+    pub fn new3(num_nodes: u32) -> impl Service<CanisterJsonRpcRequestArgument> {
+        let request_cost_estimator = DefaultRequestCost::new(num_nodes);
+        ServiceBuilder::new()
+            .filter(ChargeCaller::new(request_cost_estimator))
+            .retry(DoubleMaxResponseBytes {})
+            .service(Client::new(num_nodes))
+            .map_request(|req: CanisterJsonRpcRequestArgument| {
+                CanisterHttpRequestArgument::try_from(req).unwrap()
+            })
+            .map_result(|result| {
+                match result {
+                    Ok(response) => {
+                        // JSON-RPC responses over HTTP should have a 2xx status code,
+                        // even if the contained JsonRpcResult is an error.
+                        // If the server is not available, it will sometimes (wrongly) return HTML that will fail parsing as JSON.
+                        let http_status_code = http_status_code(&response);
+                        if !is_successful_http_code(&http_status_code) {
+                            return Err(BoxError::from(
+                                crate::json::JsonRpcError::InvalidHttpJsonRpcResponse {
+                                    status: http_status_code,
+                                    body: String::from_utf8_lossy(&response.body).to_string(),
+                                    parsing_error: None,
+                                },
+                            ));
+                        }
+                        serde_json::from_slice::<JsonRpcResponse<serde_json::Value>>(&response.body)
+                            .map_err(|e| {
+                                BoxError::from(
+                                    crate::json::JsonRpcError::InvalidHttpJsonRpcResponse {
+                                        status: http_status_code,
+                                        body: String::from_utf8_lossy(&response.body).to_string(),
+                                        parsing_error: Some(e.to_string()),
+                                    },
+                                )
+                            })
+                    }
+                    Err(e) => Err(e),
+                }
+            })
     }
 
     // pub async fn call<Params, Res>(

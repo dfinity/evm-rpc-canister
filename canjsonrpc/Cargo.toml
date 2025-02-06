@@ -17,3 +17,4 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 tower = { version = "0.5.2", default-features = false, features = ["filter", "retry"] }
 url = "2.5.4"
+num-traits = "0.2.19"
