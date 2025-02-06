@@ -10,6 +10,8 @@ pub struct InstallArgs {
     pub log_filter: Option<LogFilter>,
     #[serde(rename = "overrideProvider")]
     pub override_provider: Option<OverrideProvider>,
+    #[serde(rename = "nodesInSubnet")]
+    pub nodes_in_subnet: Option<u32>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, CandidType, Serialize, Deserialize)]

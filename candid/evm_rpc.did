@@ -108,6 +108,7 @@ type InstallArgs = record {
   manageApiKeys : opt vec principal;
   logFilter : opt LogFilter;
   overrideProvider : opt OverrideProvider;
+  nodesInSubnet : opt nat32;
 };
 type Regex = text;
 type LogFilter = variant {
