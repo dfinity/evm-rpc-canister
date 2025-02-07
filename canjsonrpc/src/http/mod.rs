@@ -1,9 +1,11 @@
 use crate::client::{Client, HttpOutcallError};
+use bytes::Bytes;
 use http::header::CONTENT_TYPE;
-use http::{HeaderName, HeaderValue};
+use http::{HeaderMap, HeaderName, HeaderValue, Method};
 use ic_cdk::api::management_canister::http_request::{
     CanisterHttpRequestArgument, HttpHeader, HttpMethod, HttpResponse, TransformContext,
 };
+use num_traits::ToPrimitive;
 use serde::Serialize;
 use thiserror::Error;
 use url::Url;
@@ -114,12 +116,12 @@ impl RequestBuilder {
         self
     }
 
-    pub async fn send(self) -> Result<HttpResponse, HttpOutcallError> {
-        match self.request {
-            Ok(req) => self.client.execute_request(req).await,
-            Err(err) => Err(HttpOutcallError::RequestError(err)),
-        }
-    }
+    // pub async fn send(self) -> Result<HttpResponse, HttpOutcallError> {
+    //     match self.request {
+    //         Ok(req) => self.client.execute_request(req).await,
+    //         Err(err) => Err(HttpOutcallError::RequestError(err)),
+    //     }
+    // }
 }
 
 #[must_use = "JsonRpcRequestBuilder does nothing until you 'send' it"]
@@ -138,3 +140,107 @@ pub struct JsonRpcRequestBuilder {
 //         let inner = RequestBuilder::new(client, HttpMethod::POST, url).json(&request);
 //     }
 // }
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct MaxResponseBytesExtension(pub u64);
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct TransformContextExtension(pub TransformContext);
+
+pub trait AddMaxResponseBytesExtension {
+    fn max_response_bytes(self, value: u64) -> Self;
+}
+
+impl AddMaxResponseBytesExtension for http::request::Builder {
+    fn max_response_bytes(self, value: u64) -> Self {
+        self.extension(MaxResponseBytesExtension(value))
+    }
+}
+
+pub trait AddTransformContextExtension {
+    fn transform_context(self, extension: TransformContext) -> Self;
+}
+
+impl AddTransformContextExtension for http::request::Builder {
+    fn transform_context(self, extension: TransformContext) -> Self {
+        self.extension(TransformContextExtension(extension))
+    }
+}
+
+pub trait ReadMaxResponseBytesExtension {
+    fn max_response_bytes(&self) -> Option<u64>;
+}
+
+impl<T> ReadMaxResponseBytesExtension for http::Request<T> {
+    fn max_response_bytes(&self) -> Option<u64> {
+        self.extensions()
+            .get::<MaxResponseBytesExtension>()
+            .map(|e| e.0)
+    }
+}
+
+pub trait ReadTransformContextExtension {
+    fn transform_context(&self) -> Option<&TransformContext>;
+}
+
+impl<T> ReadTransformContextExtension for http::Request<T> {
+    fn transform_context(&self) -> Option<&TransformContext> {
+        self.extensions()
+            .get::<TransformContextExtension>()
+            .map(|e| &e.0)
+    }
+}
+
+pub trait IntoCanisterHttpRequest {
+    fn into_canister_http_request(self) -> CanisterHttpRequestArgument;
+}
+
+//TODO: conversion is actually fallible
+impl IntoCanisterHttpRequest for http::Request<Bytes> {
+    fn into_canister_http_request(self) -> CanisterHttpRequestArgument {
+        let url = self.uri().to_string();
+        let max_response_bytes = self.max_response_bytes();
+        let method = match self.method().as_str() {
+            "GET" => HttpMethod::GET,
+            "POST" => HttpMethod::POST,
+            "HEAD" => HttpMethod::HEAD,
+            _ => panic!("Unsupported HTTP method"),
+        };
+        let headers = self
+            .headers()
+            .iter()
+            .map(|(header_name, header_value)| HttpHeader {
+                name: header_name.to_string(),
+                value: header_value.to_str().unwrap().to_string(),
+            })
+            .collect();
+        let body = Some(self.body().to_vec());
+        let transform = self.transform_context().cloned();
+        CanisterHttpRequestArgument {
+            url,
+            max_response_bytes,
+            method,
+            headers,
+            body,
+            transform,
+        }
+    }
+}
+
+//TODO: conversion is actually fallible
+pub fn convert_response(response: HttpResponse) -> http::Response<Bytes> {
+    let mut builder = http::Response::builder()
+        .status(response.status.0.to_u16().expect("valid HTTP status code"));
+    if let Some(headers) = builder.headers_mut() {
+        let mut response_headers = HeaderMap::with_capacity(response.headers.len());
+        for HttpHeader { name, value } in response.headers {
+            response_headers.insert(
+                HeaderName::try_from(name).unwrap(),
+                HeaderValue::try_from(value).unwrap(),
+            );
+        }
+        headers.extend(response_headers);
+    }
+
+    builder.body(response.body.into()).unwrap()
+}

@@ -56,6 +56,21 @@ pub struct CanisterJsonRpcRequestArgument {
     transform: Option<TransformContext>,
 }
 
+// impl CanisterJsonRpcRequestArgument {
+//     pub fn builder<I>(request: JsonRpcRequest<I>) -> CanisterJsonRpcRequestArgumentBuilder<I> {}
+// }
+// 
+// pub struct CanisterJsonRpcRequestArgumentBuilder<I> {
+//     json_rpc_request: JsonRpcRequest<I>,
+// }
+// 
+// impl<I> CanisterJsonRpcRequestArgumentBuilder<I>
+// where
+//     I: Serialize,
+// {
+//     pub fn build(self, url: String) -> Result<CanisterJsonRpcRequestArgument, JsonRpcError> {}
+// }
+
 impl TryFrom<CanisterJsonRpcRequestArgument> for CanisterHttpRequestArgument {
     type Error = JsonRpcError;
 

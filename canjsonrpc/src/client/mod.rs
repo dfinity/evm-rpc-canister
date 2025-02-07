@@ -1,12 +1,16 @@
 use crate::cycles::{
     ChargeCaller, CyclesChargingStrategy, DefaultRequestCost, EstimateRequestCyclesCost,
 };
-use crate::http::{RequestBuilder, RequestError, ResponseError};
+use crate::http::{
+    convert_response, IntoCanisterHttpRequest, RequestBuilder, RequestError, ResponseError,
+};
 use crate::json::{
     http_status_code, is_successful_http_code, CanisterJsonRpcRequestArgument, JsonRpcRequest,
     JsonRpcResponse,
 };
 use crate::retry::DoubleMaxResponseBytes;
+use bytes::Bytes;
+use http::Request;
 use ic_cdk::api::call::{CallResult, RejectionCode};
 use ic_cdk::api::management_canister::http_request::{
     CanisterHttpRequestArgument, HttpMethod, HttpResponse,
@@ -18,7 +22,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use thiserror::Error;
-use tower::{BoxError, Service, ServiceBuilder, ServiceExt};
+use tower::{BoxError, Layer, Service, ServiceBuilder, ServiceExt};
 
 #[derive(Clone)]
 pub struct Client {
@@ -27,11 +31,6 @@ pub struct Client {
 
 pub struct ClientConfig {
     request_cost: Arc<dyn EstimateRequestCyclesCost>,
-    charging: CyclesChargingStrategy,
-    retry: Arc<dyn RetryStrategy>,
-    cycles_cost_observer: Arc<dyn RequestObserver<u128>>,
-    http_response_observer: Arc<dyn RequestObserver<HttpResponse>>,
-    http_response_error_observer: Arc<dyn RequestObserver<IcError>>,
 }
 
 pub enum JsonRpcError {}
@@ -69,13 +68,23 @@ impl Client {
         Self {
             config: Arc::new(ClientConfig {
                 request_cost: Arc::new(DefaultRequestCost::new(num_nodes)),
-                charging: CyclesChargingStrategy::PaidByCaller,
-                retry: Arc::new(DoubleMaxResponseBytesOld {}),
-                cycles_cost_observer: Arc::new(RequestObserverNoOp {}),
-                http_response_observer: Arc::new(RequestObserverNoOp {}),
-                http_response_error_observer: Arc::new(RequestObserverNoOp {}),
             }),
         }
+    }
+
+    pub fn http(num_nodes: u32) -> impl Service<http::Request<Bytes>> {
+        let request_cost_estimator = DefaultRequestCost::new(num_nodes);
+        ServiceBuilder::new()
+            .check_service::<Client, CanisterHttpRequestArgument, HttpResponse, HttpOutcallError>()
+            .map_request(|r: http::Request<Bytes>| r.into_canister_http_request())
+            .map_response(|response: HttpResponse| convert_response(response))
+            .check_service::<Client, http::Request<Bytes>, http::Response<Bytes>, HttpOutcallError>(
+            )
+            .service(
+                ServiceBuilder::new()
+                    .filter(ChargeCaller::new(request_cost_estimator))
+                    .service(Client::new(num_nodes)),
+            )
     }
 
     pub fn new2(num_nodes: u32) -> impl Service<CanisterHttpRequestArgument> {
@@ -154,65 +163,65 @@ impl Client {
         RequestBuilder::new(self.clone(), HttpMethod::POST, url)
     }
 
-    pub async fn execute_request(
-        &self,
-        request: CanisterHttpRequestArgument,
-    ) -> Result<HttpResponse, HttpOutcallError> {
-        let mut num_requests_sent = 0_u32;
-        let mut request = request;
-        loop {
-            let cycles_cost = self.config.request_cost.cycles_cost(&request);
-            match self.config.charging {
-                CyclesChargingStrategy::PaidByCaller => {
-                    let cycles_available = ic_cdk::api::call::msg_cycles_available128();
-                    if cycles_available < cycles_cost {
-                        return Err(HttpOutcallError::InsufficientCyclesError {
-                            expected: cycles_cost,
-                            received: cycles_available,
-                        }
-                        .into());
-                    }
-                    assert_eq!(
-                        ic_cdk::api::call::msg_cycles_accept128(cycles_cost),
-                        cycles_cost
-                    );
-                }
-                CyclesChargingStrategy::PaidByCanister => {}
-            };
-            self.config
-                .cycles_cost_observer
-                .observe(&request, &cycles_cost);
-
-            num_requests_sent += 1;
-            match ic_cdk::api::management_canister::http_request::http_request(
-                request.clone(),
-                cycles_cost,
-            )
-            .await
-            {
-                Ok((response,)) => {
-                    self.config
-                        .http_response_observer
-                        .observe(&request, &response);
-                    return Ok(response);
-                }
-                Err((code, message)) => {
-                    let error = IcError { code, message };
-                    self.config
-                        .http_response_error_observer
-                        .observe(&request, &error);
-                    match self
-                        .config
-                        .retry
-                        .maybe_retry(num_requests_sent, request, &error)
-                    {
-                        Some(new_request) => request = new_request,
-                        None => return Err(HttpOutcallError::IcError(error)),
-                    }
-                }
-            }
-        }
-    }
+    // pub async fn execute_request(
+    //     &self,
+    //     request: CanisterHttpRequestArgument,
+    // ) -> Result<HttpResponse, HttpOutcallError> {
+    //     let mut num_requests_sent = 0_u32;
+    //     let mut request = request;
+    //     loop {
+    //         let cycles_cost = self.config.request_cost.cycles_cost(&request);
+    //         match self.config.charging {
+    //             CyclesChargingStrategy::PaidByCaller => {
+    //                 let cycles_available = ic_cdk::api::call::msg_cycles_available128();
+    //                 if cycles_available < cycles_cost {
+    //                     return Err(HttpOutcallError::InsufficientCyclesError {
+    //                         expected: cycles_cost,
+    //                         received: cycles_available,
+    //                     }
+    //                     .into());
+    //                 }
+    //                 assert_eq!(
+    //                     ic_cdk::api::call::msg_cycles_accept128(cycles_cost),
+    //                     cycles_cost
+    //                 );
+    //             }
+    //             CyclesChargingStrategy::PaidByCanister => {}
+    //         };
+    //         self.config
+    //             .cycles_cost_observer
+    //             .observe(&request, &cycles_cost);
+    //
+    //         num_requests_sent += 1;
+    //         match ic_cdk::api::management_canister::http_request::http_request(
+    //             request.clone(),
+    //             cycles_cost,
+    //         )
+    //         .await
+    //         {
+    //             Ok((response,)) => {
+    //                 self.config
+    //                     .http_response_observer
+    //                     .observe(&request, &response);
+    //                 return Ok(response);
+    //             }
+    //             Err((code, message)) => {
+    //                 let error = IcError { code, message };
+    //                 self.config
+    //                     .http_response_error_observer
+    //                     .observe(&request, &error);
+    //                 match self
+    //                     .config
+    //                     .retry
+    //                     .maybe_retry(num_requests_sent, request, &error)
+    //                 {
+    //                     Some(new_request) => request = new_request,
+    //                     None => return Err(HttpOutcallError::IcError(error)),
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
 
     pub async fn execute_request2(
         &mut self,
@@ -264,38 +273,6 @@ impl RetryStrategy for NoRetry {
         _previous_request: CanisterHttpRequestArgument,
         _previous_error: &IcError,
     ) -> Option<CanisterHttpRequestArgument> {
-        None
-    }
-}
-
-/// Double the `max_response_bytes` in case the IC error indicates the response was too big.
-struct DoubleMaxResponseBytesOld {}
-
-impl RetryStrategy for DoubleMaxResponseBytesOld {
-    fn maybe_retry(
-        &self,
-        _num_requests_sent: u32,
-        previous_request: CanisterHttpRequestArgument,
-        previous_error: &IcError,
-    ) -> Option<CanisterHttpRequestArgument> {
-        // This constant comes from the IC specification:
-        // > If provided, the value must not exceed 2MB
-        const HTTP_MAX_SIZE: u64 = 2_000_000;
-
-        if previous_error.is_response_too_large() {
-            if let Some(previous_estimate) = previous_request.max_response_bytes {
-                let new_estimate = previous_estimate
-                    .max(1024)
-                    .saturating_mul(2)
-                    .min(HTTP_MAX_SIZE);
-                if new_estimate > previous_estimate {
-                    return Some(CanisterHttpRequestArgument {
-                        max_response_bytes: Some(new_estimate),
-                        ..previous_request
-                    });
-                }
-            }
-        }
         None
     }
 }

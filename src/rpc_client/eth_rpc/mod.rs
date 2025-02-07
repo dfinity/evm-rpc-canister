@@ -13,6 +13,9 @@ use crate::rpc_client::json::responses::{
 use crate::rpc_client::numeric::{TransactionCount, Wei};
 use crate::types::{MetricRpcMethod, OverrideProvider};
 use candid::candid_method;
+use canjsonrpc::client::Client;
+use canjsonrpc::cycles::{ChargeCaller, DefaultRequestCost};
+use canjsonrpc::retry::DoubleMaxResponseBytes;
 use evm_rpc_types::{HttpOutcallError, RpcApi, RpcError, RpcService};
 use ic_canister_log::log;
 use ic_cdk::api::call::RejectionCode;
@@ -25,6 +28,8 @@ use minicbor::{Decode, Encode};
 use serde::{de::DeserializeOwned, Serialize};
 use std::fmt;
 use std::fmt::Debug;
+use tower::ServiceExt;
+use tower_service::Service;
 
 #[cfg(test)]
 mod tests;
@@ -221,25 +226,39 @@ where
             )),
         };
 
+        use tower::ServiceBuilder;
         use tower_service::Service;
-        let mut client = canjsonrpc::client::Client::new2(34);
-        let _response = client.call(request.clone()).await;
+        let num_nodes = 34;
+        let request_cost_estimator = DefaultRequestCost::new(num_nodes);
+        let mut client = Client::http(num_nodes);
+        let _ = client
+            .call(http::Request::builder().body(vec![].into()).unwrap())
+            .await;
+        let mut client = ServiceBuilder::new()
+            // .filter(ChargeCaller::new(request_cost_estimator))
+            .retry(DoubleMaxResponseBytes {})
+            .service(Client::new(num_nodes))
+            .map_request(|req| {
+                log!(TRACE_HTTP, "request: {:?}", req);
+                req
+            });
+        let response = client.call(request.clone()).await.unwrap();
 
-        let response = match http_request(&eth_method, request, effective_size_estimate).await {
-            Err(RpcError::HttpOutcallError(HttpOutcallError::IcError { code, message }))
-                if is_response_too_large(&code, &message) =>
-            {
-                let new_estimate = response_size_estimate.adjust();
-                if response_size_estimate == new_estimate {
-                    return Err(HttpOutcallError::IcError { code, message }.into());
-                }
-                log!(DEBUG, "The {eth_method} response didn't fit into {response_size_estimate} bytes, retrying with {new_estimate}");
-                response_size_estimate = new_estimate;
-                retries += 1;
-                continue;
-            }
-            result => result?,
-        };
+        // let response = match http_request(&eth_method, request, effective_size_estimate).await {
+        //     Err(RpcError::HttpOutcallError(HttpOutcallError::IcError { code, message }))
+        //         if is_response_too_large(&code, &message) =>
+        //     {
+        //         let new_estimate = response_size_estimate.adjust();
+        //         if response_size_estimate == new_estimate {
+        //             return Err(HttpOutcallError::IcError { code, message }.into());
+        //         }
+        //         log!(DEBUG, "The {eth_method} response didn't fit into {response_size_estimate} bytes, retrying with {new_estimate}");
+        //         response_size_estimate = new_estimate;
+        //         retries += 1;
+        //         continue;
+        //     }
+        //     result => result?,
+        // };
 
         log!(
             TRACE_HTTP,
