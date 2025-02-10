@@ -1,4 +1,8 @@
+use crate::constants::COLLATERAL_CYCLES_PER_NODE;
+use crate::types::{ApiKey, LogFilter, Metrics, OverrideProvider, ProviderId};
 use candid::Principal;
+use canhttp::{ChargeCaller, DefaultRequestCyclesCostEstimator, EstimateRequestCyclesCost};
+use ic_cdk::api::management_canister::http_request::{CanisterHttpRequestArgument, HttpResponse};
 use ic_stable_structures::memory_manager::VirtualMemory;
 use ic_stable_structures::{
     memory_manager::{MemoryId, MemoryManager},
@@ -6,8 +10,8 @@ use ic_stable_structures::{
 };
 use ic_stable_structures::{Cell, StableBTreeMap};
 use std::cell::RefCell;
-
-use crate::types::{ApiKey, LogFilter, Metrics, OverrideProvider, ProviderId};
+use tower::filter::FilterLayer;
+use tower::{BoxError, Service, ServiceBuilder};
 
 const IS_DEMO_ACTIVE_MEMORY_ID: MemoryId = MemoryId::new(4);
 const API_KEY_MAP_MEMORY_ID: MemoryId = MemoryId::new(5);
@@ -124,6 +128,50 @@ pub fn set_num_subnet_nodes(nodes: u32) {
             .set(nodes)
             .expect("Error while updating number of subnet nodes")
     });
+}
+
+pub fn http_client(
+) -> impl Service<CanisterHttpRequestArgument, Response = HttpResponse, Error = BoxError> {
+    ServiceBuilder::new()
+        .option_layer(if !is_demo_active() {
+            Some(FilterLayer::new(ChargeCaller::new(
+                RequestCyclesCostWithCollateralEstimator::default(),
+            )))
+        } else {
+            None
+        })
+        .service(canhttp::Client::new(get_num_subnet_nodes()))
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct RequestCyclesCostWithCollateralEstimator {
+    collateral_cycles: u128,
+    inner: DefaultRequestCyclesCostEstimator,
+}
+
+impl RequestCyclesCostWithCollateralEstimator {
+    pub fn new(num_nodes_in_subnet: u32, collateral_cycles_per_node: u128) -> Self {
+        let collateral_cycles =
+            collateral_cycles_per_node.saturating_mul(num_nodes_in_subnet as u128);
+        Self {
+            collateral_cycles,
+            inner: DefaultRequestCyclesCostEstimator::new(num_nodes_in_subnet),
+        }
+    }
+}
+
+impl Default for RequestCyclesCostWithCollateralEstimator {
+    fn default() -> Self {
+        Self::new(get_num_subnet_nodes(), COLLATERAL_CYCLES_PER_NODE)
+    }
+}
+
+impl EstimateRequestCyclesCost for RequestCyclesCostWithCollateralEstimator {
+    fn cycles_cost(&self, request: &CanisterHttpRequestArgument) -> u128 {
+        self.inner
+            .cycles_cost(request)
+            .saturating_add(self.collateral_cycles)
+    }
 }
 
 #[cfg(test)]

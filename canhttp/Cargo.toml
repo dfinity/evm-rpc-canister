@@ -1,0 +1,15 @@
+[package]
+name = "canhttp"
+version = "0.1.0"
+description = "Rust library to issue HTTPs outcalls from a canister on the Internet Computer"
+license = "Apache-2.0"
+readme = "README.md"
+authors = ["DFINITY Foundation"]
+edition = "2021"
+include = ["src", "Cargo.toml", "CHANGELOG.md", "LICENSE", "README.md"]
+documentation = "https://docs.rs/canhttp"
+
+[dependencies]
+ic-cdk = { workspace = true }
+tower = { workspace = true, features = ["filter", "retry"] }
+thiserror = { workspace = true }
