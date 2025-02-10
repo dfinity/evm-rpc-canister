@@ -15,6 +15,7 @@ use crate::types::{MetricRpcMethod, OverrideProvider};
 use candid::candid_method;
 use canjsonrpc::client::Client;
 use canjsonrpc::cycles::{ChargeCaller, DefaultRequestCost};
+use canjsonrpc::http::{AddMaxResponseBytesExtension, AddTransformContextExtension};
 use canjsonrpc::retry::DoubleMaxResponseBytes;
 use evm_rpc_types::{HttpOutcallError, RpcApi, RpcError, RpcService};
 use ic_canister_log::log;
@@ -176,13 +177,13 @@ pub async fn call<I, O>(
     mut response_size_estimate: ResponseSizeEstimate,
 ) -> Result<O, RpcError>
 where
-    I: Serialize,
+    I: Serialize + Clone,
     O: DeserializeOwned + HttpResponsePayload,
 {
     let eth_method = method.into();
     let mut rpc_request = JsonRpcRequest {
         jsonrpc: "2.0".to_string(),
-        params,
+        params: params.clone(),
         method: eth_method.clone(),
         id: 1,
     };
@@ -222,7 +223,7 @@ where
             body: Some(payload.as_bytes().to_vec()),
             transform: Some(TransformContext::from_name(
                 "cleanup_response".to_owned(),
-                transform_op,
+                transform_op.clone(),
             )),
         };
 
@@ -230,10 +231,18 @@ where
         use tower_service::Service;
         let num_nodes = 34;
         let request_cost_estimator = DefaultRequestCost::new(num_nodes);
+
+        let json_rpc_request = canjsonrpc::json::JsonRpcRequestBuilder::new(eth_method)
+            .max_response_bytes(effective_size_estimate)
+            .transform_context(TransformContext::from_name(
+                "cleanup_response".to_owned(),
+                transform_op,
+            ))
+            .build_with_params(params)
+            .unwrap();
+
         let mut client = Client::http(num_nodes);
-        let _ = client
-            .call(http::Request::builder().body(vec![].into()).unwrap())
-            .await;
+        let _ = client.call(json_rpc_request).await;
         let mut client = ServiceBuilder::new()
             // .filter(ChargeCaller::new(request_cost_estimator))
             .retry(DoubleMaxResponseBytes {})
@@ -244,21 +253,21 @@ where
             });
         let response = client.call(request.clone()).await.unwrap();
 
-        // let response = match http_request(&eth_method, request, effective_size_estimate).await {
-        //     Err(RpcError::HttpOutcallError(HttpOutcallError::IcError { code, message }))
-        //         if is_response_too_large(&code, &message) =>
-        //     {
-        //         let new_estimate = response_size_estimate.adjust();
-        //         if response_size_estimate == new_estimate {
-        //             return Err(HttpOutcallError::IcError { code, message }.into());
-        //         }
-        //         log!(DEBUG, "The {eth_method} response didn't fit into {response_size_estimate} bytes, retrying with {new_estimate}");
-        //         response_size_estimate = new_estimate;
-        //         retries += 1;
-        //         continue;
-        //     }
-        //     result => result?,
-        // };
+        let response = match http_request(&eth_method, request, effective_size_estimate).await {
+            Err(RpcError::HttpOutcallError(HttpOutcallError::IcError { code, message }))
+                if is_response_too_large(&code, &message) =>
+            {
+                let new_estimate = response_size_estimate.adjust();
+                if response_size_estimate == new_estimate {
+                    return Err(HttpOutcallError::IcError { code, message }.into());
+                }
+                log!(DEBUG, "The {eth_method} response didn't fit into {response_size_estimate} bytes, retrying with {new_estimate}");
+                response_size_estimate = new_estimate;
+                retries += 1;
+                continue;
+            }
+            result => result?,
+        };
 
         log!(
             TRACE_HTTP,

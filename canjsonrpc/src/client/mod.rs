@@ -5,8 +5,8 @@ use crate::http::{
     convert_response, IntoCanisterHttpRequest, RequestBuilder, RequestError, ResponseError,
 };
 use crate::json::{
-    http_status_code, is_successful_http_code, CanisterJsonRpcRequestArgument, JsonRpcRequest,
-    JsonRpcResponse,
+    http_status_code, is_successful_http_code, CanisterJsonRpcRequestArgument, JsonRpcLayer,
+    JsonRpcRequest, JsonRpcResponse,
 };
 use crate::retry::DoubleMaxResponseBytes;
 use bytes::Bytes;
@@ -25,12 +25,8 @@ use thiserror::Error;
 use tower::{BoxError, Layer, Service, ServiceBuilder, ServiceExt};
 
 #[derive(Clone)]
-pub struct Client {
-    config: Arc<ClientConfig>,
-}
-
-pub struct ClientConfig {
-    request_cost: Arc<dyn EstimateRequestCyclesCost>,
+pub struct Client<CyclesEstimator> {
+    cycles_estimator: Arc<CyclesEstimator>,
 }
 
 pub enum JsonRpcError {}
@@ -41,8 +37,6 @@ pub enum CallerError {
 
 #[derive(Error, Debug)]
 pub enum HttpOutcallError {
-    #[error("invalid request {0}")]
-    RequestError(RequestError),
     #[error("insufficient cycles (expected {expected:?}, received {received:?})")]
     InsufficientCyclesError { expected: u128, received: u128 },
     #[error("{0}")]
@@ -63,22 +57,22 @@ impl IcError {
     }
 }
 
-impl Client {
+impl Client<DefaultRequestCost> {
     pub fn new(num_nodes: u32) -> Self {
         Self {
-            config: Arc::new(ClientConfig {
-                request_cost: Arc::new(DefaultRequestCost::new(num_nodes)),
-            }),
+            cycles_estimator: Arc::new(DefaultRequestCost::new(num_nodes)),
         }
     }
+}
 
+impl<E> Client<E> {
     pub fn http(num_nodes: u32) -> impl Service<http::Request<Bytes>> {
         let request_cost_estimator = DefaultRequestCost::new(num_nodes);
         ServiceBuilder::new()
-            .check_service::<Client, CanisterHttpRequestArgument, HttpResponse, HttpOutcallError>()
+            .check_service::<Client<DefaultRequestCost>, CanisterHttpRequestArgument, HttpResponse, HttpOutcallError>()
             .map_request(|r: http::Request<Bytes>| r.into_canister_http_request())
             .map_response(|response: HttpResponse| convert_response(response))
-            .check_service::<Client, http::Request<Bytes>, http::Response<Bytes>, HttpOutcallError>(
+            .check_service::<Client<DefaultRequestCost>, http::Request<Bytes>, http::Response<Bytes>, HttpOutcallError>(
             )
             .service(
                 ServiceBuilder::new()
@@ -87,54 +81,118 @@ impl Client {
             )
     }
 
-    pub fn new2(num_nodes: u32) -> impl Service<CanisterHttpRequestArgument> {
+    pub fn json_rpc(
+        num_nodes: u32,
+    ) -> impl Service<http::Request<JsonRpcRequest<serde_json::Value>>> {
         let request_cost_estimator = DefaultRequestCost::new(num_nodes);
         ServiceBuilder::new()
-            .filter(ChargeCaller::new(request_cost_estimator))
-            .retry(DoubleMaxResponseBytes {})
-            .service(Client::new(num_nodes))
+            .layer(JsonRpcLayer)
+            .map_request(|r: http::Request<Bytes>| r.into_canister_http_request())
+            .map_response(|response: HttpResponse| convert_response(response))
+            .service(
+                ServiceBuilder::new()
+                    .filter(ChargeCaller::new(request_cost_estimator))
+                    .service(Client::new(num_nodes)),
+            )
     }
 
-    pub fn new3(num_nodes: u32) -> impl Service<CanisterJsonRpcRequestArgument> {
-        let request_cost_estimator = DefaultRequestCost::new(num_nodes);
-        ServiceBuilder::new()
-            .filter(ChargeCaller::new(request_cost_estimator))
-            .retry(DoubleMaxResponseBytes {})
-            .service(Client::new(num_nodes))
-            .map_request(|req: CanisterJsonRpcRequestArgument| {
-                CanisterHttpRequestArgument::try_from(req).unwrap()
-            })
-            .map_result(|result| {
-                match result {
-                    Ok(response) => {
-                        // JSON-RPC responses over HTTP should have a 2xx status code,
-                        // even if the contained JsonRpcResult is an error.
-                        // If the server is not available, it will sometimes (wrongly) return HTML that will fail parsing as JSON.
-                        let http_status_code = http_status_code(&response);
-                        if !is_successful_http_code(&http_status_code) {
-                            return Err(BoxError::from(
-                                crate::json::JsonRpcError::InvalidHttpJsonRpcResponse {
-                                    status: http_status_code,
-                                    body: String::from_utf8_lossy(&response.body).to_string(),
-                                    parsing_error: None,
-                                },
-                            ));
-                        }
-                        serde_json::from_slice::<JsonRpcResponse<serde_json::Value>>(&response.body)
-                            .map_err(|e| {
-                                BoxError::from(
-                                    crate::json::JsonRpcError::InvalidHttpJsonRpcResponse {
-                                        status: http_status_code,
-                                        body: String::from_utf8_lossy(&response.body).to_string(),
-                                        parsing_error: Some(e.to_string()),
-                                    },
-                                )
-                            })
-                    }
-                    Err(e) => Err(e),
-                }
-            })
-    }
+    // pub fn json_rpc2(
+    //     num_nodes: u32,
+    // ) -> impl Service<http::Request<JsonRpcRequest<serde_json::Value>>> {
+    //     ServiceBuilder::new()
+    //         .service(Self::http(num_nodes))
+    //         .map_request(
+    //             |request: http::Request<JsonRpcRequest<serde_json::Value>>| {
+    //                 let (parts, body) = request.into_parts();
+    //                 let serialized_body = Bytes::from(serde_json::to_vec(&body).unwrap());
+    //                 http::Request::from_parts(parts, serialized_body)
+    //             },
+    //         )
+    //         .map_result(|result: Result<http::Response<Bytes>, HttpOutcallError>| {
+    //             match result {
+    //                 Ok(response) => {
+    //                     // JSON-RPC responses over HTTP should have a 2xx status code,
+    //                     // even if the contained JsonRpcResult is an error.
+    //                     // If the server is not available, it will sometimes (wrongly) return HTML that will fail parsing as JSON.
+    //                     if !response.status().is_success() {
+    //                         return Err(BoxError::from(
+    //                             crate::json::JsonRpcError::InvalidHttpJsonRpcResponse {
+    //                                 status: response.status().as_u16(),
+    //                                 body: String::from_utf8_lossy(&response.into_body())
+    //                                     .to_string(),
+    //                                 parsing_error: None,
+    //                             },
+    //                         ));
+    //                     }
+    //                     let (parts, body) = response.into_parts();
+    //                     let deser_body =
+    //                         serde_json::from_slice::<JsonRpcResponse<serde_json::Value>>(
+    //                             body.as_ref(),
+    //                         )
+    //                         .map_err(|e| {
+    //                             BoxError::from(
+    //                                 crate::json::JsonRpcError::InvalidHttpJsonRpcResponse {
+    //                                     status: parts.status.as_u16(),
+    //                                     body: String::from_utf8_lossy(body.as_ref()).to_string(),
+    //                                     parsing_error: Some(e.to_string()),
+    //                                 },
+    //                             )
+    //                         })?;
+    //                     Ok(http::Response::from_parts(parts, deser_body))
+    //                 }
+    //                 Err(e) => Err(BoxError::from(e)),
+    //             }
+    //         })
+    // }
+
+    // pub fn new2(num_nodes: u32) -> impl Service<CanisterHttpRequestArgument> {
+    //     let request_cost_estimator = DefaultRequestCost::new(num_nodes);
+    //     ServiceBuilder::new()
+    //         .filter(ChargeCaller::new(request_cost_estimator))
+    //         .retry(DoubleMaxResponseBytes {})
+    //         .service(Client::new(num_nodes))
+    // }
+    //
+    // pub fn new3(num_nodes: u32) -> impl Service<CanisterJsonRpcRequestArgument> {
+    //     let request_cost_estimator = DefaultRequestCost::new(num_nodes);
+    //     ServiceBuilder::new()
+    //         .filter(ChargeCaller::new(request_cost_estimator))
+    //         .retry(DoubleMaxResponseBytes {})
+    //         .service(Client::new(num_nodes))
+    //         .map_request(|req: CanisterJsonRpcRequestArgument| {
+    //             CanisterHttpRequestArgument::try_from(req).unwrap()
+    //         })
+    //         .map_result(|result| {
+    //             match result {
+    //                 Ok(response) => {
+    //                     // JSON-RPC responses over HTTP should have a 2xx status code,
+    //                     // even if the contained JsonRpcResult is an error.
+    //                     // If the server is not available, it will sometimes (wrongly) return HTML that will fail parsing as JSON.
+    //                     let http_status_code = http_status_code(&response);
+    //                     if !is_successful_http_code(&http_status_code) {
+    //                         return Err(BoxError::from(
+    //                             crate::json::JsonRpcError::InvalidHttpJsonRpcResponse {
+    //                                 status: http_status_code,
+    //                                 body: String::from_utf8_lossy(&response.body).to_string(),
+    //                                 parsing_error: None,
+    //                             },
+    //                         ));
+    //                     }
+    //                     serde_json::from_slice::<JsonRpcResponse<serde_json::Value>>(&response.body)
+    //                         .map_err(|e| {
+    //                             BoxError::from(
+    //                                 crate::json::JsonRpcError::InvalidHttpJsonRpcResponse {
+    //                                     status: http_status_code,
+    //                                     body: String::from_utf8_lossy(&response.body).to_string(),
+    //                                     parsing_error: Some(e.to_string()),
+    //                                 },
+    //                             )
+    //                         })
+    //                 }
+    //                 Err(e) => Err(e),
+    //             }
+    //         })
+    // }
 
     // pub async fn call<Params, Res>(
     //     &self,
@@ -159,10 +217,10 @@ impl Client {
     //     todo!()
     // }
 
-    pub fn post(&self, url: &str) -> RequestBuilder {
-        RequestBuilder::new(self.clone(), HttpMethod::POST, url)
-    }
-
+    // pub fn post(&self, url: &str) -> RequestBuilder {
+    //     RequestBuilder::new(self.clone(), HttpMethod::POST, url)
+    // }
+    //
     // pub async fn execute_request(
     //     &self,
     //     request: CanisterHttpRequestArgument,
@@ -222,13 +280,6 @@ impl Client {
     //         }
     //     }
     // }
-
-    pub async fn execute_request2(
-        &mut self,
-        request: CanisterHttpRequestArgument,
-    ) -> Result<HttpResponse, HttpOutcallError> {
-        self.call(request).await
-    }
 }
 
 pub trait RequestExecutor<Request> {
@@ -277,7 +328,10 @@ impl RetryStrategy for NoRetry {
     }
 }
 
-impl Service<CanisterHttpRequestArgument> for Client {
+impl<CyclesEstimator> Service<CanisterHttpRequestArgument> for Client<CyclesEstimator>
+where
+    CyclesEstimator: EstimateRequestCyclesCost,
+{
     type Response = HttpResponse;
     type Error = HttpOutcallError;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
@@ -287,7 +341,7 @@ impl Service<CanisterHttpRequestArgument> for Client {
     }
 
     fn call(&mut self, request: CanisterHttpRequestArgument) -> Self::Future {
-        let cycles_cost = self.config.request_cost.cycles_cost(&request);
+        let cycles_cost = self.cycles_estimator.cycles_cost(&request);
         Box::pin(async move {
             match ic_cdk::api::management_canister::http_request::http_request(
                 request.clone(),

@@ -754,6 +754,7 @@ name = "evm_rpc"
 version = "2.2.0"
 dependencies = [
  "assert_matches",
+ "bytes",
  "candid",
  "candid_parser",
  "canjsonrpc",
@@ -787,6 +788,7 @@ dependencies = [
  "serde_json",
  "thousands",
  "tower",
+ "tower-http",
  "tower-service",
  "url",
  "zeroize",
@@ -3249,9 +3251,11 @@ dependencies = [
  "bitflags",
  "bytes",
  "http",
+ "http-body",
  "pin-project-lite",
  "tower-layer",
  "tower-service",
+ "tracing",
 ]
 
 [[package]]

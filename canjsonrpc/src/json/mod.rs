@@ -1,14 +1,17 @@
-use http::StatusCode;
+use crate::http::{AddMaxResponseBytesExtension, AddTransformContextExtension};
+use bytes::Bytes;
+use http::{Request, StatusCode};
 use ic_cdk::api::management_canister::http_request::{
     CanisterHttpRequestArgument, HttpHeader, HttpMethod, HttpResponse, TransformContext,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use thiserror::Error;
-use tower::{BoxError, Service};
+use tower::{BoxError, Layer, Service};
 
 /// An envelope for all JSON-RPC requests.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -59,11 +62,11 @@ pub struct CanisterJsonRpcRequestArgument {
 // impl CanisterJsonRpcRequestArgument {
 //     pub fn builder<I>(request: JsonRpcRequest<I>) -> CanisterJsonRpcRequestArgumentBuilder<I> {}
 // }
-// 
+//
 // pub struct CanisterJsonRpcRequestArgumentBuilder<I> {
 //     json_rpc_request: JsonRpcRequest<I>,
 // }
-// 
+//
 // impl<I> CanisterJsonRpcRequestArgumentBuilder<I>
 // where
 //     I: Serialize,
@@ -139,4 +142,77 @@ pub enum JsonRpcError {
         body: String,
         parsing_error: Option<String>,
     },
+}
+
+pub struct JsonRpcRequestBuilder {
+    inner: http::request::Builder,
+    method: String,
+    id: u64,
+}
+
+impl JsonRpcRequestBuilder {
+    pub fn new(method: String) -> Self {
+        let inner = http::Request::builder()
+            .method("POST")
+            .header("Content-Type", "application/json");
+        let id = 0;
+        Self { inner, method, id }
+    }
+
+    pub fn build_with_params<T>(self, params: T) -> http::Result<http::Request<JsonRpcRequest<T>>> {
+        self.inner.body(JsonRpcRequest {
+            jsonrpc: "2.0".to_string(),
+            method: self.method,
+            id: self.id,
+            params,
+        })
+    }
+}
+
+impl AddMaxResponseBytesExtension for JsonRpcRequestBuilder {
+    fn max_response_bytes(mut self, value: u64) -> Self {
+        self.inner = self.inner.max_response_bytes(value);
+        self
+    }
+}
+
+impl AddTransformContextExtension for JsonRpcRequestBuilder {
+    fn transform_context(mut self, transform: TransformContext) -> Self {
+        self.inner = self.inner.transform_context(transform);
+        self
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct JsonRpcLayer;
+
+#[derive(Debug, Clone, Copy)]
+pub struct JsonRpcService<S> {
+    service: S,
+}
+
+impl<S> Layer<S> for JsonRpcLayer {
+    type Service = JsonRpcService<S>;
+
+    fn layer(&self, service: S) -> Self::Service {
+        Self::Service { service }
+    }
+}
+
+impl<S> Service<http::Request<JsonRpcRequest<serde_json::Value>>> for JsonRpcService<S>
+where
+    S: Service<http::Request<Bytes>, Response = http::Response<Bytes>>,
+    S::Error: Into<BoxError>,
+{
+    type Response = http::Response<JsonRpcResponse<serde_json::Value>>;
+    type Error = BoxError;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
+
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        todo!()
+    }
+
+    fn call(&mut self, req: Request<JsonRpcRequest<Value>>) -> Self::Future {
+        todo!()
+    }
 }

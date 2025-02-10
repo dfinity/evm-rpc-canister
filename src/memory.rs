@@ -1,4 +1,13 @@
+use crate::constants::NODES_IN_SUBNET;
+use crate::types::{ApiKey, LogFilter, Metrics, OverrideProvider, ProviderId};
+use bytes::Bytes;
 use candid::Principal;
+use canjsonrpc::client::HttpOutcallError;
+use canjsonrpc::cycles::{ChargeCaller, DefaultRequestCost};
+use canjsonrpc::http::{convert_response, IntoCanisterHttpRequest};
+use canjsonrpc::json::{JsonRpcRequest, JsonRpcResponse};
+use canjsonrpc::retry::DoubleMaxResponseBytes;
+use ic_cdk::api::management_canister::http_request::{CanisterHttpRequestArgument, HttpResponse};
 use ic_stable_structures::memory_manager::VirtualMemory;
 use ic_stable_structures::{
     memory_manager::{MemoryId, MemoryManager},
@@ -6,8 +15,10 @@ use ic_stable_structures::{
 };
 use ic_stable_structures::{Cell, StableBTreeMap};
 use std::cell::RefCell;
-
-use crate::types::{ApiKey, LogFilter, Metrics, OverrideProvider, ProviderId};
+use tower::util::BoxCloneService;
+use tower::{BoxError, ServiceBuilder, ServiceExt};
+use tower_http::classify::StatusInRangeAsFailures;
+use tower_http::trace::TraceLayer;
 
 const IS_DEMO_ACTIVE_MEMORY_ID: MemoryId = MemoryId::new(4);
 const API_KEY_MAP_MEMORY_ID: MemoryId = MemoryId::new(5);
@@ -109,6 +120,80 @@ pub fn next_request_id() -> u64 {
         *counter = counter.wrapping_add(1);
         current_request_id
     })
+}
+
+fn canister_http_client() -> BoxCloneService<CanisterHttpRequestArgument, HttpResponse, BoxError> {
+    let client = canjsonrpc::client::Client::new(NODES_IN_SUBNET);
+    if is_demo_active() {
+        return ServiceBuilder::new()
+            .retry(DoubleMaxResponseBytes)
+            .service(client)
+            .map_err(|e| BoxError::from(e))
+            .boxed_clone();
+    }
+    let request_cost_estimator = DefaultRequestCost::new(NODES_IN_SUBNET);
+    ServiceBuilder::new()
+        .filter(ChargeCaller::new(request_cost_estimator))
+        .retry(DoubleMaxResponseBytes)
+        .service(client)
+        .boxed_clone()
+}
+
+pub fn canister_http() -> BoxCloneService<http::Request<Bytes>, http::Response<Bytes>, BoxError> {
+    ServiceBuilder::new()
+        .map_request(|r: http::Request<Bytes>| r.into_canister_http_request())
+        .map_response(|response: HttpResponse| convert_response(response))
+        .service(canister_http_client())
+        .boxed_clone()
+}
+
+pub fn canister_json_rpc() -> BoxCloneService<
+    http::Request<JsonRpcRequest<serde_json::Value>>,
+    http::Response<JsonRpcResponse<serde_json::Value>>,
+    BoxError,
+> {
+    ServiceBuilder::new()
+        .map_request(
+            |request: http::Request<JsonRpcRequest<serde_json::Value>>| {
+                let (parts, body) = request.into_parts();
+                let serialized_body = Bytes::from(serde_json::to_vec(&body).unwrap());
+                http::Request::from_parts(parts, serialized_body)
+            },
+        )
+        .map_result(|result: Result<http::Response<Bytes>, HttpOutcallError>| {
+            match result {
+                Ok(response) => {
+                    // JSON-RPC responses over HTTP should have a 2xx status code,
+                    // even if the contained JsonRpcResult is an error.
+                    // If the server is not available, it will sometimes (wrongly) return HTML that will fail parsing as JSON.
+                    if !response.status().is_success() {
+                        return Err(BoxError::from(
+                            canjsonrpc::json::JsonRpcError::InvalidHttpJsonRpcResponse {
+                                status: response.status().as_u16(),
+                                body: String::from_utf8_lossy(&response.into_body()).to_string(),
+                                parsing_error: None,
+                            },
+                        ));
+                    }
+                    let (parts, body) = response.into_parts();
+                    let deser_body =
+                        serde_json::from_slice::<JsonRpcResponse<serde_json::Value>>(body.as_ref())
+                            .map_err(|e| {
+                                BoxError::from(
+                                    canjsonrpc::json::JsonRpcError::InvalidHttpJsonRpcResponse {
+                                        status: parts.status.as_u16(),
+                                        body: String::from_utf8_lossy(body.as_ref()).to_string(),
+                                        parsing_error: Some(e.to_string()),
+                                    },
+                                )
+                            })?;
+                    Ok(http::Response::from_parts(parts, deser_body))
+                }
+                Err(e) => Err(BoxError::from(e)),
+            }
+        })
+        .service(canister_http())
+        .boxed_clone()
 }
 
 #[cfg(test)]

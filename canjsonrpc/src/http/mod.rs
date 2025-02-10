@@ -1,18 +1,19 @@
 use crate::client::{Client, HttpOutcallError};
 use bytes::Bytes;
 use http::header::CONTENT_TYPE;
-use http::{HeaderMap, HeaderName, HeaderValue, Method};
+use http::{HeaderMap, HeaderName, HeaderValue, Method, Response};
 use ic_cdk::api::management_canister::http_request::{
     CanisterHttpRequestArgument, HttpHeader, HttpMethod, HttpResponse, TransformContext,
 };
 use num_traits::ToPrimitive;
 use serde::Serialize;
 use thiserror::Error;
+use tower::util::MapResponseLayer;
 use url::Url;
 
 #[must_use = "RequestBuilder does nothing until you 'send' it"]
-pub struct RequestBuilder {
-    client: Client,
+pub struct RequestBuilder<E> {
+    client: Client<E>,
     request: Result<CanisterHttpRequestArgument, RequestError>,
 }
 
@@ -28,8 +29,8 @@ pub enum RequestError {
 
 pub enum ResponseError {}
 
-impl RequestBuilder {
-    pub fn new(client: Client, http_method: HttpMethod, url: &str) -> Self {
+impl<E> RequestBuilder<E> {
+    pub fn new(client: Client<E>, http_method: HttpMethod, url: &str) -> Self {
         let request = match Url::parse(url) {
             Ok(url) => Ok(CanisterHttpRequestArgument {
                 url: url.to_string(),
@@ -124,13 +125,13 @@ impl RequestBuilder {
     // }
 }
 
-#[must_use = "JsonRpcRequestBuilder does nothing until you 'send' it"]
+/*#[must_use = "JsonRpcRequestBuilder does nothing until you 'send' it"]
 pub struct JsonRpcRequestBuilder {
     method: String,
     params: serde_json::Value,
     inner: RequestBuilder,
 }
-
+*/
 // impl JsonRpcRequestBuilder {
 //     pub fn new<T>(client: Client, id: u64, method: &str, params: T, url: &str) -> Self
 //     where

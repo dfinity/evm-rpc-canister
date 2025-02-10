@@ -5,7 +5,7 @@ use tower::retry;
 
 /// Double the `max_response_bytes` in case the IC error indicates the response was too big.
 #[derive(Debug, Clone)]
-pub struct DoubleMaxResponseBytes {}
+pub struct DoubleMaxResponseBytes;
 
 impl<Response> retry::Policy<CanisterHttpRequestArgument, Response, HttpOutcallError>
     for DoubleMaxResponseBytes
