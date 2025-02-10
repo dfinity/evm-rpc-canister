@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod tests;
+
 use ic_cdk::api::management_canister::http_request::CanisterHttpRequestArgument;
 use thiserror::Error;
 use tower::filter::Predicate;
@@ -16,7 +19,7 @@ pub struct DefaultRequestCyclesCostEstimator {
 impl DefaultRequestCyclesCostEstimator {
     pub const DEFAULT_MAX_RESPONSE_BYTES: u64 = 2_000_000;
 
-    pub fn new(num_nodes_in_subnet: u32) -> Self {
+    pub const fn new(num_nodes_in_subnet: u32) -> Self {
         DefaultRequestCyclesCostEstimator {
             num_nodes_in_subnet,
         }

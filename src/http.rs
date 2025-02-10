@@ -1,9 +1,8 @@
 use crate::memory::http_client;
 use crate::{
-    accounting::get_http_request_cost,
     add_metric_entry,
-    constants::{CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE, DEFAULT_MAX_RESPONSE_BYTES},
-    memory::{get_num_subnet_nodes, get_override_provider},
+    constants::{CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE},
+    memory::get_override_provider,
     types::{MetricRpcHost, MetricRpcMethod, ResolvedRpcService},
     util::canonicalize_json,
 };
@@ -134,25 +133,4 @@ pub fn get_http_response_body(response: HttpResponse) -> Result<String, RpcError
         }
         .into()
     })
-}
-
-pub fn get_http_request_arg_cost(arg: &CanisterHttpRequestArgument) -> u128 {
-    let payload_body_bytes = arg.body.as_ref().map(|body| body.len()).unwrap_or_default();
-    let extra_payload_bytes = arg.url.len()
-        + arg
-            .headers
-            .iter()
-            .map(|header| header.name.len() + header.value.len())
-            .sum::<usize>()
-        + arg.transform.as_ref().map_or(0, |transform| {
-            transform.function.0.method.len() + transform.context.len()
-        });
-    let max_response_bytes = arg.max_response_bytes.unwrap_or(DEFAULT_MAX_RESPONSE_BYTES);
-
-    get_http_request_cost(
-        get_num_subnet_nodes(),
-        payload_body_bytes as u64,
-        extra_payload_bytes as u64,
-        max_response_bytes,
-    )
 }

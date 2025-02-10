@@ -135,7 +135,7 @@ pub fn http_client(
     ServiceBuilder::new()
         .option_layer(if !is_demo_active() {
             Some(FilterLayer::new(ChargeCaller::new(
-                RequestCyclesCostWithCollateralEstimator::new(get_num_subnet_nodes()),
+                RequestCyclesCostWithCollateralEstimator::new(),
             )))
         } else {
             None
@@ -144,13 +144,14 @@ pub fn http_client(
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-struct RequestCyclesCostWithCollateralEstimator {
+pub struct RequestCyclesCostWithCollateralEstimator {
     num_nodes_in_subnet: u32,
     inner: DefaultRequestCyclesCostEstimator,
 }
 
 impl RequestCyclesCostWithCollateralEstimator {
-    pub fn new(num_nodes_in_subnet: u32) -> Self {
+    pub fn new() -> Self {
+        let num_nodes_in_subnet = get_num_subnet_nodes();
         Self {
             num_nodes_in_subnet,
             inner: DefaultRequestCyclesCostEstimator::new(num_nodes_in_subnet),
