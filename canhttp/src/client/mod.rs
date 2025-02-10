@@ -1,4 +1,4 @@
-use crate::cycles::EstimateRequestCyclesCost;
+use crate::cycles::{DefaultRequestCyclesCostEstimator, EstimateRequestCyclesCost};
 use ic_cdk::api::call::RejectionCode;
 use ic_cdk::api::management_canister::http_request::{
     CanisterHttpRequestArgument as IcHttpRequest, HttpResponse as IcHttpResponse,
@@ -8,11 +8,19 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use thiserror::Error;
-use tower::Service;
+use tower::{BoxError, Service};
 
 #[derive(Clone)]
 pub struct Client<CyclesEstimator> {
     cycles_estimator: Arc<CyclesEstimator>,
+}
+
+impl Client<DefaultRequestCyclesCostEstimator> {
+    pub fn new(num_nodes: u32) -> Self {
+        Self {
+            cycles_estimator: Arc::new(DefaultRequestCyclesCostEstimator::new(num_nodes)),
+        }
+    }
 }
 
 #[derive(Error, Debug, PartialEq, Eq)]
@@ -34,7 +42,7 @@ where
     CyclesEstimator: EstimateRequestCyclesCost,
 {
     type Response = IcHttpResponse;
-    type Error = IcError;
+    type Error = BoxError;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
 
     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
@@ -51,7 +59,7 @@ where
             .await
             {
                 Ok((response,)) => Ok(response),
-                Err((code, message)) => Err(IcError { code, message }),
+                Err((code, message)) => Err(BoxError::from(IcError { code, message })),
             }
         })
     }

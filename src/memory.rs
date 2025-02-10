@@ -1,4 +1,8 @@
+use crate::constants::{COLLATERAL_CYCLES_PER_NODE, NODES_IN_SUBNET};
+use crate::types::{ApiKey, LogFilter, Metrics, OverrideProvider, ProviderId};
 use candid::Principal;
+use canhttp::{ChargeCaller, DefaultRequestCyclesCostEstimator, EstimateRequestCyclesCost};
+use ic_cdk::api::management_canister::http_request::{CanisterHttpRequestArgument, HttpResponse};
 use ic_stable_structures::memory_manager::VirtualMemory;
 use ic_stable_structures::{
     memory_manager::{MemoryId, MemoryManager},
@@ -6,8 +10,8 @@ use ic_stable_structures::{
 };
 use ic_stable_structures::{Cell, StableBTreeMap};
 use std::cell::RefCell;
-
-use crate::types::{ApiKey, LogFilter, Metrics, OverrideProvider, ProviderId};
+use tower::filter::FilterLayer;
+use tower::{Service, ServiceBuilder};
 
 const IS_DEMO_ACTIVE_MEMORY_ID: MemoryId = MemoryId::new(4);
 const API_KEY_MAP_MEMORY_ID: MemoryId = MemoryId::new(5);
@@ -109,6 +113,41 @@ pub fn next_request_id() -> u64 {
         *counter = counter.wrapping_add(1);
         current_request_id
     })
+}
+
+pub fn http_client() -> impl Service<CanisterHttpRequestArgument, Response = HttpResponse> {
+    ServiceBuilder::new()
+        .option_layer(if !is_demo_active() {
+            Some(FilterLayer::new(ChargeCaller::new(
+                RequestCyclesCostWithCollateralEstimator::new(NODES_IN_SUBNET),
+            )))
+        } else {
+            None
+        })
+        .service(canhttp::Client::new(NODES_IN_SUBNET))
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+struct RequestCyclesCostWithCollateralEstimator {
+    num_nodes_in_subnet: u32,
+    inner: DefaultRequestCyclesCostEstimator,
+}
+
+impl RequestCyclesCostWithCollateralEstimator {
+    pub fn new(num_nodes_in_subnet: u32) -> Self {
+        Self {
+            num_nodes_in_subnet,
+            inner: DefaultRequestCyclesCostEstimator::new(num_nodes_in_subnet),
+        }
+    }
+}
+
+impl EstimateRequestCyclesCost for RequestCyclesCostWithCollateralEstimator {
+    fn cycles_cost(&self, request: &CanisterHttpRequestArgument) -> u128 {
+        self.inner.cycles_cost(request).saturating_add(
+            COLLATERAL_CYCLES_PER_NODE.saturating_mul(self.num_nodes_in_subnet as u128),
+        )
+    }
 }
 
 #[cfg(test)]

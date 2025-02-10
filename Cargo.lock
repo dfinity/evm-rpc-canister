@@ -738,6 +738,7 @@ dependencies = [
  "assert_matches",
  "candid",
  "candid_parser",
+ "canhttp",
  "ethers-core",
  "ethnum",
  "evm_rpc_types",
@@ -766,6 +767,7 @@ dependencies = [
  "serde_bytes",
  "serde_json",
  "thousands",
+ "tower",
  "url",
  "zeroize",
 ]

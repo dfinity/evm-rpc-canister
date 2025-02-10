@@ -72,7 +72,7 @@ impl EstimateRequestCyclesCost for DefaultRequestCyclesCostEstimator {
 }
 
 /// Charge estimated request cycles cost to the caller.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ChargeCaller<E> {
     estimator: E,
 }

@@ -11,5 +11,5 @@ documentation = "https://docs.rs/canhttp"
 
 [dependencies]
 ic-cdk = { workspace = true }
-tower = { version = "0.5.2", default-features = false, features = ["filter", "retry"] }
-thiserror = {workspace = true}
+tower = { workspace = true, features = ["filter", "retry"] }
+thiserror = { workspace = true }
