@@ -32,7 +32,7 @@ pub struct IcError {
 
 impl IcError {
     pub fn is_response_too_large(&self) -> bool {
-        &self.code == &RejectionCode::SysFatal
+        self.code == RejectionCode::SysFatal
             && (self.message.contains("size limit") || self.message.contains("length limit"))
     }
 }
