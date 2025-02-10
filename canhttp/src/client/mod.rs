@@ -26,8 +26,8 @@ impl Client<DefaultRequestCyclesCostEstimator> {
 #[derive(Error, Debug, PartialEq, Eq)]
 #[error("Error from ICP: (code {code:?}, message {message})")]
 pub struct IcError {
-    code: RejectionCode,
-    message: String,
+    pub code: RejectionCode,
+    pub message: String,
 }
 
 impl IcError {

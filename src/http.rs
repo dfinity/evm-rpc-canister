@@ -1,17 +1,20 @@
+use crate::memory::http_client;
 use crate::{
-    accounting::{get_cost_with_collateral, get_http_request_cost},
+    accounting::get_http_request_cost,
     add_metric_entry,
     constants::{CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE, DEFAULT_MAX_RESPONSE_BYTES},
-    memory::{get_num_subnet_nodes, get_override_provider, is_demo_active},
+    memory::{get_num_subnet_nodes, get_override_provider},
     types::{MetricRpcHost, MetricRpcMethod, ResolvedRpcService},
     util::canonicalize_json,
 };
+use canhttp::ChargeCallerError;
 use evm_rpc_types::{HttpOutcallError, ProviderError, RpcError, RpcResult, ValidationError};
 use ic_cdk::api::management_canister::http_request::{
     CanisterHttpRequestArgument, HttpHeader, HttpMethod, HttpResponse, TransformArgs,
     TransformContext,
 };
 use num_traits::ToPrimitive;
+use tower::Service;
 
 pub fn json_rpc_request_arg(
     service: ResolvedRpcService,
@@ -56,7 +59,6 @@ pub async fn http_request(
     rpc_method: MetricRpcMethod,
     request: CanisterHttpRequestArgument,
 ) -> RpcResult<HttpResponse> {
-    let cycles_cost = get_http_request_arg_cost(&request);
     let url = request.url.clone();
     let parsed_url = match url::Url::parse(&url) {
         Ok(url) => url,
@@ -74,35 +76,38 @@ pub async fn http_request(
             .into())
         }
     };
+
     let rpc_host = MetricRpcHost(host.to_string());
-    if !is_demo_active() {
-        let cycles_available = ic_cdk::api::call::msg_cycles_available128();
-        let cycles_cost_with_collateral =
-            get_cost_with_collateral(get_num_subnet_nodes(), cycles_cost);
-        if cycles_available < cycles_cost_with_collateral {
-            return Err(ProviderError::TooFewCycles {
-                expected: cycles_cost_with_collateral,
-                received: cycles_available,
-            }
-            .into());
-        }
-        ic_cdk::api::call::msg_cycles_accept128(cycles_cost_with_collateral);
-        add_metric_entry!(
-            cycles_charged,
-            (rpc_method.clone(), rpc_host.clone()),
-            cycles_cost
-        );
-    }
     add_metric_entry!(requests, (rpc_method.clone(), rpc_host.clone()), 1);
-    match ic_cdk::api::management_canister::http_request::http_request(request, cycles_cost).await {
-        Ok((response,)) => {
+    match http_client().call(request).await {
+        Ok(response) => {
             let status: u32 = response.status.0.clone().try_into().unwrap_or(0);
             add_metric_entry!(responses, (rpc_method, rpc_host, status.into()), 1);
             Ok(response)
         }
-        Err((code, message)) => {
-            add_metric_entry!(err_http_outcall, (rpc_method, rpc_host, code), 1);
-            Err(HttpOutcallError::IcError { code, message }.into())
+        Err(e) => {
+            if let Some(charging_error) = e.downcast_ref::<ChargeCallerError>() {
+                return match charging_error {
+                    ChargeCallerError::InsufficientCyclesError { expected, received } => {
+                        Err(ProviderError::TooFewCycles {
+                            expected: *expected,
+                            received: *received,
+                        }
+                        .into())
+                    }
+                };
+            }
+            if let Some(canhttp::IcError { code, message }) = e.downcast_ref::<canhttp::IcError>() {
+                add_metric_entry!(err_http_outcall, (rpc_method, rpc_host, *code), 1);
+                return Err(HttpOutcallError::IcError {
+                    code: *code,
+                    message: message.clone(),
+                }
+                .into());
+            }
+            Err(RpcError::ProviderError(ProviderError::InvalidRpcConfig(
+                format!("Unknown error: {}", e),
+            )))
         }
     }
 }

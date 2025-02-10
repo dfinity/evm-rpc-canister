@@ -11,7 +11,7 @@ use ic_stable_structures::{
 use ic_stable_structures::{Cell, StableBTreeMap};
 use std::cell::RefCell;
 use tower::filter::FilterLayer;
-use tower::{Service, ServiceBuilder};
+use tower::{BoxError, Service, ServiceBuilder};
 
 const IS_DEMO_ACTIVE_MEMORY_ID: MemoryId = MemoryId::new(4);
 const API_KEY_MAP_MEMORY_ID: MemoryId = MemoryId::new(5);
@@ -130,7 +130,8 @@ pub fn set_num_subnet_nodes(nodes: u32) {
     });
 }
 
-pub fn http_client() -> impl Service<CanisterHttpRequestArgument, Response = HttpResponse> {
+pub fn http_client(
+) -> impl Service<CanisterHttpRequestArgument, Response = HttpResponse, Error = BoxError> {
     ServiceBuilder::new()
         .option_layer(if !is_demo_active() {
             Some(FilterLayer::new(ChargeCaller::new(
