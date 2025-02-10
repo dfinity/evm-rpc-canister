@@ -8,7 +8,7 @@ pub trait EstimateRequestCyclesCost {
     fn cycles_cost(&self, request: &CanisterHttpRequestArgument) -> u128;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct DefaultRequestCyclesCostEstimator {
     num_nodes_in_subnet: u32,
 }
