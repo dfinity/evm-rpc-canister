@@ -1,18 +1,20 @@
 use candid::candid_method;
-use evm_rpc::accounting::{get_cost_with_collateral, get_http_request_cost};
+use evm_rpc::accounting::get_cost_with_collateral;
 use evm_rpc::candid_rpc::CandidRpcClient;
-use evm_rpc::constants::NODES_IN_SUBNET;
 use evm_rpc::http::get_http_response_body;
 use evm_rpc::logs::INFO;
 use evm_rpc::memory::{
-    insert_api_key, is_api_key_principal, is_demo_active, remove_api_key, set_api_key_principals,
-    set_demo_active, set_log_filter, set_override_provider,
+    get_num_subnet_nodes, insert_api_key, is_api_key_principal, is_demo_active, remove_api_key,
+    set_api_key_principals, set_demo_active, set_log_filter, set_num_subnet_nodes,
+    set_override_provider,
 };
 use evm_rpc::metrics::encode_metrics;
 use evm_rpc::providers::{find_provider, resolve_rpc_service, PROVIDERS, SERVICE_PROVIDER_MAP};
 use evm_rpc::types::{LogFilter, OverrideProvider, Provider, ProviderId, RpcAccess, RpcAuth};
 use evm_rpc::{
-    http::{json_rpc_request, transform_http_request},
+    http::{
+        get_http_request_arg_cost, json_rpc_request, json_rpc_request_arg, transform_http_request,
+    },
     http_types,
     memory::UNSTABLE_METRICS,
     types::{MetricRpcMethod, Metrics},
@@ -148,17 +150,22 @@ async fn request(
 #[query(name = "requestCost")]
 #[candid_method(query, rename = "requestCost")]
 fn request_cost(
-    _service: evm_rpc_types::RpcService,
+    service: evm_rpc_types::RpcService,
     json_rpc_payload: String,
     max_response_bytes: u64,
 ) -> RpcResult<u128> {
     if is_demo_active() {
         Ok(0)
     } else {
-        Ok(get_cost_with_collateral(get_http_request_cost(
-            json_rpc_payload.len() as u64,
+        let request = json_rpc_request_arg(
+            resolve_rpc_service(service)?,
+            &json_rpc_payload,
             max_response_bytes,
-        )))
+        )?;
+        let cycles_cost = get_http_request_arg_cost(&request);
+        let cycles_cost_with_collateral =
+            get_cost_with_collateral(get_num_subnet_nodes(), cycles_cost);
+        Ok(cycles_cost_with_collateral)
     }
 }
 
@@ -206,7 +213,7 @@ fn get_service_provider_map() -> Vec<(evm_rpc_types::RpcService, ProviderId)> {
 #[query(name = "getNodesInSubnet")]
 #[candid_method(query, rename = "getNodesInSubnet")]
 fn get_nodes_in_subnet() -> u32 {
-    NODES_IN_SUBNET
+    get_num_subnet_nodes()
 }
 
 #[update(
@@ -276,6 +283,9 @@ fn post_upgrade(args: evm_rpc_types::InstallArgs) {
             OverrideProvider::try_from(override_provider)
                 .expect("ERROR: invalid override provider"),
         );
+    }
+    if let Some(nodes) = args.nodes_in_subnet {
+        set_num_subnet_nodes(nodes)
     }
 }
 
