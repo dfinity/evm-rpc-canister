@@ -23,10 +23,10 @@ fn test_candid_rpc_cost() {
     let estimator = DefaultRequestCyclesCostEstimator::new(13);
     assert_eq!(
         [
-            estimator.cycles_cost(&request(0, OVERHEAD_BYTES, 0)),
-            estimator.cycles_cost(&request(123, OVERHEAD_BYTES, 123)),
-            estimator.cycles_cost(&request(123, OVERHEAD_BYTES, 4567890)),
-            estimator.cycles_cost(&request(890, OVERHEAD_BYTES, 4567890)),
+            estimator.cycles_to_attach(&request(0, OVERHEAD_BYTES, 0)),
+            estimator.cycles_to_attach(&request(123, OVERHEAD_BYTES, 123)),
+            estimator.cycles_to_attach(&request(123, OVERHEAD_BYTES, 4567890)),
+            estimator.cycles_to_attach(&request(890, OVERHEAD_BYTES, 4567890)),
         ],
         [50991200, 52910000, 47557686800, 47561675200]
     );
@@ -34,10 +34,10 @@ fn test_candid_rpc_cost() {
     let estimator = DefaultRequestCyclesCostEstimator::new(34);
     assert_eq!(
         [
-            estimator.cycles_cost(&request(0, OVERHEAD_BYTES, 0)),
-            estimator.cycles_cost(&request(123, OVERHEAD_BYTES, 123)),
-            estimator.cycles_cost(&request(123, OVERHEAD_BYTES, 4567890)),
-            estimator.cycles_cost(&request(890, OVERHEAD_BYTES, 4567890)),
+            estimator.cycles_to_attach(&request(0, OVERHEAD_BYTES, 0)),
+            estimator.cycles_to_attach(&request(123, OVERHEAD_BYTES, 123)),
+            estimator.cycles_to_attach(&request(123, OVERHEAD_BYTES, 4567890)),
+            estimator.cycles_to_attach(&request(890, OVERHEAD_BYTES, 4567890)),
         ],
         [176201600, 181220000, 124424482400, 124434913600]
     );

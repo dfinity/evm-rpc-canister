@@ -1,6 +1,7 @@
 pub use client::{Client, IcError};
 pub use cycles::{
-    ChargeCaller, ChargeCallerError, DefaultRequestCyclesCostEstimator, EstimateRequestCyclesCost,
+    CyclesAccounting, CyclesAccountingError, DefaultRequestCyclesCostEstimator,
+    EstimateRequestCyclesCost,
 };
 
 mod client;

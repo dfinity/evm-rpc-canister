@@ -1,14 +1,26 @@
 #[cfg(test)]
 mod tests;
 
+use crate::client::IcHttpRequestWithCycles;
 use ic_cdk::api::management_canister::http_request::CanisterHttpRequestArgument;
 use thiserror::Error;
 use tower::filter::Predicate;
 use tower::BoxError;
 
 pub trait EstimateRequestCyclesCost {
-    /// Estimate cycle cost of an HTTPs outcall.
-    fn cycles_cost(&self, request: &CanisterHttpRequestArgument) -> u128;
+    /// Estimate the amount of cycles to attach to an HTTPs outcall.
+    fn cycles_to_attach(&self, request: &CanisterHttpRequestArgument) -> u128;
+
+    /// Estimate the amount of cycles to charge the caller.
+    ///
+    /// If the value is `None`, no cycles will be charged.
+    fn cycles_to_charge(
+        &self,
+        _request: &CanisterHttpRequestArgument,
+        _attached_cycles: u128,
+    ) -> Option<u128> {
+        None
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -49,7 +61,7 @@ impl DefaultRequestCyclesCostEstimator {
 }
 
 impl EstimateRequestCyclesCost for DefaultRequestCyclesCostEstimator {
-    fn cycles_cost(&self, request: &CanisterHttpRequestArgument) -> u128 {
+    fn cycles_to_attach(&self, request: &CanisterHttpRequestArgument) -> u128 {
         let payload_body_bytes = request
             .body
             .as_ref()
@@ -74,43 +86,50 @@ impl EstimateRequestCyclesCost for DefaultRequestCyclesCostEstimator {
     }
 }
 
-/// Charge estimated request cycles cost to the caller.
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct ChargeCaller<E> {
-    estimator: E,
-}
-
-impl<E> ChargeCaller<E> {
-    pub fn new(estimator: E) -> Self {
-        Self { estimator }
-    }
-}
-
-impl<E> Predicate<CanisterHttpRequestArgument> for ChargeCaller<E>
-where
-    E: EstimateRequestCyclesCost,
-{
-    type Request = CanisterHttpRequestArgument;
-
-    fn check(&mut self, request: CanisterHttpRequestArgument) -> Result<Self::Request, BoxError> {
-        let cycles_cost = self.estimator.cycles_cost(&request);
-        let cycles_available = ic_cdk::api::call::msg_cycles_available128();
-        if cycles_available < cycles_cost {
-            return Err(Box::new(ChargeCallerError::InsufficientCyclesError {
-                expected: cycles_cost,
-                received: cycles_available,
-            }));
-        }
-        assert_eq!(
-            ic_cdk::api::call::msg_cycles_accept128(cycles_cost),
-            cycles_cost
-        );
-        Ok(request)
-    }
-}
-
 #[derive(Error, Debug)]
-pub enum ChargeCallerError {
+pub enum CyclesAccountingError {
     #[error("insufficient cycles (expected {expected:?}, received {received:?})")]
     InsufficientCyclesError { expected: u128, received: u128 },
+}
+
+#[derive(Clone, Debug)]
+pub struct CyclesAccounting<CyclesEstimator> {
+    cycles_estimator: CyclesEstimator,
+}
+
+impl<CyclesEstimator> CyclesAccounting<CyclesEstimator> {
+    pub fn new(cycles_estimator: CyclesEstimator) -> Self {
+        Self { cycles_estimator }
+    }
+}
+
+impl<CyclesEstimator> Predicate<CanisterHttpRequestArgument> for CyclesAccounting<CyclesEstimator>
+where
+    CyclesEstimator: EstimateRequestCyclesCost,
+{
+    type Request = IcHttpRequestWithCycles;
+
+    fn check(&mut self, request: CanisterHttpRequestArgument) -> Result<Self::Request, BoxError> {
+        let cycles_to_attach = self.cycles_estimator.cycles_to_attach(&request);
+        if let Some(cycles_to_charge) = self
+            .cycles_estimator
+            .cycles_to_charge(&request, cycles_to_attach)
+        {
+            let cycles_available = ic_cdk::api::call::msg_cycles_available128();
+            if cycles_available < cycles_to_charge {
+                return Err(Box::new(CyclesAccountingError::InsufficientCyclesError {
+                    expected: cycles_to_charge,
+                    received: cycles_available,
+                }));
+            }
+            assert_eq!(
+                ic_cdk::api::call::msg_cycles_accept128(cycles_to_charge),
+                cycles_to_charge
+            );
+        }
+        Ok(IcHttpRequestWithCycles {
+            request,
+            cycles: cycles_to_attach,
+        })
+    }
 }

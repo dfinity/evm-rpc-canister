@@ -1,27 +1,15 @@
-use crate::cycles::{DefaultRequestCyclesCostEstimator, EstimateRequestCyclesCost};
 use ic_cdk::api::call::RejectionCode;
 use ic_cdk::api::management_canister::http_request::{
     CanisterHttpRequestArgument as IcHttpRequest, HttpResponse as IcHttpResponse,
 };
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::Arc;
 use std::task::{Context, Poll};
 use thiserror::Error;
 use tower::{BoxError, Service};
 
 #[derive(Clone)]
-pub struct Client<CyclesEstimator> {
-    cycles_estimator: Arc<CyclesEstimator>,
-}
-
-impl Client<DefaultRequestCyclesCostEstimator> {
-    pub fn new(num_nodes: u32) -> Self {
-        Self {
-            cycles_estimator: Arc::new(DefaultRequestCyclesCostEstimator::new(num_nodes)),
-        }
-    }
-}
+pub struct Client;
 
 #[derive(Error, Debug, PartialEq, Eq)]
 #[error("Error from ICP: (code {code:?}, message {message})")]
@@ -37,10 +25,7 @@ impl IcError {
     }
 }
 
-impl<CyclesEstimator> Service<IcHttpRequest> for Client<CyclesEstimator>
-where
-    CyclesEstimator: EstimateRequestCyclesCost,
-{
+impl Service<IcHttpRequestWithCycles> for Client {
     type Response = IcHttpResponse;
     type Error = BoxError;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
@@ -49,18 +34,23 @@ where
         Poll::Ready(Ok(()))
     }
 
-    fn call(&mut self, request: IcHttpRequest) -> Self::Future {
-        let cycles_cost = self.cycles_estimator.cycles_cost(&request);
+    fn call(
+        &mut self,
+        IcHttpRequestWithCycles { request, cycles }: IcHttpRequestWithCycles,
+    ) -> Self::Future {
         Box::pin(async move {
-            match ic_cdk::api::management_canister::http_request::http_request(
-                request.clone(),
-                cycles_cost,
-            )
-            .await
+            match ic_cdk::api::management_canister::http_request::http_request(request, cycles)
+                .await
             {
                 Ok((response,)) => Ok(response),
                 Err((code, message)) => Err(BoxError::from(IcError { code, message })),
             }
         })
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct IcHttpRequestWithCycles {
+    pub request: IcHttpRequest,
+    pub cycles: u128,
 }

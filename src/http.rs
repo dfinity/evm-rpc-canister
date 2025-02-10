@@ -6,7 +6,7 @@ use crate::{
     types::{MetricRpcHost, MetricRpcMethod, ResolvedRpcService},
     util::canonicalize_json,
 };
-use canhttp::ChargeCallerError;
+use canhttp::CyclesAccountingError;
 use evm_rpc_types::{HttpOutcallError, ProviderError, RpcError, RpcResult, ValidationError};
 use ic_cdk::api::management_canister::http_request::{
     CanisterHttpRequestArgument, HttpHeader, HttpMethod, HttpResponse, TransformArgs,
@@ -85,9 +85,9 @@ pub async fn http_request(
             Ok(response)
         }
         Err(e) => {
-            if let Some(charging_error) = e.downcast_ref::<ChargeCallerError>() {
+            if let Some(charging_error) = e.downcast_ref::<CyclesAccountingError>() {
                 return match charging_error {
-                    ChargeCallerError::InsufficientCyclesError { expected, received } => {
+                    CyclesAccountingError::InsufficientCyclesError { expected, received } => {
                         Err(ProviderError::TooFewCycles {
                             expected: *expected,
                             received: *received,
