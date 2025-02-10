@@ -17,13 +17,10 @@ opt-level = 's'
 inherits = "release"
 
 [dependencies]
-bytes = "1.10.0"
 candid = { workspace = true }
-canjsonrpc = {path = "canjsonrpc"}
 ethnum = { workspace = true }
 evm_rpc_types = { path = "evm_rpc_types" }
 futures = { workspace = true }
-http = "1.2.0"
 getrandom = { workspace = true }
 ic-sha3 = "1.0.0"
 ic-ethereum-types = "1.0.0"
@@ -45,9 +42,6 @@ hex = "0.4"
 ethers-core = "2.0"
 zeroize = { version = "1.8", features = ["zeroize_derive"] }
 regex = "1.11"
-tower = "0.5.2"
-tower-http = { version = "0.6.2" , features = ["trace"]}
-tower-service = "0.3.3"
 
 [dev-dependencies]
 assert_matches = "1.5"

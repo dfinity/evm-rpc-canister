@@ -13,10 +13,6 @@ use crate::rpc_client::json::responses::{
 use crate::rpc_client::numeric::{TransactionCount, Wei};
 use crate::types::{MetricRpcMethod, OverrideProvider};
 use candid::candid_method;
-use canjsonrpc::client::Client;
-use canjsonrpc::cycles::{ChargeCaller, DefaultRequestCost};
-use canjsonrpc::http::{AddMaxResponseBytesExtension, AddTransformContextExtension};
-use canjsonrpc::retry::DoubleMaxResponseBytes;
 use evm_rpc_types::{HttpOutcallError, RpcApi, RpcError, RpcService};
 use ic_canister_log::log;
 use ic_cdk::api::call::RejectionCode;
@@ -29,8 +25,6 @@ use minicbor::{Decode, Encode};
 use serde::{de::DeserializeOwned, Serialize};
 use std::fmt;
 use std::fmt::Debug;
-use tower::ServiceExt;
-use tower_service::Service;
 
 #[cfg(test)]
 mod tests;
@@ -177,13 +171,13 @@ pub async fn call<I, O>(
     mut response_size_estimate: ResponseSizeEstimate,
 ) -> Result<O, RpcError>
 where
-    I: Serialize + Clone,
+    I: Serialize,
     O: DeserializeOwned + HttpResponsePayload,
 {
     let eth_method = method.into();
     let mut rpc_request = JsonRpcRequest {
         jsonrpc: "2.0".to_string(),
-        params: params.clone(),
+        params,
         method: eth_method.clone(),
         id: 1,
     };
@@ -223,35 +217,9 @@ where
             body: Some(payload.as_bytes().to_vec()),
             transform: Some(TransformContext::from_name(
                 "cleanup_response".to_owned(),
-                transform_op.clone(),
+                transform_op,
             )),
         };
-
-        use tower::ServiceBuilder;
-        use tower_service::Service;
-        let num_nodes = 34;
-        let request_cost_estimator = DefaultRequestCost::new(num_nodes);
-
-        let json_rpc_request = canjsonrpc::json::JsonRpcRequestBuilder::new(eth_method)
-            .max_response_bytes(effective_size_estimate)
-            .transform_context(TransformContext::from_name(
-                "cleanup_response".to_owned(),
-                transform_op,
-            ))
-            .build_with_params(params)
-            .unwrap();
-
-        let mut client = Client::http(num_nodes);
-        let _ = client.call(json_rpc_request).await;
-        let mut client = ServiceBuilder::new()
-            // .filter(ChargeCaller::new(request_cost_estimator))
-            .retry(DoubleMaxResponseBytes {})
-            .service(Client::new(num_nodes))
-            .map_request(|req| {
-                log!(TRACE_HTTP, "request: {:?}", req);
-                req
-            });
-        let response = client.call(request.clone()).await.unwrap();
 
         let response = match http_request(&eth_method, request, effective_size_estimate).await {
             Err(RpcError::HttpOutcallError(HttpOutcallError::IcError { code, message }))

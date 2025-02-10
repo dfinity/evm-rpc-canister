@@ -10,13 +10,3 @@ include = ["src", "Cargo.toml", "CHANGELOG.md", "LICENSE", "README.md"]
 documentation = "https://docs.rs/canjsonrpc"
 
 [dependencies]
-bytes = "1.10.0"
-http = "1.2.0"
-ic-cdk = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
-thiserror = { workspace = true }
-tower = { version = "0.5.2", default-features = false, features = ["filter", "retry"] }
-tower-http = "0.6.2"
-url = "2.5.4"
-num-traits = "0.2.19"
