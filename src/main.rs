@@ -160,7 +160,7 @@ fn request_cost(
             &json_rpc_payload,
             max_response_bytes,
         )?;
-        let estimator = RequestCyclesCostWithCollateralEstimator::new();
+        let estimator = RequestCyclesCostWithCollateralEstimator::default();
         Ok(estimator.cycles_cost(&request))
     }
 }

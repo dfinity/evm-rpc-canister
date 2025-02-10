@@ -135,7 +135,7 @@ pub fn http_client(
     ServiceBuilder::new()
         .option_layer(if !is_demo_active() {
             Some(FilterLayer::new(ChargeCaller::new(
-                RequestCyclesCostWithCollateralEstimator::new(),
+                RequestCyclesCostWithCollateralEstimator::default(),
             )))
         } else {
             None
@@ -145,25 +145,32 @@ pub fn http_client(
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct RequestCyclesCostWithCollateralEstimator {
-    num_nodes_in_subnet: u32,
+    collateral_cycles: u128,
     inner: DefaultRequestCyclesCostEstimator,
 }
 
 impl RequestCyclesCostWithCollateralEstimator {
-    pub fn new() -> Self {
-        let num_nodes_in_subnet = get_num_subnet_nodes();
+    pub fn new(num_nodes_in_subnet: u32, collateral_cycles_per_node: u128) -> Self {
+        let collateral_cycles =
+            collateral_cycles_per_node.saturating_mul(num_nodes_in_subnet as u128);
         Self {
-            num_nodes_in_subnet,
+            collateral_cycles,
             inner: DefaultRequestCyclesCostEstimator::new(num_nodes_in_subnet),
         }
     }
 }
 
+impl Default for RequestCyclesCostWithCollateralEstimator {
+    fn default() -> Self {
+        Self::new(get_num_subnet_nodes(), COLLATERAL_CYCLES_PER_NODE)
+    }
+}
+
 impl EstimateRequestCyclesCost for RequestCyclesCostWithCollateralEstimator {
     fn cycles_cost(&self, request: &CanisterHttpRequestArgument) -> u128 {
-        self.inner.cycles_cost(request).saturating_add(
-            COLLATERAL_CYCLES_PER_NODE.saturating_mul(self.num_nodes_in_subnet as u128),
-        )
+        self.inner
+            .cycles_cost(request)
+            .saturating_add(self.collateral_cycles)
     }
 }
 
