@@ -30,7 +30,7 @@ pub struct IcError {
 impl IcError {
     /// Determines whether the error indicates that the response was larger than the specified
     /// [`max_response_bytes`](https://internetcomputer.org/docs/current/references/ic-interface-spec#ic-http_request) specified in the request.
-    /// 
+    ///
     /// If true, retrying with a larger value for `max_response_bytes` may help.
     pub fn is_response_too_large(&self) -> bool {
         self.code == RejectionCode::SysFatal
