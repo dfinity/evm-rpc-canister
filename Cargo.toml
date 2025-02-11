@@ -1,6 +1,6 @@
 [package]
 name = "evm_rpc"
-version = "2.2.0"
+version = "2.3.0"
 description = "Interact with EVM blockchains from the Internet Computer."
 authors = ["DFINITY Foundation"]
 readme = "README.md"
