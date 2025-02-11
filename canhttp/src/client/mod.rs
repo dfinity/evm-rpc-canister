@@ -8,17 +8,30 @@ use std::task::{Context, Poll};
 use thiserror::Error;
 use tower::{BoxError, Service};
 
-#[derive(Clone)]
+/// Thin wrapper around [`ic_cdk::api::management_canister::http_request::http_request`]
+/// that implements the [`tower::Service`] trait. Its functionality can be extended by composing so-called
+/// [tower middlewares](https://docs.rs/tower/latest/tower/#usage).
+///
+/// Middlewares from this crate:
+/// * [`crate::cycles::CyclesAccounting`]: handles cycles accounting.
+#[derive(Clone, Debug)]
 pub struct Client;
 
+/// Error returned by the Internet Computer when making an HTTPs outcall.
 #[derive(Error, Debug, PartialEq, Eq)]
 #[error("Error from ICP: (code {code:?}, message {message})")]
 pub struct IcError {
+    /// Rejection code as specified [here](https://internetcomputer.org/docs/current/references/ic-interface-spec#reject-codes)
     pub code: RejectionCode,
+    /// Associated helper message.
     pub message: String,
 }
 
 impl IcError {
+    /// Determines whether the error indicates that the response was larger than the specified
+    /// [`max_response_bytes`](https://internetcomputer.org/docs/current/references/ic-interface-spec#ic-http_request) specified in the request.
+    /// 
+    /// If true, retrying with a larger value for `max_response_bytes` may help.
     pub fn is_response_too_large(&self) -> bool {
         self.code == RejectionCode::SysFatal
             && (self.message.contains("size limit") || self.message.contains("length limit"))

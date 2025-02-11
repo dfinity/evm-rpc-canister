@@ -7,8 +7,13 @@ use thiserror::Error;
 use tower::filter::Predicate;
 use tower::BoxError;
 
+/// Estimate the amount of cycles needed for a single HTTPs outcall.
 pub trait EstimateRequestCyclesCost {
     /// Estimate the amount of cycles to attach to an HTTPs outcall.
+    ///
+    /// The returned amount should be at least the value specified [here](https://internetcomputer.org/docs/current/developer-docs/gas-cost#https-outcalls),
+    /// otherwise the call will be rejected by the Internet Computer.
+    /// The minimum value is computed by [`DefaultRequestCyclesCostEstimator`].
     fn cycles_to_attach(&self, request: &CanisterHttpRequestArgument) -> u128;
 
     /// Estimate the amount of cycles to charge the caller.
@@ -23,14 +28,19 @@ pub trait EstimateRequestCyclesCost {
     }
 }
 
+/// Estimate the exact minimum cycles amount required to send an HTTPs outcall as specified
+/// [here](https://internetcomputer.org/docs/current/developer-docs/gas-cost#https-outcalls).
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct DefaultRequestCyclesCostEstimator {
     num_nodes_in_subnet: u32,
 }
 
 impl DefaultRequestCyclesCostEstimator {
+    /// Maximum value for `max_response_bytes` which is 2MB,
+    /// see the [IC specification](https://internetcomputer.org/docs/current/references/ic-interface-spec#ic-http_request).
     pub const DEFAULT_MAX_RESPONSE_BYTES: u64 = 2_000_000;
 
+    /// Create a new estimator for a subnet having the given number of nodes.
     pub const fn new(num_nodes_in_subnet: u32) -> Self {
         DefaultRequestCyclesCostEstimator {
             num_nodes_in_subnet,
@@ -86,18 +96,28 @@ impl EstimateRequestCyclesCost for DefaultRequestCyclesCostEstimator {
     }
 }
 
+/// Error return by the [`CyclesAccounting] middleware.
 #[derive(Error, Debug)]
 pub enum CyclesAccountingError {
+    /// Error returned when the caller should be charge but did not attach sufficiently many cycles.
     #[error("insufficient cycles (expected {expected:?}, received {received:?})")]
-    InsufficientCyclesError { expected: u128, received: u128 },
+    InsufficientCyclesError {
+        /// Expected amount of cycles. Minimum value that should have been sent.
+        expected: u128,
+        /// Received amount of cycles
+        received: u128,
+    },
 }
 
+/// A middleware to handle cycles accounting.
+/// How cycles are estimated is given by `CyclesEstimator`
 #[derive(Clone, Debug)]
 pub struct CyclesAccounting<CyclesEstimator> {
     cycles_estimator: CyclesEstimator,
 }
 
 impl<CyclesEstimator> CyclesAccounting<CyclesEstimator> {
+    /// Create a new middleware given the cycles estimator.
     pub fn new(cycles_estimator: CyclesEstimator) -> Self {
         Self { cycles_estimator }
     }
