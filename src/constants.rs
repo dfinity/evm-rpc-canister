@@ -1,22 +1,9 @@
-// HTTP outcall cost calculation
-// See https://internetcomputer.org/docs/current/developer-docs/gas-cost#special-features
-pub const INGRESS_OVERHEAD_BYTES: u128 = 100;
-pub const INGRESS_MESSAGE_RECEIVED_COST: u128 = 1_200_000;
-pub const INGRESS_MESSAGE_BYTE_RECEIVED_COST: u128 = 2_000;
-pub const HTTP_OUTCALL_REQUEST_BASE_COST: u128 = 3_000_000;
-pub const HTTP_OUTCALL_REQUEST_PER_NODE_COST: u128 = 60_000;
-pub const HTTP_OUTCALL_REQUEST_COST_PER_BYTE: u128 = 400;
-pub const HTTP_OUTCALL_RESPONSE_COST_PER_BYTE: u128 = 800;
+// The default value of max_resposne_bytes is 2_000_000.
+pub const DEFAULT_MAX_RESPONSE_BYTES: u64 = 2_000_000;
 
-// Additional cost of operating the canister per subnet node
-pub const CANISTER_OVERHEAD: u128 = 1_000_000;
-
-// Cycles which must be passed with each RPC request in case the
-// third-party JSON-RPC prices increase in the future (currently always refunded)
+// Cycles (per node) which must be passed with each RPC request
+// as processing fee.
 pub const COLLATERAL_CYCLES_PER_NODE: u128 = 10_000_000;
-
-// Minimum number of bytes charged for a URL; improves consistency of costs between providers
-pub const RPC_URL_COST_BYTES: u32 = 256;
 
 pub const MINIMUM_WITHDRAWAL_CYCLES: u128 = 1_000_000_000;
 

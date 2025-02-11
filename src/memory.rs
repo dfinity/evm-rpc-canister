@@ -14,6 +14,7 @@ const API_KEY_MAP_MEMORY_ID: MemoryId = MemoryId::new(5);
 const MANAGE_API_KEYS_MEMORY_ID: MemoryId = MemoryId::new(6);
 const LOG_FILTER_MEMORY_ID: MemoryId = MemoryId::new(7);
 const OVERRIDE_PROVIDER_MEMORY_ID: MemoryId = MemoryId::new(8);
+const NUM_SUBNET_NODES_MEMORY_ID: MemoryId = MemoryId::new(9);
 
 type StableMemory = VirtualMemory<DefaultMemoryImpl>;
 
@@ -35,6 +36,8 @@ thread_local! {
         RefCell::new(Cell::init(MEMORY_MANAGER.with_borrow(|m| m.get(LOG_FILTER_MEMORY_ID)), LogFilter::default()).expect("Unable to read log message filter from stable memory"));
     static OVERRIDE_PROVIDER: RefCell<Cell<OverrideProvider, StableMemory>> =
         RefCell::new(Cell::init(MEMORY_MANAGER.with_borrow(|m| m.get(OVERRIDE_PROVIDER_MEMORY_ID)), OverrideProvider::default()).expect("Unable to read provider override from stable memory"));
+    static NUM_SUBNET_NODES: RefCell<Cell<u32, StableMemory>> =
+        RefCell::new(Cell::init(MEMORY_MANAGER.with_borrow(|m| m.get(NUM_SUBNET_NODES_MEMORY_ID)), crate::constants::NODES_IN_SUBNET).expect("Unable to read number of subnet nodes from stable memory"));
 }
 
 pub fn get_api_key(provider_id: ProviderId) -> Option<ApiKey> {
@@ -109,6 +112,18 @@ pub fn next_request_id() -> u64 {
         *counter = counter.wrapping_add(1);
         current_request_id
     })
+}
+
+pub fn get_num_subnet_nodes() -> u32 {
+    NUM_SUBNET_NODES.with_borrow(|state| *state.get())
+}
+
+pub fn set_num_subnet_nodes(nodes: u32) {
+    NUM_SUBNET_NODES.with_borrow_mut(|state| {
+        state
+            .set(nodes)
+            .expect("Error while updating number of subnet nodes")
+    });
 }
 
 #[cfg(test)]

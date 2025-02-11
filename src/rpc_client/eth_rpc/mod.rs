@@ -1,7 +1,6 @@
-//! This module contains definitions for communicating with an Ethereum API using the [JSON RPC](https://ethereum.org/en/developers/docs/apis/json-rpc/)
+//! This module contains definitions for communicating witEthereum API using the [JSON RPC](https://ethereum.org/en/developers/docs/apis/json-rpc/)
 //! interface.
 
-use crate::accounting::get_http_request_cost;
 use crate::logs::{DEBUG, TRACE_HTTP};
 use crate::memory::{get_override_provider, next_request_id};
 use crate::providers::resolve_rpc_service;
@@ -221,7 +220,7 @@ where
             )),
         };
 
-        let response = match http_request(&eth_method, request, effective_size_estimate).await {
+        let response = match http_request(&eth_method, request).await {
             Err(RpcError::HttpOutcallError(HttpOutcallError::IcError { code, message }))
                 if is_response_too_large(&code, &message) =>
             {
@@ -281,18 +280,9 @@ fn resolve_api(
 async fn http_request(
     method: &str,
     request: CanisterHttpRequestArgument,
-    effective_response_size_estimate: u64,
 ) -> Result<HttpResponse, RpcError> {
-    let cycles_cost = get_http_request_cost(
-        request
-            .body
-            .as_ref()
-            .map(|bytes| bytes.len() as u64)
-            .unwrap_or_default(),
-        effective_response_size_estimate,
-    );
     let rpc_method = MetricRpcMethod(method.to_string());
-    crate::http::http_request(rpc_method, request, cycles_cost).await
+    crate::http::http_request(rpc_method, request).await
 }
 
 fn http_status_code(response: &HttpResponse) -> u16 {
