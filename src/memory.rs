@@ -2,7 +2,7 @@ use crate::constants::COLLATERAL_CYCLES_PER_NODE;
 use crate::types::{ApiKey, LogFilter, Metrics, OverrideProvider, ProviderId};
 use candid::Principal;
 use canhttp::{
-    CyclesAccounting, DefaultRequestCyclesCostEstimator, DoubleMaxResponseBytes,
+    CyclesAccounting, DefaultRequestCyclesCostEstimator,
     EstimateRequestCyclesCost,
 };
 use ic_cdk::api::management_canister::http_request::{CanisterHttpRequestArgument, HttpResponse};
@@ -132,10 +132,8 @@ pub fn set_num_subnet_nodes(nodes: u32) {
     });
 }
 
-pub fn http_client(
-) -> impl Service<CanisterHttpRequestArgument, Response = HttpResponse, Error = BoxError> {
+pub fn http_client() -> impl Service<CanisterHttpRequestArgument, Response=HttpResponse, Error=BoxError> {
     ServiceBuilder::new()
-        .retry(DoubleMaxResponseBytes)
         .filter(CyclesAccounting::new(
             RequestCyclesCostWithCollateralEstimator::default(),
         ))

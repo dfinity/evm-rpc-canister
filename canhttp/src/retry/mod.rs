@@ -1,5 +1,5 @@
+use crate::request::MaxResponseBytesRequestExtension;
 use crate::IcError;
-use ic_cdk::api::management_canister::http_request::CanisterHttpRequestArgument;
 use std::future;
 use tower::retry;
 
@@ -7,14 +7,15 @@ use tower::retry;
 #[derive(Debug, Clone)]
 pub struct DoubleMaxResponseBytes;
 
-impl<Response> retry::Policy<CanisterHttpRequestArgument, Response, IcError>
-    for DoubleMaxResponseBytes
+impl<Request, Response> retry::Policy<Request, Response, IcError> for DoubleMaxResponseBytes
+where
+    Request: MaxResponseBytesRequestExtension + Clone,
 {
     type Future = future::Ready<()>;
 
     fn retry(
         &mut self,
-        req: &mut CanisterHttpRequestArgument,
+        req: &mut Request,
         result: &mut Result<Response, IcError>,
     ) -> Option<Self::Future> {
         // This constant comes from the IC specification:
@@ -23,15 +24,15 @@ impl<Response> retry::Policy<CanisterHttpRequestArgument, Response, IcError>
 
         match result {
             Ok(_) => None,
-            Err(e) => {
-                if e.is_response_too_large() {
-                    if let Some(previous_estimate) = req.max_response_bytes {
+            Err(ic_error) => {
+                if ic_error.is_response_too_large() {
+                    if let Some(previous_estimate) = req.get_max_response_bytes() {
                         let new_estimate = previous_estimate
                             .max(1024)
                             .saturating_mul(2)
                             .min(HTTP_MAX_SIZE);
                         if new_estimate > previous_estimate {
-                            req.max_response_bytes = Some(new_estimate);
+                            req.set_max_response_bytes(new_estimate);
                             return Some(future::ready(()));
                         }
                     } // no estimate means the maximum was already used
@@ -41,10 +42,7 @@ impl<Response> retry::Policy<CanisterHttpRequestArgument, Response, IcError>
         }
     }
 
-    fn clone_request(
-        &mut self,
-        req: &CanisterHttpRequestArgument,
-    ) -> Option<CanisterHttpRequestArgument> {
+    fn clone_request(&mut self, req: &Request) -> Option<Request> {
         Some(req.clone())
     }
 }
