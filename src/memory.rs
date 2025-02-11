@@ -180,11 +180,11 @@ impl EstimateRequestCyclesCost for RequestCyclesCostWithCollateralEstimator {
         &self,
         _request: &CanisterHttpRequestArgument,
         attached_cycles: u128,
-    ) -> Option<u128> {
+    ) -> u128 {
         if self.charge_user {
-            return Some(attached_cycles.saturating_add(self.collateral_cycles));
+            return attached_cycles.saturating_add(self.collateral_cycles);
         }
-        None
+        0
     }
 }
 

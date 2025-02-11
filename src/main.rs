@@ -161,7 +161,8 @@ fn request_cost(
             max_response_bytes,
         )?;
         let estimator = RequestCyclesCostWithCollateralEstimator::default();
-        Ok(estimator.cycles_to_attach(&request))
+        let cycles_to_attach = estimator.cycles_to_attach(&request);
+        Ok(estimator.cycles_to_charge(&request, cycles_to_attach))
     }
 }
 

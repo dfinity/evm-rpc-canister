@@ -18,13 +18,13 @@ pub trait EstimateRequestCyclesCost {
 
     /// Estimate the amount of cycles to charge the caller.
     ///
-    /// If the value is `None`, no cycles will be charged.
+    /// If the value is `0`, no cycles will be charged.
     fn cycles_to_charge(
         &self,
         _request: &CanisterHttpRequestArgument,
         _attached_cycles: u128,
-    ) -> Option<u128> {
-        None
+    ) -> u128 {
+        0
     }
 }
 
@@ -131,10 +131,10 @@ where
 
     fn check(&mut self, request: CanisterHttpRequestArgument) -> Result<Self::Request, BoxError> {
         let cycles_to_attach = self.cycles_estimator.cycles_to_attach(&request);
-        if let Some(cycles_to_charge) = self
+        let cycles_to_charge = self
             .cycles_estimator
-            .cycles_to_charge(&request, cycles_to_attach)
-        {
+            .cycles_to_charge(&request, cycles_to_attach);
+        if cycles_to_charge > 0 {
             let cycles_available = ic_cdk::api::call::msg_cycles_available128();
             if cycles_available < cycles_to_charge {
                 return Err(Box::new(CyclesAccountingError::InsufficientCyclesError {
