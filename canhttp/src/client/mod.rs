@@ -40,7 +40,7 @@ impl IcError {
 
 impl Service<IcHttpRequestWithCycles> for Client {
     type Response = IcHttpResponse;
-    type Error = BoxError;
+    type Error = IcError;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
 
     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
@@ -56,7 +56,7 @@ impl Service<IcHttpRequestWithCycles> for Client {
                 .await
             {
                 Ok((response,)) => Ok(response),
-                Err((code, message)) => Err(BoxError::from(IcError { code, message })),
+                Err((code, message)) => Err(IcError { code, message }),
             }
         })
     }

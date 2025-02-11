@@ -10,6 +10,8 @@ pub use cycles::{
     CyclesAccounting, CyclesAccountingError, DefaultRequestCyclesCostEstimator,
     EstimateRequestCyclesCost,
 };
+pub use retry::DoubleMaxResponseBytes;
 
 mod client;
 mod cycles;
+mod retry;
