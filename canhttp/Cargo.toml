@@ -10,6 +10,8 @@ include = ["src", "Cargo.toml", "CHANGELOG.md", "LICENSE", "README.md"]
 documentation = "https://docs.rs/canhttp"
 
 [dependencies]
+bytes = { workspace = true }
+http = { workspace = true }
 ic-cdk = { workspace = true }
 tower = { workspace = true, features = ["filter", "retry"] }
 thiserror = { workspace = true }
