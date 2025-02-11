@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Ankr replaced `rpc.sepolia.org` as default provider for Ethereum Sepolia.
+- `rpc.sepolia.org` replaced by Ankr as one of the default providers for Ethereum Sepolia.
 
 ### Fixed
 

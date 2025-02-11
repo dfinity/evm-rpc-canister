@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- The number of nodes in a subnet can be specified in the installation arguments (new field `nodes_in_subnet` in `InstallArgs`).
-- Allow to override provider URL upon installation for testing purposes (new field `override_provider` in `InstallArgs`)
+- The number of nodes in a subnet can be specified in the installation arguments (new optional field `nodes_in_subnet` in `InstallArgs`).
+- Allow to override provider URL upon installation for testing purposes (new optional field `override_provider` in `InstallArgs`)
 
 ## [1.2.0] - 2024-10-17
 
