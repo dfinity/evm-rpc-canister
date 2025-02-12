@@ -12,7 +12,7 @@ use evm_rpc::metrics::encode_metrics;
 use evm_rpc::providers::{find_provider, resolve_rpc_service, PROVIDERS, SERVICE_PROVIDER_MAP};
 use evm_rpc::types::{LogFilter, OverrideProvider, Provider, ProviderId, RpcAccess, RpcAuth};
 use evm_rpc::{
-    http::{json_rpc_request, json_rpc_request_arg, transform_http_request},
+    http::{json_rpc_request_arg, transform_http_request},
     http_types,
     memory::UNSTABLE_METRICS,
     types::{MetricRpcMethod, Metrics},
@@ -135,13 +135,13 @@ async fn request(
     json_rpc_payload: String,
     max_response_bytes: u64,
 ) -> RpcResult<String> {
-    let response = json_rpc_request(
+    let rpc_method = MetricRpcMethod("request".to_string());
+    let request = json_rpc_request_arg(
         resolve_rpc_service(service)?,
-        MetricRpcMethod("request".to_string()),
         &json_rpc_payload,
         max_response_bytes,
-    )
-    .await?;
+    )?;
+    let response = evm_rpc::http::http_request(rpc_method, request).await?;
     get_http_response_body(response)
 }
 

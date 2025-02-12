@@ -44,16 +44,6 @@ pub fn json_rpc_request_arg(
     })
 }
 
-pub async fn json_rpc_request(
-    service: ResolvedRpcService,
-    rpc_method: MetricRpcMethod,
-    json_rpc_payload: &str,
-    max_response_bytes: u64,
-) -> RpcResult<HttpResponse> {
-    let request = json_rpc_request_arg(service, json_rpc_payload, max_response_bytes)?;
-    http_request(rpc_method, request).await
-}
-
 pub async fn http_request(
     rpc_method: MetricRpcMethod,
     request: CanisterHttpRequestArgument,
