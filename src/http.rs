@@ -1,47 +1,52 @@
 use crate::memory::http_client;
 use crate::{
     add_metric_entry,
-    constants::{CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE},
+    constants::CONTENT_TYPE_VALUE,
     memory::get_override_provider,
     types::{MetricRpcHost, MetricRpcMethod, ResolvedRpcService},
     util::canonicalize_json,
 };
-use canhttp::CyclesAccountingError;
+use bytes::Bytes;
+use canhttp::{
+    CyclesAccountingError, MaxResponseBytesRequestExtensionBuilder,
+    TransformContextRequestExtensionBuiler,
+};
 use evm_rpc_types::{HttpOutcallError, ProviderError, RpcError, RpcResult, ValidationError};
 use ic_cdk::api::management_canister::http_request::{
-    CanisterHttpRequestArgument, HttpHeader, HttpMethod, HttpResponse, TransformArgs,
-    TransformContext,
+    CanisterHttpRequestArgument, HttpResponse, TransformArgs, TransformContext,
 };
 use num_traits::ToPrimitive;
 use tower::Service;
 
 pub fn json_rpc_request_arg(
     service: ResolvedRpcService,
-    json_rpc_payload: &str,
+    json_rpc_payload: String,
     max_response_bytes: u64,
-) -> RpcResult<CanisterHttpRequestArgument> {
+) -> RpcResult<http::Request<Bytes>> {
     let api = service.api(&get_override_provider())?;
-    let mut request_headers = api.headers.unwrap_or_default();
-    if !request_headers
-        .iter()
-        .any(|header| header.name.to_lowercase() == CONTENT_TYPE_HEADER_LOWERCASE)
-    {
-        request_headers.push(HttpHeader {
-            name: CONTENT_TYPE_HEADER_LOWERCASE.to_string(),
-            value: CONTENT_TYPE_VALUE.to_string(),
-        });
-    }
-    Ok(CanisterHttpRequestArgument {
-        url: api.url,
-        max_response_bytes: Some(max_response_bytes),
-        method: HttpMethod::POST,
-        headers: request_headers,
-        body: Some(json_rpc_payload.as_bytes().to_vec()),
-        transform: Some(TransformContext::from_name(
+
+    let mut request_builder = http::Request::post(api.url)
+        .max_response_bytes(max_response_bytes)
+        .transform_context(TransformContext::from_name(
             "__transform_json_rpc".to_string(),
             vec![],
-        )),
-    })
+        ));
+    for header in api.headers.unwrap_or_default() {
+        request_builder = request_builder.header(header.name, header.value);
+    }
+    if let Some(headers) = request_builder.headers_mut() {
+        if !headers.contains_key(http::header::CONTENT_TYPE) {
+            headers.insert(
+                http::header::CONTENT_TYPE,
+                http::HeaderValue::from_static(CONTENT_TYPE_VALUE),
+            );
+        }
+    }
+    request_builder
+        .body(Bytes::from(json_rpc_payload))
+        .map_err(|e| {
+            RpcError::ValidationError(ValidationError::Custom(format!("Invalid request: {e}")))
+        })
 }
 
 pub async fn http_request(
@@ -114,10 +119,11 @@ pub fn get_http_response_status(status: candid::Nat) -> u16 {
     status.0.to_u16().unwrap_or(u16::MAX)
 }
 
-pub fn get_http_response_body(response: HttpResponse) -> Result<String, RpcError> {
-    String::from_utf8(response.body).map_err(|e| {
+pub fn get_http_response_body(response: http::Response<Bytes>) -> Result<String, RpcError> {
+    let (parts, body) = response.into_parts();
+    String::from_utf8(body.to_vec()).map_err(|e| {
         HttpOutcallError::InvalidHttpJsonRpcResponse {
-            status: get_http_response_status(response.status),
+            status: parts.status.as_u16(),
             body: "".to_string(),
             parsing_error: Some(format!("{e}")),
         }

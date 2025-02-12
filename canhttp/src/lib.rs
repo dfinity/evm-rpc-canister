@@ -10,9 +10,15 @@ pub use cycles::{
     CyclesAccounting, CyclesAccountingError, DefaultRequestCyclesCostEstimator,
     EstimateRequestCyclesCost,
 };
+pub use request::{
+    HttpRequestFilter, MaxResponseBytesRequestExtensionBuilder,
+    TransformContextRequestExtensionBuiler,
+};
+pub use response::map_ic_http_response;
 pub use retry::DoubleMaxResponseBytes;
 
 mod client;
 mod cycles;
-mod retry;
 mod request;
+mod response;
+mod retry;

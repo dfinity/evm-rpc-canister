@@ -6,7 +6,7 @@ use candid::{CandidType, Decode, Encode, Nat, Principal};
 use evm_rpc::constants::DEFAULT_MAX_RESPONSE_BYTES;
 use evm_rpc::logs::{Log, LogEntry};
 use evm_rpc::{
-    constants::{CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE},
+    constants::CONTENT_TYPE_VALUE,
     http_types::{HttpRequest, HttpResponse},
     providers::PROVIDERS,
     types::{Metrics, ProviderId, RpcAccess, RpcMethod},
@@ -67,6 +67,8 @@ const CLOUDFLARE_HOSTNAME: &str = "cloudflare-eth.com";
 const BLOCKPI_ETH_HOSTNAME: &str = "ethereum.blockpi.network";
 const BLOCKPI_ETH_SEPOLIA_HOSTNAME: &str = "ethereum-sepolia.blockpi.network";
 const PUBLICNODE_ETH_MAINNET_HOSTNAME: &str = "ethereum-rpc.publicnode.com";
+
+pub const CONTENT_TYPE_HEADER_LOWERCASE: &str = "content-type";
 
 fn evm_rpc_wasm() -> Vec<u8> {
     load_wasm(std::env::var("CARGO_MANIFEST_DIR").unwrap(), "evm_rpc", &[])
@@ -518,7 +520,8 @@ fn mock_request_should_succeed_with_request_headers() {
     mock_request(|builder| {
         builder.with_request_headers(vec![
             (CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE),
-            ("Custom", "Value"),
+            // header name are case-insensitive
+            ("custom", "Value"),
         ])
     })
 }
@@ -541,7 +544,8 @@ fn mock_request_should_succeed_with_all() {
             .with_method(CanisterHttpMethod::POST)
             .with_request_headers(vec![
                 (CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE),
-                ("Custom", "Value"),
+                // header name are case-insensitive
+                ("custom", "Value"),
             ])
             .with_raw_request_body(MOCK_REQUEST_PAYLOAD)
     })

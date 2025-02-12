@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod tests;
+
 use bytes::Bytes;
 use http::Request;
 use ic_cdk::api::management_canister::http_request::{
@@ -45,6 +48,35 @@ impl<T> MaxResponseBytesRequestExtension for http::Request<T> {
     }
 }
 
+impl MaxResponseBytesRequestExtension for http::request::Builder {
+    fn set_max_response_bytes(&mut self, value: u64) {
+        if let Some(extensions) = self.extensions_mut() {
+            extensions.insert(MaxResponseBytesExtension(value));
+        }
+    }
+
+    fn get_max_response_bytes(&self) -> Option<u64> {
+        self.extensions_ref()
+            .and_then(|extensions| extensions.get::<MaxResponseBytesExtension>().map(|e| e.0))
+    }
+}
+
+/// Convenience trait to follow the builder pattern.
+pub trait MaxResponseBytesRequestExtensionBuilder {
+    /// See [`MaxResponseBytesRequestExtension::set_max_response_bytes`].
+    fn max_response_bytes(self, value: u64) -> Self;
+}
+
+impl<T> MaxResponseBytesRequestExtensionBuilder for T
+where
+    T: MaxResponseBytesRequestExtension,
+{
+    fn max_response_bytes(mut self, value: u64) -> Self {
+        self.set_max_response_bytes(value);
+        self
+    }
+}
+
 pub trait TransformContextRequestExtension {
     fn set_transform_context(&mut self, value: TransformContext);
     fn get_transform_context(&self) -> Option<&TransformContext>;
@@ -66,8 +98,39 @@ impl<T> TransformContextRequestExtension for http::Request<T> {
     }
 }
 
+impl TransformContextRequestExtension for http::request::Builder {
+    fn set_transform_context(&mut self, value: TransformContext) {
+        if let Some(extensions) = self.extensions_mut() {
+            extensions.insert(TransformContextExtension(value));
+        }
+    }
+
+    fn get_transform_context(&self) -> Option<&TransformContext> {
+        self.extensions_ref()
+            .and_then(|extensions| extensions.get::<TransformContextExtension>().map(|e| &e.0))
+    }
+}
+
+/// Convenience trait to follow the builder pattern.
+pub trait TransformContextRequestExtensionBuiler {
+    /// See [`TransformContextRequestExtension::set_transform_context`].
+    fn transform_context(self, value: TransformContext) -> Self;
+}
+
+impl<T> TransformContextRequestExtensionBuiler for T
+where
+    T: TransformContextRequestExtension,
+{
+    fn transform_context(mut self, value: TransformContext) -> Self {
+        self.set_transform_context(value);
+        self
+    }
+}
+
+/// Convert an `http:Request<>` into an [`IcHttpRequest`].
+/// The conversion may fail since not all HTTP methods are supported by HTTPs outcalls.
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct HttpRequestFilter {}
+pub struct HttpRequestFilter;
 
 #[derive(Error, Debug)]
 pub enum HttpRequestFilterError {

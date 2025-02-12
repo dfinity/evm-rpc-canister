@@ -1,7 +1,12 @@
 use crate::constants::COLLATERAL_CYCLES_PER_NODE;
 use crate::types::{ApiKey, LogFilter, Metrics, OverrideProvider, ProviderId};
+use bytes::Bytes;
 use candid::Principal;
-use canhttp::{CyclesAccounting, DefaultRequestCyclesCostEstimator, EstimateRequestCyclesCost};
+use canhttp::{
+    map_ic_http_response, CyclesAccounting, CyclesAccountingError,
+    DefaultRequestCyclesCostEstimator, EstimateRequestCyclesCost, HttpRequestFilter,
+};
+use evm_rpc_types::{HttpOutcallError, ProviderError, RpcError};
 use ic_cdk::api::management_canister::http_request::{CanisterHttpRequestArgument, HttpResponse};
 use ic_stable_structures::memory_manager::VirtualMemory;
 use ic_stable_structures::{
@@ -136,6 +141,44 @@ pub fn http_client(
             RequestCyclesCostWithCollateralEstimator::default(),
         ))
         .service(canhttp::Client)
+}
+
+pub fn http_client_no_retry(
+) -> impl Service<http::Request<Bytes>, Response = http::Response<Bytes>, Error = RpcError> {
+    ServiceBuilder::new()
+        .map_err(map_error)
+        .filter(HttpRequestFilter)
+        .map_response(map_ic_http_response)
+        .filter(CyclesAccounting::new(
+            RequestCyclesCostWithCollateralEstimator::default(),
+        ))
+        .service(canhttp::Client)
+}
+
+fn map_error(e: BoxError) -> RpcError {
+    if let Some(charging_error) = e.downcast_ref::<CyclesAccountingError>() {
+        return match charging_error {
+            CyclesAccountingError::InsufficientCyclesError { expected, received } => {
+                ProviderError::TooFewCycles {
+                    expected: *expected,
+                    received: *received,
+                }
+                .into()
+            }
+        };
+    }
+    if let Some(canhttp::IcError { code, message }) = e.downcast_ref::<canhttp::IcError>() {
+        // add_metric_entry!(err_http_outcall, (rpc_method, rpc_host, *code), 1);
+        return HttpOutcallError::IcError {
+            code: *code,
+            message: message.clone(),
+        }
+        .into();
+    }
+    RpcError::ProviderError(ProviderError::InvalidRpcConfig(format!(
+        "Unknown error: {}",
+        e
+    )))
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]

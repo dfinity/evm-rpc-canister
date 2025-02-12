@@ -17,12 +17,14 @@ opt-level = 's'
 inherits = "release"
 
 [dependencies]
+bytes = { workspace = true }
 candid = { workspace = true }
 canhttp = { path = "canhttp" }
 ethnum = { workspace = true }
 evm_rpc_types = { path = "evm_rpc_types" }
 futures = { workspace = true }
 getrandom = { workspace = true }
+http = { workspace = true }
 ic-sha3 = "1.0.0"
 ic-ethereum-types = "1.0.0"
 ic-metrics-encoder = { workspace = true }
@@ -33,12 +35,13 @@ ic-cdk-macros = { workspace = true }
 maplit = "1.0"
 minicbor = { workspace = true }
 num = "0.4"
-num-traits = "0.2"
+num-traits = { workspace = true }
 serde = { workspace = true }
 serde_bytes = { workspace = true }
 serde_json = { workspace = true }
 thousands = "0.2"
-tower = {workspace = true}
+tower = { workspace = true }
+tower-service = { workspace = true }
 url = { workspace = true }
 hex = "0.4"
 ethers-core = "2.0"
@@ -59,7 +62,7 @@ rand = "0.8"
 [workspace.dependencies]
 bytes = "1.10.0"
 candid = { version = "0.10.13" }
-candid_parser = {version = "0.1.4"}
+candid_parser = { version = "0.1.4" }
 ethnum = { version = "1.5.0", features = ["serde"] }
 futures = "0.3.31"
 getrandom = { version = "0.2", features = ["custom"] }
@@ -74,15 +77,17 @@ ic-metrics-encoder = "1.1"
 ic-stable-structures = "0.6.7"
 minicbor = { version = "0.25.1", features = ["alloc", "derive"] }
 num-bigint = "0.4.6"
+num-traits = "0.2"
 proptest = "1.6.0"
 serde = "1.0"
 serde_json = "1.0"
 serde_bytes = "0.11.15"
 strum = { version = "0.26", features = ["derive"] }
 tower = "0.5.2"
+tower-service = "0.3.3"
 
 thiserror = "2.0.8"
 url = "2.5"
 
 [workspace]
-members = [ "canhttp","e2e/rust", "evm_rpc_types"]
+members = ["canhttp", "e2e/rust", "evm_rpc_types"]

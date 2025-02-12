@@ -1,12 +1,12 @@
 use candid::candid_method;
-use canhttp::EstimateRequestCyclesCost;
+use canhttp::{EstimateRequestCyclesCost, HttpRequestFilter};
 use evm_rpc::candid_rpc::CandidRpcClient;
 use evm_rpc::http::get_http_response_body;
 use evm_rpc::logs::INFO;
 use evm_rpc::memory::{
-    get_num_subnet_nodes, insert_api_key, is_api_key_principal, is_demo_active, remove_api_key,
-    set_api_key_principals, set_demo_active, set_log_filter, set_num_subnet_nodes,
-    set_override_provider, RequestCyclesCostWithCollateralEstimator,
+    get_num_subnet_nodes, http_client_no_retry, insert_api_key, is_api_key_principal,
+    is_demo_active, remove_api_key, set_api_key_principals, set_demo_active, set_log_filter,
+    set_num_subnet_nodes, set_override_provider, RequestCyclesCostWithCollateralEstimator,
 };
 use evm_rpc::metrics::encode_metrics;
 use evm_rpc::providers::{find_provider, resolve_rpc_service, PROVIDERS, SERVICE_PROVIDER_MAP};
@@ -15,7 +15,7 @@ use evm_rpc::{
     http::{json_rpc_request_arg, transform_http_request},
     http_types,
     memory::UNSTABLE_METRICS,
-    types::{MetricRpcMethod, Metrics},
+    types::Metrics,
 };
 use evm_rpc_types::{Hex32, MultiRpcResult, RpcResult};
 use ic_canister_log::log;
@@ -23,6 +23,7 @@ use ic_cdk::api::is_controller;
 use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs};
 use ic_cdk::{query, update};
 use ic_metrics_encoder::MetricsEncoder;
+use tower::filter::Predicate;
 
 pub fn require_api_key_principal_or_controller() -> Result<(), String> {
     let caller = ic_cdk::caller();
@@ -135,13 +136,16 @@ async fn request(
     json_rpc_payload: String,
     max_response_bytes: u64,
 ) -> RpcResult<String> {
-    let rpc_method = MetricRpcMethod("request".to_string());
+    use tower_service::Service;
+    // TODO add metric + logs
+    // let rpc_method = MetricRpcMethod("request".to_string());
+    let mut client = http_client_no_retry();
     let request = json_rpc_request_arg(
         resolve_rpc_service(service)?,
-        &json_rpc_payload,
+        json_rpc_payload,
         max_response_bytes,
     )?;
-    let response = evm_rpc::http::http_request(rpc_method, request).await?;
+    let response = client.call(request).await?;
     get_http_response_body(response)
 }
 
@@ -157,9 +161,11 @@ fn request_cost(
     } else {
         let request = json_rpc_request_arg(
             resolve_rpc_service(service)?,
-            &json_rpc_payload,
+            json_rpc_payload,
             max_response_bytes,
         )?;
+        let mut filter = HttpRequestFilter;
+        let request = filter.check(request).expect("ERROR: invalid request");
         let estimator = RequestCyclesCostWithCollateralEstimator::default();
         let cycles_to_attach = estimator.cycles_to_attach(&request);
         Ok(estimator.cycles_to_charge(&request, cycles_to_attach))

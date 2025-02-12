@@ -4,6 +4,8 @@ use pocket_ic::common::rest::{
     CanisterHttpRequest, CanisterHttpResponse,
 };
 use std::collections::BTreeSet;
+use std::str::FromStr;
+use url::Url;
 
 pub struct MockOutcallBody(pub Vec<u8>);
 
@@ -117,7 +119,9 @@ pub struct MockOutcall {
 impl MockOutcall {
     pub fn assert_matches(&self, request: &CanisterHttpRequest) {
         if let Some(ref url) = self.url {
-            assert_eq!(url, &request.url);
+            let mock_url = Url::from_str(url).unwrap();
+            let req_url = Url::from_str(&request.url).unwrap();
+            assert_eq!(mock_url, req_url);
         }
         if let Some(ref method) = self.method {
             assert_eq!(method, &request.http_method);
