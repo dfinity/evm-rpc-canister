@@ -11,6 +11,9 @@ use tower::BoxError;
 pub trait EstimateRequestCyclesCost {
     /// Estimate the amount of cycles to attach to an HTTPs outcall.
     ///
+    /// An HTTP outcall entail calling the `http_request` method on the management canister interface,
+    /// which requires that cycles to pay for the call must be explicitly attached with the call
+    /// ([IC specification](https://internetcomputer.org/docs/current/references/ic-interface-spec#ic-http_request)).
     /// The returned amount should be at least the value specified [here](https://internetcomputer.org/docs/current/developer-docs/gas-cost#https-outcalls),
     /// otherwise the call will be rejected by the Internet Computer.
     /// The minimum value is computed by [`DefaultRequestCyclesCostEstimator`].
@@ -18,7 +21,9 @@ pub trait EstimateRequestCyclesCost {
 
     /// Estimate the amount of cycles to charge the caller.
     ///
-    /// If the value is `0`, no cycles will be charged.
+    /// If the value is `0`, no cycles will be charged, meaning that the canister using that library will
+    /// pay for HTTPs outcalls with its own cycles. Otherwise, the returned amount of cycles will be transferred
+    /// from the caller to the canister's cycles balance to pay (in part or fully) for the HTTPs outcall.
     fn cycles_to_charge(
         &self,
         _request: &CanisterHttpRequestArgument,
