@@ -101,10 +101,10 @@ impl EstimateRequestCyclesCost for DefaultRequestCyclesCostEstimator {
     }
 }
 
-/// Error return by the [`CyclesAccounting] middleware.
+/// Error return by the [`CyclesAccounting`] middleware.
 #[derive(Error, Debug)]
 pub enum CyclesAccountingError {
-    /// Error returned when the caller should be charge but did not attach sufficiently many cycles.
+    /// Error returned when the caller should be charged but did not attach sufficiently many cycles.
     #[error("insufficient cycles (expected {expected:?}, received {received:?})")]
     InsufficientCyclesError {
         /// Expected amount of cycles. Minimum value that should have been sent.
