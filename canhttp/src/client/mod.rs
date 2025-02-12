@@ -1,3 +1,4 @@
+use crate::request::IcHttpRequestWithCycles;
 use ic_cdk::api::call::RejectionCode;
 use ic_cdk::api::management_canister::http_request::HttpResponse as IcHttpResponse;
 use std::future::Future;
@@ -5,7 +6,6 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use thiserror::Error;
 use tower::Service;
-use crate::request::IcHttpRequestWithCycles;
 
 /// Thin wrapper around [`ic_cdk::api::management_canister::http_request::http_request`]
 /// that implements the [`tower::Service`] trait. Its functionality can be extended by composing so-called
@@ -60,4 +60,3 @@ impl Service<IcHttpRequestWithCycles> for Client {
         })
     }
 }
-
