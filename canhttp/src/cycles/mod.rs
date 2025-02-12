@@ -114,7 +114,7 @@ pub enum CyclesAccountingError {
     },
 }
 
-/// A middleware to handle cycles accounting.
+/// A middleware to handle cycles accounting, i.e. verify if sufficiently many cycles are available in a request.
 /// How cycles are estimated is given by `CyclesEstimator`
 #[derive(Clone, Debug)]
 pub struct CyclesAccounting<CyclesEstimator> {
