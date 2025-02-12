@@ -147,9 +147,10 @@ where
                     received: cycles_available,
                 }));
             }
+            let cycles_received = ic_cdk::api::call::msg_cycles_accept128(cycles_to_charge);
             assert_eq!(
-                ic_cdk::api::call::msg_cycles_accept128(cycles_to_charge),
-                cycles_to_charge
+                cycles_received, cycles_to_charge,
+                "Expected to receive {cycles_to_charge}, but got {cycles_received}"
             );
         }
         Ok(IcHttpRequestWithCycles {
