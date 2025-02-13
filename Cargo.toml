@@ -1,6 +1,6 @@
 [package]
 name = "evm_rpc"
-version = "2.2.0"
+version = "2.3.0"
 description = "Interact with EVM blockchains from the Internet Computer."
 authors = ["DFINITY Foundation"]
 readme = "README.md"
@@ -78,8 +78,7 @@ serde_json = "1.0"
 serde_bytes = "0.11.15"
 strum = { version = "0.26", features = ["derive"] }
 tower = "0.5.2"
-
-thiserror = "2.0.8"
+thiserror = "2.0.11"
 url = "2.5"
 
 [workspace]
