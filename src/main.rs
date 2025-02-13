@@ -1,20 +1,18 @@
 use candid::candid_method;
-use evm_rpc::accounting::get_cost_with_collateral;
+use canhttp::{CyclesChargingPolicy, CyclesCostEstimator};
 use evm_rpc::candid_rpc::CandidRpcClient;
 use evm_rpc::http::get_http_response_body;
 use evm_rpc::logs::INFO;
 use evm_rpc::memory::{
     get_num_subnet_nodes, insert_api_key, is_api_key_principal, is_demo_active, remove_api_key,
     set_api_key_principals, set_demo_active, set_log_filter, set_num_subnet_nodes,
-    set_override_provider,
+    set_override_provider, ChargingPolicyWithCollateral,
 };
 use evm_rpc::metrics::encode_metrics;
 use evm_rpc::providers::{find_provider, resolve_rpc_service, PROVIDERS, SERVICE_PROVIDER_MAP};
 use evm_rpc::types::{LogFilter, OverrideProvider, Provider, ProviderId, RpcAccess, RpcAuth};
 use evm_rpc::{
-    http::{
-        get_http_request_arg_cost, json_rpc_request, json_rpc_request_arg, transform_http_request,
-    },
+    http::{json_rpc_request, json_rpc_request_arg, transform_http_request},
     http_types,
     memory::UNSTABLE_METRICS,
     types::{MetricRpcMethod, Metrics},
@@ -162,10 +160,12 @@ fn request_cost(
             &json_rpc_payload,
             max_response_bytes,
         )?;
-        let cycles_cost = get_http_request_arg_cost(&request);
-        let cycles_cost_with_collateral =
-            get_cost_with_collateral(get_num_subnet_nodes(), cycles_cost);
-        Ok(cycles_cost_with_collateral)
+        let cycles_to_attach = {
+            let estimator = CyclesCostEstimator::new(get_num_subnet_nodes());
+            estimator.cost_of_http_request(&request)
+        };
+        let estimator = ChargingPolicyWithCollateral::default();
+        Ok(estimator.cycles_to_charge(&request, cycles_to_attach))
     }
 }
 

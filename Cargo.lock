@@ -304,6 +304,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "canhttp"
+version = "0.1.0"
+dependencies = [
+ "ic-cdk",
+ "thiserror 2.0.11",
+ "tower",
+]
+
+[[package]]
 name = "cargo-platform"
 version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -729,6 +738,7 @@ dependencies = [
  "assert_matches",
  "candid",
  "candid_parser",
+ "canhttp",
  "ethers-core",
  "ethnum",
  "evm_rpc_types",
@@ -757,6 +767,7 @@ dependencies = [
  "serde_bytes",
  "serde_json",
  "thousands",
+ "tower",
  "url",
  "zeroize",
 ]
@@ -3031,6 +3042,27 @@ dependencies = [
  "toml_datetime",
  "winnow",
 ]
+
+[[package]]
+name = "tower"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d039ad9159c98b70ecfd540b2573b97f7f52c3e8d9f8ad57a24b916a536975f9"
+dependencies = [
+ "futures-core",
+ "futures-util",
+ "pin-project-lite",
+ "sync_wrapper",
+ "tokio",
+ "tower-layer",
+ "tower-service",
+]
+
+[[package]]
+name = "tower-layer"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "121c2a6cda46980bb0fcd1647ffaf6cd3fc79a013de288782836f6df9c48780e"
 
 [[package]]
 name = "tower-service"

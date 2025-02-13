@@ -1,4 +1,8 @@
+use crate::constants::COLLATERAL_CYCLES_PER_NODE;
+use crate::types::{ApiKey, LogFilter, Metrics, OverrideProvider, ProviderId};
 use candid::Principal;
+use canhttp::{CyclesAccounting, CyclesChargingPolicy};
+use ic_cdk::api::management_canister::http_request::{CanisterHttpRequestArgument, HttpResponse};
 use ic_stable_structures::memory_manager::VirtualMemory;
 use ic_stable_structures::{
     memory_manager::{MemoryId, MemoryManager},
@@ -6,8 +10,7 @@ use ic_stable_structures::{
 };
 use ic_stable_structures::{Cell, StableBTreeMap};
 use std::cell::RefCell;
-
-use crate::types::{ApiKey, LogFilter, Metrics, OverrideProvider, ProviderId};
+use tower::{BoxError, Service, ServiceBuilder};
 
 const IS_DEMO_ACTIVE_MEMORY_ID: MemoryId = MemoryId::new(4);
 const API_KEY_MAP_MEMORY_ID: MemoryId = MemoryId::new(5);
@@ -124,6 +127,60 @@ pub fn set_num_subnet_nodes(nodes: u32) {
             .set(nodes)
             .expect("Error while updating number of subnet nodes")
     });
+}
+
+pub fn http_client(
+) -> impl Service<CanisterHttpRequestArgument, Response = HttpResponse, Error = BoxError> {
+    ServiceBuilder::new()
+        .filter(CyclesAccounting::new(
+            get_num_subnet_nodes(),
+            ChargingPolicyWithCollateral::default(),
+        ))
+        .service(canhttp::Client)
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct ChargingPolicyWithCollateral {
+    charge_user: bool,
+    collateral_cycles: u128,
+}
+
+impl ChargingPolicyWithCollateral {
+    pub fn new(
+        num_nodes_in_subnet: u32,
+        charge_user: bool,
+        collateral_cycles_per_node: u128,
+    ) -> Self {
+        let collateral_cycles =
+            collateral_cycles_per_node.saturating_mul(num_nodes_in_subnet as u128);
+        Self {
+            charge_user,
+            collateral_cycles,
+        }
+    }
+}
+
+impl Default for ChargingPolicyWithCollateral {
+    fn default() -> Self {
+        Self::new(
+            get_num_subnet_nodes(),
+            !is_demo_active(),
+            COLLATERAL_CYCLES_PER_NODE,
+        )
+    }
+}
+
+impl CyclesChargingPolicy for ChargingPolicyWithCollateral {
+    fn cycles_to_charge(
+        &self,
+        _request: &CanisterHttpRequestArgument,
+        attached_cycles: u128,
+    ) -> u128 {
+        if self.charge_user {
+            return attached_cycles.saturating_add(self.collateral_cycles);
+        }
+        0
+    }
 }
 
 #[cfg(test)]

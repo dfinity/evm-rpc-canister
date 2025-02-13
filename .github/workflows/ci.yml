@@ -74,7 +74,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Cargo test
-        run: cargo test -- --test-threads=2 --nocapture
+        run: cargo test --workspace -- --test-threads=2 --nocapture
 
   e2e:
     runs-on: ubuntu-latest
