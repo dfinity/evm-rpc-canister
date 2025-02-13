@@ -308,7 +308,7 @@ name = "canhttp"
 version = "0.1.0"
 dependencies = [
  "ic-cdk",
- "thiserror 2.0.8",
+ "thiserror 2.0.11",
  "tower",
 ]
 

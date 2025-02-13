@@ -9,16 +9,6 @@ use tower::BoxError;
 
 /// Estimate the amount of cycles needed for a single HTTPs outcall.
 pub trait EstimateRequestCyclesCost {
-    /// Estimate the amount of cycles to attach to an HTTPs outcall.
-    ///
-    /// An HTTP outcall entail calling the `http_request` method on the management canister interface,
-    /// which requires that cycles to pay for the call must be explicitly attached with the call
-    /// ([IC specification](https://internetcomputer.org/docs/current/references/ic-interface-spec#ic-http_request)).
-    /// The returned amount should be at least the value specified [here](https://internetcomputer.org/docs/current/developer-docs/gas-cost#https-outcalls),
-    /// otherwise the call will be rejected by the Internet Computer.
-    /// The minimum value is computed by [`DefaultRequestCyclesCostEstimator`].
-    fn cycles_to_attach(&self, request: &CanisterHttpRequestArgument) -> u128;
-
     /// Estimate the amount of cycles to charge the caller.
     ///
     /// If the value is `0`, no cycles will be charged, meaning that the canister using that library will
@@ -52,6 +42,37 @@ impl DefaultRequestCyclesCostEstimator {
         }
     }
 
+    /// Compute the number of cycles required to send the given request via HTTPs outcall.
+    ///
+    /// An HTTP outcall entails calling the `http_request` method on the management canister interface,
+    /// which requires that cycles to pay for the call must be explicitly attached with the call
+    /// ([IC specification](https://internetcomputer.org/docs/current/references/ic-interface-spec#ic-http_request)).
+    /// The required amount of cycles to attach is specified 
+    /// [here](https://internetcomputer.org/docs/current/developer-docs/gas-cost#https-outcalls).
+    pub fn request_cycles_cost(&self, request: &CanisterHttpRequestArgument) -> u128 {
+        let payload_body_bytes = request
+            .body
+            .as_ref()
+            .map(|body| body.len())
+            .unwrap_or_default();
+        let extra_payload_bytes = request.url.len()
+            + request
+                .headers
+                .iter()
+                .map(|header| header.name.len() + header.value.len())
+                .sum::<usize>()
+            + request.transform.as_ref().map_or(0, |transform| {
+                transform.function.0.method.len() + transform.context.len()
+            });
+        let max_response_bytes = request
+            .max_response_bytes
+            .unwrap_or(Self::DEFAULT_MAX_RESPONSE_BYTES);
+        let request_bytes = (payload_body_bytes + extra_payload_bytes) as u128;
+        self.base_fee()
+            + self.request_fee(request_bytes)
+            + self.response_fee(max_response_bytes as u128)
+    }
+
     fn base_fee(&self) -> u128 {
         3_000_000_u128
             .saturating_add(60_000_u128.saturating_mul(self.num_nodes_as_u128()))
@@ -75,32 +96,6 @@ impl DefaultRequestCyclesCostEstimator {
     }
 }
 
-impl EstimateRequestCyclesCost for DefaultRequestCyclesCostEstimator {
-    fn cycles_to_attach(&self, request: &CanisterHttpRequestArgument) -> u128 {
-        let payload_body_bytes = request
-            .body
-            .as_ref()
-            .map(|body| body.len())
-            .unwrap_or_default();
-        let extra_payload_bytes = request.url.len()
-            + request
-                .headers
-                .iter()
-                .map(|header| header.name.len() + header.value.len())
-                .sum::<usize>()
-            + request.transform.as_ref().map_or(0, |transform| {
-                transform.function.0.method.len() + transform.context.len()
-            });
-        let max_response_bytes = request
-            .max_response_bytes
-            .unwrap_or(Self::DEFAULT_MAX_RESPONSE_BYTES);
-        let request_bytes = (payload_body_bytes + extra_payload_bytes) as u128;
-        self.base_fee()
-            + self.request_fee(request_bytes)
-            + self.response_fee(max_response_bytes as u128)
-    }
-}
-
 /// Error return by the [`CyclesAccounting`] middleware.
 #[derive(Error, Debug)]
 pub enum CyclesAccountingError {
@@ -118,13 +113,19 @@ pub enum CyclesAccountingError {
 /// How cycles are estimated is given by `CyclesEstimator`
 #[derive(Clone, Debug)]
 pub struct CyclesAccounting<CyclesEstimator> {
+    request_cycles_cost_estimator: DefaultRequestCyclesCostEstimator,
     cycles_estimator: CyclesEstimator,
 }
 
 impl<CyclesEstimator> CyclesAccounting<CyclesEstimator> {
     /// Create a new middleware given the cycles estimator.
-    pub fn new(cycles_estimator: CyclesEstimator) -> Self {
-        Self { cycles_estimator }
+    pub fn new(num_nodes_in_subnet: u32, cycles_estimator: CyclesEstimator) -> Self {
+        Self {
+            request_cycles_cost_estimator: DefaultRequestCyclesCostEstimator::new(
+                num_nodes_in_subnet,
+            ),
+            cycles_estimator,
+        }
     }
 }
 
@@ -135,7 +136,9 @@ where
     type Request = IcHttpRequestWithCycles;
 
     fn check(&mut self, request: CanisterHttpRequestArgument) -> Result<Self::Request, BoxError> {
-        let cycles_to_attach = self.cycles_estimator.cycles_to_attach(&request);
+        let cycles_to_attach = self
+            .request_cycles_cost_estimator
+            .request_cycles_cost(&request);
         let cycles_to_charge = self
             .cycles_estimator
             .cycles_to_charge(&request, cycles_to_attach);

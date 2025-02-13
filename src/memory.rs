@@ -1,7 +1,7 @@
 use crate::constants::COLLATERAL_CYCLES_PER_NODE;
 use crate::types::{ApiKey, LogFilter, Metrics, OverrideProvider, ProviderId};
 use candid::Principal;
-use canhttp::{CyclesAccounting, DefaultRequestCyclesCostEstimator, EstimateRequestCyclesCost};
+use canhttp::{CyclesAccounting, EstimateRequestCyclesCost};
 use ic_cdk::api::management_canister::http_request::{CanisterHttpRequestArgument, HttpResponse};
 use ic_stable_structures::memory_manager::VirtualMemory;
 use ic_stable_structures::{
@@ -133,6 +133,7 @@ pub fn http_client(
 ) -> impl Service<CanisterHttpRequestArgument, Response = HttpResponse, Error = BoxError> {
     ServiceBuilder::new()
         .filter(CyclesAccounting::new(
+            get_num_subnet_nodes(),
             RequestCyclesCostWithCollateralEstimator::default(),
         ))
         .service(canhttp::Client)
@@ -142,7 +143,6 @@ pub fn http_client(
 pub struct RequestCyclesCostWithCollateralEstimator {
     charge_user: bool,
     collateral_cycles: u128,
-    inner: DefaultRequestCyclesCostEstimator,
 }
 
 impl RequestCyclesCostWithCollateralEstimator {
@@ -156,7 +156,6 @@ impl RequestCyclesCostWithCollateralEstimator {
         Self {
             charge_user,
             collateral_cycles,
-            inner: DefaultRequestCyclesCostEstimator::new(num_nodes_in_subnet),
         }
     }
 }
@@ -172,10 +171,6 @@ impl Default for RequestCyclesCostWithCollateralEstimator {
 }
 
 impl EstimateRequestCyclesCost for RequestCyclesCostWithCollateralEstimator {
-    fn cycles_to_attach(&self, request: &CanisterHttpRequestArgument) -> u128 {
-        self.inner.cycles_to_attach(request)
-    }
-
     fn cycles_to_charge(
         &self,
         _request: &CanisterHttpRequestArgument,

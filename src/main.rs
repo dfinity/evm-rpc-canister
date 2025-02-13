@@ -1,5 +1,5 @@
 use candid::candid_method;
-use canhttp::EstimateRequestCyclesCost;
+use canhttp::{DefaultRequestCyclesCostEstimator, EstimateRequestCyclesCost};
 use evm_rpc::candid_rpc::CandidRpcClient;
 use evm_rpc::http::get_http_response_body;
 use evm_rpc::logs::INFO;
@@ -160,8 +160,11 @@ fn request_cost(
             &json_rpc_payload,
             max_response_bytes,
         )?;
+        let cycles_to_attach = {
+            let estimator = DefaultRequestCyclesCostEstimator::new(get_num_subnet_nodes());
+            estimator.request_cycles_cost(&request)
+        };
         let estimator = RequestCyclesCostWithCollateralEstimator::default();
-        let cycles_to_attach = estimator.cycles_to_attach(&request);
         Ok(estimator.cycles_to_charge(&request, cycles_to_attach))
     }
 }
