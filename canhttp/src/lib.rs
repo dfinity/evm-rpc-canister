@@ -11,10 +11,10 @@ pub use cycles::{
     EstimateRequestCyclesCost,
 };
 pub use request::{
-    HttpRequestFilter, MaxResponseBytesRequestExtensionBuilder,
+    HttpRequest, HttpRequestFilter, MaxResponseBytesRequestExtensionBuilder,
     TransformContextRequestExtensionBuiler,
 };
-pub use response::map_ic_http_response;
+pub use response::{map_ic_http_response, FullBytes, HttpResponse};
 pub use retry::DoubleMaxResponseBytes;
 
 mod client;

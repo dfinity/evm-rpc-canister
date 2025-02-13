@@ -22,7 +22,7 @@ pub fn json_rpc_request_arg(
     service: ResolvedRpcService,
     json_rpc_payload: String,
     max_response_bytes: u64,
-) -> RpcResult<http::Request<Bytes>> {
+) -> RpcResult<canhttp::HttpRequest> {
     let api = service.api(&get_override_provider())?;
 
     let mut request_builder = http::Request::post(api.url)
@@ -42,11 +42,9 @@ pub fn json_rpc_request_arg(
             );
         }
     }
-    request_builder
-        .body(Bytes::from(json_rpc_payload))
-        .map_err(|e| {
-            RpcError::ValidationError(ValidationError::Custom(format!("Invalid request: {e}")))
-        })
+    request_builder.body(json_rpc_payload.into()).map_err(|e| {
+        RpcError::ValidationError(ValidationError::Custom(format!("Invalid request: {e}")))
+    })
 }
 
 pub async fn http_request(
@@ -119,9 +117,9 @@ pub fn get_http_response_status(status: candid::Nat) -> u16 {
     status.0.to_u16().unwrap_or(u16::MAX)
 }
 
-pub fn get_http_response_body(response: http::Response<Bytes>) -> Result<String, RpcError> {
+pub fn get_http_response_body(response: canhttp::HttpResponse) -> Result<String, RpcError> {
     let (parts, body) = response.into_parts();
-    String::from_utf8(body.to_vec()).map_err(|e| {
+    String::from_utf8(body.into()).map_err(|e| {
         HttpOutcallError::InvalidHttpJsonRpcResponse {
             status: parts.status.as_u16(),
             body: "".to_string(),

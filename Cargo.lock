@@ -309,6 +309,7 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "http",
+ "http-body",
  "ic-cdk",
  "num-traits",
  "thiserror 2.0.8",
@@ -784,6 +785,7 @@ dependencies = [
  "serde_json",
  "thousands",
  "tower",
+ "tower-http",
  "tower-service",
  "url",
  "zeroize",
@@ -3235,6 +3237,23 @@ dependencies = [
  "tokio",
  "tower-layer",
  "tower-service",
+]
+
+[[package]]
+name = "tower-http"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "403fa3b783d4b626a8ad51d766ab03cb6d2dbfc46b1c5d4448395e6628dc9697"
+dependencies = [
+ "bitflags",
+ "bytes",
+ "http",
+ "http-body",
+ "pin-project-lite",
+ "tower",
+ "tower-layer",
+ "tower-service",
+ "tracing",
 ]
 
 [[package]]

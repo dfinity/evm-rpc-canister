@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests;
 
+use crate::response::FullBytes;
 use bytes::Bytes;
 use http::Request;
 use ic_cdk::api::management_canister::http_request::{
@@ -10,6 +11,9 @@ use ic_cdk::api::management_canister::http_request::{
 use thiserror::Error;
 use tower::filter::Predicate;
 use tower::BoxError;
+
+/// TODO
+pub type HttpRequest = http::Request<FullBytes>;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IcHttpRequestWithCycles {
@@ -138,10 +142,10 @@ pub enum HttpRequestFilterError {
     UnsupportedHttpMethod(String),
 }
 
-impl Predicate<http::Request<Bytes>> for HttpRequestFilter {
+impl Predicate<HttpRequest> for HttpRequestFilter {
     type Request = IcHttpRequest;
 
-    fn check(&mut self, request: Request<Bytes>) -> Result<Self::Request, BoxError> {
+    fn check(&mut self, request: HttpRequest) -> Result<Self::Request, BoxError> {
         let url = request.uri().to_string();
         let max_response_bytes = request.get_max_response_bytes();
         let method = match request.method().as_str() {
@@ -162,8 +166,8 @@ impl Predicate<http::Request<Bytes>> for HttpRequestFilter {
                 value: header_value.to_str().unwrap().to_string(),
             })
             .collect();
-        let body = Some(request.body().to_vec());
         let transform = request.get_transform_context().cloned();
+        let body = Some(request.into_body().into());
         Ok(IcHttpRequest {
             url,
             max_response_bytes,
