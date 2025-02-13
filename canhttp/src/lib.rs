@@ -7,8 +7,8 @@
 
 pub use client::{Client, IcError};
 pub use cycles::{
-    CyclesAccounting, CyclesAccountingError, DefaultRequestCyclesCostEstimator,
-    EstimateRequestCyclesCost,
+    CyclesAccounting, CyclesAccountingError, CyclesCostEstimator,
+    CyclesChargingPolicy,
 };
 
 mod client;

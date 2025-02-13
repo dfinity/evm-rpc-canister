@@ -7,9 +7,9 @@ use thiserror::Error;
 use tower::filter::Predicate;
 use tower::BoxError;
 
-/// Estimate the amount of cycles needed for a single HTTPs outcall.
-pub trait EstimateRequestCyclesCost {
-    /// Estimate the amount of cycles to charge the caller.
+/// Estimate the amount of cycles to charge for a single HTTPs outcall.
+pub trait CyclesChargingPolicy {
+    /// Determine the amount of cycles to charge the caller.
     ///
     /// If the value is `0`, no cycles will be charged, meaning that the canister using that library will
     /// pay for HTTPs outcalls with its own cycles. Otherwise, the returned amount of cycles will be transferred
@@ -26,18 +26,18 @@ pub trait EstimateRequestCyclesCost {
 /// Estimate the exact minimum cycles amount required to send an HTTPs outcall as specified
 /// [here](https://internetcomputer.org/docs/current/developer-docs/gas-cost#https-outcalls).
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct DefaultRequestCyclesCostEstimator {
+pub struct CyclesCostEstimator {
     num_nodes_in_subnet: u32,
 }
 
-impl DefaultRequestCyclesCostEstimator {
+impl CyclesCostEstimator {
     /// Maximum value for `max_response_bytes` which is 2MB,
     /// see the [IC specification](https://internetcomputer.org/docs/current/references/ic-interface-spec#ic-http_request).
     pub const DEFAULT_MAX_RESPONSE_BYTES: u64 = 2_000_000;
 
     /// Create a new estimator for a subnet having the given number of nodes.
     pub const fn new(num_nodes_in_subnet: u32) -> Self {
-        DefaultRequestCyclesCostEstimator {
+        CyclesCostEstimator {
             num_nodes_in_subnet,
         }
     }
@@ -47,9 +47,9 @@ impl DefaultRequestCyclesCostEstimator {
     /// An HTTP outcall entails calling the `http_request` method on the management canister interface,
     /// which requires that cycles to pay for the call must be explicitly attached with the call
     /// ([IC specification](https://internetcomputer.org/docs/current/references/ic-interface-spec#ic-http_request)).
-    /// The required amount of cycles to attach is specified 
+    /// The required amount of cycles to attach is specified
     /// [here](https://internetcomputer.org/docs/current/developer-docs/gas-cost#https-outcalls).
-    pub fn request_cycles_cost(&self, request: &CanisterHttpRequestArgument) -> u128 {
+    pub fn cost_of_http_request(&self, request: &CanisterHttpRequestArgument) -> u128 {
         let payload_body_bytes = request
             .body
             .as_ref()
@@ -112,35 +112,31 @@ pub enum CyclesAccountingError {
 /// A middleware to handle cycles accounting, i.e. verify if sufficiently many cycles are available in a request.
 /// How cycles are estimated is given by `CyclesEstimator`
 #[derive(Clone, Debug)]
-pub struct CyclesAccounting<CyclesEstimator> {
-    request_cycles_cost_estimator: DefaultRequestCyclesCostEstimator,
-    cycles_estimator: CyclesEstimator,
+pub struct CyclesAccounting<Charging> {
+    cycles_cost_estimator: CyclesCostEstimator,
+    charging_policy: Charging,
 }
 
-impl<CyclesEstimator> CyclesAccounting<CyclesEstimator> {
+impl<Charging> CyclesAccounting<Charging> {
     /// Create a new middleware given the cycles estimator.
-    pub fn new(num_nodes_in_subnet: u32, cycles_estimator: CyclesEstimator) -> Self {
+    pub fn new(num_nodes_in_subnet: u32, charging_policy: Charging) -> Self {
         Self {
-            request_cycles_cost_estimator: DefaultRequestCyclesCostEstimator::new(
-                num_nodes_in_subnet,
-            ),
-            cycles_estimator,
+            cycles_cost_estimator: CyclesCostEstimator::new(num_nodes_in_subnet),
+            charging_policy,
         }
     }
 }
 
 impl<CyclesEstimator> Predicate<CanisterHttpRequestArgument> for CyclesAccounting<CyclesEstimator>
 where
-    CyclesEstimator: EstimateRequestCyclesCost,
+    CyclesEstimator: CyclesChargingPolicy,
 {
     type Request = IcHttpRequestWithCycles;
 
     fn check(&mut self, request: CanisterHttpRequestArgument) -> Result<Self::Request, BoxError> {
-        let cycles_to_attach = self
-            .request_cycles_cost_estimator
-            .request_cycles_cost(&request);
+        let cycles_to_attach = self.cycles_cost_estimator.cost_of_http_request(&request);
         let cycles_to_charge = self
-            .cycles_estimator
+            .charging_policy
             .cycles_to_charge(&request, cycles_to_attach);
         if cycles_to_charge > 0 {
             let cycles_available = ic_cdk::api::call::msg_cycles_available128();

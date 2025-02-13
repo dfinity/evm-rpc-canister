@@ -1,12 +1,12 @@
 use candid::candid_method;
-use canhttp::{DefaultRequestCyclesCostEstimator, EstimateRequestCyclesCost};
+use canhttp::{CyclesCostEstimator, CyclesChargingPolicy};
 use evm_rpc::candid_rpc::CandidRpcClient;
 use evm_rpc::http::get_http_response_body;
 use evm_rpc::logs::INFO;
 use evm_rpc::memory::{
     get_num_subnet_nodes, insert_api_key, is_api_key_principal, is_demo_active, remove_api_key,
     set_api_key_principals, set_demo_active, set_log_filter, set_num_subnet_nodes,
-    set_override_provider, RequestCyclesCostWithCollateralEstimator,
+    set_override_provider, ChargingPolicyWithCollateral,
 };
 use evm_rpc::metrics::encode_metrics;
 use evm_rpc::providers::{find_provider, resolve_rpc_service, PROVIDERS, SERVICE_PROVIDER_MAP};
@@ -161,10 +161,10 @@ fn request_cost(
             max_response_bytes,
         )?;
         let cycles_to_attach = {
-            let estimator = DefaultRequestCyclesCostEstimator::new(get_num_subnet_nodes());
-            estimator.request_cycles_cost(&request)
+            let estimator = CyclesCostEstimator::new(get_num_subnet_nodes());
+            estimator.cost_of_http_request(&request)
         };
-        let estimator = RequestCyclesCostWithCollateralEstimator::default();
+        let estimator = ChargingPolicyWithCollateral::default();
         Ok(estimator.cycles_to_charge(&request, cycles_to_attach))
     }
 }
