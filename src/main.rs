@@ -1,5 +1,5 @@
 use candid::candid_method;
-use canhttp::{CyclesCostEstimator, CyclesChargingPolicy};
+use canhttp::{CyclesChargingPolicy, CyclesCostEstimator};
 use evm_rpc::candid_rpc::CandidRpcClient;
 use evm_rpc::http::get_http_response_body;
 use evm_rpc::logs::INFO;

@@ -82,4 +82,4 @@ thiserror = "2.0.11"
 url = "2.5"
 
 [workspace]
-members = [ "canhttp","e2e/rust", "evm_rpc_types"]
+members = [ "canhttp", "e2e/rust", "evm_rpc_types"]

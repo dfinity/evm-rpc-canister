@@ -1,4 +1,4 @@
-use crate::{CyclesCostEstimator, CyclesChargingPolicy};
+use crate::CyclesCostEstimator;
 use ic_cdk::api::management_canister::http_request::CanisterHttpRequestArgument;
 
 #[test]
@@ -23,10 +23,10 @@ fn test_candid_rpc_cost() {
     let estimator = CyclesCostEstimator::new(13);
     assert_eq!(
         [
-            estimator.cycles_to_attach(&request(0, OVERHEAD_BYTES, 0)),
-            estimator.cycles_to_attach(&request(123, OVERHEAD_BYTES, 123)),
-            estimator.cycles_to_attach(&request(123, OVERHEAD_BYTES, 4567890)),
-            estimator.cycles_to_attach(&request(890, OVERHEAD_BYTES, 4567890)),
+            estimator.cost_of_http_request(&request(0, OVERHEAD_BYTES, 0)),
+            estimator.cost_of_http_request(&request(123, OVERHEAD_BYTES, 123)),
+            estimator.cost_of_http_request(&request(123, OVERHEAD_BYTES, 4567890)),
+            estimator.cost_of_http_request(&request(890, OVERHEAD_BYTES, 4567890)),
         ],
         [50991200, 52910000, 47557686800, 47561675200]
     );
@@ -34,10 +34,10 @@ fn test_candid_rpc_cost() {
     let estimator = CyclesCostEstimator::new(34);
     assert_eq!(
         [
-            estimator.cycles_to_attach(&request(0, OVERHEAD_BYTES, 0)),
-            estimator.cycles_to_attach(&request(123, OVERHEAD_BYTES, 123)),
-            estimator.cycles_to_attach(&request(123, OVERHEAD_BYTES, 4567890)),
-            estimator.cycles_to_attach(&request(890, OVERHEAD_BYTES, 4567890)),
+            estimator.cost_of_http_request(&request(0, OVERHEAD_BYTES, 0)),
+            estimator.cost_of_http_request(&request(123, OVERHEAD_BYTES, 123)),
+            estimator.cost_of_http_request(&request(123, OVERHEAD_BYTES, 4567890)),
+            estimator.cost_of_http_request(&request(890, OVERHEAD_BYTES, 4567890)),
         ],
         [176201600, 181220000, 124424482400, 124434913600]
     );
