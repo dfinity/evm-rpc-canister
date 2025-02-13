@@ -3,6 +3,7 @@ mod mock;
 use crate::mock::MockJsonRequestBody;
 use assert_matches::assert_matches;
 use candid::{CandidType, Decode, Encode, Nat, Principal};
+use evm_rpc::constants::DEFAULT_MAX_RESPONSE_BYTES;
 use evm_rpc::logs::{Log, LogEntry};
 use evm_rpc::{
     constants::{CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE},
@@ -21,7 +22,10 @@ use ic_cdk::api::management_canister::main::CanisterId;
 use ic_test_utilities_load_wasm::load_wasm;
 use maplit::hashmap;
 use mock::{MockOutcall, MockOutcallBuilder};
-use pocket_ic::common::rest::{CanisterHttpMethod, MockCanisterHttpResponse, RawMessageId};
+use pocket_ic::common::rest::{
+    CanisterHttpMethod, CanisterHttpReject, CanisterHttpResponse, MockCanisterHttpResponse,
+    RawMessageId,
+};
 use pocket_ic::{
     management_canister::CanisterSettings, CallError, ErrorCode, PocketIc, PocketIcBuilder,
     UserError, WasmResult,
@@ -430,13 +434,35 @@ impl<R: CandidType + DeserializeOwned> CallFlow<R> {
         };
         mock.assert_matches(request);
 
-        let response = MockCanisterHttpResponse {
+        let response = match mock.response.clone() {
+            CanisterHttpResponse::CanisterHttpReply(reply) => {
+                let max_response_bytes = request
+                    .max_response_bytes
+                    .unwrap_or(DEFAULT_MAX_RESPONSE_BYTES);
+                if reply.body.len() as u64 > max_response_bytes {
+                    //approximate replica behaviour since headers are not accounted for.
+                    CanisterHttpResponse::CanisterHttpReject(CanisterHttpReject {
+                        reject_code: 1, //SYS_FATAL
+                        message: format!(
+                            "Http body exceeds size limit of {} bytes.",
+                            max_response_bytes
+                        ),
+                    })
+                } else {
+                    CanisterHttpResponse::CanisterHttpReply(reply)
+                }
+            }
+            CanisterHttpResponse::CanisterHttpReject(reject) => {
+                CanisterHttpResponse::CanisterHttpReject(reject)
+            }
+        };
+        let mock_response = MockCanisterHttpResponse {
             subnet_id: request.subnet_id,
             request_id: request.request_id,
-            response: mock.response.clone(),
+            response,
             additional_responses: vec![],
         };
-        self.setup.env.mock_canister_http_response(response);
+        self.setup.env.mock_canister_http_response(mock_response);
         true
     }
 
@@ -2026,6 +2052,118 @@ fn should_retrieve_logs() {
     assert!(setup.http_get_logs("INFO")[0]
         .message
         .contains("Updating API keys"));
+}
+
+#[test]
+fn should_retry_when_response_too_large() {
+    let setup = EvmRpcSetup::new().mock_api_keys();
+    // around 600 bytes per log
+    // we need at least 3334 logs to reach the 2MB limit
+    let large_amount_of_logs = multi_logs_for_single_transaction(3_500);
+    let mock = MockOutcallBuilder::new(200, large_amount_of_logs.clone());
+    let response = setup
+        .eth_get_logs(
+            RpcServices::EthMainnet(Some(vec![EthMainnetService::Cloudflare])),
+            Some(evm_rpc_types::RpcConfig {
+                response_size_estimate: Some(1),
+                response_consensus: None,
+            }),
+            evm_rpc_types::GetLogsArgs {
+                addresses: vec!["0xdAC17F958D2ee523a2206206994597C13D831ec7"
+                    .parse()
+                    .unwrap()],
+                from_block: None,
+                to_block: None,
+                topics: None,
+            },
+        )
+        .mock_http_once(mock.clone().with_max_response_bytes(1))
+        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 1))
+        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 2))
+        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 3))
+        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 4))
+        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 5))
+        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 6))
+        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 7))
+        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 8))
+        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 9))
+        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 10))
+        .mock_http_once(mock.clone().with_max_response_bytes(2_000_000 - 2 * 1024))
+        .wait()
+        .expect_consistent();
+
+    assert_matches!(
+        response,
+        Err(RpcError::HttpOutcallError(HttpOutcallError::IcError { code, message }))
+        if code == RejectionCode::SysFatal && message.contains("body exceeds size limit")
+    );
+
+    let large_amount_of_logs = multi_logs_for_single_transaction(1_000);
+    let mock = MockOutcallBuilder::new(200, large_amount_of_logs.clone());
+    let response = setup
+        .eth_get_logs(
+            RpcServices::EthMainnet(Some(vec![EthMainnetService::Cloudflare])),
+            Some(evm_rpc_types::RpcConfig {
+                response_size_estimate: Some(1),
+                response_consensus: None,
+            }),
+            evm_rpc_types::GetLogsArgs {
+                addresses: vec!["0xdAC17F958D2ee523a2206206994597C13D831ec7"
+                    .parse()
+                    .unwrap()],
+                from_block: None,
+                to_block: None,
+                topics: None,
+            },
+        )
+        .mock_http_once(mock.clone().with_max_response_bytes(1))
+        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 1))
+        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 2))
+        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 3))
+        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 4))
+        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 5))
+        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 6))
+        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 7))
+        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 8))
+        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 9))
+        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 10))
+        .wait()
+        .expect_consistent();
+
+    assert_matches!(
+        response,
+        Ok(logs) if logs.len() == 1_000
+    );
+}
+
+pub fn multi_logs_for_single_transaction(num_logs: usize) -> String {
+    let mut logs = Vec::with_capacity(num_logs);
+    for log_index in 0..num_logs {
+        let mut log = single_log();
+        log.log_index = Some(log_index.into());
+        logs.push(log);
+    }
+    let logs = serde_json::to_string(&logs).unwrap();
+    format!(r#"{{"jsonrpc":"2.0","result":{logs},"id":0}}"#)
+}
+
+fn single_log() -> ethers_core::types::Log {
+    let json_value = json!({
+       "address": "0xb44b5e756a894775fc32eddf3314bb1b1944dc34",
+        "blockHash": "0xc5e46f4f529cfd2abf1c5dfaad4c4ea8d297795c8632b5056bc6f9eed1f5a7eb",
+        "blockNumber": "0x47b133",
+        "data": "0x00000000000000000000000000000000000000000000000000038d7ea4c68000",
+        "logIndex": "0x2e",
+        "removed": false,
+        "topics": [
+            "0x257e057bb61920d8d0ed2cb7b720ac7f9c513cd1110bc9fa543079154f45f435",
+            "0x000000000000000000000000c8a1bc416c8498af8dc03b253a513d379d3e4ee8",
+            "0x1d9facb184cbe453de4841b6b9d9cc95bfc065344e485789b550544529020000"
+        ],
+        "transactionHash": "0x42826e03a51e735a1adc6ed026796d9044d6942c8de660017289cdc4787f3983",
+        "transactionIndex": "0x20"
+    });
+    serde_json::from_value(json_value).expect("BUG: invalid log entry")
 }
 
 pub struct TestCase<Req, Res> {
