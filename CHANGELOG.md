@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] - 2025-02-11
+
+### Added
+
+- Make the number of nodes in a subnet configurable by specifying it in the installation arguments (new field `nodes_in_subnet` in `InstallArgs`).
+- Allow to override provider URL upon installation for testing purposes (new field `override_provider` in `InstallArgs`).
+
+### Changed
+
+- `rpc.sepolia.org` replaced by Ankr as one of the default providers for Ethereum Sepolia.
+
+### Fixed
+
+- Improve cycles cost calculation for HTTPs outcalls to avoid overcharging.
+
 ## [2.2.0] - 2024-10-17
 
 ### Added

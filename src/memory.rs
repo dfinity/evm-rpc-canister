@@ -1,10 +1,9 @@
 use crate::constants::{COLLATERAL_CYCLES_PER_NODE, CONTENT_TYPE_VALUE};
 use crate::types::{ApiKey, LogFilter, Metrics, OverrideProvider, ProviderId};
-use bytes::Bytes;
 use candid::Principal;
 use canhttp::{
     map_ic_http_response, CyclesAccounting, CyclesAccountingError,
-    DefaultRequestCyclesCostEstimator, EstimateRequestCyclesCost, FullBytes, HttpRequestFilter,
+    DefaultRequestCyclesCostEstimator, CyclesChargingPolicy, FullBytes, HttpRequestFilter,
 };
 use evm_rpc_types::{HttpOutcallError, ProviderError, RpcError};
 use http::header::CONTENT_TYPE;
@@ -143,7 +142,8 @@ pub fn http_client(
 ) -> impl Service<CanisterHttpRequestArgument, Response = HttpResponse, Error = BoxError> {
     ServiceBuilder::new()
         .filter(CyclesAccounting::new(
-            RequestCyclesCostWithCollateralEstimator::default(),
+            get_num_subnet_nodes(),
+            ChargingPolicyWithCollateral::default(),
         ))
         .service(canhttp::Client)
 }
@@ -185,7 +185,7 @@ fn map_error(e: BoxError) -> RpcError {
                     expected: *expected,
                     received: *received,
                 }
-                .into()
+                    .into()
             }
         };
     }
@@ -195,7 +195,7 @@ fn map_error(e: BoxError) -> RpcError {
             code: *code,
             message: message.clone(),
         }
-        .into();
+            .into();
     }
     RpcError::ProviderError(ProviderError::InvalidRpcConfig(format!(
         "Unknown error: {}",
@@ -204,13 +204,12 @@ fn map_error(e: BoxError) -> RpcError {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct RequestCyclesCostWithCollateralEstimator {
+pub struct ChargingPolicyWithCollateral {
     charge_user: bool,
     collateral_cycles: u128,
-    inner: DefaultRequestCyclesCostEstimator,
 }
 
-impl RequestCyclesCostWithCollateralEstimator {
+impl ChargingPolicyWithCollateral {
     pub fn new(
         num_nodes_in_subnet: u32,
         charge_user: bool,
@@ -221,12 +220,11 @@ impl RequestCyclesCostWithCollateralEstimator {
         Self {
             charge_user,
             collateral_cycles,
-            inner: DefaultRequestCyclesCostEstimator::new(num_nodes_in_subnet),
         }
     }
 }
 
-impl Default for RequestCyclesCostWithCollateralEstimator {
+impl Default for ChargingPolicyWithCollateral {
     fn default() -> Self {
         Self::new(
             get_num_subnet_nodes(),
@@ -236,11 +234,7 @@ impl Default for RequestCyclesCostWithCollateralEstimator {
     }
 }
 
-impl EstimateRequestCyclesCost for RequestCyclesCostWithCollateralEstimator {
-    fn cycles_to_attach(&self, request: &CanisterHttpRequestArgument) -> u128 {
-        self.inner.cycles_to_attach(request)
-    }
-
+impl CyclesChargingPolicy for ChargingPolicyWithCollateral {
     fn cycles_to_charge(
         &self,
         _request: &CanisterHttpRequestArgument,

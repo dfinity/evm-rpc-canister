@@ -7,8 +7,7 @@
 
 pub use client::{Client, IcError};
 pub use cycles::{
-    CyclesAccounting, CyclesAccountingError, DefaultRequestCyclesCostEstimator,
-    EstimateRequestCyclesCost,
+    CyclesAccounting, CyclesAccountingError, CyclesChargingPolicy, CyclesCostEstimator,
 };
 pub use request::{
     HttpRequest, HttpRequestFilter, MaxResponseBytesRequestExtensionBuilder,

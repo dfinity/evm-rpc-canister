@@ -18,9 +18,6 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-
       - run: rustup component add clippy
 
       - name: Cargo clippy
@@ -76,11 +73,8 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-
       - name: Cargo test
-        run: cargo test -- --test-threads=2 --nocapture
+        run: cargo test --workspace -- --test-threads=2 --nocapture
 
   e2e:
     runs-on: ubuntu-latest

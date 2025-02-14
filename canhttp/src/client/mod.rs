@@ -1,6 +1,8 @@
 use crate::request::IcHttpRequestWithCycles;
 use ic_cdk::api::call::RejectionCode;
-use ic_cdk::api::management_canister::http_request::HttpResponse as IcHttpResponse;
+use ic_cdk::api::management_canister::http_request::{
+    CanisterHttpRequestArgument as IcHttpRequest, HttpResponse as IcHttpResponse,
+};
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
