@@ -152,47 +152,42 @@ pub fn http_client(
 pub fn http_client_no_retry(
 ) -> impl Service<canhttp::HttpRequest, Response = canhttp::HttpResponse, Error = RpcError> {
     ServiceBuilder::new()
-        .insert_request_header_if_not_present(
-            CONTENT_TYPE,
-            HeaderValue::from_static(CONTENT_TYPE_VALUE),
-        )
         .layer(
             ObservabilityLayer::new()
                 .on_request(|req: &canhttp::HttpRequest| {
+                    let req_data = MetricData::new("request", req);
                     add_metric_entry!(
                         requests,
-                        (
-                            MetricRpcMethod("request".to_string()),
-                            MetricRpcHost(req.uri().host().unwrap().to_string())
-                        ),
+                        (req_data.method.clone(), req_data.host.clone()),
                         1
-                    )
+                    );
+                    req_data
                 })
-                .on_response(|response: &canhttp::HttpResponse| {
+                .on_response(|req_data: MetricData, response: &canhttp::HttpResponse| {
                     add_metric_entry!(
                         responses,
                         (
-                            MetricRpcMethod("request".to_string()),
-                            MetricRpcHost("TODO: must come from request".to_string()),
+                            req_data.method,
+                            req_data.host,
                             (response.status().as_u16() as u32).into()
                         ),
                         1
                     );
                 })
-                .on_error(|error: &RpcError| match error {
+                .on_error(|req_data: MetricData, error: &RpcError| match error {
                     RpcError::HttpOutcallError(HttpOutcallError::IcError { code, message: _ }) => {
                         add_metric_entry!(
                             err_http_outcall,
-                            (
-                                MetricRpcMethod("request".to_string()),
-                                MetricRpcHost("TODO: must come from request".to_string()),
-                                *code
-                            ),
+                            (req_data.method, req_data.host, *code),
                             1
                         );
                     }
                     _ => {}
                 }),
+        )
+        .insert_request_header_if_not_present(
+            CONTENT_TYPE,
+            HeaderValue::from_static(CONTENT_TYPE_VALUE),
         )
         .map_err(map_error)
         .filter(HttpRequestFilter)
@@ -202,6 +197,20 @@ pub fn http_client_no_retry(
             ChargingPolicyWithCollateral::default(),
         ))
         .service(canhttp::Client)
+}
+
+struct MetricData {
+    method: MetricRpcMethod,
+    host: MetricRpcHost,
+}
+
+impl MetricData {
+    pub fn new(method: &str, request: &canhttp::HttpRequest) -> Self {
+        Self {
+            method: MetricRpcMethod(method.to_string()),
+            host: MetricRpcHost(request.uri().host().unwrap().to_string()),
+        }
+    }
 }
 
 fn map_error(e: BoxError) -> RpcError {

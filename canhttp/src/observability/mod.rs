@@ -87,69 +87,72 @@ pub struct Observability<S, OnRequest, OnResponse, OnError> {
     on_error: OnError,
 }
 
-impl<S, Request, Response, OnRequest, OnResponse, OnError> Service<Request>
+impl<S, Request, Response, OnRequest, RequestData, OnResponse, OnError> Service<Request>
     for Observability<S, OnRequest, OnResponse, OnError>
 where
     S: Service<Request, Response = Response>,
-    OnRequest: Observer<Request>,
-    OnResponse: Observer<S::Response> + Clone,
-    OnError: Observer<S::Error> + Clone,
+    OnRequest: RequestObserver<Request, ObservableRequestData = RequestData>,
+    OnResponse: Observer<RequestData, S::Response> + Clone,
+    OnError: Observer<RequestData, S::Error> + Clone,
 {
     type Response = S::Response;
     type Error = S::Error;
-    type Future = ResponseFuture<S::Future, OnResponse, OnError>;
+    type Future = ResponseFuture<S::Future, RequestData, OnResponse, OnError>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.inner.poll_ready(cx)
     }
 
     fn call(&mut self, req: Request) -> Self::Future {
-        self.on_request.observe(&req);
+        let req_data = self.on_request.observe_request(&req);
         ResponseFuture {
             response_future: self.inner.call(req),
+            request_data: Some(req_data),
             on_response: self.on_response.clone(),
             on_error: self.on_error.clone(),
         }
     }
 }
 
-pub trait Observer<T> {
-    fn observe(&self, value: &T);
+///TODO
+pub trait Observer<ReqData, Result> {
+    ///TODO
+    fn observe(&self, request_data: ReqData, value: &Result);
 }
 
 ///TODO
 #[derive(Clone, Debug)]
 pub struct DefaultObserver;
-impl<T> Observer<T> for DefaultObserver {
-    fn observe(&self, _value: &T) {
+impl<T, ReqData> Observer<ReqData, T> for DefaultObserver {
+    fn observe(&self, _request_data: ReqData, _value: &T) {
         //NOP
     }
 }
 
-impl<F, T> Observer<T> for F
+impl<F, ReqData, T> Observer<ReqData, T> for F
 where
-    F: Fn(&T),
+    F: Fn(ReqData, &T),
 {
-    fn observe(&self, value: &T) {
-        self(value);
+    fn observe(&self, request_data: ReqData, value: &T) {
+        self(request_data, value);
     }
 }
 
 #[pin_project]
-pub struct ResponseFuture<F, OnResponse, OnError> {
+pub struct ResponseFuture<F, RequestData, OnResponse, OnError> {
     #[pin]
     response_future: F,
-    #[pin]
+    request_data: Option<RequestData>,
     on_response: OnResponse,
-    #[pin]
     on_error: OnError,
 }
 
-impl<F, OnResponse, OnError, Response, Error> Future for ResponseFuture<F, OnResponse, OnError>
+impl<F, RequestData, OnResponse, OnError, Response, Error> Future
+    for ResponseFuture<F, RequestData, OnResponse, OnError>
 where
     F: Future<Output = Result<Response, Error>>,
-    OnResponse: Observer<Response>,
-    OnError: Observer<Error>,
+    OnResponse: Observer<RequestData, Response>,
+    OnError: Observer<RequestData, Error>,
 {
     type Output = Result<Response, Error>;
 
@@ -157,16 +160,38 @@ where
         let this = self.project();
         let result_fut = this.response_future.poll(cx);
         match &result_fut {
-            Poll::Ready(result) => match result {
-                Ok(response) => {
-                    this.on_response.observe(response);
+            Poll::Ready(result) => {
+                let request_data = this.request_data.take().unwrap();
+                match result {
+                    Ok(response) => {
+                        this.on_response.observe(request_data, response);
+                    }
+                    Err(error) => {
+                        this.on_error.observe(request_data, error);
+                    }
                 }
-                Err(error) => {
-                    this.on_error.observe(error);
-                }
-            },
+            }
             Poll::Pending => {}
         }
         result_fut
+    }
+}
+
+/// TODO
+pub trait RequestObserver<Request> {
+    /// TODO
+    type ObservableRequestData;
+    /// TODO
+    fn observe_request(&self, request: &Request) -> Self::ObservableRequestData;
+}
+
+impl<F, Request, RequestData> RequestObserver<Request> for F
+where
+    F: Fn(&Request) -> RequestData,
+{
+    type ObservableRequestData = RequestData;
+
+    fn observe_request(&self, request: &Request) -> Self::ObservableRequestData {
+        self(request)
     }
 }
