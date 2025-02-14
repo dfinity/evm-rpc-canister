@@ -1,12 +1,12 @@
 use candid::candid_method;
 use canhttp::{CyclesChargingPolicy, CyclesCostEstimator};
 use evm_rpc::candid_rpc::CandidRpcClient;
-use evm_rpc::http::get_http_response_body;
+use evm_rpc::http::{get_http_response_body, ChargingPolicyWithCollateral};
 use evm_rpc::logs::INFO;
 use evm_rpc::memory::{
     get_num_subnet_nodes, insert_api_key, is_api_key_principal, is_demo_active, remove_api_key,
     set_api_key_principals, set_demo_active, set_log_filter, set_num_subnet_nodes,
-    set_override_provider, ChargingPolicyWithCollateral,
+    set_override_provider,
 };
 use evm_rpc::metrics::encode_metrics;
 use evm_rpc::providers::{find_provider, resolve_rpc_service, PROVIDERS, SERVICE_PROVIDER_MAP};
