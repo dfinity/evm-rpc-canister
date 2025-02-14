@@ -1520,6 +1520,39 @@ fn candid_rpc_should_return_inconsistent_results_with_consensus_error() {
 }
 
 #[test]
+fn should_have_metrics_for_generic_request() {
+    use evm_rpc::types::MetricRpcMethod;
+
+    let setup = EvmRpcSetup::new().mock_api_keys();
+    let response = setup
+        .request(
+            RpcService::Custom(RpcApi {
+                url: MOCK_REQUEST_URL.to_string(),
+                headers: None,
+            }),
+            MOCK_REQUEST_PAYLOAD,
+            MOCK_REQUEST_RESPONSE_BYTES,
+        )
+        .mock_http(MockOutcallBuilder::new(200, MOCK_REQUEST_RESPONSE))
+        .wait();
+    assert_eq!(response, Ok(MOCK_REQUEST_RESPONSE.to_string()));
+
+    let rpc_method = || MetricRpcMethod("request".to_string());
+    assert_eq!(
+        setup.get_metrics(),
+        Metrics {
+            requests: hashmap! {
+                (rpc_method(), CLOUDFLARE_HOSTNAME.into()) => 1,
+            },
+            responses: hashmap! {
+                (rpc_method(), CLOUDFLARE_HOSTNAME.into(), 200.into()) => 1,
+            },
+            ..Default::default()
+        }
+    );
+}
+
+#[test]
 fn candid_rpc_should_return_inconsistent_results_with_unexpected_http_status() {
     let setup = EvmRpcSetup::new().mock_api_keys();
     let result = setup
