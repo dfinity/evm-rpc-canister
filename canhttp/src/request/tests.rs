@@ -1,5 +1,4 @@
-use crate::HttpRequestFilter;
-use bytes::Bytes;
+use crate::{FullBytes, HttpRequestFilter};
 use http::Uri;
 use std::str::FromStr;
 use tower::filter::Predicate;
@@ -37,7 +36,7 @@ fn should_conserve_urls() {
 
     for url in URLS {
         let mut filter = HttpRequestFilter;
-        let request = http::Request::post(url).body(Bytes::new()).unwrap();
+        let request = http::Request::post(url).body(FullBytes::default()).unwrap();
         let mapped_request = filter.check(request.clone()).unwrap();
 
         // Note that the string representation may slightly vary, e.g.
