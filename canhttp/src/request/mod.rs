@@ -2,8 +2,6 @@
 mod tests;
 
 use crate::response::FullBytes;
-use bytes::Bytes;
-use http::Request;
 use ic_cdk::api::management_canister::http_request::{
     CanisterHttpRequestArgument as IcHttpRequest, HttpHeader as IcHttpHeader,
     HttpMethod as IcHttpMethod, TransformContext,

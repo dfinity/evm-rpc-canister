@@ -2,8 +2,8 @@ use crate::constants::{COLLATERAL_CYCLES_PER_NODE, CONTENT_TYPE_VALUE};
 use crate::types::{ApiKey, LogFilter, Metrics, OverrideProvider, ProviderId};
 use candid::Principal;
 use canhttp::{
-    map_ic_http_response, CyclesAccounting, CyclesAccountingError,
-    DefaultRequestCyclesCostEstimator, CyclesChargingPolicy, FullBytes, HttpRequestFilter,
+    map_ic_http_response, CyclesAccounting, CyclesAccountingError, CyclesChargingPolicy, FullBytes,
+    HttpRequestFilter,
 };
 use evm_rpc_types::{HttpOutcallError, ProviderError, RpcError};
 use http::header::CONTENT_TYPE;
@@ -172,7 +172,8 @@ pub fn http_client_no_retry() -> impl Service<
         .filter(HttpRequestFilter)
         .map_response(map_ic_http_response)
         .filter(CyclesAccounting::new(
-            RequestCyclesCostWithCollateralEstimator::default(),
+            get_num_subnet_nodes(),
+            ChargingPolicyWithCollateral::default(),
         ))
         .service(canhttp::Client)
 }
@@ -185,7 +186,7 @@ fn map_error(e: BoxError) -> RpcError {
                     expected: *expected,
                     received: *received,
                 }
-                    .into()
+                .into()
             }
         };
     }
@@ -195,7 +196,7 @@ fn map_error(e: BoxError) -> RpcError {
             code: *code,
             message: message.clone(),
         }
-            .into();
+        .into();
     }
     RpcError::ProviderError(ProviderError::InvalidRpcConfig(format!(
         "Unknown error: {}",

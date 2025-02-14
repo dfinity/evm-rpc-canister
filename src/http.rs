@@ -6,7 +6,6 @@ use crate::{
     types::{MetricRpcHost, MetricRpcMethod, ResolvedRpcService},
     util::canonicalize_json,
 };
-use bytes::Bytes;
 use canhttp::{
     CyclesAccountingError, MaxResponseBytesRequestExtensionBuilder,
     TransformContextRequestExtensionBuiler,

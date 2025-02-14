@@ -46,7 +46,7 @@ impl http_body::Body for FullBytes {
 
     fn poll_frame(
         mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
+        _cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
         let s = std::mem::take(&mut *self);
         Poll::Ready(Some(Ok(Frame::data(s.0))))

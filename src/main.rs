@@ -1,5 +1,5 @@
 use candid::candid_method;
-use canhttp::{CyclesCostEstimator, HttpRequestFilter};
+use canhttp::{CyclesChargingPolicy, CyclesCostEstimator, HttpRequestFilter};
 use evm_rpc::candid_rpc::CandidRpcClient;
 use evm_rpc::http::get_http_response_body;
 use evm_rpc::logs::INFO;
@@ -146,7 +146,7 @@ async fn request(
         max_response_bytes,
     )?;
     let response = client.call(request).await?;
-    let r = response.into_body().inner;
+    let r = response.into_body();
     get_http_response_body(response)
 }
 
@@ -165,15 +165,14 @@ fn request_cost(
             json_rpc_payload,
             max_response_bytes,
         )?;
+        let mut filter = HttpRequestFilter;
+        let request = filter.check(request).expect("ERROR: invalid request");
         let cycles_to_attach = {
             let estimator = CyclesCostEstimator::new(get_num_subnet_nodes());
             estimator.cost_of_http_request(&request)
         };
-        let mut filter = HttpRequestFilter;
-        let request = filter.check(request).expect("ERROR: invalid request");
-        let estimator = RequestCyclesCostWithCollateralEstimator::default();
-        let cycles_to_attach = estimator.cycles_to_attach(&request);
-        Ok(estimator.cycles_to_charge(&request, cycles_to_attach))
+        let charging_policy = ChargingPolicyWithCollateral::default();
+        Ok(charging_policy.cycles_to_charge(&request, cycles_to_attach))
     }
 }
 
