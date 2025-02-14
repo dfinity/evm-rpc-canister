@@ -67,7 +67,7 @@ impl<OnRequest, OnResponse, OnError> ObservabilityLayer<OnRequest, OnResponse, O
 }
 
 impl<S, OnRequest, OnResponse, OnError> Layer<S>
-for ObservabilityLayer<OnRequest, OnResponse, OnError>
+    for ObservabilityLayer<OnRequest, OnResponse, OnError>
 where
     OnRequest: Clone,
     OnResponse: Clone,
@@ -94,7 +94,7 @@ pub struct Observability<S, OnRequest, OnResponse, OnError> {
 }
 
 impl<S, Request, Response, OnRequest, RequestData, OnResponse, OnError> Service<Request>
-for Observability<S, OnRequest, OnResponse, OnError>
+    for Observability<S, OnRequest, OnResponse, OnError>
 where
     S: Service<Request, Response = Response>,
     OnRequest: RequestObserver<Request, ObservableRequestData = RequestData>,
@@ -151,7 +151,7 @@ pub struct ResponseFuture<F, RequestData, OnResponse, OnError> {
 }
 
 impl<F, RequestData, OnResponse, OnError, Response, Error> Future
-for ResponseFuture<F, RequestData, OnResponse, OnError>
+    for ResponseFuture<F, RequestData, OnResponse, OnError>
 where
     F: Future<Output = Result<Response, Error>>,
     OnResponse: ResponseObserver<RequestData, Response>,
