@@ -220,7 +220,8 @@ where
             )),
         };
 
-        let response = match http_request(&eth_method, request).await {
+        let rpc_method = MetricRpcMethod(eth_method.to_string());
+        let response = match crate::http::http_request(rpc_method, request).await {
             Err(RpcError::HttpOutcallError(HttpOutcallError::IcError { code, message }))
                 if is_response_too_large(&code, &message) =>
             {
@@ -275,14 +276,6 @@ fn resolve_api(
     override_provider: &OverrideProvider,
 ) -> Result<RpcApi, RpcError> {
     resolve_rpc_service(service.clone())?.api(override_provider)
-}
-
-async fn http_request(
-    method: &str,
-    request: CanisterHttpRequestArgument,
-) -> Result<HttpResponse, RpcError> {
-    let rpc_method = MetricRpcMethod(method.to_string());
-    crate::http::http_request(rpc_method, request).await
 }
 
 fn http_status_code(response: &HttpResponse) -> u16 {

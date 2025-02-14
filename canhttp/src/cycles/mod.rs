@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests;
 
-use crate::client::IcHttpRequestWithCycles;
+use crate::request::IcHttpRequestWithCycles;
 use ic_cdk::api::management_canister::http_request::CanisterHttpRequestArgument;
 use thiserror::Error;
 use tower::filter::Predicate;
