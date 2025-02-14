@@ -178,6 +178,20 @@ pub fn http_client_no_retry(
                         ),
                         1
                     );
+                })
+                .on_error(|error: &RpcError| match error {
+                    RpcError::HttpOutcallError(HttpOutcallError::IcError { code, message: _ }) => {
+                        add_metric_entry!(
+                            err_http_outcall,
+                            (
+                                MetricRpcMethod("request".to_string()),
+                                MetricRpcHost("TODO: must come from request".to_string()),
+                                *code
+                            ),
+                            1
+                        );
+                    }
+                    _ => {}
                 }),
         )
         .map_err(map_error)

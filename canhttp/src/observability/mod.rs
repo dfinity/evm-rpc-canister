@@ -46,6 +46,18 @@ impl<OnRequest, OnResponse, OnError> ObservabilityLayer<OnRequest, OnResponse, O
             on_error: self.on_error,
         }
     }
+
+    /// TODO
+    pub fn on_error<NewOnError>(
+        self,
+        new_on_error: NewOnError,
+    ) -> ObservabilityLayer<OnRequest, OnResponse, NewOnError> {
+        ObservabilityLayer {
+            on_request: self.on_request,
+            on_response: self.on_response,
+            on_error: new_on_error,
+        }
+    }
 }
 
 impl<S, OnRequest, OnResponse, OnError> Layer<S>
