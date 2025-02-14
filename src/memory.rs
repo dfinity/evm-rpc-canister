@@ -1,9 +1,12 @@
+use crate::add_metric_entry;
 use crate::constants::{COLLATERAL_CYCLES_PER_NODE, CONTENT_TYPE_VALUE};
-use crate::types::{ApiKey, LogFilter, Metrics, OverrideProvider, ProviderId};
+use crate::types::{
+    ApiKey, LogFilter, MetricRpcHost, MetricRpcMethod, Metrics, OverrideProvider, ProviderId,
+};
 use candid::Principal;
 use canhttp::{
     map_ic_http_response, CyclesAccounting, CyclesAccountingError, CyclesChargingPolicy,
-    HttpRequestFilter,
+    HttpRequestFilter, ObservabilityLayer,
 };
 use evm_rpc_types::{HttpOutcallError, ProviderError, RpcError};
 use http::header::CONTENT_TYPE;
@@ -16,7 +19,7 @@ use ic_stable_structures::{
 };
 use ic_stable_structures::{Cell, StableBTreeMap};
 use std::cell::RefCell;
-use tower::{BoxError, Service, ServiceBuilder};
+use tower::{BoxError, Layer, Service, ServiceBuilder};
 use tower_http::ServiceBuilderExt;
 
 const IS_DEMO_ACTIVE_MEMORY_ID: MemoryId = MemoryId::new(4);
@@ -152,6 +155,18 @@ pub fn http_client_no_retry(
         .insert_request_header_if_not_present(
             CONTENT_TYPE,
             HeaderValue::from_static(CONTENT_TYPE_VALUE),
+        )
+        .layer(
+            ObservabilityLayer::new().on_request(|req: &canhttp::HttpRequest| {
+                add_metric_entry!(
+                    requests,
+                    (
+                        MetricRpcMethod("request".to_string()),
+                        MetricRpcHost(req.uri().host().unwrap().to_string())
+                    ),
+                    1
+                )
+            }),
         )
         .map_err(map_error)
         .filter(HttpRequestFilter)
