@@ -26,7 +26,7 @@ which includes the following main changes:
 ```
 git fetch
 git checkout c3592e02905e68dba671b055468fea97612c0374
-didc encode -d evm_rpc.did -t '(InstallArgs)' '(record {})' | xxd -r -p | sha256sum
+didc encode -d candid/evm_rpc.did -t '(InstallArgs)' '(record {})' | xxd -r -p | sha256sum
 ```
 
 ## Release Notes
