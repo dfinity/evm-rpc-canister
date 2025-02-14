@@ -146,7 +146,6 @@ async fn request(
         max_response_bytes,
     )?;
     let response = client.call(request).await?;
-    let r = response.into_body();
     get_http_response_body(response)
 }
 

@@ -2,7 +2,7 @@ use crate::constants::{COLLATERAL_CYCLES_PER_NODE, CONTENT_TYPE_VALUE};
 use crate::types::{ApiKey, LogFilter, Metrics, OverrideProvider, ProviderId};
 use candid::Principal;
 use canhttp::{
-    map_ic_http_response, CyclesAccounting, CyclesAccountingError, CyclesChargingPolicy, FullBytes,
+    map_ic_http_response, CyclesAccounting, CyclesAccountingError, CyclesChargingPolicy,
     HttpRequestFilter,
 };
 use evm_rpc_types::{HttpOutcallError, ProviderError, RpcError};
@@ -17,8 +17,6 @@ use ic_stable_structures::{
 use ic_stable_structures::{Cell, StableBTreeMap};
 use std::cell::RefCell;
 use tower::{BoxError, Service, ServiceBuilder};
-use tower_http::classify::{NeverClassifyEos, ServerErrorsFailureClass};
-use tower_http::trace::{ResponseBody, TraceLayer};
 use tower_http::ServiceBuilderExt;
 
 const IS_DEMO_ACTIVE_MEMORY_ID: MemoryId = MemoryId::new(4);
@@ -148,22 +146,9 @@ pub fn http_client(
         .service(canhttp::Client)
 }
 
-pub fn http_client_no_retry() -> impl Service<
-    canhttp::HttpRequest,
-    Response = http::Response<
-        ResponseBody<FullBytes, NeverClassifyEos<ServerErrorsFailureClass>, (), (), ()>,
-    >,
-    Error = RpcError,
-> {
+pub fn http_client_no_retry(
+) -> impl Service<canhttp::HttpRequest, Response = canhttp::HttpResponse, Error = RpcError> {
     ServiceBuilder::new()
-        .layer(
-            TraceLayer::new_for_http()
-                .on_request(())
-                .on_response(())
-                .on_body_chunk(())
-                .on_eos(())
-                .on_failure(()),
-        )
         .insert_request_header_if_not_present(
             CONTENT_TYPE,
             HeaderValue::from_static(CONTENT_TYPE_VALUE),

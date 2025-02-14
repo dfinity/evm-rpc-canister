@@ -13,14 +13,8 @@ use std::task::{Context, Poll};
 pub type HttpResponse = http::Response<FullBytes>;
 
 /// Similar to `http_body_util::Full<Bytes>`, but allow to retrieve the bytes synchronously.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct FullBytes(Bytes);
-
-impl Default for FullBytes {
-    fn default() -> Self {
-        FullBytes(Bytes::default())
-    }
-}
 
 impl From<Vec<u8>> for FullBytes {
     fn from(value: Vec<u8>) -> Self {
