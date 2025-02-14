@@ -19,7 +19,7 @@ use ic_stable_structures::{
 };
 use ic_stable_structures::{Cell, StableBTreeMap};
 use std::cell::RefCell;
-use tower::{BoxError, Layer, Service, ServiceBuilder};
+use tower::{BoxError, Service, ServiceBuilder};
 use tower_http::ServiceBuilderExt;
 
 const IS_DEMO_ACTIVE_MEMORY_ID: MemoryId = MemoryId::new(4);
@@ -157,16 +157,28 @@ pub fn http_client_no_retry(
             HeaderValue::from_static(CONTENT_TYPE_VALUE),
         )
         .layer(
-            ObservabilityLayer::new().on_request(|req: &canhttp::HttpRequest| {
-                add_metric_entry!(
-                    requests,
-                    (
-                        MetricRpcMethod("request".to_string()),
-                        MetricRpcHost(req.uri().host().unwrap().to_string())
-                    ),
-                    1
-                )
-            }),
+            ObservabilityLayer::new()
+                .on_request(|req: &canhttp::HttpRequest| {
+                    add_metric_entry!(
+                        requests,
+                        (
+                            MetricRpcMethod("request".to_string()),
+                            MetricRpcHost(req.uri().host().unwrap().to_string())
+                        ),
+                        1
+                    )
+                })
+                .on_response(|response: &canhttp::HttpResponse| {
+                    add_metric_entry!(
+                        responses,
+                        (
+                            MetricRpcMethod("request".to_string()),
+                            MetricRpcHost("TODO: must come from request".to_string()),
+                            (response.status().as_u16() as u32).into()
+                        ),
+                        1
+                    );
+                }),
         )
         .map_err(map_error)
         .filter(HttpRequestFilter)
