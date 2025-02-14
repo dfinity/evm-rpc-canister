@@ -1,10 +1,29 @@
+//! Middleware that adds high level observability (e.g., logging, metrics) to a [`Service`].
+//!
+//! # Comparison with [`tower_http::trace`].
+//! This middleware is strongly inspired by the functionality offered by [`tower_http::trace`].
+//! The reason for not using this middleware directly is it cannot be used inside a canister:
+//! 1. The [`tower_http::Trace`] service measures the latency of a call by calling
+//!     [`Instant::now`](https://github.com/tower-rs/tower-http/blob/469bdac3193ed22da9ea524a454d8cda93ffa0d5/tower-http/src/trace/service.rs#L302),
+//!     which will fail when run from a canister.
+//! 2. The [`tower_http::Trace`] can deal with streaming responses, which is unnecessary for HTTPs outcalls,
+//!     since the response is available to a canister at once. This flexibility brings some complexity
+//!     (body can only be fetched asynchronously, end of stream errors, etc.) which is not useful in a canister environment.
+//!
+//! [`Service`]: tower::Service
+
 use pin_project::pin_project;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tower::{Layer, Service};
 
-/// TODO
+/// [`Layer`] that adds high level observability to a [`Service`].
+///
+/// See the [module docs](crate::observability) for more details.
+///
+/// [`Layer`]: tower::Layer
+/// [`Service`]: tower::Service
 pub struct ObservabilityLayer<OnRequest, OnResponse, OnError> {
     on_request: OnRequest,
     on_response: OnResponse,
@@ -12,7 +31,7 @@ pub struct ObservabilityLayer<OnRequest, OnResponse, OnError> {
 }
 
 impl ObservabilityLayer<(), (), ()> {
-    /// TODO
+    /// Creates a new [`ObservabilityLayer`] that does nothing.
     pub fn new() -> Self {
         Self {
             on_request: (),
@@ -29,7 +48,9 @@ impl Default for ObservabilityLayer<(), (), ()> {
 }
 
 impl<OnRequest, OnResponse, OnError> ObservabilityLayer<OnRequest, OnResponse, OnError> {
-    /// TODO
+    /// Customize what to do when a request is received.
+    ///
+    /// `NewOnRequest` is expected to implement [`RequestObserver`].
     pub fn on_request<NewOnRequest>(
         self,
         new_on_request: NewOnRequest,
@@ -41,7 +62,9 @@ impl<OnRequest, OnResponse, OnError> ObservabilityLayer<OnRequest, OnResponse, O
         }
     }
 
-    /// TODO
+    /// Customize what to do when a response has been produced.
+    ///
+    /// `NewOnResponse` is expected to implement [`ResponseObserver`].
     pub fn on_response<NewOnResponse>(
         self,
         new_on_response: NewOnResponse,
@@ -53,7 +76,9 @@ impl<OnRequest, OnResponse, OnError> ObservabilityLayer<OnRequest, OnResponse, O
         }
     }
 
-    /// TODO
+    /// Customize what to do when an error has been produced.
+    ///
+    /// `NewOnError` is expected to implement [`ResponseObserver`].
     pub fn on_error<NewOnError>(
         self,
         new_on_error: NewOnError,
@@ -85,7 +110,11 @@ where
     }
 }
 
-/// TODO
+/// Middleware that adds high level observability to a [`Service`].
+///
+/// See the [module docs](crate::observability) for an example.
+///
+/// [`Service`]: tower::Service
 pub struct Observability<S, OnRequest, OnResponse, OnError> {
     inner: S,
     on_request: OnRequest,
@@ -120,9 +149,39 @@ where
     }
 }
 
-///TODO
+/// Trait used to tell [`Observability`] what to do when a request is received.
+pub trait RequestObserver<Request> {
+    /// Type of data that can be observed from the request (e.g., URL, host, etc.)
+    /// when the response will be processed.
+    type ObservableRequestData;
+
+    /// Observe the given request and produce observable data based on the request.
+    /// This observable data will be passed on to the response observer.
+    fn observe_request(&self, request: &Request) -> Self::ObservableRequestData;
+}
+
+impl<Request> RequestObserver<Request> for () {
+    type ObservableRequestData = ();
+
+    fn observe_request(&self, _request: &Request) -> Self::ObservableRequestData {
+        //NOP
+    }
+}
+
+impl<F, Request, RequestData> RequestObserver<Request> for F
+where
+    F: Fn(&Request) -> RequestData,
+{
+    type ObservableRequestData = RequestData;
+
+    fn observe_request(&self, request: &Request) -> Self::ObservableRequestData {
+        self(request)
+    }
+}
+
+/// Trait used to tell [`Observability`] what to do when a response is received.
 pub trait ResponseObserver<RequestData, Result> {
-    ///TODO
+    /// Observe the response (typically an instance of [`std::Result`] and the request data produced by a [`RequestObserver`].
     fn observe(&self, request_data: RequestData, value: &Result);
 }
 
@@ -141,6 +200,7 @@ where
     }
 }
 
+/// Response future for [`Observability`].
 #[pin_project]
 pub struct ResponseFuture<F, RequestData, OnResponse, OnError> {
     #[pin]
@@ -177,32 +237,5 @@ where
             Poll::Pending => {}
         }
         result_fut
-    }
-}
-
-/// TODO
-pub trait RequestObserver<Request> {
-    /// TODO
-    type ObservableRequestData;
-    /// TODO
-    fn observe_request(&self, request: &Request) -> Self::ObservableRequestData;
-}
-
-impl<Request> RequestObserver<Request> for () {
-    type ObservableRequestData = ();
-
-    fn observe_request(&self, _request: &Request) -> Self::ObservableRequestData {
-        //NOP
-    }
-}
-
-impl<F, Request, RequestData> RequestObserver<Request> for F
-where
-    F: Fn(&Request) -> RequestData,
-{
-    type ObservableRequestData = RequestData;
-
-    fn observe_request(&self, request: &Request) -> Self::ObservableRequestData {
-        self(request)
     }
 }
