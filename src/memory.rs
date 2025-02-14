@@ -174,15 +174,18 @@ pub fn http_client_no_retry(
                         1
                     );
                 })
-                .on_error(|req_data: MetricData, error: &RpcError| match error {
-                    RpcError::HttpOutcallError(HttpOutcallError::IcError { code, message: _ }) => {
+                .on_error(|req_data: MetricData, error: &RpcError| {
+                    if let RpcError::HttpOutcallError(HttpOutcallError::IcError {
+                        code,
+                        message: _,
+                    }) = error
+                    {
                         add_metric_entry!(
                             err_http_outcall,
                             (req_data.method, req_data.host, *code),
                             1
                         );
                     }
-                    _ => {}
                 }),
         )
         .insert_request_header_if_not_present(

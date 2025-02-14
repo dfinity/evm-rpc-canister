@@ -11,14 +11,20 @@ pub struct ObservabilityLayer<OnRequest, OnResponse, OnError> {
     on_error: OnError,
 }
 
-impl ObservabilityLayer<DefaultObserver, DefaultObserver, DefaultObserver> {
+impl ObservabilityLayer<(), (), ()> {
     /// TODO
     pub fn new() -> Self {
         Self {
-            on_request: DefaultObserver,
-            on_response: DefaultObserver,
-            on_error: DefaultObserver,
+            on_request: (),
+            on_response: (),
+            on_error: (),
         }
+    }
+}
+
+impl Default for ObservabilityLayer<(), (), ()> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -92,8 +98,8 @@ impl<S, Request, Response, OnRequest, RequestData, OnResponse, OnError> Service<
 where
     S: Service<Request, Response = Response>,
     OnRequest: RequestObserver<Request, ObservableRequestData = RequestData>,
-    OnResponse: Observer<RequestData, S::Response> + Clone,
-    OnError: Observer<RequestData, S::Error> + Clone,
+    OnResponse: ResponseObserver<RequestData, S::Response> + Clone,
+    OnError: ResponseObserver<RequestData, S::Error> + Clone,
 {
     type Response = S::Response;
     type Error = S::Error;
@@ -115,21 +121,18 @@ where
 }
 
 ///TODO
-pub trait Observer<ReqData, Result> {
+pub trait ResponseObserver<RequestData, Result> {
     ///TODO
-    fn observe(&self, request_data: ReqData, value: &Result);
+    fn observe(&self, request_data: RequestData, value: &Result);
 }
 
-///TODO
-#[derive(Clone, Debug)]
-pub struct DefaultObserver;
-impl<T, ReqData> Observer<ReqData, T> for DefaultObserver {
-    fn observe(&self, _request_data: ReqData, _value: &T) {
+impl<ReqData, Result> ResponseObserver<ReqData, Result> for () {
+    fn observe(&self, _request_data: ReqData, _value: &Result) {
         //NOP
     }
 }
 
-impl<F, ReqData, T> Observer<ReqData, T> for F
+impl<F, ReqData, T> ResponseObserver<ReqData, T> for F
 where
     F: Fn(ReqData, &T),
 {
@@ -151,8 +154,8 @@ impl<F, RequestData, OnResponse, OnError, Response, Error> Future
     for ResponseFuture<F, RequestData, OnResponse, OnError>
 where
     F: Future<Output = Result<Response, Error>>,
-    OnResponse: Observer<RequestData, Response>,
-    OnError: Observer<RequestData, Error>,
+    OnResponse: ResponseObserver<RequestData, Response>,
+    OnError: ResponseObserver<RequestData, Error>,
 {
     type Output = Result<Response, Error>;
 
@@ -183,6 +186,14 @@ pub trait RequestObserver<Request> {
     type ObservableRequestData;
     /// TODO
     fn observe_request(&self, request: &Request) -> Self::ObservableRequestData;
+}
+
+impl<Request> RequestObserver<Request> for () {
+    type ObservableRequestData = ();
+
+    fn observe_request(&self, _request: &Request) -> Self::ObservableRequestData {
+        //NOP
+    }
 }
 
 impl<F, Request, RequestData> RequestObserver<Request> for F

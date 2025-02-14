@@ -9,9 +9,7 @@ pub use client::{Client, IcError};
 pub use cycles::{
     CyclesAccounting, CyclesAccountingError, CyclesChargingPolicy, CyclesCostEstimator,
 };
-pub use observability::{
-    DefaultObserver, Observability, ObservabilityLayer, Observer, RequestObserver,
-};
+pub use observability::{Observability, ObservabilityLayer, RequestObserver, ResponseObserver};
 pub use request::{
     HttpRequest, HttpRequestFilter, MaxResponseBytesRequestExtensionBuilder,
     TransformContextRequestExtensionBuiler,
