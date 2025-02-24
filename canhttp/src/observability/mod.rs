@@ -1,16 +1,17 @@
 //! Middleware that adds high level observability (e.g., logging, metrics) to a [`Service`].
 //!
-//! # Comparison with [`tower_http::trace`].
-//! This middleware is strongly inspired by the functionality offered by [`tower_http::trace`].
+//! # Comparison with the `Trace` service of the [`tower_http`] crate.
+//! This middleware is strongly inspired by the functionality offered by `Trace`.
 //! The reason for not using this middleware directly is it cannot be used inside a canister:
-//! 1. The [`tower_http::Trace`] service measures the latency of a call by calling
+//! 1. It measures the latency of a call by calling
 //!     [`Instant::now`](https://github.com/tower-rs/tower-http/blob/469bdac3193ed22da9ea524a454d8cda93ffa0d5/tower-http/src/trace/service.rs#L302),
 //!     which will fail when run from a canister.
-//! 2. The [`tower_http::Trace`] can deal with streaming responses, which is unnecessary for HTTPs outcalls,
+//! 2. It can deal with streaming responses, which is unnecessary for HTTPs outcalls,
 //!     since the response is available to a canister at once. This flexibility brings some complexity
 //!     (body can only be fetched asynchronously, end of stream errors, etc.) which is not useful in a canister environment.
 //!
 //! [`Service`]: tower::Service
+//! [`tower_http`]: https://crates.io/crates/tower-http
 
 use pin_project::pin_project;
 use std::future::Future;
@@ -181,7 +182,7 @@ where
 
 /// Trait used to tell [`Observability`] what to do when a response is received.
 pub trait ResponseObserver<RequestData, Result> {
-    /// Observe the response (typically an instance of [`std::Result`] and the request data produced by a [`RequestObserver`].
+    /// Observe the response (typically an instance of [`std::result::Result`] and the request data produced by a [`RequestObserver`].
     fn observe(&self, request_data: RequestData, value: &Result);
 }
 
