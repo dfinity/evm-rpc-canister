@@ -11,7 +11,7 @@
 //!     (body can only be fetched asynchronously, end of stream errors, etc.) which is not useful in a canister environment.
 //!
 //! # Examples
-//! 
+//!
 //! To add a basic observability layer, for example tracking the number of request and responses/errors inside a canister:
 //!
 //! ```rust
@@ -241,22 +241,22 @@ where
 }
 
 /// Trait used to tell [`Observability`] what to do when a response is received.
-pub trait ResponseObserver<RequestData, Result> {
+pub trait ResponseObserver<RequestData, Response> {
     /// Observe the response (typically an instance of [`std::result::Result`]) and the request data produced by a [`RequestObserver`].
-    fn observe(&self, request_data: RequestData, value: &Result);
+    fn observe(&self, request_data: RequestData, value: &Response);
 }
 
-impl<ReqData, Result> ResponseObserver<ReqData, Result> for () {
-    fn observe(&self, _request_data: ReqData, _value: &Result) {
+impl<RequestData, Response> ResponseObserver<RequestData, Response> for () {
+    fn observe(&self, _request_data: RequestData, _value: &Response) {
         //NOP
     }
 }
 
-impl<F, ReqData, T> ResponseObserver<ReqData, T> for F
+impl<F, RequestData, Response> ResponseObserver<RequestData, Response> for F
 where
-    F: Fn(ReqData, &T),
+    F: Fn(RequestData, &Response),
 {
-    fn observe(&self, request_data: ReqData, value: &T) {
+    fn observe(&self, request_data: RequestData, value: &Response) {
         self(request_data, value);
     }
 }
