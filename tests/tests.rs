@@ -340,6 +340,7 @@ impl EvmRpcSetup {
         );
         self
     }
+
     pub fn http_get_logs(&self, priority: &str) -> Vec<LogEntry> {
         let request = HttpRequest {
             method: "".to_string(),
@@ -356,7 +357,7 @@ impl EvmRpcSetup {
                         "http_request",
                         Encode!(&request).unwrap()
                     )
-                    .expect("failed to get minter info")
+                    .expect("failed to get canister info")
             ),
             HttpResponse
         )
@@ -364,6 +365,23 @@ impl EvmRpcSetup {
         serde_json::from_slice::<Log>(&response.body)
             .expect("failed to parse EVM_RPC minter log")
             .entries
+    }
+
+    pub fn http_update_call(&self) -> WasmResult {
+        let request = HttpRequest {
+            method: "".to_string(),
+            url: "/nonexistent".to_string(),
+            headers: vec![],
+            body: serde_bytes::ByteBuf::new(),
+        };
+        self.env
+            .update_call(
+                self.canister_id,
+                Principal::anonymous(),
+                "http_request",
+                Encode!(&request).unwrap(),
+            )
+            .expect("failed to get canister info")
     }
 }
 
@@ -2034,6 +2052,13 @@ fn upgrade_should_change_manage_api_key_principals() {
     setup
         .as_caller(deauthorized_caller)
         .update_api_keys(&[(0, Some("unauthorized-api-key".to_string()))]);
+}
+
+#[test]
+#[should_panic(expected = "Update call rejected")]
+fn should_reject_http_request_in_replicated_mode() {
+    let setup = EvmRpcSetup::new();
+    setup.http_update_call();
 }
 
 #[test]
