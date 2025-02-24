@@ -44,7 +44,7 @@ jobs:
 
       - name: Cargo doc
         run: |
-          cargo doc
+          cargo doc --workspace --no-deps
         env:
           RUSTDOCFLAGS: "--deny warnings"
 
