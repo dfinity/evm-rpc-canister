@@ -242,7 +242,7 @@ where
 
 /// Trait used to tell [`Observability`] what to do when a response is received.
 pub trait ResponseObserver<RequestData, Result> {
-    /// Observe the response (typically an instance of [`std::result::Result`] and the request data produced by a [`RequestObserver`].
+    /// Observe the response (typically an instance of [`std::result::Result`]) and the request data produced by a [`RequestObserver`].
     fn observe(&self, request_data: RequestData, value: &Result);
 }
 
