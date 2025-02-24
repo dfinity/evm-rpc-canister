@@ -160,7 +160,6 @@ fn map_error(e: BoxError) -> RpcError {
         };
     }
     if let Some(canhttp::IcError { code, message }) = e.downcast_ref::<canhttp::IcError>() {
-        // add_metric_entry!(err_http_outcall, (rpc_method, rpc_host, *code), 1);
         return HttpOutcallError::IcError {
             code: *code,
             message: message.clone(),
