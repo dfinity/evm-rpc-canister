@@ -193,7 +193,7 @@ pub struct Block {
     /// Total difficulty is the sum of all difficulty values up to and including this block.
     ///
     /// Note: this field was removed from the official JSON-RPC specification in
-    /// https://github.com/ethereum/execution-apis/pull/570 and may no longer be served by providers.
+    /// <https://github.com/ethereum/execution-apis/pull/570> and may no longer be served by providers.
     #[serde(rename = "totalDifficulty")]
     pub total_difficulty: Option<Nat256>,
 

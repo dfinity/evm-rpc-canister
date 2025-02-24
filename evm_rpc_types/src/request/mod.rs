@@ -62,7 +62,7 @@ pub struct GetTransactionCountArgs {
 pub struct CallArgs {
     pub transaction: TransactionRequest,
     /// Integer block number, or "latest" for the last mined block or "pending", "earliest" for not yet mined transactions.
-    /// Default to "latest" if unspecified, see https://github.com/ethereum/execution-apis/issues/461.
+    /// Default to "latest" if unspecified, see <https://github.com/ethereum/execution-apis/issues/461>.
     pub block: Option<BlockTag>,
 }
 
