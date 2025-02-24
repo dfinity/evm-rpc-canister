@@ -6,7 +6,7 @@ use candid::{CandidType, Decode, Encode, Nat, Principal};
 use evm_rpc::constants::DEFAULT_MAX_RESPONSE_BYTES;
 use evm_rpc::logs::{Log, LogEntry};
 use evm_rpc::{
-    constants::{CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE},
+    constants::CONTENT_TYPE_VALUE,
     http_types::{HttpRequest, HttpResponse},
     providers::PROVIDERS,
     types::{Metrics, ProviderId, RpcAccess, RpcMethod},
@@ -67,6 +67,8 @@ const CLOUDFLARE_HOSTNAME: &str = "cloudflare-eth.com";
 const BLOCKPI_ETH_HOSTNAME: &str = "ethereum.blockpi.network";
 const BLOCKPI_ETH_SEPOLIA_HOSTNAME: &str = "ethereum-sepolia.blockpi.network";
 const PUBLICNODE_ETH_MAINNET_HOSTNAME: &str = "ethereum-rpc.publicnode.com";
+
+pub const CONTENT_TYPE_HEADER_LOWERCASE: &str = "content-type";
 
 fn evm_rpc_wasm() -> Vec<u8> {
     load_wasm(std::env::var("CARGO_MANIFEST_DIR").unwrap(), "evm_rpc", &[])
@@ -518,7 +520,8 @@ fn mock_request_should_succeed_with_request_headers() {
     mock_request(|builder| {
         builder.with_request_headers(vec![
             (CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE),
-            ("Custom", "Value"),
+            // header name are case-insensitive
+            ("custom", "Value"),
         ])
     })
 }
@@ -541,7 +544,8 @@ fn mock_request_should_succeed_with_all() {
             .with_method(CanisterHttpMethod::POST)
             .with_request_headers(vec![
                 (CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE),
-                ("Custom", "Value"),
+                // header name are case-insensitive
+                ("custom", "Value"),
             ])
             .with_raw_request_body(MOCK_REQUEST_PAYLOAD)
     })
@@ -1512,6 +1516,39 @@ fn candid_rpc_should_return_inconsistent_results_with_consensus_error() {
             (rpc_method(), BLOCKPI_ETH_HOSTNAME.into(), RejectionCode::SysTransient) => 1,
             (rpc_method(), CLOUDFLARE_HOSTNAME.into(), RejectionCode::SysTransient) => 1,
         },
+    );
+}
+
+#[test]
+fn should_have_metrics_for_generic_request() {
+    use evm_rpc::types::MetricRpcMethod;
+
+    let setup = EvmRpcSetup::new().mock_api_keys();
+    let response = setup
+        .request(
+            RpcService::Custom(RpcApi {
+                url: MOCK_REQUEST_URL.to_string(),
+                headers: None,
+            }),
+            MOCK_REQUEST_PAYLOAD,
+            MOCK_REQUEST_RESPONSE_BYTES,
+        )
+        .mock_http(MockOutcallBuilder::new(200, MOCK_REQUEST_RESPONSE))
+        .wait();
+    assert_eq!(response, Ok(MOCK_REQUEST_RESPONSE.to_string()));
+
+    let rpc_method = || MetricRpcMethod("request".to_string());
+    assert_eq!(
+        setup.get_metrics(),
+        Metrics {
+            requests: hashmap! {
+                (rpc_method(), CLOUDFLARE_HOSTNAME.into()) => 1,
+            },
+            responses: hashmap! {
+                (rpc_method(), CLOUDFLARE_HOSTNAME.into(), 200.into()) => 1,
+            },
+            ..Default::default()
+        }
     );
 }
 

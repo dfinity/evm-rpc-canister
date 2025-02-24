@@ -9,6 +9,17 @@ pub use client::{Client, IcError};
 pub use cycles::{
     CyclesAccounting, CyclesAccountingError, CyclesChargingPolicy, CyclesCostEstimator,
 };
+pub use observability::{Observability, ObservabilityLayer, RequestObserver, ResponseObserver};
+pub use request::{
+    HttpRequest, HttpRequestFilter, MaxResponseBytesRequestExtensionBuilder,
+    TransformContextRequestExtensionBuiler,
+};
+pub use response::{map_ic_http_response, FullBytes, HttpResponse};
+pub use retry::DoubleMaxResponseBytes;
 
 mod client;
 mod cycles;
+mod observability;
+mod request;
+mod response;
+mod retry;

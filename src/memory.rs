@@ -1,7 +1,16 @@
-use crate::constants::COLLATERAL_CYCLES_PER_NODE;
-use crate::types::{ApiKey, LogFilter, Metrics, OverrideProvider, ProviderId};
+use crate::add_metric_entry;
+use crate::constants::{COLLATERAL_CYCLES_PER_NODE, CONTENT_TYPE_VALUE};
+use crate::types::{
+    ApiKey, LogFilter, MetricRpcHost, MetricRpcMethod, Metrics, OverrideProvider, ProviderId,
+};
 use candid::Principal;
-use canhttp::{CyclesAccounting, CyclesChargingPolicy};
+use canhttp::{
+    map_ic_http_response, CyclesAccounting, CyclesAccountingError, CyclesChargingPolicy,
+    HttpRequestFilter, ObservabilityLayer,
+};
+use evm_rpc_types::{HttpOutcallError, ProviderError, RpcError};
+use http::header::CONTENT_TYPE;
+use http::HeaderValue;
 use ic_cdk::api::management_canister::http_request::{CanisterHttpRequestArgument, HttpResponse};
 use ic_stable_structures::memory_manager::VirtualMemory;
 use ic_stable_structures::{
@@ -11,6 +20,7 @@ use ic_stable_structures::{
 use ic_stable_structures::{Cell, StableBTreeMap};
 use std::cell::RefCell;
 use tower::{BoxError, Service, ServiceBuilder};
+use tower_http::ServiceBuilderExt;
 
 const IS_DEMO_ACTIVE_MEMORY_ID: MemoryId = MemoryId::new(4);
 const API_KEY_MAP_MEMORY_ID: MemoryId = MemoryId::new(5);
@@ -137,6 +147,99 @@ pub fn http_client(
             ChargingPolicyWithCollateral::default(),
         ))
         .service(canhttp::Client)
+}
+
+pub fn http_client_no_retry(
+) -> impl Service<canhttp::HttpRequest, Response = canhttp::HttpResponse, Error = RpcError> {
+    ServiceBuilder::new()
+        .layer(
+            ObservabilityLayer::new()
+                .on_request(|req: &canhttp::HttpRequest| {
+                    let req_data = MetricData::new("request", req);
+                    add_metric_entry!(
+                        requests,
+                        (req_data.method.clone(), req_data.host.clone()),
+                        1
+                    );
+                    req_data
+                })
+                .on_response(|req_data: MetricData, response: &canhttp::HttpResponse| {
+                    add_metric_entry!(
+                        responses,
+                        (
+                            req_data.method,
+                            req_data.host,
+                            (response.status().as_u16() as u32).into()
+                        ),
+                        1
+                    );
+                })
+                .on_error(|req_data: MetricData, error: &RpcError| {
+                    if let RpcError::HttpOutcallError(HttpOutcallError::IcError {
+                        code,
+                        message: _,
+                    }) = error
+                    {
+                        add_metric_entry!(
+                            err_http_outcall,
+                            (req_data.method, req_data.host, *code),
+                            1
+                        );
+                    }
+                }),
+        )
+        .insert_request_header_if_not_present(
+            CONTENT_TYPE,
+            HeaderValue::from_static(CONTENT_TYPE_VALUE),
+        )
+        .map_err(map_error)
+        .filter(HttpRequestFilter)
+        .map_response(map_ic_http_response)
+        .filter(CyclesAccounting::new(
+            get_num_subnet_nodes(),
+            ChargingPolicyWithCollateral::default(),
+        ))
+        .service(canhttp::Client)
+}
+
+struct MetricData {
+    method: MetricRpcMethod,
+    host: MetricRpcHost,
+}
+
+impl MetricData {
+    pub fn new(method: &str, request: &canhttp::HttpRequest) -> Self {
+        Self {
+            method: MetricRpcMethod(method.to_string()),
+            host: MetricRpcHost(request.uri().host().unwrap().to_string()),
+        }
+    }
+}
+
+fn map_error(e: BoxError) -> RpcError {
+    if let Some(charging_error) = e.downcast_ref::<CyclesAccountingError>() {
+        return match charging_error {
+            CyclesAccountingError::InsufficientCyclesError { expected, received } => {
+                ProviderError::TooFewCycles {
+                    expected: *expected,
+                    received: *received,
+                }
+                .into()
+            }
+        };
+    }
+    if let Some(canhttp::IcError { code, message }) = e.downcast_ref::<canhttp::IcError>() {
+        // add_metric_entry!(err_http_outcall, (rpc_method, rpc_host, *code), 1);
+        return HttpOutcallError::IcError {
+            code: *code,
+            message: message.clone(),
+        }
+        .into();
+    }
+    RpcError::ProviderError(ProviderError::InvalidRpcConfig(format!(
+        "Unknown error: {}",
+        e
+    )))
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
