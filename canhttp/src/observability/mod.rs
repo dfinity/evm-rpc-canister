@@ -10,6 +10,66 @@
 //!     since the response is available to a canister at once. This flexibility brings some complexity
 //!     (body can only be fetched asynchronously, end of stream errors, etc.) which is not useful in a canister environment.
 //!
+//! # Examples
+//! 
+//! To add a basic observability layer, for example tracking the number of request and responses/errors inside a canister:
+//!
+//! ```rust
+//! use canhttp::{IcError, observability::ObservabilityLayer};
+//! use ic_cdk::api::management_canister::http_request::{CanisterHttpRequestArgument as IcHttpRequest, HttpResponse as IcHttpResponse};
+//! use tower::{Service, ServiceBuilder, ServiceExt};
+//! use std::cell::RefCell;
+//!
+//! async fn handle(request: IcHttpRequest) -> Result<IcHttpResponse, IcError> {
+//!    Ok(IcHttpResponse::default())
+//! }
+//!
+//! #[derive(Clone, Debug, Default, PartialEq, Eq)]
+//! pub struct Metrics {
+//!     pub num_requests: u64,
+//!     pub num_responses: u64,
+//!     pub num_errors: u64
+//! }
+//!
+//! thread_local! {
+//!     static METRICS: RefCell<Metrics> = RefCell::new(Metrics::default())
+//! }
+//!
+//! # #[tokio::main]
+//! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!
+//! let mut service = ServiceBuilder::new()
+//!     .layer(ObservabilityLayer::new()
+//!         .on_request(|req: &IcHttpRequest| {
+//!             METRICS.with_borrow_mut(|m| m.num_requests += 1);
+//!         })
+//!         .on_response(|req_data: (), response: &IcHttpResponse| {
+//!             METRICS.with_borrow_mut(|m| m.num_responses += 1);
+//!         })
+//!         .on_error(|req_data: (), response: &IcError| {
+//!             METRICS.with_borrow_mut(|m| m.num_errors += 1);
+//!         })
+//!     )
+//!     .service_fn(handle);
+//!
+//! let request = IcHttpRequest::default();
+//!
+//! let response = service
+//! .ready()
+//! .await?
+//! .call(request)
+//! .await?;
+//!
+//! METRICS.with(|m| {
+//!     let m = m.borrow();
+//!     assert_eq!(m.num_requests, 1);
+//!     assert_eq!(m.num_responses, 1);
+//!     assert_eq!(m.num_errors, 0);
+//! });
+//! # Ok(())
+//! # }
+//! ```
+//!
 //! [`Service`]: tower::Service
 //! [`tower_http`]: https://crates.io/crates/tower-http
 

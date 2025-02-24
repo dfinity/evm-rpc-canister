@@ -14,3 +14,6 @@ ic-cdk = { workspace = true }
 pin-project = {workspace = true}
 tower = { workspace = true, features = ["filter", "retry"] }
 thiserror = { workspace = true }
+
+[dev-dependencies]
+tokio = {workspace = true, features = ["full"]}
