@@ -243,11 +243,11 @@ where
 /// Trait used to tell [`Observability`] what to do when a response is received.
 pub trait ResponseObserver<RequestData, Response> {
     /// Observe the response (typically an instance of [`std::result::Result`]) and the request data produced by a [`RequestObserver`].
-    fn observe(&self, request_data: RequestData, value: &Response);
+    fn observe_response(&self, request_data: RequestData, value: &Response);
 }
 
 impl<RequestData, Response> ResponseObserver<RequestData, Response> for () {
-    fn observe(&self, _request_data: RequestData, _value: &Response) {
+    fn observe_response(&self, _request_data: RequestData, _value: &Response) {
         //NOP
     }
 }
@@ -256,7 +256,7 @@ impl<F, RequestData, Response> ResponseObserver<RequestData, Response> for F
 where
     F: Fn(RequestData, &Response),
 {
-    fn observe(&self, request_data: RequestData, value: &Response) {
+    fn observe_response(&self, request_data: RequestData, value: &Response) {
         self(request_data, value);
     }
 }
@@ -288,10 +288,10 @@ where
                 let request_data = this.request_data.take().unwrap();
                 match result {
                     Ok(response) => {
-                        this.on_response.observe(request_data, response);
+                        this.on_response.observe_response(request_data, response);
                     }
                     Err(error) => {
-                        this.on_error.observe(request_data, error);
+                        this.on_error.observe_response(request_data, error);
                     }
                 }
             }
