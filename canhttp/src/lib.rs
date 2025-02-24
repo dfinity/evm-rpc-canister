@@ -9,8 +9,7 @@ pub use client::{Client, IcError};
 pub use cycles::{
     CyclesAccounting, CyclesAccountingError, CyclesChargingPolicy, CyclesCostEstimator,
 };
-pub use observability::{Observability, ObservabilityLayer, RequestObserver, ResponseObserver};
 
 mod client;
 mod cycles;
-mod observability;
+pub mod observability;

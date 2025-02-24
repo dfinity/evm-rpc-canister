@@ -7,7 +7,10 @@ use crate::{
     types::{MetricRpcHost, MetricRpcMethod, ResolvedRpcService},
     util::canonicalize_json,
 };
-use canhttp::{CyclesAccounting, CyclesAccountingError, CyclesChargingPolicy, ObservabilityLayer};
+use canhttp::{
+    observability::ObservabilityLayer, CyclesAccounting, CyclesAccountingError,
+    CyclesChargingPolicy,
+};
 use evm_rpc_types::{HttpOutcallError, ProviderError, RpcError, RpcResult, ValidationError};
 use ic_cdk::api::management_canister::http_request::{
     CanisterHttpRequestArgument, HttpHeader, HttpMethod, HttpResponse, TransformArgs,
