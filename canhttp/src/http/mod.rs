@@ -1,6 +1,10 @@
 //! HTTP translation layer
 
-use ic_cdk::api::management_canister::http_request::TransformContext;
+use ic_cdk::api::management_canister::http_request::{
+    CanisterHttpRequestArgument as IcHttpRequest, HttpHeader as IcHttpHeader,
+    HttpMethod as IcHttpMethod, TransformContext,
+};
+use thiserror::Error;
 
 pub type HttpRequest = http::Request<Vec<u8>>;
 
@@ -102,4 +106,51 @@ where
         self.set_transform_context(value);
         self
     }
+}
+
+#[derive(Error, Debug)]
+pub enum HttpRequestFilterError {
+    #[error("HTTP method `{0}` is not supported")]
+    UnsupportedHttpMethod(String),
+    #[error("HTTP header `{name}` has an invalid value: {reason}")]
+    InvalidHttpHeader { name: String, reason: String },
+}
+
+fn try_map_http_request(request: HttpRequest) -> Result<IcHttpRequest, HttpRequestFilterError> {
+    let url = request.uri().to_string();
+    let max_response_bytes = request.get_max_response_bytes();
+    let method = match request.method().as_str() {
+        "GET" => IcHttpMethod::GET,
+        "POST" => IcHttpMethod::POST,
+        "HEAD" => IcHttpMethod::HEAD,
+        unsupported => {
+            return Err(HttpRequestFilterError::UnsupportedHttpMethod(
+                unsupported.to_string(),
+            ))
+        }
+    };
+    let headers = request
+        .headers()
+        .iter()
+        .map(|(header_name, header_value)| match header_value.to_str() {
+            Ok(value) => Ok(IcHttpHeader {
+                name: header_name.to_string(),
+                value: value.to_string(),
+            }),
+            Err(e) => Err(HttpRequestFilterError::InvalidHttpHeader {
+                name: header_name.to_string(),
+                reason: e.to_string(),
+            }),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let transform = request.get_transform_context().cloned();
+    let body = Some(request.into_body());
+    Ok(IcHttpRequest {
+        url,
+        max_response_bytes,
+        method,
+        headers,
+        body,
+        transform,
+    })
 }
