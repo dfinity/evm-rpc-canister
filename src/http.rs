@@ -1,4 +1,5 @@
-use crate::memory::http_client;
+use crate::constants::COLLATERAL_CYCLES_PER_NODE;
+use crate::memory::{get_num_subnet_nodes, is_demo_active};
 use crate::{
     add_metric_entry,
     constants::{CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE},
@@ -6,14 +7,17 @@ use crate::{
     types::{MetricRpcHost, MetricRpcMethod, ResolvedRpcService},
     util::canonicalize_json,
 };
-use canhttp::CyclesAccountingError;
+use canhttp::{
+    observability::ObservabilityLayer, CyclesAccounting, CyclesAccountingError,
+    CyclesChargingPolicy,
+};
 use evm_rpc_types::{HttpOutcallError, ProviderError, RpcError, RpcResult, ValidationError};
 use ic_cdk::api::management_canister::http_request::{
     CanisterHttpRequestArgument, HttpHeader, HttpMethod, HttpResponse, TransformArgs,
     TransformContext,
 };
 use num_traits::ToPrimitive;
-use tower::Service;
+use tower::{BoxError, Service, ServiceBuilder};
 
 pub fn json_rpc_request_arg(
     service: ResolvedRpcService,
@@ -65,7 +69,7 @@ pub async fn http_request(
             return Err(ValidationError::Custom(format!("Error parsing URL: {}", url)).into())
         }
     };
-    let host = match parsed_url.host_str() {
+    let _host = match parsed_url.host_str() {
         Some(host) => host,
         None => {
             return Err(ValidationError::Custom(format!(
@@ -75,39 +79,140 @@ pub async fn http_request(
             .into())
         }
     };
+    http_client(rpc_method).call(request).await
+}
 
-    let rpc_host = MetricRpcHost(host.to_string());
-    add_metric_entry!(requests, (rpc_method.clone(), rpc_host.clone()), 1);
-    match http_client().call(request).await {
-        Ok(response) => {
-            let status: u32 = response.status.0.clone().try_into().unwrap_or(0);
-            add_metric_entry!(responses, (rpc_method, rpc_host, status.into()), 1);
-            Ok(response)
-        }
-        Err(e) => {
-            if let Some(charging_error) = e.downcast_ref::<CyclesAccountingError>() {
-                return match charging_error {
-                    CyclesAccountingError::InsufficientCyclesError { expected, received } => {
-                        Err(ProviderError::TooFewCycles {
-                            expected: *expected,
-                            received: *received,
-                        }
-                        .into())
+pub fn http_client(
+    rpc_method: MetricRpcMethod,
+) -> impl Service<CanisterHttpRequestArgument, Response = HttpResponse, Error = RpcError> {
+    ServiceBuilder::new()
+        .layer(
+            ObservabilityLayer::new()
+                .on_request(move |req: &CanisterHttpRequestArgument| {
+                    let req_data = MetricData::new(rpc_method.clone(), req);
+                    add_metric_entry!(
+                        requests,
+                        (req_data.method.clone(), req_data.host.clone()),
+                        1
+                    );
+                    req_data
+                })
+                .on_response(|req_data: MetricData, response: &HttpResponse| {
+                    let status: u32 = response.status.0.clone().try_into().unwrap_or(0);
+                    add_metric_entry!(
+                        responses,
+                        (req_data.method, req_data.host, status.into()),
+                        1
+                    );
+                })
+                .on_error(|req_data: MetricData, error: &RpcError| {
+                    if let RpcError::HttpOutcallError(HttpOutcallError::IcError {
+                        code,
+                        message: _,
+                    }) = error
+                    {
+                        add_metric_entry!(
+                            err_http_outcall,
+                            (req_data.method, req_data.host, *code),
+                            1
+                        );
                     }
-                };
-            }
-            if let Some(canhttp::IcError { code, message }) = e.downcast_ref::<canhttp::IcError>() {
-                add_metric_entry!(err_http_outcall, (rpc_method, rpc_host, *code), 1);
-                return Err(HttpOutcallError::IcError {
-                    code: *code,
-                    message: message.clone(),
-                }
-                .into());
-            }
-            Err(RpcError::ProviderError(ProviderError::InvalidRpcConfig(
-                format!("Unknown error: {}", e),
-            )))
+                }),
+        )
+        .map_err(map_error)
+        .filter(CyclesAccounting::new(
+            get_num_subnet_nodes(),
+            ChargingPolicyWithCollateral::default(),
+        ))
+        .service(canhttp::Client)
+}
+
+struct MetricData {
+    method: MetricRpcMethod,
+    host: MetricRpcHost,
+}
+
+impl MetricData {
+    pub fn new(method: MetricRpcMethod, request: &CanisterHttpRequestArgument) -> Self {
+        Self {
+            method,
+            host: MetricRpcHost(
+                url::Url::parse(&request.url)
+                    .unwrap()
+                    .host_str()
+                    .unwrap()
+                    .to_string(),
+            ),
         }
+    }
+}
+
+fn map_error(e: BoxError) -> RpcError {
+    if let Some(charging_error) = e.downcast_ref::<CyclesAccountingError>() {
+        return match charging_error {
+            CyclesAccountingError::InsufficientCyclesError { expected, received } => {
+                ProviderError::TooFewCycles {
+                    expected: *expected,
+                    received: *received,
+                }
+                .into()
+            }
+        };
+    }
+    if let Some(canhttp::IcError { code, message }) = e.downcast_ref::<canhttp::IcError>() {
+        return HttpOutcallError::IcError {
+            code: *code,
+            message: message.clone(),
+        }
+        .into();
+    }
+    RpcError::ProviderError(ProviderError::InvalidRpcConfig(format!(
+        "Unknown error: {}",
+        e
+    )))
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct ChargingPolicyWithCollateral {
+    charge_user: bool,
+    collateral_cycles: u128,
+}
+
+impl ChargingPolicyWithCollateral {
+    pub fn new(
+        num_nodes_in_subnet: u32,
+        charge_user: bool,
+        collateral_cycles_per_node: u128,
+    ) -> Self {
+        let collateral_cycles =
+            collateral_cycles_per_node.saturating_mul(num_nodes_in_subnet as u128);
+        Self {
+            charge_user,
+            collateral_cycles,
+        }
+    }
+}
+
+impl Default for ChargingPolicyWithCollateral {
+    fn default() -> Self {
+        Self::new(
+            get_num_subnet_nodes(),
+            !is_demo_active(),
+            COLLATERAL_CYCLES_PER_NODE,
+        )
+    }
+}
+
+impl CyclesChargingPolicy for ChargingPolicyWithCollateral {
+    fn cycles_to_charge(
+        &self,
+        _request: &CanisterHttpRequestArgument,
+        attached_cycles: u128,
+    ) -> u128 {
+        if self.charge_user {
+            return attached_cycles.saturating_add(self.collateral_cycles);
+        }
+        0
     }
 }
 
