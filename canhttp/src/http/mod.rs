@@ -1,5 +1,8 @@
 //! HTTP translation layer
 
+#[cfg(test)]
+mod tests;
+
 use crate::http::HttpResponseConversionError::{InvalidHttpHeaderName, InvalidHttpHeaderValue};
 use http::{HeaderMap, HeaderName, HeaderValue, StatusCode};
 use ic_cdk::api::management_canister::http_request::{
@@ -114,7 +117,7 @@ where
     }
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Clone, Debug, Eq, PartialEq)]
 pub enum HttpRequestFilterError {
     #[error("HTTP method `{0}` is not supported")]
     UnsupportedHttpMethod(String),

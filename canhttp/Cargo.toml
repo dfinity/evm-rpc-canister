@@ -17,6 +17,8 @@ tower = { workspace = true, features = ["filter", "retry"] }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+assert_matches = {workspace = true}
+candid = {workspace = true}
 maplit = {workspace = true}
 tokio = {workspace = true, features = ["full"]}
 
