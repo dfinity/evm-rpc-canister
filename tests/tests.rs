@@ -340,6 +340,7 @@ impl EvmRpcSetup {
         );
         self
     }
+
     pub fn http_get_logs(&self, priority: &str) -> Vec<LogEntry> {
         let request = HttpRequest {
             method: "".to_string(),
@@ -356,7 +357,7 @@ impl EvmRpcSetup {
                         "http_request",
                         Encode!(&request).unwrap()
                     )
-                    .expect("failed to get minter info")
+                    .expect("failed to get canister info")
             ),
             HttpResponse
         )
@@ -2067,6 +2068,27 @@ fn upgrade_should_change_manage_api_key_principals() {
     setup
         .as_caller(deauthorized_caller)
         .update_api_keys(&[(0, Some("unauthorized-api-key".to_string()))]);
+}
+
+#[test]
+fn should_reject_http_request_in_replicated_mode() {
+    let request = HttpRequest {
+        method: "".to_string(),
+        url: "/nonexistent".to_string(),
+        headers: vec![],
+        body: serde_bytes::ByteBuf::new(),
+    };
+    assert_matches!(
+        EvmRpcSetup::new()
+        .env
+        .update_call(
+            EvmRpcSetup::new().canister_id,
+            Principal::anonymous(),
+            "http_request",
+            Encode!(&request).unwrap(),
+        ),
+        Err(e) if e.code == ErrorCode::CanisterCalledTrap && e.description.contains("Update call rejected")
+    );
 }
 
 #[test]

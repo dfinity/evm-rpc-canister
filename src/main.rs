@@ -291,6 +291,10 @@ fn post_upgrade(args: evm_rpc_types::InstallArgs) {
 
 #[query(hidden = true)]
 fn http_request(request: http_types::HttpRequest) -> http_types::HttpResponse {
+    if ic_cdk::api::in_replicated_execution() {
+        ic_cdk::trap("Update call rejected");
+    }
+
     match request.path() {
         "/metrics" => {
             let mut writer = MetricsEncoder::new(vec![], ic_cdk::api::time() as i64 / 1_000_000);
