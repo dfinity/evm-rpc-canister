@@ -302,8 +302,8 @@ impl<S> Layer<S> for HttpConversionLayer {
     type Service = HttpResponseConversion<tower::filter::Filter<S, HttpRequestFilter>>;
 
     fn layer(&self, inner: S) -> Self::Service {
-        let layer =
+        let stack =
             tower_layer::Stack::new(HttpRequestConversionLayer, HttpResponseConversionLayer);
-        layer.layer(inner)
+        stack.layer(inner)
     }
 }
