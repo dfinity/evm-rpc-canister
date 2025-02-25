@@ -63,6 +63,7 @@ ethnum = { version = "1.5.0", features = ["serde"] }
 futures = "0.3.31"
 getrandom = { version = "0.2", features = ["custom"] }
 hex = "0.4.3"
+http = "1.2.0"
 ic-canister-log = "0.2.0"
 ic-cdk = "0.17.1"
 ic-cdk-bindgen = "0.1"

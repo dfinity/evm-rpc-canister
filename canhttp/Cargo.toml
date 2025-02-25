@@ -11,6 +11,7 @@ documentation = "https://docs.rs/canhttp"
 
 [dependencies]
 ic-cdk = { workspace = true }
+http = {workspace = true, optional = true}
 pin-project = {workspace = true}
 tower = { workspace = true, features = ["filter", "retry"] }
 thiserror = { workspace = true }
@@ -21,4 +22,4 @@ tokio = {workspace = true, features = ["full"]}
 
 [features]
 default = ["http"]
-http = []
+http = ["dep:http"]
