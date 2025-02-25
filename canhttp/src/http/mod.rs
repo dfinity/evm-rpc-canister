@@ -1,8 +1,10 @@
 //! HTTP translation layer
 
+use crate::http::HttpResponseConversionError::{InvalidHttpHeaderName, InvalidHttpHeaderValue};
+use http::{HeaderMap, HeaderName, HeaderValue, StatusCode};
 use ic_cdk::api::management_canister::http_request::{
     CanisterHttpRequestArgument as IcHttpRequest, HttpHeader as IcHttpHeader,
-    HttpMethod as IcHttpMethod, TransformContext,
+    HttpMethod as IcHttpMethod, HttpResponse as IcHttpResponse, TransformContext,
 };
 use thiserror::Error;
 use tower::{
@@ -117,7 +119,7 @@ pub enum HttpRequestFilterError {
     #[error("HTTP method `{0}` is not supported")]
     UnsupportedHttpMethod(String),
     #[error("HTTP header `{name}` has an invalid value: {reason}")]
-    InvalidHttpHeader { name: String, reason: String },
+    InvalidHttpHeaderValue { name: String, reason: String },
 }
 
 fn try_map_http_request(request: HttpRequest) -> Result<IcHttpRequest, HttpRequestFilterError> {
@@ -141,7 +143,7 @@ fn try_map_http_request(request: HttpRequest) -> Result<IcHttpRequest, HttpReque
                 name: header_name.to_string(),
                 value: value.to_string(),
             }),
-            Err(e) => Err(HttpRequestFilterError::InvalidHttpHeader {
+            Err(e) => Err(HttpRequestFilterError::InvalidHttpHeaderValue {
                 name: header_name.to_string(),
                 reason: e.to_string(),
             }),
@@ -176,5 +178,57 @@ impl<S> Layer<S> for HttpRequestConversionLayer {
 
     fn layer(&self, inner: S) -> Self::Service {
         tower::filter::Filter::new(inner, HttpRequestFilter)
+    }
+}
+
+pub type HttpResponse = http::Response<Vec<u8>>;
+
+#[derive(Error, Debug)]
+pub enum HttpResponseConversionError {
+    #[error("Status code is invalid")]
+    InvalidStatusCode,
+    #[error("HTTP header `{name}` is invalid: {reason}")]
+    InvalidHttpHeaderName { name: String, reason: String },
+    #[error("HTTP header `{name}` has an invalid value: {reason}")]
+    InvalidHttpHeaderValue { name: String, reason: String },
+}
+
+fn try_map_http_response(
+    response: IcHttpResponse,
+) -> Result<HttpResponse, HttpResponseConversionError> {
+    let status = StatusCode::try_from(response.status.0.to_bytes_be().as_slice())
+        .map_err(|_| HttpResponseConversionError::InvalidStatusCode)?;
+    let mut builder = http::Response::builder().status(status);
+    if let Some(headers) = builder.headers_mut() {
+        let mut response_headers = HeaderMap::with_capacity(response.headers.len());
+        for IcHttpHeader { name, value } in response.headers {
+            response_headers.insert(
+                HeaderName::try_from(&name).map_err(|e| InvalidHttpHeaderName {
+                    name: name.clone(),
+                    reason: e.to_string(),
+                })?,
+                HeaderValue::try_from(&value).map_err(|e| InvalidHttpHeaderValue {
+                    name,
+                    reason: e.to_string(),
+                })?,
+            );
+        }
+        headers.extend(response_headers);
+    }
+
+    Ok(builder
+        .body(response.body)
+        .expect("BUG: builder should have been modified only with validated data"))
+}
+
+pub struct HttpResponseConversionLayer;
+
+pub struct HttpResponseConversion;
+
+impl<S> Layer<S> for HttpResponseConversionLayer {
+    type Service = tower::util::MapResult<S, HttpResponseConversion>;
+
+    fn layer(&self, inner: S) -> Self::Service {
+        tower::util::MapResult::new(inner, HttpResponseConversion)
     }
 }
