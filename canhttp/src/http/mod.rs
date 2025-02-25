@@ -9,10 +9,14 @@ use ic_cdk::api::management_canister::http_request::{
     CanisterHttpRequestArgument as IcHttpRequest, HttpHeader as IcHttpHeader,
     HttpMethod as IcHttpMethod, HttpResponse as IcHttpResponse, TransformContext,
 };
+use pin_project::pin_project;
+use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use thiserror::Error;
 use tower::{
     filter::Predicate,
-    {BoxError, Layer},
+    Service, {BoxError, Layer},
 };
 
 pub type HttpRequest = http::Request<Vec<u8>>;
@@ -118,14 +122,14 @@ where
 }
 
 #[derive(Error, Clone, Debug, Eq, PartialEq)]
-pub enum HttpRequestFilterError {
+pub enum HttpRequestConversionError {
     #[error("HTTP method `{0}` is not supported")]
     UnsupportedHttpMethod(String),
     #[error("HTTP header `{name}` has an invalid value: {reason}")]
     InvalidHttpHeaderValue { name: String, reason: String },
 }
 
-fn try_map_http_request(request: HttpRequest) -> Result<IcHttpRequest, HttpRequestFilterError> {
+fn try_map_http_request(request: HttpRequest) -> Result<IcHttpRequest, HttpRequestConversionError> {
     let url = request.uri().to_string();
     let max_response_bytes = request.get_max_response_bytes();
     let method = match request.method().as_str() {
@@ -133,7 +137,7 @@ fn try_map_http_request(request: HttpRequest) -> Result<IcHttpRequest, HttpReque
         "POST" => IcHttpMethod::POST,
         "HEAD" => IcHttpMethod::HEAD,
         unsupported => {
-            return Err(HttpRequestFilterError::UnsupportedHttpMethod(
+            return Err(HttpRequestConversionError::UnsupportedHttpMethod(
                 unsupported.to_string(),
             ))
         }
@@ -146,7 +150,7 @@ fn try_map_http_request(request: HttpRequest) -> Result<IcHttpRequest, HttpReque
                 name: header_name.to_string(),
                 value: value.to_string(),
             }),
-            Err(e) => Err(HttpRequestFilterError::InvalidHttpHeaderValue {
+            Err(e) => Err(HttpRequestConversionError::InvalidHttpHeaderValue {
                 name: header_name.to_string(),
                 reason: e.to_string(),
             }),
@@ -186,7 +190,7 @@ impl<S> Layer<S> for HttpRequestConversionLayer {
 
 pub type HttpResponse = http::Response<Vec<u8>>;
 
-#[derive(Error, Debug)]
+#[derive(Error, Clone, Debug, Eq, PartialEq)]
 pub enum HttpResponseConversionError {
     #[error("Status code is invalid")]
     InvalidStatusCode,
@@ -199,8 +203,15 @@ pub enum HttpResponseConversionError {
 fn try_map_http_response(
     response: IcHttpResponse,
 ) -> Result<HttpResponse, HttpResponseConversionError> {
-    let status = StatusCode::try_from(response.status.0.to_bytes_be().as_slice())
-        .map_err(|_| HttpResponseConversionError::InvalidStatusCode)?;
+    use num_traits::ToPrimitive;
+
+    let status = response
+        .status
+        .0
+        .to_u16()
+        .and_then(|s| StatusCode::try_from(s).ok())
+        .ok_or(HttpResponseConversionError::InvalidStatusCode)?;
+
     let mut builder = http::Response::builder().status(status);
     if let Some(headers) = builder.headers_mut() {
         let mut response_headers = HeaderMap::with_capacity(response.headers.len());
@@ -226,12 +237,73 @@ fn try_map_http_response(
 
 pub struct HttpResponseConversionLayer;
 
-pub struct HttpResponseConversion;
+pub struct HttpResponseConversion<S> {
+    inner: S,
+}
 
 impl<S> Layer<S> for HttpResponseConversionLayer {
-    type Service = tower::util::MapResult<S, HttpResponseConversion>;
+    type Service = HttpResponseConversion<S>;
 
     fn layer(&self, inner: S) -> Self::Service {
-        tower::util::MapResult::new(inner, HttpResponseConversion)
+        Self::Service { inner }
+    }
+}
+
+impl<S, Request, Error> Service<Request> for HttpResponseConversion<S>
+where
+    S: Service<Request, Response = IcHttpResponse, Error = Error>,
+    Error: Into<BoxError>,
+{
+    type Response = HttpResponse;
+    type Error = BoxError;
+    type Future = ResponseFuture<S::Future>;
+
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.inner.poll_ready(cx).map_err(Into::into)
+    }
+
+    fn call(&mut self, req: Request) -> Self::Future {
+        ResponseFuture {
+            response_future: self.inner.call(req),
+        }
+    }
+}
+
+#[pin_project]
+pub struct ResponseFuture<F> {
+    #[pin]
+    response_future: F,
+}
+
+impl<F, E> Future for ResponseFuture<F>
+where
+    F: Future<Output = Result<IcHttpResponse, E>>,
+    E: Into<BoxError>,
+{
+    type Output = Result<HttpResponse, BoxError>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.project();
+        let result_fut = this.response_future.poll(cx);
+
+        match result_fut {
+            Poll::Ready(result) => match result {
+                Ok(response) => Poll::Ready(try_map_http_response(response).map_err(Into::into)),
+                Err(e) => Poll::Ready(Err(e.into())),
+            },
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
+pub struct HttpConversionLayer;
+
+impl<S> Layer<S> for HttpConversionLayer {
+    type Service = HttpResponseConversion<tower::filter::Filter<S, HttpRequestFilter>>;
+
+    fn layer(&self, inner: S) -> Self::Service {
+        let layer =
+            tower_layer::Stack::new(HttpRequestConversionLayer, HttpResponseConversionLayer);
+        layer.layer(inner)
     }
 }

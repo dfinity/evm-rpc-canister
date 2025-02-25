@@ -312,10 +312,12 @@ dependencies = [
  "http",
  "ic-cdk",
  "maplit",
+ "num-traits",
  "pin-project",
  "thiserror 2.0.11",
  "tokio",
  "tower",
+ "tower-layer",
 ]
 
 [[package]]
