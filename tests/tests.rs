@@ -366,23 +366,6 @@ impl EvmRpcSetup {
             .expect("failed to parse EVM_RPC minter log")
             .entries
     }
-
-    pub fn http_update_call(&self) -> WasmResult {
-        let request = HttpRequest {
-            method: "".to_string(),
-            url: "/nonexistent".to_string(),
-            headers: vec![],
-            body: serde_bytes::ByteBuf::new(),
-        };
-        self.env
-            .update_call(
-                self.canister_id,
-                Principal::anonymous(),
-                "http_request",
-                Encode!(&request).unwrap(),
-            )
-            .expect("failed to get canister info")
-    }
 }
 
 pub struct CallFlow<R> {
@@ -2057,8 +2040,21 @@ fn upgrade_should_change_manage_api_key_principals() {
 #[test]
 #[should_panic(expected = "Update call rejected")]
 fn should_reject_http_request_in_replicated_mode() {
-    let setup = EvmRpcSetup::new();
-    setup.http_update_call();
+    let request = HttpRequest {
+        method: "".to_string(),
+        url: "/nonexistent".to_string(),
+        headers: vec![],
+        body: serde_bytes::ByteBuf::new(),
+    };
+    EvmRpcSetup::new()
+        .env
+        .update_call(
+            EvmRpcSetup::new().canister_id,
+            Principal::anonymous(),
+            "http_request",
+            Encode!(&request).unwrap(),
+        )
+        .expect("failed to get canister info");
 }
 
 #[test]
