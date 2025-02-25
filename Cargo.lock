@@ -308,6 +308,7 @@ name = "canhttp"
 version = "0.1.0"
 dependencies = [
  "ic-cdk",
+ "maplit",
  "pin-project",
  "thiserror 2.0.11",
  "tokio",

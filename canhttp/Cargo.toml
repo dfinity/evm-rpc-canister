@@ -16,4 +16,5 @@ tower = { workspace = true, features = ["filter", "retry"] }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+maplit = {workspace = true}
 tokio = {workspace = true, features = ["full"]}

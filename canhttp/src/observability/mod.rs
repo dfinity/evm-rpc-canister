@@ -59,13 +59,100 @@
 //! .await?
 //! .call(request)
 //! .await?;
+//! 
+//! let metrics = METRICS.with_borrow(|m| m.clone());
+//! assert_eq!(
+//!     metrics,
+//!     Metrics {
+//!         num_requests: 1,
+//!         num_responses: 1,
+//!         num_errors: 0
+//!     }
+//!  );
+//! # Ok(())
+//! # }
+//! ```
 //!
-//! METRICS.with(|m| {
-//!     let m = m.borrow();
-//!     assert_eq!(m.num_requests, 1);
-//!     assert_eq!(m.num_responses, 1);
-//!     assert_eq!(m.num_errors, 0);
-//! });
+//! The previous example can be refined by extracting request data (such as the request URL) to observe the responses/errors:
+//! ```rust
+//! use canhttp::{IcError, observability::ObservabilityLayer};
+//! use ic_cdk::api::management_canister::http_request::{CanisterHttpRequestArgument as IcHttpRequest, HttpResponse as IcHttpResponse};
+//! use maplit::btreemap;
+//! use tower::{Service, ServiceBuilder, ServiceExt};
+//! use std::cell::RefCell;
+//! use std::collections::BTreeMap;
+//!
+//! async fn handle(request: IcHttpRequest) -> Result<IcHttpResponse, IcError> {
+//!    Ok(IcHttpResponse::default())
+//! }
+//!
+//! pub type Url = String;
+//!
+//! #[derive(Clone, Debug, Default, PartialEq, Eq)]
+//! pub struct Metrics {
+//!     pub num_requests: BTreeMap<Url, u64>,
+//!     pub num_responses: BTreeMap<Url, u64>,
+//!     pub num_errors: BTreeMap<Url, u64>
+//! }
+//!
+//! thread_local! {
+//!     static METRICS: RefCell<Metrics> = RefCell::new(Metrics::default())
+//! }
+//!
+//! # #[tokio::main]
+//! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!
+//! let mut service = ServiceBuilder::new()
+//!     .layer(
+//!         ObservabilityLayer::new()
+//!             .on_request(|req: &IcHttpRequest| {
+//!                 METRICS.with_borrow_mut(|m| {
+//!                     m.num_requests
+//!                         .entry(req.url.clone())
+//!                         .and_modify(|c| *c += 1)
+//!                         .or_insert(1);
+//!                 });
+//!                 req.url.clone() //First parameter in on_response/on_error
+//!             })
+//!             .on_response(|req_data: Url, response: &IcHttpResponse| {
+//!                 METRICS.with_borrow_mut(|m| {
+//!                     m.num_responses
+//!                         .entry(req_data)
+//!                         .and_modify(|c| *c += 1)
+//!                         .or_insert(1);
+//!                 });
+//!             })
+//!             .on_error(|req_data: Url, response: &IcError| {
+//!                 METRICS.with_borrow_mut(|m| {
+//!                     m.num_errors
+//!                         .entry(req_data)
+//!                         .and_modify(|c| *c += 1)
+//!                         .or_insert(1);
+//!                 });
+//!             }),
+//!     )
+//!     .service_fn(handle);
+//!
+//! let request = IcHttpRequest {
+//!     url: "https://internetcomputer.org/".to_string(),
+//!     ..Default::default()
+//! };
+//!
+//! let response = service
+//! .ready()
+//! .await?
+//! .call(request)
+//! .await?;
+//!
+//! let metrics = METRICS.with_borrow(|m| m.clone());
+//! assert_eq!(
+//!     metrics,
+//!     Metrics {
+//!         num_requests: btreemap! {"https://internetcomputer.org/".to_string() => 1},
+//!         num_responses: btreemap! {"https://internetcomputer.org/".to_string() => 1},
+//!         num_errors: btreemap! {}
+//!     }
+//!  );
 //! # Ok(())
 //! # }
 //! ```
