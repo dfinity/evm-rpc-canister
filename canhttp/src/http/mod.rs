@@ -5,6 +5,10 @@ use ic_cdk::api::management_canister::http_request::{
     HttpMethod as IcHttpMethod, TransformContext,
 };
 use thiserror::Error;
+use tower::{
+    filter::Predicate,
+    {BoxError, Layer},
+};
 
 pub type HttpRequest = http::Request<Vec<u8>>;
 
@@ -153,4 +157,24 @@ fn try_map_http_request(request: HttpRequest) -> Result<IcHttpRequest, HttpReque
         body,
         transform,
     })
+}
+
+pub struct HttpRequestFilter;
+
+impl Predicate<HttpRequest> for HttpRequestFilter {
+    type Request = IcHttpRequest;
+
+    fn check(&mut self, request: HttpRequest) -> Result<Self::Request, BoxError> {
+        try_map_http_request(request).map_err(Into::into)
+    }
+}
+
+pub struct HttpRequestConversionLayer;
+
+impl<S> Layer<S> for HttpRequestConversionLayer {
+    type Service = tower::filter::Filter<S, HttpRequestFilter>;
+
+    fn layer(&self, inner: S) -> Self::Service {
+        tower::filter::Filter::new(inner, HttpRequestFilter)
+    }
 }
