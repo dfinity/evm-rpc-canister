@@ -18,3 +18,7 @@ thiserror = { workspace = true }
 [dev-dependencies]
 maplit = {workspace = true}
 tokio = {workspace = true, features = ["full"]}
+
+[features]
+default = ["http"]
+http = []
