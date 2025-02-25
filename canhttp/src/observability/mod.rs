@@ -59,7 +59,7 @@
 //! .await?
 //! .call(request)
 //! .await?;
-//! 
+//!
 //! let metrics = METRICS.with_borrow(|m| m.clone());
 //! assert_eq!(
 //!     metrics,
