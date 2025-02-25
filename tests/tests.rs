@@ -2038,7 +2038,6 @@ fn upgrade_should_change_manage_api_key_principals() {
 }
 
 #[test]
-#[should_panic(expected = "Update call rejected")]
 fn should_reject_http_request_in_replicated_mode() {
     let request = HttpRequest {
         method: "".to_string(),
@@ -2046,15 +2045,17 @@ fn should_reject_http_request_in_replicated_mode() {
         headers: vec![],
         body: serde_bytes::ByteBuf::new(),
     };
-    EvmRpcSetup::new()
+    assert_matches!(
+        EvmRpcSetup::new()
         .env
         .update_call(
             EvmRpcSetup::new().canister_id,
             Principal::anonymous(),
             "http_request",
             Encode!(&request).unwrap(),
-        )
-        .expect("failed to get canister info");
+        ),
+        Err(e) if e.code == ErrorCode::CanisterCalledTrap && e.description.contains("Update call rejected")
+    );
 }
 
 #[test]
