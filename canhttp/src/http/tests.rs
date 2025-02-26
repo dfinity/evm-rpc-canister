@@ -1,4 +1,10 @@
-use crate::http::HttpConversionLayer;
+use crate::http::request::{HttpRequestConversionError, HttpRequestConversionLayer};
+use crate::http::response::{
+    HttpResponse, HttpResponseConversionError, HttpResponseConversionLayer,
+};
+use crate::http::{
+    HttpConversionLayer, MaxResponseBytesRequestExtension, TransformContextRequestExtension,
+};
 use crate::IcError;
 use assert_matches::assert_matches;
 use candid::{Decode, Encode, Principal};
@@ -9,8 +15,6 @@ use ic_cdk::api::management_canister::http_request::{
 };
 use ic_cdk::api::management_canister::http_request::{TransformContext, TransformFunc};
 use tower::{Service, ServiceBuilder, ServiceExt};
-use crate::http::request::{HttpRequestConversionError, HttpRequestConversionLayer, MaxResponseBytesRequestExtensionBuilder, TransformContextRequestExtensionBuilder};
-use crate::http::response::{HttpResponse, HttpResponseConversionError, HttpResponseConversionLayer};
 
 #[tokio::test]
 async fn should_convert_http_request() {
