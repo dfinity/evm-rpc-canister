@@ -33,8 +33,6 @@ ic-cdk = { workspace = true }
 ic-cdk-macros = { workspace = true }
 maplit = "1.0"
 minicbor = { workspace = true }
-num = "0.4"
-num-traits = "0.2"
 serde = { workspace = true }
 serde_bytes = { workspace = true }
 serde_json = { workspace = true }
