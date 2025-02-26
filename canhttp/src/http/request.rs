@@ -1,14 +1,23 @@
-use ic_cdk::api::management_canister::http_request::{CanisterHttpRequestArgument as IcHttpRequest, HttpHeader as IcHttpHeader, HttpMethod as IcHttpMethod, TransformContext};
+use ic_cdk::api::management_canister::http_request::{
+    CanisterHttpRequestArgument as IcHttpRequest, HttpHeader as IcHttpHeader,
+    HttpMethod as IcHttpMethod, TransformContext,
+};
 use thiserror::Error;
-use tower_layer::Layer;
 use tower::filter::Predicate;
 use tower::BoxError;
+use tower_layer::Layer;
 
 pub type HttpRequest = http::Request<Vec<u8>>;
 
-pub trait MaxResponseBytesRequestExtension {
+pub trait MaxResponseBytesRequestExtension: Sized {
     fn set_max_response_bytes(&mut self, value: u64);
     fn get_max_response_bytes(&self) -> Option<u64>;
+
+    /// Convenience method to using the builder pattern.
+    fn max_response_bytes(mut self, value: u64) -> Self {
+        self.set_max_response_bytes(value);
+        self
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -40,25 +49,15 @@ impl MaxResponseBytesRequestExtension for http::request::Builder {
     }
 }
 
-/// Convenience trait to follow the builder pattern.
-pub trait MaxResponseBytesRequestExtensionBuilder {
-    /// See [`MaxResponseBytesRequestExtension::set_max_response_bytes`].
-    fn max_response_bytes(self, value: u64) -> Self;
-}
-
-impl<T> MaxResponseBytesRequestExtensionBuilder for T
-where
-    T: MaxResponseBytesRequestExtension,
-{
-    fn max_response_bytes(mut self, value: u64) -> Self {
-        self.set_max_response_bytes(value);
-        self
-    }
-}
-
-pub trait TransformContextRequestExtension {
+pub trait TransformContextRequestExtension: Sized {
     fn set_transform_context(&mut self, value: TransformContext);
     fn get_transform_context(&self) -> Option<&TransformContext>;
+
+    /// Convenience method to using the builder pattern.
+    fn transform_context(mut self, value: TransformContext) -> Self {
+        self.set_transform_context(value);
+        self
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -87,22 +86,6 @@ impl TransformContextRequestExtension for http::request::Builder {
     fn get_transform_context(&self) -> Option<&TransformContext> {
         self.extensions_ref()
             .and_then(|extensions| extensions.get::<TransformContextExtension>().map(|e| &e.0))
-    }
-}
-
-/// Convenience trait to follow the builder pattern.
-pub trait TransformContextRequestExtensionBuilder {
-    /// See [`TransformContextRequestExtension::set_transform_context`].
-    fn transform_context(self, value: TransformContext) -> Self;
-}
-
-impl<T> TransformContextRequestExtensionBuilder for T
-where
-    T: TransformContextRequestExtension,
-{
-    fn transform_context(mut self, value: TransformContext) -> Self {
-        self.set_transform_context(value);
-        self
     }
 }
 
