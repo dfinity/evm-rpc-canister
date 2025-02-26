@@ -18,7 +18,7 @@ use evm_rpc_types::{HttpOutcallError, ProviderError, RpcError, RpcResult, Valida
 use http::header::CONTENT_TYPE;
 use http::HeaderValue;
 use ic_cdk::api::management_canister::http_request::{
-    CanisterHttpRequestArgument, HttpHeader, HttpResponse, TransformArgs, TransformContext,
+    CanisterHttpRequestArgument, HttpResponse, TransformArgs, TransformContext,
 };
 use tower::{BoxError, Service, ServiceBuilder};
 use tower_http::ServiceBuilderExt;
@@ -28,17 +28,13 @@ pub fn json_rpc_request_arg(
     json_rpc_payload: &str,
     max_response_bytes: u64,
 ) -> RpcResult<canhttp::http::HttpRequest> {
-    let api = service.api(&get_override_provider())?;
-    let mut request_builder = http::Request::post(api.url)
+    service
+        .post(&get_override_provider())?
         .max_response_bytes(max_response_bytes)
         .transform_context(TransformContext::from_name(
             "__transform_json_rpc".to_string(),
             vec![],
-        ));
-    for HttpHeader { name, value } in api.headers.unwrap_or_default() {
-        request_builder = request_builder.header(name, value);
-    }
-    request_builder
+        ))
         .body(json_rpc_payload.as_bytes().to_vec())
         .map_err(|e| {
             RpcError::ValidationError(ValidationError::Custom(format!("Invalid request: {e}")))
@@ -54,30 +50,6 @@ pub async fn json_rpc_request(
     canhttp_client(MetricRpcMethod("request".to_string()))
         .call(request)
         .await
-}
-
-pub async fn http_request(
-    rpc_method: MetricRpcMethod,
-    request: CanisterHttpRequestArgument,
-) -> RpcResult<HttpResponse> {
-    let url = request.url.clone();
-    let parsed_url = match url::Url::parse(&url) {
-        Ok(url) => url,
-        Err(_) => {
-            return Err(ValidationError::Custom(format!("Error parsing URL: {}", url)).into())
-        }
-    };
-    let _host = match parsed_url.host_str() {
-        Some(host) => host,
-        None => {
-            return Err(ValidationError::Custom(format!(
-                "Error parsing hostname from URL: {}",
-                url
-            ))
-            .into())
-        }
-    };
-    http_client(rpc_method).call(request).await
 }
 
 pub fn canhttp_client(
@@ -136,69 +108,9 @@ pub fn canhttp_client(
         .service(canhttp::Client)
 }
 
-pub fn http_client(
-    rpc_method: MetricRpcMethod,
-) -> impl Service<CanisterHttpRequestArgument, Response = HttpResponse, Error = RpcError> {
-    ServiceBuilder::new()
-        .layer(
-            ObservabilityLayer::new()
-                .on_request(move |req: &CanisterHttpRequestArgument| {
-                    let req_data = MetricData::new(rpc_method.clone(), req);
-                    add_metric_entry!(
-                        requests,
-                        (req_data.method.clone(), req_data.host.clone()),
-                        1
-                    );
-                    req_data
-                })
-                .on_response(|req_data: MetricData, response: &HttpResponse| {
-                    let status: u32 = response.status.0.clone().try_into().unwrap_or(0);
-                    add_metric_entry!(
-                        responses,
-                        (req_data.method, req_data.host, status.into()),
-                        1
-                    );
-                })
-                .on_error(|req_data: MetricData, error: &RpcError| {
-                    if let RpcError::HttpOutcallError(HttpOutcallError::IcError {
-                        code,
-                        message: _,
-                    }) = error
-                    {
-                        add_metric_entry!(
-                            err_http_outcall,
-                            (req_data.method, req_data.host, *code),
-                            1
-                        );
-                    }
-                }),
-        )
-        .map_err(map_error)
-        .filter(CyclesAccounting::new(
-            get_num_subnet_nodes(),
-            ChargingPolicyWithCollateral::default(),
-        ))
-        .service(canhttp::Client)
-}
-
 struct MetricData {
     method: MetricRpcMethod,
     host: MetricRpcHost,
-}
-
-impl MetricData {
-    pub fn new(method: MetricRpcMethod, request: &CanisterHttpRequestArgument) -> Self {
-        Self {
-            method,
-            host: MetricRpcHost(
-                url::Url::parse(&request.url)
-                    .unwrap()
-                    .host_str()
-                    .unwrap()
-                    .to_string(),
-            ),
-        }
-    }
 }
 
 fn map_error(e: BoxError) -> RpcError {

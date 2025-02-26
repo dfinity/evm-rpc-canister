@@ -253,7 +253,7 @@ pub struct AccessListItem {
 }
 
 /// An envelope for all JSON-RPC requests.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct JsonRpcRequest<T> {
     pub jsonrpc: String,
     pub method: String,

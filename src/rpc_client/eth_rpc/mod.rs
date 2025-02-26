@@ -1,6 +1,7 @@
 //! This module contains definitions for communicating witEthereum API using the [JSON RPC](https://ethereum.org/en/developers/docs/apis/json-rpc/)
 //! interface.
 
+use crate::http::canhttp_client;
 use crate::logs::{DEBUG, TRACE_HTTP};
 use crate::memory::{get_override_provider, next_request_id};
 use crate::providers::resolve_rpc_service;
@@ -10,14 +11,14 @@ use crate::rpc_client::json::responses::{
     Block, FeeHistory, JsonRpcReply, JsonRpcResult, LogEntry, TransactionReceipt,
 };
 use crate::rpc_client::numeric::{TransactionCount, Wei};
-use crate::types::{MetricRpcMethod, OverrideProvider};
+use crate::types::MetricRpcMethod;
 use candid::candid_method;
-use evm_rpc_types::{HttpOutcallError, RpcApi, RpcError, RpcService};
+use canhttp::http::{MaxResponseBytesRequestExtension, TransformContextRequestExtension};
+use evm_rpc_types::{HttpOutcallError, RpcError, RpcService};
 use ic_canister_log::log;
 use ic_cdk::api::call::RejectionCode;
 use ic_cdk::api::management_canister::http_request::{
-    CanisterHttpRequestArgument, HttpHeader, HttpMethod, HttpResponse, TransformArgs,
-    TransformContext,
+    HttpResponse, TransformArgs, TransformContext,
 };
 use ic_cdk_macros::query;
 use minicbor::{Decode, Encode};
@@ -170,57 +171,52 @@ pub async fn call<I, O>(
     mut response_size_estimate: ResponseSizeEstimate,
 ) -> Result<O, RpcError>
 where
-    I: Serialize,
+    I: Serialize + Debug,
     O: DeserializeOwned + HttpResponsePayload,
 {
+    use tower::Service;
+
     let eth_method = method.into();
+    let rpc_method = MetricRpcMethod(eth_method.clone());
+    let mut client = canhttp_client(rpc_method);
     let mut rpc_request = JsonRpcRequest {
         jsonrpc: "2.0".to_string(),
         params,
         method: eth_method.clone(),
         id: 1,
     };
-    let api = resolve_api(provider, &get_override_provider())?;
-    let url = &api.url;
-    let mut headers = vec![HttpHeader {
-        name: "Content-Type".to_string(),
-        value: "application/json".to_string(),
-    }];
-    if let Some(vec) = api.headers {
-        headers.extend(vec);
-    }
+    let transform_op = O::response_transform()
+        .as_ref()
+        .map(|t| {
+            let mut buf = vec![];
+            minicbor::encode(t, &mut buf).unwrap();
+            buf
+        })
+        .unwrap_or_default();
+    let (parts, _body) = resolve_rpc_service(provider.clone())?
+        .post(&get_override_provider())?
+        .transform_context(TransformContext::from_name(
+            "cleanup_response".to_owned(),
+            transform_op.clone(),
+        ))
+        .body(())
+        .expect("BUG: invalid request")
+        .into_parts();
     let mut retries = 0;
     loop {
         rpc_request.id = next_request_id();
-        let payload = serde_json::to_string(&rpc_request).unwrap();
+        let effective_size_estimate = response_size_estimate.get();
+        let request =
+            http::Request::from_parts(parts.clone(), serde_json::to_vec(&rpc_request).unwrap())
+                .max_response_bytes(effective_size_estimate);
+        let url = request.uri().clone();
         log!(
             TRACE_HTTP,
-            "Calling url (retries={retries}): {url}, with payload: {payload}"
+            "Calling url (retries={retries}): {}, with payload: {rpc_request:?}",
+            url
         );
 
-        let effective_size_estimate = response_size_estimate.get();
-        let transform_op = O::response_transform()
-            .as_ref()
-            .map(|t| {
-                let mut buf = vec![];
-                minicbor::encode(t, &mut buf).unwrap();
-                buf
-            })
-            .unwrap_or_default();
-
-        let request = CanisterHttpRequestArgument {
-            url: url.clone(),
-            max_response_bytes: Some(effective_size_estimate),
-            method: HttpMethod::POST,
-            headers: headers.clone(),
-            body: Some(payload.as_bytes().to_vec()),
-            transform: Some(TransformContext::from_name(
-                "cleanup_response".to_owned(),
-                transform_op,
-            )),
-        };
-
-        let response = match http_request(&eth_method, request).await {
+        let response = match client.call(request).await {
             Err(RpcError::HttpOutcallError(HttpOutcallError::IcError { code, message }))
                 if is_response_too_large(&code, &message) =>
             {
@@ -236,66 +232,38 @@ where
             result => result?,
         };
 
+        let (response_parts, response_body) = response.into_parts();
         log!(
             TRACE_HTTP,
             "Got response (with {} bytes): {} from url: {} with status: {}",
-            response.body.len(),
-            String::from_utf8_lossy(&response.body),
+            response_body.len(),
+            String::from_utf8_lossy(&response_body),
             url,
-            response.status
+            response_parts.status
         );
 
         // JSON-RPC responses over HTTP should have a 2xx status code,
         // even if the contained JsonRpcResult is an error.
         // If the server is not available, it will sometimes (wrongly) return HTML that will fail parsing as JSON.
-        let http_status_code = http_status_code(&response);
-        if !is_successful_http_code(&http_status_code) {
+        if !response_parts.status.is_success() {
             return Err(HttpOutcallError::InvalidHttpJsonRpcResponse {
-                status: http_status_code,
-                body: String::from_utf8_lossy(&response.body).to_string(),
+                status: response_parts.status.as_u16(),
+                body: String::from_utf8_lossy(&response_body).to_string(),
                 parsing_error: None,
             }
             .into());
         }
 
-        let reply: JsonRpcReply<O> = serde_json::from_slice(&response.body).map_err(|e| {
+        let reply: JsonRpcReply<O> = serde_json::from_slice(&response_body).map_err(|e| {
             HttpOutcallError::InvalidHttpJsonRpcResponse {
-                status: http_status_code,
-                body: String::from_utf8_lossy(&response.body).to_string(),
+                status: response_parts.status.as_u16(),
+                body: String::from_utf8_lossy(&response_body).to_string(),
                 parsing_error: Some(e.to_string()),
             }
         })?;
 
         return reply.result.into();
     }
-}
-
-fn resolve_api(
-    service: &RpcService,
-    override_provider: &OverrideProvider,
-) -> Result<RpcApi, RpcError> {
-    resolve_rpc_service(service.clone())?.api(override_provider)
-}
-
-async fn http_request(
-    method: &str,
-    request: CanisterHttpRequestArgument,
-) -> Result<HttpResponse, RpcError> {
-    let rpc_method = MetricRpcMethod(method.to_string());
-    crate::http::http_request(rpc_method, request).await
-}
-
-fn http_status_code(response: &HttpResponse) -> u16 {
-    use num_traits::cast::ToPrimitive;
-    // HTTP status code are always 3 decimal digits, hence at most 999.
-    // See https://httpwg.org/specs/rfc9110.html#status.code.extensibility
-    response.status.0.to_u16().expect("valid HTTP status code")
-}
-
-fn is_successful_http_code(status: &u16) -> bool {
-    const OK: u16 = 200;
-    const REDIRECTION: u16 = 300;
-    (OK..REDIRECTION).contains(status)
 }
 
 fn sort_by_hash<T: Serialize + DeserializeOwned>(to_sort: &mut [T]) {
