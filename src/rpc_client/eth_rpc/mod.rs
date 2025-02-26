@@ -1,7 +1,7 @@
 //! This module contains definitions for communicating witEthereum API using the [JSON RPC](https://ethereum.org/en/developers/docs/apis/json-rpc/)
 //! interface.
 
-use crate::http::canhttp_client;
+use crate::http::http_client;
 use crate::logs::{DEBUG, TRACE_HTTP};
 use crate::memory::{get_override_provider, next_request_id};
 use crate::providers::resolve_rpc_service;
@@ -178,7 +178,7 @@ where
 
     let eth_method = method.into();
     let rpc_method = MetricRpcMethod(eth_method.clone());
-    let mut client = canhttp_client(rpc_method);
+    let mut client = http_client(rpc_method);
     let mut rpc_request = JsonRpcRequest {
         jsonrpc: "2.0".to_string(),
         params,

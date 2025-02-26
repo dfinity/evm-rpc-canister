@@ -47,12 +47,12 @@ pub async fn json_rpc_request(
     max_response_bytes: u64,
 ) -> RpcResult<canhttp::http::HttpResponse> {
     let request = json_rpc_request_arg(service, json_rpc_payload, max_response_bytes)?;
-    canhttp_client(MetricRpcMethod("request".to_string()))
+    http_client(MetricRpcMethod("request".to_string()))
         .call(request)
         .await
 }
 
-pub fn canhttp_client(
+pub fn http_client(
     rpc_method: MetricRpcMethod,
 ) -> impl Service<canhttp::http::HttpRequest, Response = canhttp::http::HttpResponse, Error = RpcError>
 {
