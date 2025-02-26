@@ -2,60 +2,58 @@ use crate::constants::COLLATERAL_CYCLES_PER_NODE;
 use crate::memory::{get_num_subnet_nodes, is_demo_active};
 use crate::{
     add_metric_entry,
-    constants::{CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE},
+    constants::CONTENT_TYPE_VALUE,
     memory::get_override_provider,
     types::{MetricRpcHost, MetricRpcMethod, ResolvedRpcService},
     util::canonicalize_json,
+};
+use canhttp::http::{
+    HttpConversionLayer, MaxResponseBytesRequestExtension, TransformContextRequestExtension,
 };
 use canhttp::{
     observability::ObservabilityLayer, CyclesAccounting, CyclesAccountingError,
     CyclesChargingPolicy,
 };
 use evm_rpc_types::{HttpOutcallError, ProviderError, RpcError, RpcResult, ValidationError};
+use http::header::CONTENT_TYPE;
+use http::HeaderValue;
 use ic_cdk::api::management_canister::http_request::{
-    CanisterHttpRequestArgument, HttpHeader, HttpMethod, HttpResponse, TransformArgs,
-    TransformContext,
+    CanisterHttpRequestArgument, HttpHeader, HttpResponse, TransformArgs, TransformContext,
 };
-use num_traits::ToPrimitive;
 use tower::{BoxError, Service, ServiceBuilder};
+use tower_http::ServiceBuilderExt;
 
 pub fn json_rpc_request_arg(
     service: ResolvedRpcService,
     json_rpc_payload: &str,
     max_response_bytes: u64,
-) -> RpcResult<CanisterHttpRequestArgument> {
+) -> RpcResult<canhttp::http::HttpRequest> {
     let api = service.api(&get_override_provider())?;
-    let mut request_headers = api.headers.unwrap_or_default();
-    if !request_headers
-        .iter()
-        .any(|header| header.name.to_lowercase() == CONTENT_TYPE_HEADER_LOWERCASE)
-    {
-        request_headers.push(HttpHeader {
-            name: CONTENT_TYPE_HEADER_LOWERCASE.to_string(),
-            value: CONTENT_TYPE_VALUE.to_string(),
-        });
-    }
-    Ok(CanisterHttpRequestArgument {
-        url: api.url,
-        max_response_bytes: Some(max_response_bytes),
-        method: HttpMethod::POST,
-        headers: request_headers,
-        body: Some(json_rpc_payload.as_bytes().to_vec()),
-        transform: Some(TransformContext::from_name(
+    let mut request_builder = http::Request::post(api.url)
+        .max_response_bytes(max_response_bytes)
+        .transform_context(TransformContext::from_name(
             "__transform_json_rpc".to_string(),
             vec![],
-        )),
-    })
+        ));
+    for HttpHeader { name, value } in api.headers.unwrap_or_default() {
+        request_builder = request_builder.header(name, value);
+    }
+    request_builder
+        .body(json_rpc_payload.as_bytes().to_vec())
+        .map_err(|e| {
+            RpcError::ValidationError(ValidationError::Custom(format!("Invalid request: {e}")))
+        })
 }
 
 pub async fn json_rpc_request(
     service: ResolvedRpcService,
-    rpc_method: MetricRpcMethod,
     json_rpc_payload: &str,
     max_response_bytes: u64,
-) -> RpcResult<HttpResponse> {
+) -> RpcResult<canhttp::http::HttpResponse> {
     let request = json_rpc_request_arg(service, json_rpc_payload, max_response_bytes)?;
-    http_request(rpc_method, request).await
+    canhttp_client(MetricRpcMethod("request".to_string()))
+        .call(request)
+        .await
 }
 
 pub async fn http_request(
@@ -80,6 +78,62 @@ pub async fn http_request(
         }
     };
     http_client(rpc_method).call(request).await
+}
+
+pub fn canhttp_client(
+    rpc_method: MetricRpcMethod,
+) -> impl Service<canhttp::http::HttpRequest, Response = canhttp::http::HttpResponse, Error = RpcError>
+{
+    ServiceBuilder::new()
+        .layer(
+            ObservabilityLayer::new()
+                .on_request(move |req: &canhttp::http::HttpRequest| {
+                    let req_data = MetricData {
+                        method: rpc_method.clone(),
+                        host: MetricRpcHost(req.uri().host().unwrap().to_string()),
+                    };
+                    add_metric_entry!(
+                        requests,
+                        (req_data.method.clone(), req_data.host.clone()),
+                        1
+                    );
+                    req_data
+                })
+                .on_response(
+                    |req_data: MetricData, response: &canhttp::http::HttpResponse| {
+                        let status: u32 = response.status().as_u16() as u32;
+                        add_metric_entry!(
+                            responses,
+                            (req_data.method, req_data.host, status.into()),
+                            1
+                        );
+                    },
+                )
+                .on_error(|req_data: MetricData, error: &RpcError| {
+                    if let RpcError::HttpOutcallError(HttpOutcallError::IcError {
+                        code,
+                        message: _,
+                    }) = error
+                    {
+                        add_metric_entry!(
+                            err_http_outcall,
+                            (req_data.method, req_data.host, *code),
+                            1
+                        );
+                    }
+                }),
+        )
+        .map_err(map_error)
+        .insert_request_header_if_not_present(
+            CONTENT_TYPE,
+            HeaderValue::from_static(CONTENT_TYPE_VALUE),
+        )
+        .layer(HttpConversionLayer)
+        .filter(CyclesAccounting::new(
+            get_num_subnet_nodes(),
+            ChargingPolicyWithCollateral::default(),
+        ))
+        .service(canhttp::Client)
 }
 
 pub fn http_client(
@@ -225,14 +279,11 @@ pub fn transform_http_request(args: TransformArgs) -> HttpResponse {
     }
 }
 
-pub fn get_http_response_status(status: candid::Nat) -> u16 {
-    status.0.to_u16().unwrap_or(u16::MAX)
-}
-
-pub fn get_http_response_body(response: HttpResponse) -> Result<String, RpcError> {
-    String::from_utf8(response.body).map_err(|e| {
+pub fn get_http_response_body(response: canhttp::http::HttpResponse) -> Result<String, RpcError> {
+    let (parts, body) = response.into_parts();
+    String::from_utf8(body).map_err(|e| {
         HttpOutcallError::InvalidHttpJsonRpcResponse {
-            status: get_http_response_status(response.status),
+            status: parts.status.as_u16(),
             body: "".to_string(),
             parsing_error: Some(format!("{e}")),
         }

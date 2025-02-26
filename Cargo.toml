@@ -23,6 +23,7 @@ ethnum = { workspace = true }
 evm_rpc_types = { path = "evm_rpc_types" }
 futures = { workspace = true }
 getrandom = { workspace = true }
+http = { workspace = true }
 ic-sha3 = "1.0.0"
 ic-ethereum-types = "1.0.0"
 ic-metrics-encoder = { workspace = true }
@@ -39,6 +40,7 @@ serde_bytes = { workspace = true }
 serde_json = { workspace = true }
 thousands = "0.2"
 tower = {workspace = true}
+tower-http = {workspace = true, features = ["set-header", "util"]}
 url = { workspace = true }
 hex = "0.4"
 ethers-core = "2.0"
@@ -85,6 +87,7 @@ strum = { version = "0.26", features = ["derive"] }
 tokio = "1.43.0"
 tower = "0.5.2"
 tower-layer = "0.3.3"
+tower-http = "0.6.2"
 thiserror = "2.0.11"
 url = "2.5"
 

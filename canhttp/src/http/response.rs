@@ -10,6 +10,7 @@ use tower_layer::Layer;
 pub type HttpResponse = http::Response<Vec<u8>>;
 
 #[derive(Error, Clone, Debug, Eq, PartialEq)]
+#[allow(clippy::enum_variant_names)] //current variants reflect invalid data
 pub enum HttpResponseConversionError {
     #[error("Status code is invalid")]
     InvalidStatusCode,

@@ -3,7 +3,10 @@
 #[cfg(test)]
 mod tests;
 
-pub use request::{HttpRequest, HttpRequestConversionLayer};
+pub use request::{
+    HttpRequest, HttpRequestConversionLayer, MaxResponseBytesRequestExtension,
+    TransformContextRequestExtension,
+};
 pub use response::{HttpResponse, HttpResponseConversionLayer};
 
 mod request;
