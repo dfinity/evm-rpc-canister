@@ -18,7 +18,7 @@ use tower::{BoxError, Service};
 pub struct Client;
 
 /// Error returned by the Internet Computer when making an HTTPs outcall.
-#[derive(Error, Debug, PartialEq, Eq)]
+#[derive(Error, Clone, Debug, PartialEq, Eq)]
 #[error("Error from ICP: (code {code:?}, message {message})")]
 pub struct IcError {
     /// Rejection code as specified [here](https://internetcomputer.org/docs/current/references/ic-interface-spec#reject-codes)

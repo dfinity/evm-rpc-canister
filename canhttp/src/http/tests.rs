@@ -9,6 +9,7 @@ use crate::IcError;
 use assert_matches::assert_matches;
 use candid::{Decode, Encode, Principal};
 use http::StatusCode;
+use ic_cdk::api::call::RejectionCode;
 use ic_cdk::api::management_canister::http_request::{
     CanisterHttpRequestArgument as IcHttpRequest, HttpHeader as IcHttpHeader,
     HttpMethod as IcHttpMethod, HttpResponse as IcHttpResponse,
@@ -122,11 +123,7 @@ async fn should_convert_http_response() {
 
 #[tokio::test]
 async fn should_fail_to_convert_http_response() {
-    let mut service = ServiceBuilder::new()
-        .layer(HttpResponseConversionLayer)
-        .service_fn(echo_response);
-
-    let response = IcHttpResponse {
+    let invalid_response = IcHttpResponse {
         status: 99_u8.into(),
         headers: vec![IcHttpHeader {
             name: "content-type".to_string(),
@@ -135,11 +132,31 @@ async fn should_fail_to_convert_http_response() {
         body: vec![42; 32],
     };
 
+    let mut service = ServiceBuilder::new()
+        .layer(HttpResponseConversionLayer)
+        .service_fn(echo_response);
     let error = expect_error::<_, HttpResponseConversionError>(
-        service.ready().await.unwrap().call(response).await,
+        service
+            .ready()
+            .await
+            .unwrap()
+            .call(invalid_response.clone())
+            .await,
     );
-
     assert_eq!(error, HttpResponseConversionError::InvalidStatusCode);
+
+    let mut service = ServiceBuilder::new()
+        .layer(HttpResponseConversionLayer)
+        .service_fn(always_error);
+    let error =
+        expect_error::<_, IcError>(service.ready().await.unwrap().call(invalid_response).await);
+    assert_eq!(
+        error,
+        IcError {
+            code: RejectionCode::Unknown,
+            message: "always error".to_string(),
+        }
+    )
 }
 
 #[tokio::test]
@@ -207,6 +224,13 @@ async fn echo_request(request: IcHttpRequest) -> Result<IcHttpRequest, IcError> 
 
 async fn echo_response(response: IcHttpResponse) -> Result<IcHttpResponse, IcError> {
     Ok(response)
+}
+
+async fn always_error(_response: IcHttpResponse) -> Result<IcHttpResponse, IcError> {
+    Err(IcError {
+        code: RejectionCode::Unknown,
+        message: "always error".to_string(),
+    })
 }
 
 // http::Response<T> does not implement PartialEq
