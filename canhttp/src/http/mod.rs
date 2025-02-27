@@ -24,7 +24,7 @@
 //! * Can re-use existing middlewares, like from the [tower-http](https://crates.io/crates/tower-http) crate.
 //!
 //! # Examples
-//! 
+//!
 //! ```rust
 //! use canhttp::{http::{HttpConversionLayer, MaxResponseBytesRequestExtension}, IcError};
 //! use ic_cdk::api::management_canister::http_request::{CanisterHttpRequestArgument as IcHttpRequest, HttpResponse as IcHttpResponse};
@@ -36,7 +36,7 @@
 //!      ..Default::default()
 //!    })
 //! }
-//! 
+//!
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let mut service = ServiceBuilder::new()
@@ -50,7 +50,7 @@
 //!   .unwrap();
 //!
 //! let response = service.ready().await.unwrap().call(request).await.unwrap();
-//! 
+//!
 //! assert_eq!(response.status(), http::StatusCode::OK);
 //! # Ok(())
 //! # }

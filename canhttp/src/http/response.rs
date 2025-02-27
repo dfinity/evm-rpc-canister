@@ -7,6 +7,7 @@ use thiserror::Error;
 use tower::{BoxError, Service};
 use tower_layer::Layer;
 
+/// HTTP response with a body made of bytes.
 pub type HttpResponse = http::Response<Vec<u8>>;
 
 #[derive(Error, Clone, Debug, Eq, PartialEq)]
@@ -61,6 +62,12 @@ fn try_map_http_response(
         .expect("BUG: builder should have been modified only with validated data"))
 }
 
+/// Middleware to convert a response of type [`HttpResponse`] into
+/// one of type [`IcHttpResponse`] to a [`Service`].
+///
+/// See the [module docs](crate::http) for an example.
+///
+/// [`Service`]: tower::Service
 pub struct HttpResponseConversionLayer;
 
 pub struct HttpResponseConversion<S> {
