@@ -13,7 +13,7 @@ pub trait MaxResponseBytesRequestExtension: Sized {
     fn set_max_response_bytes(&mut self, value: u64);
     fn get_max_response_bytes(&self) -> Option<u64>;
 
-    /// Convenience method to using the builder pattern.
+    /// Convenience method to use the builder pattern.
     fn max_response_bytes(mut self, value: u64) -> Self {
         self.set_max_response_bytes(value);
         self
@@ -53,7 +53,7 @@ pub trait TransformContextRequestExtension: Sized {
     fn set_transform_context(&mut self, value: TransformContext);
     fn get_transform_context(&self) -> Option<&TransformContext>;
 
-    /// Convenience method to using the builder pattern.
+    /// Convenience method to use the builder pattern.
     fn transform_context(mut self, value: TransformContext) -> Self {
         self.set_transform_context(value);
         self
