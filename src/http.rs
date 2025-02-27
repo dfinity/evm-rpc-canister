@@ -8,7 +8,8 @@ use crate::{
     util::canonicalize_json,
 };
 use canhttp::http::{
-    HttpConversionLayer, MaxResponseBytesRequestExtension, TransformContextRequestExtension,
+    HttpRequestConversionLayer, HttpResponseConversionLayer, MaxResponseBytesRequestExtension,
+    TransformContextRequestExtension,
 };
 use canhttp::{
     observability::ObservabilityLayer, CyclesAccounting, CyclesAccountingError,
@@ -20,7 +21,9 @@ use http::HeaderValue;
 use ic_cdk::api::management_canister::http_request::{
     CanisterHttpRequestArgument, HttpResponse, TransformArgs, TransformContext,
 };
+use tower::layer::util::{Identity, Stack};
 use tower::{BoxError, Service, ServiceBuilder};
+use tower_http::set_header::SetRequestHeaderLayer;
 use tower_http::ServiceBuilderExt;
 
 pub fn json_rpc_request_arg(
@@ -96,16 +99,27 @@ pub fn http_client(
                 }),
         )
         .map_err(map_error)
-        .insert_request_header_if_not_present(
-            CONTENT_TYPE,
-            HeaderValue::from_static(CONTENT_TYPE_VALUE),
-        )
-        .layer(HttpConversionLayer)
+        .layer(service_request_builder())
+        .layer(HttpResponseConversionLayer)
         .filter(CyclesAccounting::new(
             get_num_subnet_nodes(),
             ChargingPolicyWithCollateral::default(),
         ))
         .service(canhttp::Client)
+}
+
+/// Middleware that takes care of transforming the request.
+///
+/// It's required to separate it from the other middlewares, to compute the exact request cost.
+pub fn service_request_builder() -> ServiceBuilder<
+    Stack<HttpRequestConversionLayer, Stack<SetRequestHeaderLayer<HeaderValue>, Identity>>,
+> {
+    ServiceBuilder::new()
+        .insert_request_header_if_not_present(
+            CONTENT_TYPE,
+            HeaderValue::from_static(CONTENT_TYPE_VALUE),
+        )
+        .layer(HttpRequestConversionLayer)
 }
 
 struct MetricData {

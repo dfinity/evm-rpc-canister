@@ -1,9 +1,9 @@
 use candid::candid_method;
-use canhttp::http::HttpRequestConversionLayer;
 use canhttp::{CyclesChargingPolicy, CyclesCostEstimator};
 use evm_rpc::candid_rpc::CandidRpcClient;
-use evm_rpc::constants::CONTENT_TYPE_VALUE;
-use evm_rpc::http::{get_http_response_body, ChargingPolicyWithCollateral};
+use evm_rpc::http::{
+    get_http_response_body, service_request_builder, ChargingPolicyWithCollateral,
+};
 use evm_rpc::logs::INFO;
 use evm_rpc::memory::{
     get_num_subnet_nodes, insert_api_key, is_api_key_principal, is_demo_active, remove_api_key,
@@ -20,8 +20,6 @@ use evm_rpc::{
     types::Metrics,
 };
 use evm_rpc_types::{Hex32, MultiRpcResult, RpcResult};
-use http::header::CONTENT_TYPE;
-use http::HeaderValue;
 use ic_canister_log::log;
 use ic_cdk::api::is_controller;
 use ic_cdk::api::management_canister::http_request::{
@@ -30,8 +28,7 @@ use ic_cdk::api::management_canister::http_request::{
 use ic_cdk::{query, update};
 use ic_metrics_encoder::MetricsEncoder;
 use std::convert::Infallible;
-use tower::{Service, ServiceBuilder};
-use tower_http::ServiceBuilderExt;
+use tower::Service;
 
 pub fn require_api_key_principal_or_controller() -> Result<(), String> {
     let caller = ic_cdk::caller();
@@ -175,13 +172,7 @@ async fn request_cost(
             Ok(http::Response::new(request))
         }
 
-        let mut client = ServiceBuilder::new()
-            .insert_request_header_if_not_present(
-                CONTENT_TYPE,
-                HeaderValue::from_static(CONTENT_TYPE_VALUE),
-            )
-            .layer(HttpRequestConversionLayer)
-            .service_fn(extract_request);
+        let mut client = service_request_builder().service_fn(extract_request);
         let request: CanisterHttpRequestArgument = client
             .call(request)
             .await //note: synchronous in a canister environment
