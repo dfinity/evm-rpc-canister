@@ -3,8 +3,7 @@
 //! leveraging the modularity of the [tower framework](https://rust-lang.guide/guide/learn-async-rust/tower.html).
 
 #![forbid(unsafe_code)]
-//TODO : re-allow this and write the docs
-// #![forbid(missing_docs)]
+#![forbid(missing_docs)]
 
 pub use client::{Client, IcError};
 pub use cycles::{
