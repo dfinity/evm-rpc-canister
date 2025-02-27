@@ -14,7 +14,9 @@ use ic_cdk::api::management_canister::http_request::{
     HttpMethod as IcHttpMethod, HttpResponse as IcHttpResponse,
 };
 use ic_cdk::api::management_canister::http_request::{TransformContext, TransformFunc};
-use tower::{Service, ServiceBuilder, ServiceExt};
+use std::error::Error;
+use std::fmt::Debug;
+use tower::{BoxError, Service, ServiceBuilder, ServiceExt};
 
 #[tokio::test]
 async fn should_convert_http_request() {
@@ -78,16 +80,14 @@ async fn should_fail_when_http_method_unsupported() {
     ] {
         let unsupported_request = request_builder.body(vec![]).unwrap();
 
-        let error = service
-            .ready()
-            .await
-            .unwrap()
-            .call(unsupported_request)
-            .await
-            .expect_err("BUG: method should be unsupported")
-            .downcast_ref::<HttpRequestConversionError>()
-            .expect("BUG: unexpected error type")
-            .clone();
+        let error = expect_error::<_, HttpRequestConversionError>(
+            service
+                .ready()
+                .await
+                .unwrap()
+                .call(unsupported_request)
+                .await,
+        );
 
         assert_matches!(error, HttpRequestConversionError::UnsupportedHttpMethod(_));
     }
@@ -135,16 +135,9 @@ async fn should_fail_to_convert_http_response() {
         body: vec![42; 32],
     };
 
-    let error = service
-        .ready()
-        .await
-        .unwrap()
-        .call(response)
-        .await
-        .expect_err("BUG: method should be unsupported")
-        .downcast_ref::<HttpResponseConversionError>()
-        .expect("BUG: unexpected error type")
-        .clone();
+    let error = expect_error::<_, HttpResponseConversionError>(
+        service.ready().await.unwrap().call(response).await,
+    );
 
     assert_eq!(error, HttpResponseConversionError::InvalidStatusCode);
 }
@@ -230,4 +223,16 @@ fn assert_response_eq(left: HttpResponse, right: HttpResponse) {
     // so we just ensure that both are empty
     assert!(left_parts.extensions.is_empty());
     assert!(right_parts.extensions.is_empty());
+}
+
+fn expect_error<T, E>(result: Result<T, BoxError>) -> E
+where
+    T: Debug,
+    E: Clone + Error + 'static,
+{
+    result
+        .expect_err("BUG: expected error")
+        .downcast_ref::<E>()
+        .expect("BUG: unexpected error type")
+        .clone()
 }
