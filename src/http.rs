@@ -8,8 +8,8 @@ use crate::{
     util::canonicalize_json,
 };
 use canhttp::http::{
-    HttpRequestConversionLayer, HttpResponseConversionLayer, MaxResponseBytesRequestExtension,
-    TransformContextRequestExtension,
+    HttpRequest, HttpRequestConversionLayer, HttpResponse, HttpResponseConversionLayer,
+    MaxResponseBytesRequestExtension, TransformContextRequestExtension,
 };
 use canhttp::{
     observability::ObservabilityLayer, CyclesAccounting, CyclesAccountingError,
@@ -19,7 +19,8 @@ use evm_rpc_types::{HttpOutcallError, ProviderError, RpcError, RpcResult, Valida
 use http::header::CONTENT_TYPE;
 use http::HeaderValue;
 use ic_cdk::api::management_canister::http_request::{
-    CanisterHttpRequestArgument, HttpResponse, TransformArgs, TransformContext,
+    CanisterHttpRequestArgument as IcHttpRequest, HttpResponse as IcHttpResponse, TransformArgs,
+    TransformContext,
 };
 use tower::layer::util::{Identity, Stack};
 use tower::{BoxError, Service, ServiceBuilder};
@@ -30,7 +31,7 @@ pub fn json_rpc_request_arg(
     service: ResolvedRpcService,
     json_rpc_payload: &str,
     max_response_bytes: u64,
-) -> RpcResult<canhttp::http::HttpRequest> {
+) -> RpcResult<HttpRequest> {
     service
         .post(&get_override_provider())?
         .max_response_bytes(max_response_bytes)
@@ -48,7 +49,7 @@ pub async fn json_rpc_request(
     service: ResolvedRpcService,
     json_rpc_payload: &str,
     max_response_bytes: u64,
-) -> RpcResult<canhttp::http::HttpResponse> {
+) -> RpcResult<HttpResponse> {
     let request = json_rpc_request_arg(service, json_rpc_payload, max_response_bytes)?;
     http_client(MetricRpcMethod("request".to_string()))
         .call(request)
@@ -57,12 +58,11 @@ pub async fn json_rpc_request(
 
 pub fn http_client(
     rpc_method: MetricRpcMethod,
-) -> impl Service<canhttp::http::HttpRequest, Response = canhttp::http::HttpResponse, Error = RpcError>
-{
+) -> impl Service<HttpRequest, Response = HttpResponse, Error = RpcError> {
     ServiceBuilder::new()
         .layer(
             ObservabilityLayer::new()
-                .on_request(move |req: &canhttp::http::HttpRequest| {
+                .on_request(move |req: &HttpRequest| {
                     let req_data = MetricData {
                         method: rpc_method.clone(),
                         host: MetricRpcHost(req.uri().host().unwrap().to_string()),
@@ -74,16 +74,14 @@ pub fn http_client(
                     );
                     req_data
                 })
-                .on_response(
-                    |req_data: MetricData, response: &canhttp::http::HttpResponse| {
-                        let status: u32 = response.status().as_u16() as u32;
-                        add_metric_entry!(
-                            responses,
-                            (req_data.method, req_data.host, status.into()),
-                            1
-                        );
-                    },
-                )
+                .on_response(|req_data: MetricData, response: &HttpResponse| {
+                    let status: u32 = response.status().as_u16() as u32;
+                    add_metric_entry!(
+                        responses,
+                        (req_data.method, req_data.host, status.into()),
+                        1
+                    );
+                })
                 .on_error(|req_data: MetricData, error: &RpcError| {
                     if let RpcError::HttpOutcallError(HttpOutcallError::IcError {
                         code,
@@ -184,11 +182,7 @@ impl Default for ChargingPolicyWithCollateral {
 }
 
 impl CyclesChargingPolicy for ChargingPolicyWithCollateral {
-    fn cycles_to_charge(
-        &self,
-        _request: &CanisterHttpRequestArgument,
-        attached_cycles: u128,
-    ) -> u128 {
+    fn cycles_to_charge(&self, _request: &IcHttpRequest, attached_cycles: u128) -> u128 {
         if self.charge_user {
             return attached_cycles.saturating_add(self.collateral_cycles);
         }
@@ -196,8 +190,8 @@ impl CyclesChargingPolicy for ChargingPolicyWithCollateral {
     }
 }
 
-pub fn transform_http_request(args: TransformArgs) -> HttpResponse {
-    HttpResponse {
+pub fn transform_http_request(args: TransformArgs) -> IcHttpResponse {
+    IcHttpResponse {
         status: args.response.status,
         body: canonicalize_json(&args.response.body).unwrap_or(args.response.body),
         // Remove headers (which may contain a timestamp) for consensus
@@ -205,7 +199,7 @@ pub fn transform_http_request(args: TransformArgs) -> HttpResponse {
     }
 }
 
-pub fn get_http_response_body(response: canhttp::http::HttpResponse) -> Result<String, RpcError> {
+pub fn get_http_response_body(response: HttpResponse) -> Result<String, RpcError> {
     let (parts, body) = response.into_parts();
     String::from_utf8(body).map_err(|e| {
         HttpOutcallError::InvalidHttpJsonRpcResponse {

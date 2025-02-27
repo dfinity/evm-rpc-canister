@@ -21,11 +21,16 @@ use evm_rpc::{
 };
 use evm_rpc_types::{Hex32, MultiRpcResult, RpcResult};
 use ic_canister_log::log;
-use ic_cdk::api::is_controller;
-use ic_cdk::api::management_canister::http_request::{
-    CanisterHttpRequestArgument, HttpResponse, TransformArgs,
+use ic_cdk::{
+    api::{
+        is_controller,
+        management_canister::http_request::{
+            CanisterHttpRequestArgument as IcHttpRequest, HttpResponse as IcHttpResponse,
+            TransformArgs,
+        },
+    },
+    query, update,
 };
-use ic_cdk::{query, update};
 use ic_metrics_encoder::MetricsEncoder;
 use std::convert::Infallible;
 use tower::Service;
@@ -167,13 +172,13 @@ async fn request_cost(
         )?;
 
         async fn extract_request(
-            request: CanisterHttpRequestArgument,
-        ) -> Result<http::Response<CanisterHttpRequestArgument>, Infallible> {
+            request: IcHttpRequest,
+        ) -> Result<http::Response<IcHttpRequest>, Infallible> {
             Ok(http::Response::new(request))
         }
 
         let mut client = service_request_builder().service_fn(extract_request);
-        let request: CanisterHttpRequestArgument = client
+        let request: IcHttpRequest = client
             .call(request)
             .await //note: synchronous in a canister environment
             .expect("Error: invalid request")
@@ -277,7 +282,7 @@ async fn update_api_keys(api_keys: Vec<(ProviderId, Option<String>)>) {
 }
 
 #[query(name = "__transform_json_rpc", hidden = true)]
-fn transform(args: TransformArgs) -> HttpResponse {
+fn transform(args: TransformArgs) -> IcHttpResponse {
     transform_http_request(args)
 }
 
