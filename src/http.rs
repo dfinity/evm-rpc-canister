@@ -10,7 +10,7 @@ use crate::{
 };
 use canhttp::http::json::{
     HttpJsonRpcRequest, HttpJsonRpcResponse, JsonRequestConversionLayer,
-    JsonResponseConversionLayer, JsonRpcRequestBody,
+    JsonResponseConversionError, JsonResponseConversionLayer, JsonRpcRequestBody,
 };
 use canhttp::http::{
     HttpRequestConversionLayer, HttpResponseConversionLayer, MaxResponseBytesRequestExtension,
@@ -109,23 +109,33 @@ where
                         response.body()
                     );
                 })
-                .on_error(|req_data: MetricData, error: &RpcError| {
-                    if let RpcError::HttpOutcallError(HttpOutcallError::IcError {
-                        code,
-                        message: _,
-                    }) = error
-                    {
+                .on_error(|req_data: MetricData, error: &RpcError| match error {
+                    RpcError::HttpOutcallError(HttpOutcallError::IcError { code, message: _ }) => {
                         add_metric_entry!(
                             err_http_outcall,
                             (req_data.method, req_data.host, *code),
                             1
                         );
                     }
+                    RpcError::HttpOutcallError(HttpOutcallError::InvalidHttpJsonRpcResponse {
+                        status,
+                        body: _,
+                        parsing_error: _,
+                    }) => {
+                        let status: u32 = *status as u32;
+                        add_metric_entry!(
+                            responses,
+                            (req_data.method, req_data.host, status.into()),
+                            1
+                        );
+                    }
+                    _ => {}
                 }),
         )
         .map_err(map_error)
         .layer(service_request_builder())
         .layer(JsonResponseConversionLayer::new())
+        //TODO XC-287: Filter out not successful responses before JSON deserialization
         .layer(HttpResponseConversionLayer)
         .filter(CyclesAccounting::new(
             get_num_subnet_nodes(),
@@ -159,6 +169,9 @@ struct MetricData {
 }
 
 fn map_error(e: BoxError) -> RpcError {
+    if let Some(e) = e.downcast_ref::<RpcError>() {
+        return e.clone();
+    }
     if let Some(charging_error) = e.downcast_ref::<CyclesAccountingError>() {
         return match charging_error {
             CyclesAccountingError::InsufficientCyclesError { expected, received } => {
@@ -176,6 +189,20 @@ fn map_error(e: BoxError) -> RpcError {
             message: message.clone(),
         }
         .into();
+    }
+    if let Some(error) = e.downcast_ref::<JsonResponseConversionError>() {
+        return match error {
+            JsonResponseConversionError::InvalidJsonResponse {
+                status,
+                body,
+                parsing_error,
+            } => HttpOutcallError::InvalidHttpJsonRpcResponse {
+                status: *status,
+                body: body.clone(),
+                parsing_error: Some(parsing_error.clone()),
+            }
+            .into(),
+        };
     }
     RpcError::ProviderError(ProviderError::InvalidRpcConfig(format!(
         "Unknown error: {}",

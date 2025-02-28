@@ -58,6 +58,7 @@ where
     Ok(http::Response::from_parts(parts, json_body))
 }
 
+// TODO XC-287: refactor to have a generic Response Filter mechanism
 pub struct JsonResponseConversionLayer<T> {
     _marker: PhantomData<T>,
 }

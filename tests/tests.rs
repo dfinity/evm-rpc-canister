@@ -45,7 +45,7 @@ const MAX_TICKS: usize = 10;
 
 const MOCK_REQUEST_URL: &str = "https://cloudflare-eth.com";
 const MOCK_REQUEST_PAYLOAD: &str = r#"{"id":1,"jsonrpc":"2.0","method":"eth_gasPrice"}"#;
-const MOCK_REQUEST_RESPONSE: &str = r#"{"id":1,"jsonrpc":"2.0","result":"0x00112233"}"#;
+const MOCK_REQUEST_RESPONSE: &str = r#"{"jsonrpc":"2.0","id":1,"result":"0x00112233"}"#;
 const MOCK_REQUEST_RESPONSE_BYTES: u64 = 1000;
 const MOCK_API_KEY: &str = "mock-api-key";
 
@@ -1150,7 +1150,8 @@ fn candid_rpc_should_err_when_service_unavailable() {
             HttpOutcallError::InvalidHttpJsonRpcResponse {
                 status: 503,
                 body: "Service unavailable".to_string(),
-                parsing_error: None,
+                //TODO XC-287: ideally we should not try to deserialize when status code not successful
+                parsing_error: Some("expected value at line 1 column 1".to_string())
             }
         ))
     );
@@ -1680,7 +1681,8 @@ fn candid_rpc_should_recognize_rate_limit() {
             HttpOutcallError::InvalidHttpJsonRpcResponse {
                 status: 429,
                 body: "(Rate limit error message)".to_string(),
-                parsing_error: None
+                //TODO XC-287: ideally we should not try to deserialize when status code not successful
+                parsing_error: Some("expected value at line 1 column 1".to_string())
             }
         ))
     );
