@@ -14,7 +14,7 @@ use crate::types::MetricRpcMethod;
 use candid::candid_method;
 use canhttp::http::json::JsonRpcRequestBody;
 use canhttp::http::{MaxResponseBytesRequestExtension, TransformContextRequestExtension};
-use evm_rpc_types::{HttpOutcallError, RpcError, RpcService};
+use evm_rpc_types::{HttpOutcallError, JsonRpcError, RpcError, RpcService};
 use ic_canister_log::log;
 use ic_cdk::api::call::RejectionCode;
 use ic_cdk::api::management_canister::http_request::{
@@ -172,7 +172,7 @@ pub async fn call<I, O>(
 ) -> Result<O, RpcError>
 where
     I: Serialize + Clone + Debug,
-    O: DeserializeOwned + HttpResponsePayload,
+    O: Debug + DeserializeOwned + HttpResponsePayload,
 {
     use tower::Service;
 
@@ -229,14 +229,6 @@ where
         };
 
         let (response_parts, response_body) = response.into_parts();
-        log!(
-            TRACE_HTTP,
-            "Got response (with {} bytes): {} from url: {} with status: {}",
-            response_body.len(),
-            String::from_utf8_lossy(&response_body),
-            url,
-            response_parts.status
-        );
 
         // JSON-RPC responses over HTTP should have a 2xx status code,
         // even if the contained JsonRpcResult is an error.
@@ -244,21 +236,18 @@ where
         if !response_parts.status.is_success() {
             return Err(HttpOutcallError::InvalidHttpJsonRpcResponse {
                 status: response_parts.status.as_u16(),
-                body: String::from_utf8_lossy(&response_body).to_string(),
+                body: format!("{:?}", response_body),
                 parsing_error: None,
             }
             .into());
         }
 
-        let reply: JsonRpcReply<O> = serde_json::from_slice(&response_body).map_err(|e| {
-            HttpOutcallError::InvalidHttpJsonRpcResponse {
-                status: response_parts.status.as_u16(),
-                body: String::from_utf8_lossy(&response_body).to_string(),
-                parsing_error: Some(e.to_string()),
+        return match response_body.result {
+            canhttp::http::json::JsonRpcResult::Result(r) => Ok(r),
+            canhttp::http::json::JsonRpcResult::Error { code, message } => {
+                Err(JsonRpcError { code, message }.into())
             }
-        })?;
-
-        return reply.result.into();
+        };
     }
 }
 

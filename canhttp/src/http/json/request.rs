@@ -75,7 +75,7 @@ impl<T> JsonRpcRequestBody<T> {
         Self {
             jsonrpc: "2.0".to_string(),
             method: method.into(),
-            id: None,
+            id: Some(serde_json::Value::Number(0.into())),
             params: Some(params),
         }
     }
@@ -86,5 +86,9 @@ impl<T> JsonRpcRequestBody<T> {
 
     pub fn method(&self) -> &str {
         &self.method
+    }
+
+    pub fn id(&self) -> Option<&serde_json::Value> {
+        self.id.as_ref()
     }
 }

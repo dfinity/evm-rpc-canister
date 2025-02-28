@@ -1,4 +1,5 @@
 use crate::constants::COLLATERAL_CYCLES_PER_NODE;
+use crate::logs::TRACE_HTTP;
 use crate::memory::{get_num_subnet_nodes, is_demo_active};
 use crate::{
     add_metric_entry,
@@ -7,10 +8,13 @@ use crate::{
     types::{MetricRpcHost, MetricRpcMethod, ResolvedRpcService},
     util::canonicalize_json,
 };
-use canhttp::http::json::{HttpJsonRpcRequest, JsonRequestConversionLayer, JsonRpcRequestBody};
+use canhttp::http::json::{
+    HttpJsonRpcRequest, HttpJsonRpcResponse, JsonRequestConversionLayer,
+    JsonResponseConversionLayer, JsonRpcRequestBody,
+};
 use canhttp::http::{
-    HttpRequestConversionLayer, HttpResponse, HttpResponseConversionLayer,
-    MaxResponseBytesRequestExtension, TransformContextRequestExtension,
+    HttpRequestConversionLayer, HttpResponseConversionLayer, MaxResponseBytesRequestExtension,
+    TransformContextRequestExtension,
 };
 use canhttp::{
     observability::ObservabilityLayer, CyclesAccounting, CyclesAccountingError,
@@ -19,11 +23,14 @@ use canhttp::{
 use evm_rpc_types::{HttpOutcallError, ProviderError, RpcError, RpcResult, ValidationError};
 use http::header::CONTENT_TYPE;
 use http::HeaderValue;
+use ic_canister_log::log;
 use ic_cdk::api::management_canister::http_request::{
     CanisterHttpRequestArgument as IcHttpRequest, HttpResponse as IcHttpResponse, TransformArgs,
     TransformContext,
 };
+use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::fmt::Debug;
 use tower::layer::util::{Identity, Stack};
 use tower::{BoxError, Service, ServiceBuilder};
 use tower_http::set_header::SetRequestHeaderLayer;
@@ -57,26 +64,28 @@ pub async fn json_rpc_request(
     service: ResolvedRpcService,
     json_rpc_payload: &str,
     max_response_bytes: u64,
-) -> RpcResult<HttpResponse> {
+) -> RpcResult<HttpJsonRpcResponse<serde_json::Value>> {
     let request = json_rpc_request_arg(service, json_rpc_payload, max_response_bytes)?;
     http_client(MetricRpcMethod("request".to_string()))
         .call(request)
         .await
 }
 
-pub fn http_client<T>(
+pub fn http_client<I, O>(
     rpc_method: MetricRpcMethod,
-) -> impl Service<HttpJsonRpcRequest<T>, Response = HttpResponse, Error = RpcError>
+) -> impl Service<HttpJsonRpcRequest<I>, Response = HttpJsonRpcResponse<O>, Error = RpcError>
 where
-    T: Serialize,
+    I: Serialize,
+    O: DeserializeOwned + Debug,
 {
     ServiceBuilder::new()
         .layer(
             ObservabilityLayer::new()
-                .on_request(move |req: &HttpJsonRpcRequest<T>| {
+                .on_request(move |req: &HttpJsonRpcRequest<I>| {
                     let req_data = MetricData {
                         method: rpc_method.clone(),
                         host: MetricRpcHost(req.uri().host().unwrap().to_string()),
+                        request_id: req.body().id().cloned(),
                     };
                     add_metric_entry!(
                         requests,
@@ -85,12 +94,19 @@ where
                     );
                     req_data
                 })
-                .on_response(|req_data: MetricData, response: &HttpResponse| {
+                .on_response(|req_data: MetricData, response: &HttpJsonRpcResponse<O>| {
                     let status: u32 = response.status().as_u16() as u32;
                     add_metric_entry!(
                         responses,
                         (req_data.method, req_data.host, status.into()),
                         1
+                    );
+                    log!(
+                        TRACE_HTTP,
+                        "Got response for request with id `{:?}`. Response with status {}: {:?}",
+                        req_data.request_id,
+                        response.status(),
+                        response.body()
                     );
                 })
                 .on_error(|req_data: MetricData, error: &RpcError| {
@@ -109,6 +125,7 @@ where
         )
         .map_err(map_error)
         .layer(service_request_builder())
+        .layer(JsonResponseConversionLayer::new())
         .layer(HttpResponseConversionLayer)
         .filter(CyclesAccounting::new(
             get_num_subnet_nodes(),
@@ -138,6 +155,7 @@ pub fn service_request_builder() -> ServiceBuilder<
 struct MetricData {
     method: MetricRpcMethod,
     host: MetricRpcHost,
+    request_id: Option<serde_json::Value>,
 }
 
 fn map_error(e: BoxError) -> RpcError {
@@ -212,16 +230,4 @@ pub fn transform_http_request(args: TransformArgs) -> IcHttpResponse {
         // Remove headers (which may contain a timestamp) for consensus
         headers: vec![],
     }
-}
-
-pub fn get_http_response_body(response: HttpResponse) -> Result<String, RpcError> {
-    let (parts, body) = response.into_parts();
-    String::from_utf8(body).map_err(|e| {
-        HttpOutcallError::InvalidHttpJsonRpcResponse {
-            status: parts.status.as_u16(),
-            body: "".to_string(),
-            parsing_error: Some(format!("{e}")),
-        }
-        .into()
-    })
 }
