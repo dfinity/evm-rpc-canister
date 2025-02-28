@@ -1986,7 +1986,7 @@ fn upgrade_should_keep_demo() {
         setup
             .request_cost(
                 RpcService::EthMainnet(EthMainnetService::PublicNode),
-                r#"{"jsonrpc":"2.0","id":0,"result":"0x1"}"#,
+                r#"{"jsonrpc":"2.0","id":0,"method":"test"}"#,
                 1000
             )
             .unwrap(),
@@ -1997,7 +1997,7 @@ fn upgrade_should_keep_demo() {
         setup
             .request_cost(
                 RpcService::EthMainnet(EthMainnetService::PublicNode),
-                r#"{"jsonrpc":"2.0","id":0,"result":"0x1"}"#,
+                r#"{"jsonrpc":"2.0","id":0,"method":"test"}"#,
                 1000
             )
             .unwrap(),
@@ -2015,7 +2015,7 @@ fn upgrade_should_change_demo() {
         setup
             .request_cost(
                 RpcService::EthMainnet(EthMainnetService::PublicNode),
-                r#"{"jsonrpc":"2.0","id":0,"result":"0x1"}"#,
+                r#"{"jsonrpc":"2.0","id":0,"method":"test"}"#,
                 1000
             )
             .unwrap(),
@@ -2029,7 +2029,7 @@ fn upgrade_should_change_demo() {
         setup
             .request_cost(
                 RpcService::EthMainnet(EthMainnetService::PublicNode),
-                r#"{"jsonrpc":"2.0","id":0,"result":"0x1"}"#,
+                r#"{"jsonrpc":"2.0","id":0,"method":"test"}"#,
                 1000
             )
             .unwrap(),

@@ -59,11 +59,32 @@ impl<S> Layer<S> for JsonRequestConversionLayer {
     }
 }
 
-/// An envelope for all JSON-RPC requests.
+pub type HttpJsonRpcRequest<T> = http::Request<JsonRpcRequestBody<T>>;
+
+/// Body for all JSON-RPC requests, see the [specification](https://www.jsonrpc.org/specification).
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct JsonRpcRequest<T> {
-    pub jsonrpc: String,
-    pub method: String,
-    pub id: u64,
-    pub params: T,
+pub struct JsonRpcRequestBody<T> {
+    jsonrpc: String,
+    method: String,
+    id: Option<serde_json::Value>,
+    params: Option<T>,
+}
+
+impl<T> JsonRpcRequestBody<T> {
+    pub fn new(method: impl Into<String>, params: T) -> Self {
+        Self {
+            jsonrpc: "2.0".to_string(),
+            method: method.into(),
+            id: None,
+            params: Some(params),
+        }
+    }
+
+    pub fn set_id(&mut self, id: u64) {
+        self.id = Some(serde_json::Value::Number(id.into()));
+    }
+
+    pub fn method(&self) -> &str {
+        &self.method
+    }
 }

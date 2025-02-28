@@ -7,8 +7,9 @@ use crate::{
     types::{MetricRpcHost, MetricRpcMethod, ResolvedRpcService},
     util::canonicalize_json,
 };
+use canhttp::http::json::{HttpJsonRpcRequest, JsonRequestConversionLayer, JsonRpcRequestBody};
 use canhttp::http::{
-    HttpRequest, HttpRequestConversionLayer, HttpResponse, HttpResponseConversionLayer,
+    HttpRequestConversionLayer, HttpResponse, HttpResponseConversionLayer,
     MaxResponseBytesRequestExtension, TransformContextRequestExtension,
 };
 use canhttp::{
@@ -22,6 +23,7 @@ use ic_cdk::api::management_canister::http_request::{
     CanisterHttpRequestArgument as IcHttpRequest, HttpResponse as IcHttpResponse, TransformArgs,
     TransformContext,
 };
+use serde::Serialize;
 use tower::layer::util::{Identity, Stack};
 use tower::{BoxError, Service, ServiceBuilder};
 use tower_http::set_header::SetRequestHeaderLayer;
@@ -31,7 +33,13 @@ pub fn json_rpc_request_arg(
     service: ResolvedRpcService,
     json_rpc_payload: &str,
     max_response_bytes: u64,
-) -> RpcResult<HttpRequest> {
+) -> RpcResult<HttpJsonRpcRequest<serde_json::Value>> {
+    let body: JsonRpcRequestBody<serde_json::Value> = serde_json::from_str(json_rpc_payload)
+        .map_err(|e| {
+            RpcError::ValidationError(ValidationError::Custom(format!(
+                "Invalid JSON RPC request: {e}"
+            )))
+        })?;
     service
         .post(&get_override_provider())?
         .max_response_bytes(max_response_bytes)
@@ -39,7 +47,7 @@ pub fn json_rpc_request_arg(
             "__transform_json_rpc".to_string(),
             vec![],
         ))
-        .body(json_rpc_payload.as_bytes().to_vec())
+        .body(body)
         .map_err(|e| {
             RpcError::ValidationError(ValidationError::Custom(format!("Invalid request: {e}")))
         })
@@ -56,13 +64,16 @@ pub async fn json_rpc_request(
         .await
 }
 
-pub fn http_client(
+pub fn http_client<T>(
     rpc_method: MetricRpcMethod,
-) -> impl Service<HttpRequest, Response = HttpResponse, Error = RpcError> {
+) -> impl Service<HttpJsonRpcRequest<T>, Response = HttpResponse, Error = RpcError>
+where
+    T: Serialize,
+{
     ServiceBuilder::new()
         .layer(
             ObservabilityLayer::new()
-                .on_request(move |req: &HttpRequest| {
+                .on_request(move |req: &HttpJsonRpcRequest<T>| {
                     let req_data = MetricData {
                         method: rpc_method.clone(),
                         host: MetricRpcHost(req.uri().host().unwrap().to_string()),
@@ -110,13 +121,17 @@ pub fn http_client(
 ///
 /// It's required to separate it from the other middlewares, to compute the exact request cost.
 pub fn service_request_builder() -> ServiceBuilder<
-    Stack<HttpRequestConversionLayer, Stack<SetRequestHeaderLayer<HeaderValue>, Identity>>,
+    Stack<
+        HttpRequestConversionLayer,
+        Stack<JsonRequestConversionLayer, Stack<SetRequestHeaderLayer<HeaderValue>, Identity>>,
+    >,
 > {
     ServiceBuilder::new()
         .insert_request_header_if_not_present(
             CONTENT_TYPE,
             HeaderValue::from_static(CONTENT_TYPE_VALUE),
         )
+        .layer(JsonRequestConversionLayer)
         .layer(HttpRequestConversionLayer)
 }
 

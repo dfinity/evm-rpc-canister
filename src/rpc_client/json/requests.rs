@@ -251,12 +251,3 @@ pub struct AccessListItem {
     #[serde(rename = "storageKeys")]
     pub storage_keys: Vec<StorageKey>,
 }
-
-/// An envelope for all JSON-RPC requests.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct JsonRpcRequest<T> {
-    pub jsonrpc: String,
-    pub method: String,
-    pub id: u64,
-    pub params: T,
-}
