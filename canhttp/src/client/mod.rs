@@ -14,6 +14,8 @@ use tower::{BoxError, Service};
 ///
 /// Middlewares from this crate:
 /// * [`crate::cycles::CyclesAccounting`]: handles cycles accounting.
+/// * [`crate::observability`]: add logging or metrics.
+/// * [`crate::http`]: use types from the [http](https://crates.io/crates/http) crate for requests and responses.
 #[derive(Clone, Debug)]
 pub struct Client;
 
