@@ -14,6 +14,4 @@ mod client;
 mod cycles;
 #[cfg(feature = "http")]
 pub mod http;
-#[cfg(feature = "json")]
-pub mod json;
 pub mod observability;

@@ -1,7 +1,7 @@
 use crate::http::HttpRequest;
 use http::header::CONTENT_TYPE;
 use http::HeaderValue;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tower::filter::Predicate;
 use tower::BoxError;
@@ -57,4 +57,13 @@ impl<S> Layer<S> for JsonRequestConversionLayer {
     fn layer(&self, inner: S) -> Self::Service {
         tower::filter::Filter::new(inner, JsonRequestFilter)
     }
+}
+
+/// An envelope for all JSON-RPC requests.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct JsonRpcRequest<T> {
+    pub jsonrpc: String,
+    pub method: String,
+    pub id: u64,
+    pub params: T,
 }

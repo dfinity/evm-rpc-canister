@@ -71,6 +71,8 @@ pub use request::{
 };
 pub use response::{HttpResponse, HttpResponseConversionLayer};
 
+#[cfg(feature = "json")]
+pub mod json;
 mod request;
 mod response;
 
