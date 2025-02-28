@@ -15,6 +15,9 @@
 //!            └─┬─────────────────────┬───┘          
 //! IcHttpRequest│                     │IcHttpResponse
 //!              ▼                     │              
+//!            ┌─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─┐
+//!            │          SERVICE          │
+//!            └─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘
 //! ```
 //!
 //! This brings several advantages:
