@@ -29,4 +29,4 @@ tokio = { workspace = true, features = ["full"] }
 [features]
 default = ["http"]
 http = ["dep:http", "dep:num-traits", "dep:tower-layer"]
-json = ["dep:serde", "dep:serde_json"]
+json = ["http", "dep:serde", "dep:serde_json"]
