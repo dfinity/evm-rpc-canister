@@ -294,7 +294,7 @@ impl EthRpcClient {
         response_size_estimate: ResponseSizeEstimate,
     ) -> MultiCallResults<O>
     where
-        I: Serialize + Clone,
+        I: Serialize + Clone + Debug,
         O: DeserializeOwned + HttpResponsePayload,
     {
         let providers = self.providers();

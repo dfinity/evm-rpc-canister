@@ -12,4 +12,6 @@ pub use cycles::{
 
 mod client;
 mod cycles;
+#[cfg(feature = "http")]
+pub mod http;
 pub mod observability;

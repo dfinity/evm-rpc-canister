@@ -14,11 +14,13 @@ use tower::{BoxError, Service};
 ///
 /// Middlewares from this crate:
 /// * [`crate::cycles::CyclesAccounting`]: handles cycles accounting.
+/// * [`crate::observability`]: add logging or metrics.
+/// * [`crate::http`]: use types from the [http](https://crates.io/crates/http) crate for requests and responses.
 #[derive(Clone, Debug)]
 pub struct Client;
 
 /// Error returned by the Internet Computer when making an HTTPs outcall.
-#[derive(Error, Debug, PartialEq, Eq)]
+#[derive(Error, Clone, Debug, PartialEq, Eq)]
 #[error("Error from ICP: (code {code:?}, message {message})")]
 pub struct IcError {
     /// Rejection code as specified [here](https://internetcomputer.org/docs/current/references/ic-interface-spec#reject-codes)

@@ -35,6 +35,18 @@ impl ResolvedRpcService {
             )))
         })
     }
+
+    pub fn post(
+        &self,
+        override_provider: &OverrideProvider,
+    ) -> Result<http::request::Builder, RpcError> {
+        let api = self.api(override_provider)?;
+        let mut request_builder = http::Request::post(api.url);
+        for HttpHeader { name, value } in api.headers.unwrap_or_default() {
+            request_builder = request_builder.header(name, value);
+        }
+        Ok(request_builder)
+    }
 }
 
 pub trait MetricValue {

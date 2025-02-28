@@ -1,7 +1,9 @@
 use candid::candid_method;
 use canhttp::{CyclesChargingPolicy, CyclesCostEstimator};
 use evm_rpc::candid_rpc::CandidRpcClient;
-use evm_rpc::http::{get_http_response_body, ChargingPolicyWithCollateral};
+use evm_rpc::http::{
+    get_http_response_body, service_request_builder, ChargingPolicyWithCollateral,
+};
 use evm_rpc::logs::INFO;
 use evm_rpc::memory::{
     get_num_subnet_nodes, insert_api_key, is_api_key_principal, is_demo_active, remove_api_key,
@@ -15,14 +17,23 @@ use evm_rpc::{
     http::{json_rpc_request, json_rpc_request_arg, transform_http_request},
     http_types,
     memory::UNSTABLE_METRICS,
-    types::{MetricRpcMethod, Metrics},
+    types::Metrics,
 };
 use evm_rpc_types::{Hex32, MultiRpcResult, RpcResult};
 use ic_canister_log::log;
-use ic_cdk::api::is_controller;
-use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs};
-use ic_cdk::{query, update};
+use ic_cdk::{
+    api::{
+        is_controller,
+        management_canister::http_request::{
+            CanisterHttpRequestArgument as IcHttpRequest, HttpResponse as IcHttpResponse,
+            TransformArgs,
+        },
+    },
+    query, update,
+};
 use ic_metrics_encoder::MetricsEncoder;
+use std::convert::Infallible;
+use tower::Service;
 
 pub fn require_api_key_principal_or_controller() -> Result<(), String> {
     let caller = ic_cdk::caller();
@@ -137,7 +148,6 @@ async fn request(
 ) -> RpcResult<String> {
     let response = json_rpc_request(
         resolve_rpc_service(service)?,
-        MetricRpcMethod("request".to_string()),
         &json_rpc_payload,
         max_response_bytes,
     )
@@ -147,7 +157,7 @@ async fn request(
 
 #[query(name = "requestCost")]
 #[candid_method(query, rename = "requestCost")]
-fn request_cost(
+async fn request_cost(
     service: evm_rpc_types::RpcService,
     json_rpc_payload: String,
     max_response_bytes: u64,
@@ -160,6 +170,20 @@ fn request_cost(
             &json_rpc_payload,
             max_response_bytes,
         )?;
+
+        async fn extract_request(
+            request: IcHttpRequest,
+        ) -> Result<http::Response<IcHttpRequest>, Infallible> {
+            Ok(http::Response::new(request))
+        }
+
+        let mut client = service_request_builder().service_fn(extract_request);
+        let request: IcHttpRequest = client
+            .call(request)
+            .await //note: synchronous in a canister environment
+            .expect("Error: invalid request")
+            .into_body();
+
         let cycles_to_attach = {
             let estimator = CyclesCostEstimator::new(get_num_subnet_nodes());
             estimator.cost_of_http_request(&request)
@@ -258,7 +282,7 @@ async fn update_api_keys(api_keys: Vec<(ProviderId, Option<String>)>) {
 }
 
 #[query(name = "__transform_json_rpc", hidden = true)]
-fn transform(args: TransformArgs) -> HttpResponse {
+fn transform(args: TransformArgs) -> IcHttpResponse {
     transform_http_request(args)
 }
 
