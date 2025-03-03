@@ -59,6 +59,7 @@ where
 }
 
 // TODO XC-287: refactor to have a generic Response Filter mechanism
+#[derive(Default)]
 pub struct JsonResponseConversionLayer<T> {
     _marker: PhantomData<T>,
 }

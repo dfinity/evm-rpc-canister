@@ -144,15 +144,17 @@ where
         .service(canhttp::Client)
 }
 
-/// Middleware that takes care of transforming the request.
-///
-/// It's required to separate it from the other middlewares, to compute the exact request cost.
-pub fn service_request_builder() -> ServiceBuilder<
+type JsonRpcServiceBuilder = ServiceBuilder<
     Stack<
         HttpRequestConversionLayer,
         Stack<JsonRequestConversionLayer, Stack<SetRequestHeaderLayer<HeaderValue>, Identity>>,
     >,
-> {
+>;
+
+/// Middleware that takes care of transforming the request.
+///
+/// It's required to separate it from the other middlewares, to compute the exact request cost.
+pub fn service_request_builder() -> JsonRpcServiceBuilder {
     ServiceBuilder::new()
         .insert_request_header_if_not_present(
             CONTENT_TYPE,
