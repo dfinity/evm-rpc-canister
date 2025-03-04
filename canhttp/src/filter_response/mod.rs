@@ -3,8 +3,8 @@ use std::fmt::Debug;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use tower::Service;
-use tower_layer::Layer;
+use tower::{Service, ServiceBuilder};
+use tower_layer::{Layer, Stack};
 
 pub trait FilterResponse<Response> {
     type Response;
@@ -82,5 +82,15 @@ where
             },
             Poll::Pending => Poll::Pending,
         }
+    }
+}
+
+pub trait FilterResponseServiceBuilder<L> {
+    fn filter_response<F>(self, f: F) -> ServiceBuilder<Stack<FilterResponseLayer<F>, L>>;
+}
+
+impl<L> FilterResponseServiceBuilder<L> for ServiceBuilder<L> {
+    fn filter_response<F>(self, f: F) -> ServiceBuilder<Stack<FilterResponseLayer<F>, L>> {
+        self.layer(FilterResponseLayer { filter: f })
     }
 }

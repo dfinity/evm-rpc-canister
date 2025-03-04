@@ -21,6 +21,18 @@ pub enum HttpResponseConversionError {
     InvalidHttpHeaderValue { name: String, reason: String },
 }
 
+#[derive(Debug, Clone)]
+pub struct FilterHttpResponse;
+
+impl FilterResponse<IcHttpResponse> for FilterHttpResponse {
+    type Response = HttpResponse;
+    type Error = HttpResponseConversionError;
+
+    fn filter(&mut self, response: IcHttpResponse) -> Result<Self::Response, Self::Error> {
+        try_map_http_response(response)
+    }
+}
+
 fn try_map_http_response(
     response: IcHttpResponse,
 ) -> Result<HttpResponse, HttpResponseConversionError> {

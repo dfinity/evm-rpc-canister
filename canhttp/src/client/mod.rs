@@ -6,7 +6,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use thiserror::Error;
-use tower::{BoxError, Service};
+use tower::Service;
 
 /// Thin wrapper around [`ic_cdk::api::management_canister::http_request::http_request`]
 /// that implements the [`tower::Service`] trait. Its functionality can be extended by composing so-called
@@ -42,7 +42,7 @@ impl IcError {
 
 impl Service<IcHttpRequestWithCycles> for Client {
     type Response = IcHttpResponse;
-    type Error = BoxError;
+    type Error = IcError;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
 
     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
@@ -58,13 +58,13 @@ impl Service<IcHttpRequestWithCycles> for Client {
                 .await
             {
                 Ok((response,)) => Ok(response),
-                Err((code, message)) => Err(BoxError::from(IcError { code, message })),
+                Err((code, message)) => Err(IcError { code, message }),
             }
         })
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct IcHttpRequestWithCycles {
     pub request: IcHttpRequest,
     pub cycles: u128,
