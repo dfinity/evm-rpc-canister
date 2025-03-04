@@ -79,10 +79,7 @@ pub mod json;
 mod request;
 mod response;
 
-use crate::{
-    convert::{ConvertRequest, ConvertResponse},
-    ConvertRequestLayer, ConvertResponseLayer,
-};
+use crate::convert::{ConvertRequest, ConvertRequestLayer, ConvertResponse, ConvertResponseLayer};
 use tower::Layer;
 
 /// Middleware that combines [`HttpRequestConverter`] to convert requests

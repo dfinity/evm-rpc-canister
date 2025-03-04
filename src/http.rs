@@ -8,18 +8,20 @@ use crate::{
     types::{MetricRpcHost, MetricRpcMethod, ResolvedRpcService},
     util::canonicalize_json,
 };
-use canhttp::http::json::{
-    HttpJsonRpcRequest, HttpJsonRpcResponse, JsonRequestConversionError, JsonRequestConverter,
-    JsonResponseConversionError, JsonResponseConverter, JsonRpcRequestBody,
-};
-use canhttp::http::{
-    FilterNonSuccessfulHttpResponse, FilterNonSuccessulHttpResponseError,
-    HttpRequestConversionError, HttpRequestConverter, HttpResponseConversionError,
-    HttpResponseConverter, MaxResponseBytesRequestExtension, TransformContextRequestExtension,
-};
 use canhttp::{
-    observability::ObservabilityLayer, ConvertRequestLayer, ConvertServiceBuilder,
-    CyclesAccounting, CyclesAccountingError, CyclesChargingPolicy, IcError,
+    convert::ConvertRequestLayer,
+    http::{
+        json::{
+            HttpJsonRpcRequest, HttpJsonRpcResponse, JsonRequestConversionError,
+            JsonRequestConverter, JsonResponseConversionError, JsonResponseConverter,
+            JsonRpcRequestBody,
+        },
+        FilterNonSuccessfulHttpResponse, FilterNonSuccessulHttpResponseError,
+        HttpRequestConversionError, HttpRequestConverter, HttpResponseConversionError,
+        HttpResponseConverter, MaxResponseBytesRequestExtension, TransformContextRequestExtension,
+    },
+    observability::ObservabilityLayer,
+    ConvertServiceBuilder, CyclesAccounting, CyclesAccountingError, CyclesChargingPolicy, IcError,
 };
 use evm_rpc_types::{HttpOutcallError, ProviderError, RpcError, RpcResult, ValidationError};
 use http::header::CONTENT_TYPE;

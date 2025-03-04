@@ -7,13 +7,13 @@
 // #![forbid(missing_docs)]
 
 pub use client::{Client, IcError, IcHttpRequestWithCycles};
-pub use convert::{ConvertRequestLayer, ConvertResponseLayer, ConvertServiceBuilder};
+pub use convert::ConvertServiceBuilder;
 pub use cycles::{
     CyclesAccounting, CyclesAccountingError, CyclesChargingPolicy, CyclesCostEstimator,
 };
 
 mod client;
-mod convert;
+pub mod convert;
 mod cycles;
 #[cfg(feature = "http")]
 pub mod http;
