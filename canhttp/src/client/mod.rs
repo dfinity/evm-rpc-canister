@@ -6,7 +6,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use thiserror::Error;
-use tower::{Service, ServiceBuilder};
+use tower::{BoxError, Service, ServiceBuilder};
 
 /// Thin wrapper around [`ic_cdk::api::management_canister::http_request::http_request`]
 /// that implements the [`tower::Service`] trait. Its functionality can be extended by composing so-called
@@ -20,11 +20,16 @@ use tower::{Service, ServiceBuilder};
 pub struct Client;
 
 impl Client {
-    pub fn new<CustomError: From<IcError>>(
+    pub fn new_with_error<CustomError: From<IcError>>(
     ) -> impl Service<IcHttpRequestWithCycles, Response = IcHttpResponse, Error = CustomError> {
         ServiceBuilder::new()
             .map_err(CustomError::from)
             .service(Client)
+    }
+
+    pub fn new_with_box_error(
+    ) -> impl Service<IcHttpRequestWithCycles, Response = IcHttpResponse, Error = BoxError> {
+        Self::new_with_error::<BoxError>()
     }
 }
 

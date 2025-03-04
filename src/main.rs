@@ -30,7 +30,6 @@ use ic_cdk::{
     query, update,
 };
 use ic_metrics_encoder::MetricsEncoder;
-use std::convert::Infallible;
 use tower::Service;
 
 pub fn require_api_key_principal_or_controller() -> Result<(), String> {
@@ -178,7 +177,7 @@ async fn request_cost(
 
         async fn extract_request(
             request: IcHttpRequest,
-        ) -> Result<http::Response<IcHttpRequest>, Infallible> {
+        ) -> Result<http::Response<IcHttpRequest>, tower::BoxError> {
             Ok(http::Response::new(request))
         }
 

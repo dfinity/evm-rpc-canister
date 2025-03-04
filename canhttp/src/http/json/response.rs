@@ -53,7 +53,7 @@ impl<T> JsonResponseConverter<T> {
 impl<T> Clone for JsonResponseConverter<T> {
     fn clone(&self) -> Self {
         Self {
-            _marker: self._marker.clone(),
+            _marker: self._marker,
         }
     }
 }
