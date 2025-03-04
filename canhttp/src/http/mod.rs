@@ -85,8 +85,8 @@ use crate::{
 };
 use tower::Layer;
 
-/// Middleware that combines [`HttpRequestConversionLayer`] to convert requests
-/// and [`HttpResponseConversionLayer`] to convert responses to a [`Service`].
+/// Middleware that combines [`HttpRequestConverter`] to convert requests
+/// and [`HttpResponseConverter`] to convert responses to a [`Service`].
 ///
 /// See the [module docs](crate::http) for an example.
 ///
