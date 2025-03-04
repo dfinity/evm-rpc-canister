@@ -64,7 +64,7 @@ pub async fn test() {
             // Check response structure around gas price
             assert_eq!(
                 &response[..36],
-                "{\"id\":1,\"jsonrpc\":\"2.0\",\"result\":\"0x"
+                "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x"
             );
             assert_eq!(&response[response.len() - 2..], "\"}");
         }

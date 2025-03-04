@@ -1,9 +1,7 @@
 use candid::candid_method;
 use canhttp::{CyclesChargingPolicy, CyclesCostEstimator};
 use evm_rpc::candid_rpc::CandidRpcClient;
-use evm_rpc::http::{
-    get_http_response_body, service_request_builder, ChargingPolicyWithCollateral,
-};
+use evm_rpc::http::{service_request_builder, ChargingPolicyWithCollateral};
 use evm_rpc::logs::INFO;
 use evm_rpc::memory::{
     get_num_subnet_nodes, insert_api_key, is_api_key_principal, is_demo_active, remove_api_key,
@@ -19,7 +17,7 @@ use evm_rpc::{
     memory::UNSTABLE_METRICS,
     types::Metrics,
 };
-use evm_rpc_types::{Hex32, MultiRpcResult, RpcResult};
+use evm_rpc_types::{Hex32, HttpOutcallError, MultiRpcResult, RpcResult};
 use ic_canister_log::log;
 use ic_cdk::{
     api::{
@@ -32,7 +30,6 @@ use ic_cdk::{
     query, update,
 };
 use ic_metrics_encoder::MetricsEncoder;
-use std::convert::Infallible;
 use tower::Service;
 
 pub fn require_api_key_principal_or_controller() -> Result<(), String> {
@@ -152,7 +149,14 @@ async fn request(
         max_response_bytes,
     )
     .await?;
-    get_http_response_body(response)
+    serde_json::to_string(response.body()).map_err(|e| {
+        HttpOutcallError::InvalidHttpJsonRpcResponse {
+            status: response.status().as_u16(),
+            body: format!("{:?}", response.body()),
+            parsing_error: Some(format!("{e}")),
+        }
+        .into()
+    })
 }
 
 #[query(name = "requestCost")]
@@ -173,7 +177,7 @@ async fn request_cost(
 
         async fn extract_request(
             request: IcHttpRequest,
-        ) -> Result<http::Response<IcHttpRequest>, Infallible> {
+        ) -> Result<http::Response<IcHttpRequest>, tower::BoxError> {
             Ok(http::Response::new(request))
         }
 

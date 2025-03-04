@@ -1,11 +1,9 @@
+use crate::convert::Convert;
 use ic_cdk::api::management_canister::http_request::{
     CanisterHttpRequestArgument as IcHttpRequest, HttpHeader as IcHttpHeader,
     HttpMethod as IcHttpMethod, TransformContext,
 };
 use thiserror::Error;
-use tower::filter::Predicate;
-use tower::BoxError;
-use tower_layer::Layer;
 
 /// HTTP request with a body made of bytes.
 pub type HttpRequest = http::Request<Vec<u8>>;
@@ -114,67 +112,49 @@ pub enum HttpRequestConversionError {
     InvalidHttpHeaderValue { name: String, reason: String },
 }
 
-fn try_map_http_request(request: HttpRequest) -> Result<IcHttpRequest, HttpRequestConversionError> {
-    let url = request.uri().to_string();
-    let max_response_bytes = request.get_max_response_bytes();
-    let method = match request.method().as_str() {
-        "GET" => IcHttpMethod::GET,
-        "POST" => IcHttpMethod::POST,
-        "HEAD" => IcHttpMethod::HEAD,
-        unsupported => {
-            return Err(HttpRequestConversionError::UnsupportedHttpMethod(
-                unsupported.to_string(),
-            ))
-        }
-    };
-    let headers = request
-        .headers()
-        .iter()
-        .map(|(header_name, header_value)| match header_value.to_str() {
-            Ok(value) => Ok(IcHttpHeader {
-                name: header_name.to_string(),
-                value: value.to_string(),
-            }),
-            Err(e) => Err(HttpRequestConversionError::InvalidHttpHeaderValue {
-                name: header_name.to_string(),
-                reason: e.to_string(),
-            }),
+#[derive(Clone, Debug)]
+pub struct HttpRequestConverter;
+
+impl Convert<HttpRequest> for HttpRequestConverter {
+    type Output = IcHttpRequest;
+    type Error = HttpRequestConversionError;
+
+    fn try_convert(&mut self, request: HttpRequest) -> Result<Self::Output, Self::Error> {
+        let url = request.uri().to_string();
+        let max_response_bytes = request.get_max_response_bytes();
+        let method = match request.method().as_str() {
+            "GET" => IcHttpMethod::GET,
+            "POST" => IcHttpMethod::POST,
+            "HEAD" => IcHttpMethod::HEAD,
+            unsupported => {
+                return Err(HttpRequestConversionError::UnsupportedHttpMethod(
+                    unsupported.to_string(),
+                ))
+            }
+        };
+        let headers = request
+            .headers()
+            .iter()
+            .map(|(header_name, header_value)| match header_value.to_str() {
+                Ok(value) => Ok(IcHttpHeader {
+                    name: header_name.to_string(),
+                    value: value.to_string(),
+                }),
+                Err(e) => Err(HttpRequestConversionError::InvalidHttpHeaderValue {
+                    name: header_name.to_string(),
+                    reason: e.to_string(),
+                }),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let transform = request.get_transform_context().cloned();
+        let body = Some(request.into_body());
+        Ok(IcHttpRequest {
+            url,
+            max_response_bytes,
+            method,
+            headers,
+            body,
+            transform,
         })
-        .collect::<Result<Vec<_>, _>>()?;
-    let transform = request.get_transform_context().cloned();
-    let body = Some(request.into_body());
-    Ok(IcHttpRequest {
-        url,
-        max_response_bytes,
-        method,
-        headers,
-        body,
-        transform,
-    })
-}
-
-pub struct HttpRequestFilter;
-
-impl Predicate<HttpRequest> for HttpRequestFilter {
-    type Request = IcHttpRequest;
-
-    fn check(&mut self, request: HttpRequest) -> Result<Self::Request, BoxError> {
-        try_map_http_request(request).map_err(Into::into)
-    }
-}
-
-/// Middleware to convert a request of type [`HttpRequest`] into
-/// one of type [`IcHttpRequest`] to a [`Service`].
-///
-/// See the [module docs](crate::http) for an example.
-///
-/// [`Service`]: tower::Service
-pub struct HttpRequestConversionLayer;
-
-impl<S> Layer<S> for HttpRequestConversionLayer {
-    type Service = tower::filter::Filter<S, HttpRequestFilter>;
-
-    fn layer(&self, inner: S) -> Self::Service {
-        tower::filter::Filter::new(inner, HttpRequestFilter)
     }
 }

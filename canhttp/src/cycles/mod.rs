@@ -2,10 +2,9 @@
 mod tests;
 
 use crate::client::IcHttpRequestWithCycles;
+use crate::convert::Convert;
 use ic_cdk::api::management_canister::http_request::CanisterHttpRequestArgument;
 use thiserror::Error;
-use tower::filter::Predicate;
-use tower::BoxError;
 
 /// Estimate the amount of cycles to charge for a single HTTPs outcall.
 pub trait CyclesChargingPolicy {
@@ -97,7 +96,7 @@ impl CyclesCostEstimator {
 }
 
 /// Error return by the [`CyclesAccounting`] middleware.
-#[derive(Error, Debug)]
+#[derive(Error, Clone, Debug, PartialEq, Eq)]
 pub enum CyclesAccountingError {
     /// Error returned when the caller should be charged but did not attach sufficiently many cycles.
     #[error("insufficient cycles (expected {expected:?}, received {received:?})")]
@@ -127,13 +126,17 @@ impl<Charging> CyclesAccounting<Charging> {
     }
 }
 
-impl<CyclesEstimator> Predicate<CanisterHttpRequestArgument> for CyclesAccounting<CyclesEstimator>
+impl<CyclesEstimator> Convert<CanisterHttpRequestArgument> for CyclesAccounting<CyclesEstimator>
 where
     CyclesEstimator: CyclesChargingPolicy,
 {
-    type Request = IcHttpRequestWithCycles;
+    type Output = IcHttpRequestWithCycles;
+    type Error = CyclesAccountingError;
 
-    fn check(&mut self, request: CanisterHttpRequestArgument) -> Result<Self::Request, BoxError> {
+    fn try_convert(
+        &mut self,
+        request: CanisterHttpRequestArgument,
+    ) -> Result<Self::Output, Self::Error> {
         let cycles_to_attach = self.cycles_cost_estimator.cost_of_http_request(&request);
         let cycles_to_charge = self
             .charging_policy
@@ -141,10 +144,10 @@ where
         if cycles_to_charge > 0 {
             let cycles_available = ic_cdk::api::call::msg_cycles_available128();
             if cycles_available < cycles_to_charge {
-                return Err(Box::new(CyclesAccountingError::InsufficientCyclesError {
+                return Err(CyclesAccountingError::InsufficientCyclesError {
                     expected: cycles_to_charge,
                     received: cycles_available,
-                }));
+                });
             }
             let cycles_received = ic_cdk::api::call::msg_cycles_accept128(cycles_to_charge);
             assert_eq!(

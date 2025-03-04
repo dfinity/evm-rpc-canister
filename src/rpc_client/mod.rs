@@ -295,7 +295,7 @@ impl EthRpcClient {
     ) -> MultiCallResults<O>
     where
         I: Serialize + Clone + Debug,
-        O: DeserializeOwned + HttpResponsePayload,
+        O: Debug + DeserializeOwned + HttpResponsePayload,
     {
         let providers = self.providers();
         let results = {
