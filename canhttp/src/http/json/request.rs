@@ -1,6 +1,7 @@
+use crate::convert::Convert;
 use crate::http::HttpRequest;
 use http::header::CONTENT_TYPE;
-use http::HeaderValue;
+use http::{HeaderValue, Request};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tower::filter::Predicate;
@@ -13,19 +14,6 @@ pub struct JsonRequestFilter;
 pub enum JsonRequestConversionError {
     #[error("Invalid JSON body: {0}")]
     InvalidJson(String),
-}
-
-impl<T> Predicate<http::Request<T>> for JsonRequestFilter
-where
-    T: Serialize,
-{
-    type Request = HttpRequest;
-
-    fn check(&mut self, request: http::Request<T>) -> Result<Self::Request, BoxError> {
-        try_serialize_request(request)
-            .map(add_content_type_header_if_missing)
-            .map_err(Into::into)
-    }
 }
 
 fn try_serialize_request<T>(
@@ -49,13 +37,19 @@ fn add_content_type_header_if_missing(mut request: HttpRequest) -> HttpRequest {
     request
 }
 
-pub struct JsonRequestConversionLayer;
+pub struct JsonRequestConverter;
 
-impl<S> Layer<S> for JsonRequestConversionLayer {
-    type Service = tower::filter::Filter<S, JsonRequestFilter>;
+impl<T> Convert<http::Request<T>> for JsonRequestConverter
+where
+    T: Serialize,
+{
+    type Output = HttpRequest;
+    type Error = JsonRequestConversionError;
 
-    fn layer(&self, inner: S) -> Self::Service {
-        tower::filter::Filter::new(inner, JsonRequestFilter)
+    fn try_convert(&mut self, request: http::Request<T>) -> Result<Self::Output, Self::Error> {
+        try_serialize_request(request)
+            .map(add_content_type_header_if_missing)
+            .map_err(Into::into)
     }
 }
 
