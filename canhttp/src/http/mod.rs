@@ -69,7 +69,10 @@ pub use request::{
     HttpRequest, HttpRequestConversionError, HttpRequestConverter,
     MaxResponseBytesRequestExtension, TransformContextRequestExtension,
 };
-pub use response::{HttpResponse, HttpResponseConversionError, HttpResponseConverter};
+pub use response::{
+    FilterNonSuccessfulHttpResponse, FilterNonSuccessulHttpResponseError, HttpResponse,
+    HttpResponseConversionError, HttpResponseConverter,
+};
 
 #[cfg(feature = "json")]
 pub mod json;

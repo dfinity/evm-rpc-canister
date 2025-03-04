@@ -1,4 +1,5 @@
 use crate::convert::Convert;
+use http::Response;
 use ic_cdk::api::management_canister::http_request::HttpResponse as IcHttpResponse;
 use thiserror::Error;
 
@@ -60,5 +61,28 @@ impl Convert<IcHttpResponse> for HttpResponseConverter {
         Ok(builder
             .body(response.body)
             .expect("BUG: builder should have been modified only with validated data"))
+    }
+}
+
+#[derive(Error, Clone, Debug)]
+pub enum FilterNonSuccessulHttpResponseError<T> {
+    #[error("HTTP response is not successful: {0:?}")]
+    UnsuccessfulResponse(http::Response<T>),
+}
+
+#[derive(Clone, Debug)]
+pub struct FilterNonSuccessfulHttpResponse;
+
+impl<T> Convert<http::Response<T>> for FilterNonSuccessfulHttpResponse {
+    type Output = http::Response<T>;
+    type Error = FilterNonSuccessulHttpResponseError<T>;
+
+    fn try_convert(&mut self, response: Response<T>) -> Result<Self::Output, Self::Error> {
+        if !response.status().is_success() {
+            return Err(FilterNonSuccessulHttpResponseError::UnsuccessfulResponse(
+                response,
+            ));
+        }
+        Ok(response)
     }
 }
