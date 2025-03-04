@@ -23,121 +23,48 @@ pub enum HttpResponseConversionError {
 }
 
 #[derive(Debug, Clone)]
-pub struct ConvertHttpResponse;
+pub struct HttpResponseConverter;
 
-impl Convert<IcHttpResponse> for ConvertHttpResponse {
+impl Convert<IcHttpResponse> for HttpResponseConverter {
     type Output = HttpResponse;
     type Error = HttpResponseConversionError;
 
     fn try_convert(&mut self, response: IcHttpResponse) -> Result<Self::Output, Self::Error> {
-        try_map_http_response(response)
-    }
-}
+        use http::{HeaderMap, HeaderName, HeaderValue, StatusCode};
+        use ic_cdk::api::management_canister::http_request::HttpHeader as IcHttpHeader;
+        use num_traits::ToPrimitive;
 
-fn try_map_http_response(
-    response: IcHttpResponse,
-) -> Result<HttpResponse, HttpResponseConversionError> {
-    use http::{HeaderMap, HeaderName, HeaderValue, StatusCode};
-    use ic_cdk::api::management_canister::http_request::HttpHeader as IcHttpHeader;
-    use num_traits::ToPrimitive;
+        let status = response
+            .status
+            .0
+            .to_u16()
+            .and_then(|s| StatusCode::try_from(s).ok())
+            .ok_or(HttpResponseConversionError::InvalidStatusCode)?;
 
-    let status = response
-        .status
-        .0
-        .to_u16()
-        .and_then(|s| StatusCode::try_from(s).ok())
-        .ok_or(HttpResponseConversionError::InvalidStatusCode)?;
-
-    let mut builder = http::Response::builder().status(status);
-    if let Some(headers) = builder.headers_mut() {
-        let mut response_headers = HeaderMap::with_capacity(response.headers.len());
-        for IcHttpHeader { name, value } in response.headers {
-            response_headers.insert(
-                HeaderName::try_from(&name).map_err(|e| {
-                    HttpResponseConversionError::InvalidHttpHeaderName {
-                        name: name.clone(),
-                        reason: e.to_string(),
-                    }
-                })?,
-                HeaderValue::try_from(&value).map_err(|e| {
-                    HttpResponseConversionError::InvalidHttpHeaderValue {
-                        name,
-                        reason: e.to_string(),
-                    }
-                })?,
-            );
+        let mut builder = http::Response::builder().status(status);
+        if let Some(headers) = builder.headers_mut() {
+            let mut response_headers = HeaderMap::with_capacity(response.headers.len());
+            for IcHttpHeader { name, value } in response.headers {
+                response_headers.insert(
+                    HeaderName::try_from(&name).map_err(|e| {
+                        HttpResponseConversionError::InvalidHttpHeaderName {
+                            name: name.clone(),
+                            reason: e.to_string(),
+                        }
+                    })?,
+                    HeaderValue::try_from(&value).map_err(|e| {
+                        HttpResponseConversionError::InvalidHttpHeaderValue {
+                            name,
+                            reason: e.to_string(),
+                        }
+                    })?,
+                );
+            }
+            headers.extend(response_headers);
         }
-        headers.extend(response_headers);
-    }
 
-    Ok(builder
-        .body(response.body)
-        .expect("BUG: builder should have been modified only with validated data"))
-}
-
-/// Middleware to convert a response of type [`HttpResponse`] into
-/// one of type [`IcHttpResponse`] to a [`Service`].
-///
-/// See the [module docs](crate::http) for an example.
-///
-/// [`Service`]: tower::Service
-pub struct HttpResponseConversionLayer;
-
-pub struct HttpResponseConversion<S> {
-    inner: S,
-}
-
-impl<S> Layer<S> for HttpResponseConversionLayer {
-    type Service = HttpResponseConversion<S>;
-
-    fn layer(&self, inner: S) -> Self::Service {
-        Self::Service { inner }
-    }
-}
-
-impl<S, Request, Error> Service<Request> for HttpResponseConversion<S>
-where
-    S: Service<Request, Response = IcHttpResponse, Error = Error>,
-    Error: Into<BoxError>,
-{
-    type Response = HttpResponse;
-    type Error = BoxError;
-    type Future = ResponseFuture<S::Future>;
-
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.inner.poll_ready(cx).map_err(Into::into)
-    }
-
-    fn call(&mut self, req: Request) -> Self::Future {
-        ResponseFuture {
-            response_future: self.inner.call(req),
-        }
-    }
-}
-
-#[pin_project]
-pub struct ResponseFuture<F> {
-    #[pin]
-    response_future: F,
-}
-
-impl<F, E> Future for ResponseFuture<F>
-where
-    F: Future<Output = Result<IcHttpResponse, E>>,
-    E: Into<BoxError>,
-{
-    type Output = Result<HttpResponse, BoxError>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.project();
-        let result_fut = this.response_future.poll(cx);
-
-        match result_fut {
-            Poll::Ready(result) => match result {
-                Ok(response) => Poll::Ready(try_map_http_response(response).map_err(Into::into)),
-                Err(e) => Poll::Ready(Err(e.into())),
-            },
-            Poll::Pending => Poll::Pending,
-        }
+        Ok(builder
+            .body(response.body)
+            .expect("BUG: builder should have been modified only with validated data"))
     }
 }
