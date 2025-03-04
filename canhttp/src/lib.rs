@@ -9,7 +9,7 @@ pub use client::{Client, IcError, IcHttpRequestWithCycles};
 pub use cycles::{
     CyclesAccounting, CyclesAccountingError, CyclesChargingPolicy, CyclesCostEstimator,
 };
-pub use convert::ConvertResponseServiceBuilder;
+pub use convert::ConvertServiceBuilder;
 
 mod client;
 mod cycles;

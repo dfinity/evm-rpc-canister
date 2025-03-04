@@ -1,3 +1,4 @@
+use futures_util::future::Either;
 use pin_project::pin_project;
 use std::fmt::Debug;
 use std::future::Future;
@@ -85,12 +86,61 @@ where
     }
 }
 
-pub trait ConvertResponseServiceBuilder<L> {
+pub trait ConvertServiceBuilder<L> {
+    fn convert_request<F>(self, f: F) -> ServiceBuilder<Stack<ConvertRequestLayer<F>, L>>;
     fn convert_response<F>(self, f: F) -> ServiceBuilder<Stack<ConvertResponseLayer<F>, L>>;
 }
 
-impl<L> ConvertResponseServiceBuilder<L> for ServiceBuilder<L> {
+impl<L> ConvertServiceBuilder<L> for ServiceBuilder<L> {
+    fn convert_request<F>(self, f: F) -> ServiceBuilder<Stack<ConvertRequestLayer<F>, L>> {
+        self.layer(ConvertRequestLayer { filter: f })
+    }
+
     fn convert_response<F>(self, f: F) -> ServiceBuilder<Stack<ConvertResponseLayer<F>, L>> {
         self.layer(ConvertResponseLayer { filter: f })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ConvertRequestLayer<F> {
+    filter: F,
+}
+
+#[derive(Debug, Clone)]
+pub struct ConvertRequest<S, F> {
+    inner: S,
+    filter: F,
+}
+
+impl<S, F: Clone> Layer<S> for ConvertRequestLayer<F> {
+    type Service = ConvertRequest<S, F>;
+
+    fn layer(&self, inner: S) -> Self::Service {
+        Self::Service {
+            inner,
+            filter: self.filter.clone(),
+        }
+    }
+}
+
+impl<S, F, Request, NewRequest, Error> Service<NewRequest> for ConvertRequest<S, F>
+where
+    F: Convert<NewRequest, Output = Request>,
+    S: Service<Request, Error = Error>,
+    F::Error: Into<Error>,
+{
+    type Response = S::Response;
+    type Error = S::Error;
+    type Future = Either<S::Future, futures_util::future::Ready<Result<S::Response, S::Error>>>;
+
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.inner.poll_ready(cx)
+    }
+
+    fn call(&mut self, new_req: NewRequest) -> Self::Future {
+        match self.filter.try_convert(new_req) {
+            Ok(request) => Either::Left(self.inner.call(request)),
+            Err(err) => Either::Right(futures_util::future::ready(Err(err.into()))),
+        }
     }
 }

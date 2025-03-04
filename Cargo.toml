@@ -62,6 +62,7 @@ candid = { version = "0.10.13" }
 candid_parser = {version = "0.1.4"}
 ethnum = { version = "1.5.0", features = ["serde"] }
 futures = "0.3.31"
+futures-util = "0.3.31"
 getrandom = { version = "0.2", features = ["custom"] }
 hex = "0.4.3"
 http = "1.2.0"
