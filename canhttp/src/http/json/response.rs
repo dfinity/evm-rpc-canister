@@ -1,3 +1,4 @@
+use crate::convert::Convert;
 use crate::http::HttpResponse;
 use pin_project::pin_project;
 use serde::de::DeserializeOwned;
@@ -41,102 +42,27 @@ pub enum JsonResponseConversionError {
     },
 }
 
-fn try_deserialize_response<T>(
-    response: HttpResponse,
-) -> Result<http::Response<T>, JsonResponseConversionError>
-where
-    T: DeserializeOwned,
-{
-    let (parts, body) = response.into_parts();
-    let json_body: T = serde_json::from_slice(&body).map_err(|e| {
-        JsonResponseConversionError::InvalidJsonResponse {
-            status: parts.status.as_u16(),
-            body: String::from_utf8_lossy(&body).to_string(),
-            parsing_error: e.to_string(),
-        }
-    })?;
-    Ok(http::Response::from_parts(parts, json_body))
-}
-
-// TODO XC-287: refactor to have a generic Response Filter mechanism
 #[derive(Default)]
-pub struct JsonResponseConversionLayer<T> {
+pub struct JsonResponseConverter<T> {
     _marker: PhantomData<T>,
 }
 
-impl<T> JsonResponseConversionLayer<T> {
-    pub fn new() -> Self {
-        Self {
-            _marker: PhantomData,
-        }
-    }
-}
-
-pub struct JsonResponseConversion<S, T> {
-    inner: S,
-    _marker: PhantomData<T>,
-}
-
-impl<S, T> Layer<S> for JsonResponseConversionLayer<T> {
-    type Service = JsonResponseConversion<S, T>;
-
-    fn layer(&self, inner: S) -> Self::Service {
-        Self::Service {
-            inner,
-            _marker: PhantomData,
-        }
-    }
-}
-
-impl<S, T, Request, Error> Service<Request> for JsonResponseConversion<S, T>
+impl<T> Convert<HttpResponse> for JsonResponseConverter<T>
 where
-    S: Service<Request, Response = HttpResponse, Error = Error>,
-    Error: Into<BoxError>,
     T: DeserializeOwned,
 {
-    type Response = http::Response<T>;
-    type Error = BoxError;
-    type Future = ResponseFuture<S::Future, T>;
+    type Output = http::Response<T>;
+    type Error = JsonResponseConversionError;
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.inner.poll_ready(cx).map_err(Into::into)
-    }
-
-    fn call(&mut self, req: Request) -> ResponseFuture<S::Future, T> {
-        ResponseFuture {
-            response_future: self.inner.call(req),
-            _phantom_data: PhantomData::<T>,
-        }
-    }
-}
-
-#[pin_project]
-pub struct ResponseFuture<F, T> {
-    #[pin]
-    response_future: F,
-    _phantom_data: PhantomData<T>,
-}
-
-impl<F, E, T> Future for ResponseFuture<F, T>
-where
-    F: Future<Output = Result<HttpResponse, E>>,
-    E: Into<BoxError>,
-    T: DeserializeOwned,
-{
-    type Output = Result<http::Response<T>, BoxError>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.project();
-        let result_fut = this.response_future.poll(cx);
-
-        match result_fut {
-            Poll::Ready(result) => match result {
-                Ok(response) => {
-                    Poll::Ready(try_deserialize_response::<T>(response).map_err(Into::into))
-                }
-                Err(e) => Poll::Ready(Err(e.into())),
-            },
-            Poll::Pending => Poll::Pending,
-        }
+    fn try_convert(&mut self, response: HttpResponse) -> Result<Self::Output, Self::Error> {
+        let (parts, body) = response.into_parts();
+        let json_body: T = serde_json::from_slice(&body).map_err(|e| {
+            JsonResponseConversionError::InvalidJsonResponse {
+                status: parts.status.as_u16(),
+                body: String::from_utf8_lossy(&body).to_string(),
+                parsing_error: e.to_string(),
+            }
+        })?;
+        Ok(http::Response::from_parts(parts, json_body))
     }
 }
