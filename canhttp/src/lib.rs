@@ -6,14 +6,14 @@
 // #![forbid(missing_docs)]
 
 pub use client::{Client, IcError, IcHttpRequestWithCycles};
+pub use convert::{ConvertRequestLayer, ConvertResponseLayer, ConvertServiceBuilder};
 pub use cycles::{
     CyclesAccounting, CyclesAccountingError, CyclesChargingPolicy, CyclesCostEstimator,
 };
-pub use convert::ConvertServiceBuilder;
 
 mod client;
-mod cycles;
 mod convert;
+mod cycles;
 #[cfg(feature = "http")]
 pub mod http;
 pub mod observability;

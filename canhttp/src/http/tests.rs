@@ -1,11 +1,10 @@
-use crate::http::request::{HttpRequestConversionError, HttpRequestConversionLayer};
-use crate::http::response::{
-    HttpResponse, HttpResponseConversionError, HttpResponseConversionLayer,
-};
+use crate::http::request::HttpRequestConversionError;
+use crate::http::response::{HttpResponse, HttpResponseConversionError};
 use crate::http::{
-    HttpConversionLayer, MaxResponseBytesRequestExtension, TransformContextRequestExtension,
+    HttpConversionLayer, HttpRequestConverter, HttpResponseConverter,
+    MaxResponseBytesRequestExtension, TransformContextRequestExtension,
 };
-use crate::IcError;
+use crate::{ConvertServiceBuilder, IcError};
 use assert_matches::assert_matches;
 use candid::{Decode, Encode, Principal};
 use http::StatusCode;
@@ -30,7 +29,7 @@ async fn should_convert_http_request() {
     let body = vec![42_u8; 32];
 
     let mut service = ServiceBuilder::new()
-        .layer(HttpRequestConversionLayer)
+        .convert_request(HttpRequestConverter)
         .service_fn(echo_request);
 
     for (request_builder, expected_http_method) in [
@@ -67,7 +66,7 @@ async fn should_convert_http_request() {
 #[tokio::test]
 async fn should_fail_when_http_method_unsupported() {
     let mut service = ServiceBuilder::new()
-        .layer(HttpRequestConversionLayer)
+        .convert_request(HttpRequestConverter)
         .service_fn(echo_request);
     let url = "https://internetcomputer.org/";
 
@@ -97,7 +96,7 @@ async fn should_fail_when_http_method_unsupported() {
 #[tokio::test]
 async fn should_convert_http_response() {
     let mut service = ServiceBuilder::new()
-        .layer(HttpResponseConversionLayer)
+        .convert_response(HttpResponseConverter)
         .service_fn(echo_response);
 
     let response = IcHttpResponse {
@@ -133,7 +132,7 @@ async fn should_fail_to_convert_http_response() {
     };
 
     let mut service = ServiceBuilder::new()
-        .layer(HttpResponseConversionLayer)
+        .convert_response(HttpResponseConverter)
         .service_fn(echo_response);
     let error = expect_error::<_, HttpResponseConversionError>(
         service
@@ -146,7 +145,7 @@ async fn should_fail_to_convert_http_response() {
     assert_eq!(error, HttpResponseConversionError::InvalidStatusCode);
 
     let mut service = ServiceBuilder::new()
-        .layer(HttpResponseConversionLayer)
+        .convert_response(HttpResponseConverter)
         .service_fn(always_error);
     let error =
         expect_error::<_, IcError>(service.ready().await.unwrap().call(invalid_response).await);
@@ -163,7 +162,7 @@ async fn should_fail_to_convert_http_response() {
 async fn should_convert_both_request_and_responses() {
     async fn serialize_request_and_add_header(
         request: IcHttpRequest,
-    ) -> Result<IcHttpResponse, IcError> {
+    ) -> Result<IcHttpResponse, BoxError> {
         Ok(IcHttpResponse {
             status: 200_u8.into(),
             headers: vec![IcHttpHeader {
@@ -218,19 +217,19 @@ async fn should_convert_both_request_and_responses() {
     )
 }
 
-async fn echo_request(request: IcHttpRequest) -> Result<IcHttpRequest, IcError> {
+async fn echo_request(request: IcHttpRequest) -> Result<IcHttpRequest, BoxError> {
     Ok(request)
 }
 
-async fn echo_response(response: IcHttpResponse) -> Result<IcHttpResponse, IcError> {
+async fn echo_response(response: IcHttpResponse) -> Result<IcHttpResponse, BoxError> {
     Ok(response)
 }
 
-async fn always_error(_response: IcHttpResponse) -> Result<IcHttpResponse, IcError> {
-    Err(IcError {
+async fn always_error(_response: IcHttpResponse) -> Result<IcHttpResponse, BoxError> {
+    Err(BoxError::from(IcError {
         code: RejectionCode::Unknown,
         message: "always error".to_string(),
-    })
+    }))
 }
 
 // http::Response<T> does not implement PartialEq

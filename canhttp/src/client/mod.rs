@@ -6,7 +6,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use thiserror::Error;
-use tower::Service;
+use tower::{Service, ServiceBuilder};
 
 /// Thin wrapper around [`ic_cdk::api::management_canister::http_request::http_request`]
 /// that implements the [`tower::Service`] trait. Its functionality can be extended by composing so-called
@@ -18,6 +18,15 @@ use tower::Service;
 /// * [`crate::http`]: use types from the [http](https://crates.io/crates/http) crate for requests and responses.
 #[derive(Clone, Debug)]
 pub struct Client;
+
+impl Client {
+    pub fn new<CustomError: From<IcError>>(
+    ) -> impl Service<IcHttpRequestWithCycles, Response = IcHttpResponse, Error = CustomError> {
+        ServiceBuilder::new()
+            .map_err(CustomError::from)
+            .service(Client)
+    }
+}
 
 /// Error returned by the Internet Computer when making an HTTPs outcall.
 #[derive(Error, Clone, Debug, PartialEq, Eq)]

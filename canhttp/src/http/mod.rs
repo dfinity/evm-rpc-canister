@@ -31,9 +31,9 @@
 //! ```rust
 //! use canhttp::{http::{HttpConversionLayer, MaxResponseBytesRequestExtension}, IcError};
 //! use ic_cdk::api::management_canister::http_request::{CanisterHttpRequestArgument as IcHttpRequest, HttpResponse as IcHttpResponse};
-//! use tower::{Service, ServiceBuilder, ServiceExt};
+//! use tower::{Service, ServiceBuilder, ServiceExt, BoxError};
 //!
-//! async fn always_200_ok(request: IcHttpRequest) -> Result<IcHttpResponse, IcError> {
+//! async fn always_200_ok(request: IcHttpRequest) -> Result<IcHttpResponse, BoxError> {
 //!    Ok(IcHttpResponse {
 //!      status: 200_u8.into(),
 //!      ..Default::default()
@@ -66,20 +66,20 @@
 mod tests;
 
 pub use request::{
-    HttpRequest, HttpRequestConversionLayer, MaxResponseBytesRequestExtension,
-    TransformContextRequestExtension,
+    HttpRequest, HttpRequestConversionError, HttpRequestConverter,
+    MaxResponseBytesRequestExtension, TransformContextRequestExtension,
 };
-pub use response::{
-    ConvertHttpResponse, HttpResponse, HttpResponseConversionError, HttpResponseConversionLayer,
-};
+pub use response::{HttpResponse, HttpResponseConversionError, HttpResponseConverter};
 
 #[cfg(feature = "json")]
 pub mod json;
 mod request;
 mod response;
 
-use request::HttpRequestFilter;
-use response::HttpResponseConversion;
+use crate::{
+    convert::{ConvertRequest, ConvertResponse},
+    ConvertRequestLayer, ConvertResponseLayer,
+};
 use tower::Layer;
 
 /// Middleware that combines [`HttpRequestConversionLayer`] to convert requests
@@ -91,11 +91,13 @@ use tower::Layer;
 pub struct HttpConversionLayer;
 
 impl<S> Layer<S> for HttpConversionLayer {
-    type Service = HttpResponseConversion<tower::filter::Filter<S, HttpRequestFilter>>;
+    type Service = ConvertResponse<ConvertRequest<S, HttpRequestConverter>, HttpResponseConverter>;
 
     fn layer(&self, inner: S) -> Self::Service {
-        let stack =
-            tower_layer::Stack::new(HttpRequestConversionLayer, HttpResponseConversionLayer);
+        let stack = tower_layer::Stack::new(
+            ConvertRequestLayer::new(HttpRequestConverter),
+            ConvertResponseLayer::new(HttpResponseConverter),
+        );
         stack.layer(inner)
     }
 }

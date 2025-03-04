@@ -1,15 +1,9 @@
 use crate::convert::Convert;
 use crate::http::HttpResponse;
-use pin_project::pin_project;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use std::future::Future;
 use std::marker::PhantomData;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 use thiserror::Error;
-use tower::{BoxError, Service};
-use tower_layer::Layer;
 
 pub type HttpJsonRpcResponse<T> = http::Response<JsonRpcResponseBody<T>>;
 
@@ -42,9 +36,26 @@ pub enum JsonResponseConversionError {
     },
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct JsonResponseConverter<T> {
     _marker: PhantomData<T>,
+}
+
+impl<T> JsonResponseConverter<T> {
+    pub fn new() -> Self {
+        Self {
+            _marker: PhantomData,
+        }
+    }
+}
+
+// #[derive(Clone)] would otherwise introduce a bound T: Clone, which is not needed.
+impl<T> Clone for JsonResponseConverter<T> {
+    fn clone(&self) -> Self {
+        Self {
+            _marker: self._marker.clone(),
+        }
+    }
 }
 
 impl<T> Convert<HttpResponse> for JsonResponseConverter<T>

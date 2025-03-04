@@ -19,6 +19,12 @@ pub struct ConvertResponseLayer<C> {
     converter: C,
 }
 
+impl<C> ConvertResponseLayer<C> {
+    pub fn new(converter: C) -> Self {
+        Self { converter }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ConvertResponse<S, C> {
     inner: S,
@@ -110,6 +116,12 @@ impl<L> ConvertServiceBuilder<L> for ServiceBuilder<L> {
 #[derive(Debug, Clone)]
 pub struct ConvertRequestLayer<C> {
     converter: C,
+}
+
+impl<C> ConvertRequestLayer<C> {
+    pub fn new(converter: C) -> Self {
+        Self { converter }
+    }
 }
 
 #[derive(Debug, Clone)]

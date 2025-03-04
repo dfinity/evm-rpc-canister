@@ -1,14 +1,9 @@
 use crate::convert::Convert;
 use crate::http::HttpRequest;
 use http::header::CONTENT_TYPE;
-use http::{HeaderValue, Request};
+use http::HeaderValue;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tower::filter::Predicate;
-use tower::BoxError;
-use tower_layer::Layer;
-
-pub struct JsonRequestFilter;
 
 #[derive(Error, Clone, Debug, Eq, PartialEq)]
 pub enum JsonRequestConversionError {
@@ -37,6 +32,7 @@ fn add_content_type_header_if_missing(mut request: HttpRequest) -> HttpRequest {
     request
 }
 
+#[derive(Clone, Debug)]
 pub struct JsonRequestConverter;
 
 impl<T> Convert<http::Request<T>> for JsonRequestConverter

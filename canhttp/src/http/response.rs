@@ -1,12 +1,6 @@
 use crate::convert::Convert;
 use ic_cdk::api::management_canister::http_request::HttpResponse as IcHttpResponse;
-use pin_project::pin_project;
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 use thiserror::Error;
-use tower::{BoxError, Service};
-use tower_layer::Layer;
 
 /// HTTP response with a body made of bytes.
 pub type HttpResponse = http::Response<Vec<u8>>;

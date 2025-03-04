@@ -1,6 +1,8 @@
-pub use request::{HttpJsonRpcRequest, JsonRequestConverter, JsonRpcRequestBody};
+pub use request::{
+    HttpJsonRpcRequest, JsonRequestConversionError, JsonRequestConverter, JsonRpcRequestBody,
+};
 pub use response::{
-    HttpJsonRpcResponse, JsonResponseConversionError, JsonResponseConversionLayer, JsonRpcResult,
+    HttpJsonRpcResponse, JsonResponseConversionError, JsonResponseConverter, JsonRpcResult,
 };
 
 mod request;
