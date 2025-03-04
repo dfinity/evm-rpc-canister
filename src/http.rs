@@ -1,5 +1,5 @@
 use crate::constants::COLLATERAL_CYCLES_PER_NODE;
-use crate::logs::TRACE_HTTP;
+use crate::logs::{INFO, TRACE_HTTP};
 use crate::memory::{get_num_subnet_nodes, is_demo_active};
 use crate::{
     add_metric_entry,
@@ -147,9 +147,10 @@ where
                                 error
                             );
                         }
-                        HttpClientError::InvalidRequest(_) => {}
+                        HttpClientError::NotHandledError(e) => {
+                            log!(INFO, "BUG: Unexpected error: {}", e);
+                        }
                         HttpClientError::CyclesAccountingError(_) => {}
-                        HttpClientError::InvalidHttpResponse(_) => {}
                     },
                 ),
         )
@@ -196,12 +197,10 @@ pub fn service_request_builder() -> JsonRpcServiceBuilder {
 pub enum HttpClientError {
     #[error("IC error: {0}")]
     IcError(IcError),
-    #[error("Request is invalid: {0}")]
-    InvalidRequest(BoxError),
+    #[error("unknown error (most likely sign of a bug): {0}")]
+    NotHandledError(BoxError),
     #[error("cycles accounting error: {0}")]
     CyclesAccountingError(CyclesAccountingError),
-    #[error("Error converting to http::Response: {0}")]
-    InvalidHttpResponse(HttpResponseConversionError),
     #[error("HTTP response was not successful: {0}")]
     UnsuccessfulHttpResponse(FilterNonSuccessulHttpResponseError<Vec<u8>>),
     #[error("Error converting response to JSON: {0}")]
@@ -216,7 +215,8 @@ impl From<IcError> for HttpClientError {
 
 impl From<HttpResponseConversionError> for HttpClientError {
     fn from(value: HttpResponseConversionError) -> Self {
-        HttpClientError::InvalidHttpResponse(value)
+        // Replica should return valid http::Response
+        HttpClientError::NotHandledError(BoxError::from(value))
     }
 }
 
@@ -240,13 +240,13 @@ impl From<CyclesAccountingError> for HttpClientError {
 
 impl From<HttpRequestConversionError> for HttpClientError {
     fn from(value: HttpRequestConversionError) -> Self {
-        HttpClientError::InvalidRequest(value.into())
+        HttpClientError::NotHandledError(value.into())
     }
 }
 
 impl From<JsonRequestConversionError> for HttpClientError {
     fn from(value: JsonRequestConversionError) -> Self {
-        HttpClientError::InvalidRequest(value.into())
+        HttpClientError::NotHandledError(value.into())
     }
 }
 
@@ -256,15 +256,12 @@ impl From<HttpClientError> for RpcError {
             HttpClientError::IcError(IcError { code, message }) => {
                 RpcError::HttpOutcallError(HttpOutcallError::IcError { code, message })
             }
-            HttpClientError::InvalidRequest(e) => {
+            HttpClientError::NotHandledError(e) => {
                 RpcError::ValidationError(ValidationError::Custom(e.to_string()))
             }
             HttpClientError::CyclesAccountingError(
                 CyclesAccountingError::InsufficientCyclesError { expected, received },
             ) => RpcError::ProviderError(ProviderError::TooFewCycles { expected, received }),
-            HttpClientError::InvalidHttpResponse(e) => {
-                RpcError::ValidationError(ValidationError::Custom(e.to_string()))
-            }
             HttpClientError::InvalidJsonResponse(
                 JsonResponseConversionError::InvalidJsonResponse {
                     status,

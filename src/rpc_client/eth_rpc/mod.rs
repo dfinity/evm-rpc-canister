@@ -228,21 +228,7 @@ where
             result => result?,
         };
 
-        let (response_parts, response_body) = response.into_parts();
-
-        // JSON-RPC responses over HTTP should have a 2xx status code,
-        // even if the contained JsonRpcResult is an error.
-        // If the server is not available, it will sometimes (wrongly) return HTML that will fail parsing as JSON.
-        if !response_parts.status.is_success() {
-            return Err(HttpOutcallError::InvalidHttpJsonRpcResponse {
-                status: response_parts.status.as_u16(),
-                body: format!("{:?}", response_body),
-                parsing_error: None,
-            }
-            .into());
-        }
-
-        return match response_body.result {
+        return match response.into_body().result {
             canhttp::http::json::JsonRpcResult::Result(r) => Ok(r),
             canhttp::http::json::JsonRpcResult::Error { code, message } => {
                 Err(JsonRpcError { code, message }.into())
