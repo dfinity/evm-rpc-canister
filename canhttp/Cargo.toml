@@ -11,13 +11,13 @@ documentation = "https://docs.rs/canhttp"
 
 [dependencies]
 ic-cdk = { workspace = true }
-futures-util = {workspace = true}
+futures-util = { workspace = true }
 http = { workspace = true, optional = true }
 num-traits = { workspace = true, optional = true }
 pin-project = { workspace = true }
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
-tower = { workspace = true, features = ["filter", "retry"] }
+tower = { workspace = true, features = ["retry"] }
 tower-layer = { workspace = true, optional = true }
 thiserror = { workspace = true }
 
