@@ -1,3 +1,4 @@
+use crate::convert::Convert;
 use ic_cdk::api::management_canister::http_request::HttpResponse as IcHttpResponse;
 use pin_project::pin_project;
 use std::future::Future;
@@ -22,13 +23,13 @@ pub enum HttpResponseConversionError {
 }
 
 #[derive(Debug, Clone)]
-pub struct FilterHttpResponse;
+pub struct ConvertHttpResponse;
 
-impl FilterResponse<IcHttpResponse> for FilterHttpResponse {
-    type Response = HttpResponse;
+impl Convert<IcHttpResponse> for ConvertHttpResponse {
+    type Output = HttpResponse;
     type Error = HttpResponseConversionError;
 
-    fn filter(&mut self, response: IcHttpResponse) -> Result<Self::Response, Self::Error> {
+    fn try_convert(&mut self, response: IcHttpResponse) -> Result<Self::Output, Self::Error> {
         try_map_http_response(response)
     }
 }

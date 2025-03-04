@@ -6,26 +6,26 @@ use std::task::{Context, Poll};
 use tower::{Service, ServiceBuilder};
 use tower_layer::{Layer, Stack};
 
-pub trait FilterResponse<Response> {
-    type Response;
+pub trait Convert<Input> {
+    type Output;
     type Error;
 
-    fn filter(&mut self, response: Response) -> Result<Self::Response, Self::Error>;
+    fn try_convert(&mut self, response: Input) -> Result<Self::Output, Self::Error>;
 }
 
 #[derive(Debug, Clone)]
-pub struct FilterResponseLayer<F> {
+pub struct ConvertResponseLayer<F> {
     filter: F,
 }
 
 #[derive(Debug, Clone)]
-pub struct FilterResponseService<S, F> {
+pub struct ConvertResponse<S, F> {
     inner: S,
     filter: F,
 }
 
-impl<S, F: Clone> Layer<S> for FilterResponseLayer<F> {
-    type Service = FilterResponseService<S, F>;
+impl<S, F: Clone> Layer<S> for ConvertResponseLayer<F> {
+    type Service = ConvertResponse<S, F>;
 
     fn layer(&self, inner: S) -> Self::Service {
         Self::Service {
@@ -35,10 +35,10 @@ impl<S, F: Clone> Layer<S> for FilterResponseLayer<F> {
     }
 }
 
-impl<S, Request, Response, NewResponse, F> Service<Request> for FilterResponseService<S, F>
+impl<S, Request, Response, NewResponse, F> Service<Request> for ConvertResponse<S, F>
 where
     S: Service<Request, Response = Response>,
-    F: FilterResponse<Response, Response = NewResponse> + Clone,
+    F: Convert<Response, Output = NewResponse> + Clone,
     F::Error: Into<S::Error>,
 {
     type Response = NewResponse;
@@ -67,7 +67,7 @@ pub struct ResponseFuture<F, Filter> {
 impl<F, Filter, Response, NewResponse, Error> Future for ResponseFuture<F, Filter>
 where
     F: Future<Output = Result<Response, Error>>,
-    Filter: FilterResponse<Response, Response = NewResponse>,
+    Filter: Convert<Response, Output = NewResponse>,
     Filter::Error: Into<Error>,
 {
     type Output = Result<NewResponse, Error>;
@@ -77,7 +77,7 @@ where
         let result_fut = this.response_future.poll(cx);
         match result_fut {
             Poll::Ready(result) => match result {
-                Ok(response) => Poll::Ready(this.filter.filter(response).map_err(Into::into)),
+                Ok(response) => Poll::Ready(this.filter.try_convert(response).map_err(Into::into)),
                 Err(err) => Poll::Ready(Err(err)),
             },
             Poll::Pending => Poll::Pending,
@@ -85,12 +85,12 @@ where
     }
 }
 
-pub trait FilterResponseServiceBuilder<L> {
-    fn filter_response<F>(self, f: F) -> ServiceBuilder<Stack<FilterResponseLayer<F>, L>>;
+pub trait ConvertResponseServiceBuilder<L> {
+    fn convert_response<F>(self, f: F) -> ServiceBuilder<Stack<ConvertResponseLayer<F>, L>>;
 }
 
-impl<L> FilterResponseServiceBuilder<L> for ServiceBuilder<L> {
-    fn filter_response<F>(self, f: F) -> ServiceBuilder<Stack<FilterResponseLayer<F>, L>> {
-        self.layer(FilterResponseLayer { filter: f })
+impl<L> ConvertResponseServiceBuilder<L> for ServiceBuilder<L> {
+    fn convert_response<F>(self, f: F) -> ServiceBuilder<Stack<ConvertResponseLayer<F>, L>> {
+        self.layer(ConvertResponseLayer { filter: f })
     }
 }

@@ -69,7 +69,9 @@ pub use request::{
     HttpRequest, HttpRequestConversionLayer, MaxResponseBytesRequestExtension,
     TransformContextRequestExtension,
 };
-pub use response::{HttpResponse, HttpResponseConversionLayer};
+pub use response::{
+    ConvertHttpResponse, HttpResponse, HttpResponseConversionError, HttpResponseConversionLayer,
+};
 
 #[cfg(feature = "json")]
 pub mod json;
