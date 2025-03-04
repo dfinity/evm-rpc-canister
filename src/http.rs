@@ -13,6 +13,7 @@ use canhttp::http::json::{
     JsonResponseConversionError, JsonResponseConverter, JsonRpcRequestBody,
 };
 use canhttp::http::{
+    FilterNonSuccessfulHttpResponse, FilterNonSuccessulHttpResponseError,
     HttpRequestConversionError, HttpRequestConverter, HttpResponseConversionError,
     HttpResponseConverter, MaxResponseBytesRequestExtension, TransformContextRequestExtension,
 };
@@ -97,12 +98,7 @@ where
                     req_data
                 })
                 .on_response(|req_data: MetricData, response: &HttpJsonRpcResponse<O>| {
-                    let status: u32 = response.status().as_u16() as u32;
-                    add_metric_entry!(
-                        responses,
-                        (req_data.method, req_data.host, status.into()),
-                        1
-                    );
+                    observe_response(req_data.method, req_data.host, response.status().as_u16());
                     log!(
                         TRACE_HTTP,
                         "Got response for request with id `{:?}`. Response with status {}: {:?}",
@@ -120,6 +116,22 @@ where
                                 1
                             );
                         }
+                        HttpClientError::UnsuccessfulHttpResponse(
+                            FilterNonSuccessulHttpResponseError::UnsuccessfulResponse(response),
+                        ) => {
+                            observe_response(
+                                req_data.method,
+                                req_data.host,
+                                response.status().as_u16(),
+                            );
+                            log!(
+                                TRACE_HTTP,
+                                "Unsuccessful HTTP response for request with id `{:?}`. Response with status {}: {}",
+                                req_data.request_id,
+                                response.status(),
+                                String::from_utf8_lossy(response.body())
+                            );
+                        }
                         HttpClientError::InvalidJsonResponse(
                             JsonResponseConversionError::InvalidJsonResponse {
                                 status,
@@ -127,26 +139,34 @@ where
                                 parsing_error: _,
                             },
                         ) => {
-                            let status: u32 = *status as u32;
-                            add_metric_entry!(
-                                responses,
-                                (req_data.method, req_data.host, status.into()),
-                                1
+                            observe_response(req_data.method, req_data.host, *status);
+                            log!(
+                                TRACE_HTTP,
+                                "Invalid JSON RPC response for request with id `{:?}`: {}",
+                                req_data.request_id,
+                                error
                             );
                         }
-                        _ => {}
+                        HttpClientError::InvalidRequest(_) => {}
+                        HttpClientError::CyclesAccountingError(_) => {}
+                        HttpClientError::InvalidHttpResponse(_) => {}
                     },
                 ),
         )
         .layer(service_request_builder())
         .convert_response(JsonResponseConverter::new())
-        //TODO XC-287: Filter out not successful responses before JSON deserialization
+        .convert_response(FilterNonSuccessfulHttpResponse)
         .convert_response(HttpResponseConverter)
         .convert_request(CyclesAccounting::new(
             get_num_subnet_nodes(),
             ChargingPolicyWithCollateral::default(),
         ))
         .service(canhttp::Client::new_with_error::<HttpClientError>())
+}
+
+fn observe_response(method: MetricRpcMethod, host: MetricRpcHost, status: u16) {
+    let status: u32 = status as u32;
+    add_metric_entry!(responses, (method, host, status.into()), 1);
 }
 
 type JsonRpcServiceBuilder = ServiceBuilder<
@@ -182,6 +202,8 @@ pub enum HttpClientError {
     CyclesAccountingError(CyclesAccountingError),
     #[error("Error converting to http::Response: {0}")]
     InvalidHttpResponse(HttpResponseConversionError),
+    #[error("HTTP response was not successful: {0}")]
+    UnsuccessfulHttpResponse(FilterNonSuccessulHttpResponseError<Vec<u8>>),
     #[error("Error converting response to JSON: {0}")]
     InvalidJsonResponse(JsonResponseConversionError),
 }
@@ -195,6 +217,12 @@ impl From<IcError> for HttpClientError {
 impl From<HttpResponseConversionError> for HttpClientError {
     fn from(value: HttpResponseConversionError) -> Self {
         HttpClientError::InvalidHttpResponse(value)
+    }
+}
+
+impl From<FilterNonSuccessulHttpResponseError<Vec<u8>>> for HttpClientError {
+    fn from(value: FilterNonSuccessulHttpResponseError<Vec<u8>>) -> Self {
+        HttpClientError::UnsuccessfulHttpResponse(value)
     }
 }
 
@@ -247,6 +275,13 @@ impl From<HttpClientError> for RpcError {
                 status,
                 body,
                 parsing_error: Some(parsing_error),
+            }),
+            HttpClientError::UnsuccessfulHttpResponse(
+                FilterNonSuccessulHttpResponseError::UnsuccessfulResponse(response),
+            ) => RpcError::HttpOutcallError(HttpOutcallError::InvalidHttpJsonRpcResponse {
+                status: response.status().as_u16(),
+                body: String::from_utf8_lossy(response.body()).to_string(),
+                parsing_error: None,
             }),
         }
     }

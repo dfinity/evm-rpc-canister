@@ -1150,8 +1150,7 @@ fn candid_rpc_should_err_when_service_unavailable() {
             HttpOutcallError::InvalidHttpJsonRpcResponse {
                 status: 503,
                 body: "Service unavailable".to_string(),
-                //TODO XC-287: ideally we should not try to deserialize when status code not successful
-                parsing_error: Some("expected value at line 1 column 1".to_string())
+                parsing_error: None
             }
         ))
     );
@@ -1681,8 +1680,7 @@ fn candid_rpc_should_recognize_rate_limit() {
             HttpOutcallError::InvalidHttpJsonRpcResponse {
                 status: 429,
                 body: "(Rate limit error message)".to_string(),
-                //TODO XC-287: ideally we should not try to deserialize when status code not successful
-                parsing_error: Some("expected value at line 1 column 1".to_string())
+                parsing_error: None
             }
         ))
     );
