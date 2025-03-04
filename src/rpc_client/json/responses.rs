@@ -316,7 +316,6 @@ impl AsRef<[u8]> for Data {
     }
 }
 
-
 //TODO XC-287: remove this type to use the corresponding ones from canhttp
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct JsonRpcReply<T> {
