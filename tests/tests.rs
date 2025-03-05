@@ -2191,6 +2191,58 @@ fn should_retry_when_response_too_large() {
     );
 }
 
+#[test]
+fn should_have_different_request_ids_when_retrying_because_response_too_big() {
+    let setup = EvmRpcSetup::new().mock_api_keys();
+
+    let response = setup
+        .eth_get_transaction_count(
+            RpcServices::EthMainnet(Some(vec![EthMainnetService::Cloudflare])),
+            Some(evm_rpc_types::RpcConfig {
+                response_size_estimate: Some(1),
+                response_consensus: None,
+            }),
+            evm_rpc_types::GetTransactionCountArgs {
+                address: "0xdAC17F958D2ee523a2206206994597C13D831ec7"
+                    .parse()
+                    .unwrap(),
+                block: evm_rpc_types::BlockTag::Latest,
+            },
+        )
+        .mock_http_once(
+            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":0,"result":"0x1"}"#)
+                .with_raw_request_body(r#"{"jsonrpc":"2.0","method":"eth_getTransactionCount","params":["0xdac17f958d2ee523a2206206994597c13d831ec7","latest"],"id":0}"#)
+                .with_max_response_bytes(1),
+        )
+        .mock_http_once(
+            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":1,"result":"0x1"}"#)
+                .with_raw_request_body(r#"{"jsonrpc":"2.0","method":"eth_getTransactionCount","params":["0xdac17f958d2ee523a2206206994597c13d831ec7","latest"],"id":1}"#)
+                .with_max_response_bytes(2048),
+        )
+        .wait()
+        .expect_consistent()
+        .unwrap();
+
+    assert_eq!(response, 1_u8.into());
+
+    let rpc_method = || RpcMethod::EthGetTransactionCount.into();
+    assert_eq!(
+        setup.get_metrics(),
+        Metrics {
+            requests: hashmap! {
+                (rpc_method(), CLOUDFLARE_HOSTNAME.into()) => 2,
+            },
+            responses: hashmap! {
+                (rpc_method(), CLOUDFLARE_HOSTNAME.into(), 200.into()) => 1,
+            },
+            err_http_outcall: hashmap! {
+                (rpc_method(), CLOUDFLARE_HOSTNAME.into(), RejectionCode::SysFatal) => 1,
+            },
+            ..Default::default()
+        }
+    );
+}
+
 pub fn multi_logs_for_single_transaction(num_logs: usize) -> String {
     let mut logs = Vec::with_capacity(num_logs);
     for log_index in 0..num_logs {
