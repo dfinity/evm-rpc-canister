@@ -12,8 +12,10 @@ use crate::rpc_client::json::responses::{
 use crate::rpc_client::numeric::{TransactionCount, Wei};
 use crate::types::MetricRpcMethod;
 use candid::candid_method;
-use canhttp::http::json::JsonRpcRequestBody;
-use canhttp::http::{MaxResponseBytesRequestExtension, TransformContextRequestExtension};
+use canhttp::{
+    http::json::JsonRpcRequestBody, MaxResponseBytesRequestExtension,
+    TransformContextRequestExtension,
+};
 use evm_rpc_types::{HttpOutcallError, JsonRpcError, RpcError, RpcService};
 use ic_canister_log::log;
 use ic_cdk::api::call::RejectionCode;

@@ -18,10 +18,11 @@ use canhttp::{
         },
         FilterNonSuccessfulHttpResponse, FilterNonSuccessulHttpResponseError,
         HttpRequestConversionError, HttpRequestConverter, HttpResponseConversionError,
-        HttpResponseConverter, MaxResponseBytesRequestExtension, TransformContextRequestExtension,
+        HttpResponseConverter,
     },
     observability::ObservabilityLayer,
     ConvertServiceBuilder, CyclesAccounting, CyclesAccountingError, CyclesChargingPolicy, IcError,
+    MaxResponseBytesRequestExtension, TransformContextRequestExtension,
 };
 use evm_rpc_types::{HttpOutcallError, ProviderError, RpcError, RpcResult, ValidationError};
 use http::header::CONTENT_TYPE;
