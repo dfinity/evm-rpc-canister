@@ -1,3 +1,4 @@
+use crate::HttpsOutcallError;
 use ic_cdk::api::call::RejectionCode;
 use ic_cdk::api::management_canister::http_request::{
     CanisterHttpRequestArgument as IcHttpRequest, HttpResponse as IcHttpResponse,
@@ -45,12 +46,8 @@ pub struct IcError {
     pub message: String,
 }
 
-impl IcError {
-    /// Determines whether the error indicates that the response was larger than the specified
-    /// [`max_response_bytes`](https://internetcomputer.org/docs/current/references/ic-interface-spec#ic-http_request) specified in the request.
-    ///
-    /// If true, retrying with a larger value for `max_response_bytes` may help.
-    pub fn is_response_too_large(&self) -> bool {
+impl HttpsOutcallError for IcError {
+    fn is_response_too_large(&self) -> bool {
         self.code == RejectionCode::SysFatal
             && (self.message.contains("size limit") || self.message.contains("length limit"))
     }
