@@ -99,9 +99,11 @@
 //! # }
 //! ```
 
+pub use error::{ConvertError, ConvertErrorLayer};
 pub use request::{ConvertRequest, ConvertRequestLayer};
 pub use response::{ConvertResponse, ConvertResponseLayer};
 
+mod error;
 mod request;
 mod response;
 
@@ -132,6 +134,7 @@ pub trait ConvertServiceBuilder<L> {
     ///
     /// See the [module docs](crate::convert) for examples.
     fn convert_response<C>(self, f: C) -> ServiceBuilder<Stack<ConvertResponseLayer<C>, L>>;
+    fn convert_error<NewError>(self) -> ServiceBuilder<Stack<ConvertErrorLayer<NewError>, L>>;
 }
 
 impl<L> ConvertServiceBuilder<L> for ServiceBuilder<L> {
@@ -144,5 +147,9 @@ impl<L> ConvertServiceBuilder<L> for ServiceBuilder<L> {
         converter: C,
     ) -> ServiceBuilder<Stack<ConvertResponseLayer<C>, L>> {
         self.layer(ConvertResponseLayer::new(converter))
+    }
+
+    fn convert_error<NewError>(self) -> ServiceBuilder<Stack<ConvertErrorLayer<NewError>, L>> {
+        self.layer(ConvertErrorLayer::new())
     }
 }

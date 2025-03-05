@@ -172,6 +172,7 @@ use tower::{Layer, Service};
 ///
 /// [`Layer`]: tower::Layer
 /// [`Service`]: tower::Service
+#[derive(Clone, Debug)]
 pub struct ObservabilityLayer<OnRequest, OnResponse, OnError> {
     on_request: OnRequest,
     on_response: OnResponse,
@@ -263,6 +264,7 @@ where
 /// See the [module docs](crate::observability) for an example.
 ///
 /// [`Service`]: tower::Service
+#[derive(Clone, Debug)]
 pub struct Observability<S, OnRequest, OnResponse, OnError> {
     inner: S,
     on_request: OnRequest,

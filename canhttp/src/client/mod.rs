@@ -1,4 +1,8 @@
-use crate::HttpsOutcallError;
+#[cfg(test)]
+mod tests;
+
+use crate::convert::ConvertError;
+use crate::{ConvertServiceBuilder, HttpsOutcallError};
 use ic_cdk::api::call::RejectionCode;
 use ic_cdk::api::management_canister::http_request::{
     CanisterHttpRequestArgument as IcHttpRequest, HttpResponse as IcHttpResponse,
@@ -22,10 +26,9 @@ pub struct Client;
 
 impl Client {
     /// Create a new client returning custom errors.
-    pub fn new_with_error<CustomError: From<IcError>>(
-    ) -> impl Service<IcHttpRequestWithCycles, Response = IcHttpResponse, Error = CustomError> {
+    pub fn new_with_error<CustomError: From<IcError>>() -> ConvertError<Client, CustomError> {
         ServiceBuilder::new()
-            .map_err(CustomError::from)
+            .convert_error::<CustomError>()
             .service(Client)
     }
 
