@@ -1,16 +1,16 @@
 //! Fallible conversion from one type to another that can be used as a tower middleware.
 //!
 //! # Examples
-//! 
+//!
 //! ## To convert requests
 //!
 //! A converter can be used to convert request types:
 //! * If the result of the conversion is [`Ok`], the converted type will be forwarded to the inner service.
 //! * If the result of the conversion is [`Err`], the error will be returned and the inner service will *not* be called.
-//! 
-//! When used to convert requests (with [`ConvertRequestLayer`], the functionality offered by [`Convert`] is similar to that of 
+//!
+//! When used to convert requests (with [`ConvertRequestLayer`], the functionality offered by [`Convert`] is similar to that of
 //! [`Predicate`](https://docs.rs/tower/0.5.2/tower/filter/trait.Predicate.html) in that it can act as a *filter*. The main difference is that the error does not need to be boxed.
-//! 
+//!
 //! ```rust
 //! use std::convert::Infallible;
 //! use canhttp::convert::{Convert, ConvertServiceBuilder};
@@ -52,9 +52,9 @@
 //! # Ok(())
 //! # }
 //! ```
-//! 
+//!
 //! ## To convert responses
-//! 
+//!
 //! A converter can be used to convert response types:
 //! ```rust
 //! use std::convert::Infallible;

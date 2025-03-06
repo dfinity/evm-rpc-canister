@@ -70,6 +70,7 @@ mod response;
 /// See the [module docs](crate::http::json) for an example.
 ///
 /// [`Service`]: tower::Service
+#[derive(Debug)]
 pub struct JsonConversionLayer<I, O> {
     _marker: PhantomData<(I, O)>,
 }
@@ -80,6 +81,20 @@ impl<I, O> JsonConversionLayer<I, O> {
         Self {
             _marker: PhantomData,
         }
+    }
+}
+
+impl<I, O> Clone for JsonConversionLayer<I, O> {
+    fn clone(&self) -> Self {
+        Self {
+            _marker: self._marker,
+        }
+    }
+}
+
+impl<I, O> Default for JsonConversionLayer<I, O> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

@@ -172,11 +172,11 @@ fn observe_response(method: MetricRpcMethod, host: MetricRpcHost, status: u16) {
     add_metric_entry!(responses, (method, host, status.into()), 1);
 }
 
-type JsonRpcServiceBuilder = ServiceBuilder<
+type JsonRpcServiceBuilder<I> = ServiceBuilder<
     Stack<
         ConvertRequestLayer<HttpRequestConverter>,
         Stack<
-            ConvertRequestLayer<JsonRequestConverter>,
+            ConvertRequestLayer<JsonRequestConverter<I>>,
             Stack<SetRequestHeaderLayer<HeaderValue>, Identity>,
         >,
     >,
@@ -185,13 +185,13 @@ type JsonRpcServiceBuilder = ServiceBuilder<
 /// Middleware that takes care of transforming the request.
 ///
 /// It's required to separate it from the other middlewares, to compute the exact request cost.
-pub fn service_request_builder() -> JsonRpcServiceBuilder {
+pub fn service_request_builder<I>() -> JsonRpcServiceBuilder<I> {
     ServiceBuilder::new()
         .insert_request_header_if_not_present(
             CONTENT_TYPE,
             HeaderValue::from_static(CONTENT_TYPE_VALUE),
         )
-        .convert_request(JsonRequestConverter)
+        .convert_request(JsonRequestConverter::<I>::new())
         .convert_request(HttpRequestConverter)
 }
 

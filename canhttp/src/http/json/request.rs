@@ -31,6 +31,12 @@ impl<T> Clone for JsonRequestConverter<T> {
     }
 }
 
+impl<T> Default for JsonRequestConverter<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Error return when converting requests with [`JsonRequestConverter`].
 #[derive(Error, Clone, Debug, Eq, PartialEq)]
 pub enum JsonRequestConversionError {

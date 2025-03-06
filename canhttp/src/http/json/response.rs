@@ -7,7 +7,7 @@ use thiserror::Error;
 
 /// Convert responses of type [HttpResponse] into [`http::Response<T>`],
 /// where `T` can be deserialized.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct JsonResponseConverter<T> {
     _marker: PhantomData<T>,
 }
@@ -27,6 +27,12 @@ impl<T> Clone for JsonResponseConverter<T> {
         Self {
             _marker: self._marker,
         }
+    }
+}
+
+impl<T> Default for JsonResponseConverter<T> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
