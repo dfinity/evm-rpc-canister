@@ -3,6 +3,7 @@ use crate::http::HttpRequest;
 use http::header::CONTENT_TYPE;
 use http::HeaderValue;
 use serde::{Deserialize, Serialize};
+use std::marker::PhantomData;
 use thiserror::Error;
 
 #[derive(Error, Clone, Debug, Eq, PartialEq)]
@@ -32,10 +33,29 @@ fn add_content_type_header_if_missing(mut request: HttpRequest) -> HttpRequest {
     request
 }
 
-#[derive(Clone, Debug)]
-pub struct JsonRequestConverter;
+#[derive(Debug)]
+pub struct JsonRequestConverter<T> {
+    _marker: PhantomData<T>,
+}
 
-impl<T> Convert<http::Request<T>> for JsonRequestConverter
+impl<T> JsonRequestConverter<T> {
+    pub fn new() -> Self {
+        Self {
+            _marker: PhantomData,
+        }
+    }
+}
+
+// #[derive(Clone)] would otherwise introduce a bound T: Clone, which is not needed.
+impl<T> Clone for JsonRequestConverter<T> {
+    fn clone(&self) -> Self {
+        Self {
+            _marker: self._marker,
+        }
+    }
+}
+
+impl<T> Convert<http::Request<T>> for JsonRequestConverter<T>
 where
     T: Serialize,
 {
