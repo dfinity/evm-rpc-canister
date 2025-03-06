@@ -7,11 +7,11 @@
 //!              │                     ▲              
 //! http::Request│                     │http::Response
 //!            ┌─┴─────────────────────┴───┐          
-//!            │HttpResponseConversionLayer│          
+//!            │   HttpResponseConverter   │
 //!            └─┬─────────────────────▲───┘          
 //!              │                     │              
 //!            ┌─▼─────────────────────┴───┐          
-//!            │HttpRequestConversionLayer │          
+//!            │    HttpRequestConverter   │          
 //!            └─┬─────────────────────┬───┘          
 //! IcHttpRequest│                     │IcHttpResponse
 //!              ▼                     │              

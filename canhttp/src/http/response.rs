@@ -6,17 +6,32 @@ use thiserror::Error;
 /// HTTP response with a body made of bytes.
 pub type HttpResponse = http::Response<Vec<u8>>;
 
+/// Error returned when converting respones with [`HttpResponseConverter`].
 #[derive(Error, Clone, Debug, Eq, PartialEq)]
 #[allow(clippy::enum_variant_names)] //current variants reflect invalid data and so start with the prefix Invalid.
 pub enum HttpResponseConversionError {
+    /// Status code is invalid
     #[error("Status code is invalid")]
     InvalidStatusCode,
+    /// Header name is invalid.
     #[error("HTTP header `{name}` is invalid: {reason}")]
-    InvalidHttpHeaderName { name: String, reason: String },
+    InvalidHttpHeaderName {
+        /// Header name
+        name: String,
+        /// Reason for being invalid.
+        reason: String,
+    },
+    /// Header value is invalid.
     #[error("HTTP header `{name}` has an invalid value: {reason}")]
-    InvalidHttpHeaderValue { name: String, reason: String },
+    InvalidHttpHeaderValue {
+        /// Header name
+        name: String,
+        /// Reason for header value being invalid.
+        reason: String,
+    },
 }
 
+/// Convert responses of type [`IcHttpResponse`] into [HttpResponse].
 #[derive(Debug, Clone)]
 pub struct HttpResponseConverter;
 
@@ -64,12 +79,15 @@ impl Convert<IcHttpResponse> for HttpResponseConverter {
     }
 }
 
+/// Error returned when converting responses with [`FilterNonSuccessfulHttpResponse`].
 #[derive(Error, Clone, Debug)]
 pub enum FilterNonSuccessulHttpResponseError<T> {
+    /// Response has a non-successful status code.
     #[error("HTTP response is not successful: {0:?}")]
     UnsuccessfulResponse(http::Response<T>),
 }
 
+/// Filter out non-successful responses.
 #[derive(Clone, Debug)]
 pub struct FilterNonSuccessfulHttpResponse;
 

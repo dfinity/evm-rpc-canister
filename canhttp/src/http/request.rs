@@ -104,14 +104,23 @@ impl TransformContextRequestExtension for http::request::Builder {
     }
 }
 
+/// Error return when converting requests with [`HttpRequestConverter`].
 #[derive(Error, Clone, Debug, Eq, PartialEq)]
 pub enum HttpRequestConversionError {
+    /// HTTP method is not supported
     #[error("HTTP method `{0}` is not supported")]
     UnsupportedHttpMethod(String),
+    /// Header name is invalid.
     #[error("HTTP header `{name}` has an invalid value: {reason}")]
-    InvalidHttpHeaderValue { name: String, reason: String },
+    InvalidHttpHeaderValue {
+        /// Header name
+        name: String,
+        /// Reason for header value being invalid.
+        reason: String,
+    },
 }
 
+/// Convert requests of type [`HttpRequest`] into [`IcHttpRequest`].
 #[derive(Clone, Debug)]
 pub struct HttpRequestConverter;
 
