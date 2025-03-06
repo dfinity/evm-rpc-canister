@@ -44,7 +44,7 @@ jobs:
 
       - name: Cargo doc
         run: |
-          cargo doc --workspace --no-deps
+          cargo doc --workspace --no-deps --all-features
         env:
           RUSTDOCFLAGS: "--deny warnings"
 
@@ -94,7 +94,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Cargo test
-        run: cargo test --workspace -- --test-threads=2 --nocapture
+        run: cargo test --workspace --all-features -- --test-threads=2 --nocapture
 
   e2e:
     runs-on: ubuntu-latest
