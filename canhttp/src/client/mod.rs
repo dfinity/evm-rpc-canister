@@ -20,6 +20,7 @@ use tower::{BoxError, Service, ServiceBuilder};
 pub struct Client;
 
 impl Client {
+    /// Create a new client returning custom errors.
     pub fn new_with_error<CustomError: From<IcError>>(
     ) -> impl Service<IcHttpRequestWithCycles, Response = IcHttpResponse, Error = CustomError> {
         ServiceBuilder::new()
@@ -27,6 +28,7 @@ impl Client {
             .service(Client)
     }
 
+    /// Creates a new client where error type is erased.
     pub fn new_with_box_error(
     ) -> impl Service<IcHttpRequestWithCycles, Response = IcHttpResponse, Error = BoxError> {
         Self::new_with_error::<BoxError>()
@@ -78,8 +80,11 @@ impl Service<IcHttpRequestWithCycles> for Client {
     }
 }
 
+/// [`IcHttpRequest`] specifying how many cycles should be attached for the HTTPs outcall.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct IcHttpRequestWithCycles {
+    /// Request to be made.
     pub request: IcHttpRequest,
+    /// Number of cycles to attach.
     pub cycles: u128,
 }
