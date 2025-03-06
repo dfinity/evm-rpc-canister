@@ -6,10 +6,51 @@ use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 use thiserror::Error;
 
+/// Convert requests of type [`http::Request<T>`],
+/// where `T` is `Serializable`, into [`HttpRequest`].
+#[derive(Debug)]
+pub struct JsonRequestConverter<T> {
+    _marker: PhantomData<T>,
+}
+
+impl<T> JsonRequestConverter<T> {
+    /// Create a new instance of [`JsonRequestConverter`].
+    pub fn new() -> Self {
+        Self {
+            _marker: PhantomData,
+        }
+    }
+}
+
+// #[derive(Clone)] would otherwise introduce a bound T: Clone, which is not needed.
+impl<T> Clone for JsonRequestConverter<T> {
+    fn clone(&self) -> Self {
+        Self {
+            _marker: self._marker,
+        }
+    }
+}
+
+/// Error return when converting requests with [`JsonRequestConverter`].
 #[derive(Error, Clone, Debug, Eq, PartialEq)]
 pub enum JsonRequestConversionError {
+    /// Request body failed to be serialized.
     #[error("Invalid JSON body: {0}")]
     InvalidJson(String),
+}
+
+impl<T> Convert<http::Request<T>> for JsonRequestConverter<T>
+where
+    T: Serialize,
+{
+    type Output = HttpRequest;
+    type Error = JsonRequestConversionError;
+
+    fn try_convert(&mut self, request: http::Request<T>) -> Result<Self::Output, Self::Error> {
+        try_serialize_request(request)
+            .map(add_content_type_header_if_missing)
+            .map_err(Into::into)
+    }
 }
 
 fn try_serialize_request<T>(
@@ -33,42 +74,7 @@ fn add_content_type_header_if_missing(mut request: HttpRequest) -> HttpRequest {
     request
 }
 
-#[derive(Debug)]
-pub struct JsonRequestConverter<T> {
-    _marker: PhantomData<T>,
-}
-
-impl<T> JsonRequestConverter<T> {
-    pub fn new() -> Self {
-        Self {
-            _marker: PhantomData,
-        }
-    }
-}
-
-// #[derive(Clone)] would otherwise introduce a bound T: Clone, which is not needed.
-impl<T> Clone for JsonRequestConverter<T> {
-    fn clone(&self) -> Self {
-        Self {
-            _marker: self._marker,
-        }
-    }
-}
-
-impl<T> Convert<http::Request<T>> for JsonRequestConverter<T>
-where
-    T: Serialize,
-{
-    type Output = HttpRequest;
-    type Error = JsonRequestConversionError;
-
-    fn try_convert(&mut self, request: http::Request<T>) -> Result<Self::Output, Self::Error> {
-        try_serialize_request(request)
-            .map(add_content_type_header_if_missing)
-            .map_err(Into::into)
-    }
-}
-
+/// JSON-RPC request.
 pub type HttpJsonRpcRequest<T> = http::Request<JsonRpcRequestBody<T>>;
 
 /// Body for all JSON-RPC requests, see the [specification](https://www.jsonrpc.org/specification).
@@ -81,6 +87,7 @@ pub struct JsonRpcRequestBody<T> {
 }
 
 impl<T> JsonRpcRequestBody<T> {
+    /// Create a new body of a JSON-RPC request.
     pub fn new(method: impl Into<String>, params: T) -> Self {
         Self {
             jsonrpc: "2.0".to_string(),
@@ -90,15 +97,18 @@ impl<T> JsonRpcRequestBody<T> {
         }
     }
 
+    /// Change the request ID.
     pub fn set_id(&mut self, id: u64) {
         self.id = Some(serde_json::Value::Number(id.into()));
     }
 
-    pub fn method(&self) -> &str {
-        &self.method
-    }
-
+    /// Returns the request ID, if any.
     pub fn id(&self) -> Option<&serde_json::Value> {
         self.id.as_ref()
+    }
+
+    /// Returns the JSON-RPC method.
+    pub fn method(&self) -> &str {
+        &self.method
     }
 }
