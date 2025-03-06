@@ -61,6 +61,9 @@ use serde::Serialize;
 use std::marker::PhantomData;
 use tower_layer::Layer;
 
+#[cfg(test)]
+mod tests;
+
 mod request;
 mod response;
 
