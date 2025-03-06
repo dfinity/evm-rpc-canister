@@ -6,17 +6,24 @@ use std::task::{Context, Poll};
 use tower::Service;
 use tower_layer::Layer;
 
+/// Convert responses of a service into another type, where the conversion may fail.
+///
+/// This [`Layer`] produces instances of the [`ConvertResponse`] service.
+///
+/// [`Layer`]: tower::Layer
 #[derive(Debug, Clone)]
 pub struct ConvertResponseLayer<C> {
     converter: C,
 }
 
 impl<C> ConvertResponseLayer<C> {
+    /// Creates a new [`ConvertResponseLayer`]
     pub fn new(converter: C) -> Self {
         Self { converter }
     }
 }
 
+/// Convert the inner service response to another type, where the conversion may fail.
 #[derive(Debug, Clone)]
 pub struct ConvertResponse<S, C> {
     inner: S,
