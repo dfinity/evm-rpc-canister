@@ -187,8 +187,10 @@ where
         })
         .unwrap_or_default();
 
+    let effective_size_estimate = response_size_estimate.get();
     let request = resolve_rpc_service(provider.clone())?
         .post(&get_override_provider())?
+        .max_response_bytes(effective_size_estimate)
         .transform_context(TransformContext::from_name(
             "cleanup_response".to_owned(),
             transform_op.clone(),
@@ -197,45 +199,13 @@ where
         .expect("BUG: invalid request");
 
     let eth_method = request.body().method().to_string();
-    let mut client = http_client(MetricRpcMethod(eth_method.clone()));
-    let mut retries = 0;
-    loop {
-        let effective_size_estimate = response_size_estimate.get();
-        let request = {
-            let mut request = request.clone().max_response_bytes(effective_size_estimate);
-            let body = request.body_mut();
-            body.set_id(next_request_id());
-            request
-        };
-        let url = request.uri().clone();
-        log!(
-            TRACE_HTTP,
-            "Calling url (retries={retries}): {}, with payload: {request:?}",
-            url
-        );
-
-        let response = match client.call(request).await {
-            Err(RpcError::HttpOutcallError(HttpOutcallError::IcError { code, message }))
-                if is_response_too_large(&code, &message) =>
-            {
-                let new_estimate = response_size_estimate.adjust();
-                if response_size_estimate == new_estimate {
-                    return Err(HttpOutcallError::IcError { code, message }.into());
-                }
-                log!(DEBUG, "The {eth_method} response didn't fit into {response_size_estimate} bytes, retrying with {new_estimate}");
-                response_size_estimate = new_estimate;
-                retries += 1;
-                continue;
-            }
-            result => result?,
-        };
-
-        return match response.into_body().result {
-            canhttp::http::json::JsonRpcResult::Result(r) => Ok(r),
-            canhttp::http::json::JsonRpcResult::Error { code, message } => {
-                Err(JsonRpcError { code, message }.into())
-            }
-        };
+    let mut client = http_client(MetricRpcMethod(eth_method.clone()), true);
+    let response = client.call(request).await?;
+    match response.into_body().result {
+        canhttp::http::json::JsonRpcResult::Result(r) => Ok(r),
+        canhttp::http::json::JsonRpcResult::Error { code, message } => {
+            Err(JsonRpcError { code, message }.into())
+        }
     }
 }
 

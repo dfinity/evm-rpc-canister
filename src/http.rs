@@ -8,6 +8,7 @@ use crate::{
     types::{MetricRpcHost, MetricRpcMethod, ResolvedRpcService},
     util::canonicalize_json,
 };
+use canhttp::retry::DoubleMaxResponseBytes;
 use canhttp::{
     convert::ConvertRequestLayer,
     http::{
@@ -21,8 +22,8 @@ use canhttp::{
         HttpResponseConverter,
     },
     observability::ObservabilityLayer,
-    ConvertServiceBuilder, CyclesAccounting, CyclesAccountingError, CyclesChargingPolicy, IcError,
-    MaxResponseBytesRequestExtension, TransformContextRequestExtension,
+    ConvertServiceBuilder, CyclesAccounting, CyclesAccountingError, CyclesChargingPolicy,
+    HttpsOutcallError, IcError, MaxResponseBytesRequestExtension, TransformContextRequestExtension,
 };
 use evm_rpc_types::{HttpOutcallError, ProviderError, RpcError, RpcResult, ValidationError};
 use http::header::CONTENT_TYPE;
@@ -37,7 +38,8 @@ use serde::Serialize;
 use std::fmt::Debug;
 use thiserror::Error;
 use tower::layer::util::{Identity, Stack};
-use tower::{BoxError, Service, ServiceBuilder};
+use tower::retry::RetryLayer;
+use tower::{Service, ServiceBuilder};
 use tower_http::set_header::SetRequestHeaderLayer;
 use tower_http::ServiceBuilderExt;
 
@@ -71,20 +73,27 @@ pub async fn json_rpc_request(
     max_response_bytes: u64,
 ) -> RpcResult<HttpJsonRpcResponse<serde_json::Value>> {
     let request = json_rpc_request_arg(service, json_rpc_payload, max_response_bytes)?;
-    http_client(MetricRpcMethod("request".to_string()))
+    http_client(MetricRpcMethod("request".to_string()), false)
         .call(request)
         .await
 }
 
 pub fn http_client<I, O>(
     rpc_method: MetricRpcMethod,
+    retry: bool,
 ) -> impl Service<HttpJsonRpcRequest<I>, Response = HttpJsonRpcResponse<O>, Error = RpcError>
 where
-    I: Serialize,
+    I: Serialize + Clone,
     O: DeserializeOwned + Debug,
 {
+    let maybe_retry = if retry {
+        Some(RetryLayer::new(DoubleMaxResponseBytes))
+    } else {
+        None
+    };
     ServiceBuilder::new()
         .map_err(|e: HttpClientError| RpcError::from(e))
+        .option_layer(maybe_retry)
         .layer(
             ObservabilityLayer::new()
                 .on_request(move |req: &HttpJsonRpcRequest<I>| {
@@ -196,12 +205,12 @@ pub fn service_request_builder<I>() -> JsonRpcServiceBuilder<I> {
         .convert_request(HttpRequestConverter)
 }
 
-#[derive(Error, Debug)]
+#[derive(Clone, Debug, Error)]
 pub enum HttpClientError {
     #[error("IC error: {0}")]
     IcError(IcError),
     #[error("unknown error (most likely sign of a bug): {0}")]
-    NotHandledError(BoxError),
+    NotHandledError(String),
     #[error("cycles accounting error: {0}")]
     CyclesAccountingError(CyclesAccountingError),
     #[error("HTTP response was not successful: {0}")]
@@ -219,7 +228,7 @@ impl From<IcError> for HttpClientError {
 impl From<HttpResponseConversionError> for HttpClientError {
     fn from(value: HttpResponseConversionError) -> Self {
         // Replica should return valid http::Response
-        HttpClientError::NotHandledError(BoxError::from(value))
+        HttpClientError::NotHandledError(value.to_string())
     }
 }
 
@@ -243,13 +252,13 @@ impl From<CyclesAccountingError> for HttpClientError {
 
 impl From<HttpRequestConversionError> for HttpClientError {
     fn from(value: HttpRequestConversionError) -> Self {
-        HttpClientError::NotHandledError(value.into())
+        HttpClientError::NotHandledError(value.to_string())
     }
 }
 
 impl From<JsonRequestConversionError> for HttpClientError {
     fn from(value: JsonRequestConversionError) -> Self {
-        HttpClientError::NotHandledError(value.into())
+        HttpClientError::NotHandledError(value.to_string())
     }
 }
 
@@ -260,7 +269,7 @@ impl From<HttpClientError> for RpcError {
                 RpcError::HttpOutcallError(HttpOutcallError::IcError { code, message })
             }
             HttpClientError::NotHandledError(e) => {
-                RpcError::ValidationError(ValidationError::Custom(e.to_string()))
+                RpcError::ValidationError(ValidationError::Custom(e))
             }
             HttpClientError::CyclesAccountingError(
                 CyclesAccountingError::InsufficientCyclesError { expected, received },
@@ -283,6 +292,18 @@ impl From<HttpClientError> for RpcError {
                 body: String::from_utf8_lossy(response.body()).to_string(),
                 parsing_error: None,
             }),
+        }
+    }
+}
+
+impl HttpsOutcallError for HttpClientError {
+    fn is_response_too_large(&self) -> bool {
+        match self {
+            HttpClientError::IcError(e) => e.is_response_too_large(),
+            HttpClientError::NotHandledError(_)
+            | HttpClientError::CyclesAccountingError(_)
+            | HttpClientError::UnsuccessfulHttpResponse(_)
+            | HttpClientError::InvalidJsonResponse(_) => false,
         }
     }
 }
