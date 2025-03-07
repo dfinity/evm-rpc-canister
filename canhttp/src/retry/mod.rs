@@ -11,7 +11,51 @@ use tower::retry;
 // > If provided, the value must not exceed 2MB
 const HTTP_MAX_SIZE: u64 = 2_000_000;
 
-/// Double the `max_response_bytes` in case the IC error indicates the response was too big.
+/// Double the request `max_response_bytes` in case the error indicates the response was too big.
+///
+/// The value for `max_response_bytes` will be doubled until one of the following conditions happen:
+/// 1. Either the response is `Ok` or the error is not due to the response being too big;
+/// 2. Or, the maximum value of 2MB (`2_000_000`) is reached.
+///
+/// # Examples
+///
+/// ```rust
+/// use tower::{Service, ServiceBuilder, ServiceExt};
+/// use canhttp::{Client, http::HttpRequest, HttpsOutcallError, IcError, MaxResponseBytesRequestExtension, retry::DoubleMaxResponseBytes};
+/// use ic_cdk::api::call::RejectionCode;
+///
+/// fn response_is_too_large_error() -> IcError {
+///     let error = IcError {
+///         code: RejectionCode::SysFatal,
+///         message: "Http body exceeds size limit".to_string(),
+///     };
+///     assert!(error.is_response_too_large());
+///     error
+/// }
+///
+/// # #[tokio::main]
+/// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let mut service = ServiceBuilder::new()
+/// .retry(DoubleMaxResponseBytes)
+/// .service_fn(|request: HttpRequest| async move {
+///     match request.get_max_response_bytes() {
+///         Some(max_response_bytes) if max_response_bytes >= 8192 => Ok(()),
+///         _ => Err::<(), IcError>(response_is_too_large_error()),
+///     }
+/// });
+///
+/// let request = http::Request::post("https://internetcomputer.org/")
+///     .max_response_bytes(0)
+///     .body(vec![])
+///     .unwrap();
+///
+/// // This will effectively do 4 calls with the following max_response_bytes values: 0, 2048, 4096, 8192.
+/// let response = service.ready().await?.call(request).await;
+///
+/// assert_eq!(response, Ok(()));
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Debug, Clone)]
 pub struct DoubleMaxResponseBytes;
 
