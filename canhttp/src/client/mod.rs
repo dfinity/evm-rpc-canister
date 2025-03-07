@@ -2,10 +2,7 @@
 mod tests;
 
 use crate::convert::ConvertError;
-use crate::{
-    ConvertServiceBuilder, HttpsOutcallError, MaxResponseBytesRequestExtension,
-    TransformContextRequestExtension,
-};
+use crate::ConvertServiceBuilder;
 use ic_cdk::api::call::RejectionCode;
 use ic_cdk::api::management_canister::http_request::{
     CanisterHttpRequestArgument as IcHttpRequest, HttpResponse as IcHttpResponse, TransformContext,
@@ -52,13 +49,6 @@ pub struct IcError {
     pub message: String,
 }
 
-impl HttpsOutcallError for IcError {
-    fn is_response_too_large(&self) -> bool {
-        self.code == RejectionCode::SysFatal
-            && (self.message.contains("size limit") || self.message.contains("length limit"))
-    }
-}
-
 impl Service<IcHttpRequestWithCycles> for Client {
     type Response = IcHttpResponse;
     type Error = IcError;
@@ -83,6 +73,34 @@ impl Service<IcHttpRequestWithCycles> for Client {
     }
 }
 
+/// [`IcHttpRequest`] specifying how many cycles should be attached for the HTTPs outcall.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct IcHttpRequestWithCycles {
+    /// Request to be made.
+    pub request: IcHttpRequest,
+    /// Number of cycles to attach.
+    pub cycles: u128,
+}
+
+/// Add support for max response bytes.
+pub trait MaxResponseBytesRequestExtension: Sized {
+    /// Set the max response bytes.
+    ///
+    /// If provided, the value must not exceed 2MB (2_000_000B).
+    /// The call will be charged based on this parameter.
+    /// If not provided, the maximum of 2MB will be used.
+    fn set_max_response_bytes(&mut self, value: u64);
+
+    /// Retrieves the current max response bytes value, if any.
+    fn get_max_response_bytes(&self) -> Option<u64>;
+
+    /// Convenience method to use the builder pattern.
+    fn max_response_bytes(mut self, value: u64) -> Self {
+        self.set_max_response_bytes(value);
+        self
+    }
+}
+
 impl MaxResponseBytesRequestExtension for IcHttpRequest {
     fn set_max_response_bytes(&mut self, value: u64) {
         self.max_response_bytes = Some(value);
@@ -90,6 +108,35 @@ impl MaxResponseBytesRequestExtension for IcHttpRequest {
 
     fn get_max_response_bytes(&self) -> Option<u64> {
         self.max_response_bytes
+    }
+}
+
+impl MaxResponseBytesRequestExtension for IcHttpRequestWithCycles {
+    fn set_max_response_bytes(&mut self, value: u64) {
+        self.request.set_max_response_bytes(value);
+    }
+
+    fn get_max_response_bytes(&self) -> Option<u64> {
+        self.request.get_max_response_bytes()
+    }
+}
+
+/// Add support for transform context to specify how the response will be canonicalized by the replica
+/// to maximize chances of consensus.
+///
+/// See the [docs](https://internetcomputer.org/docs/references/https-outcalls-how-it-works#transformation-function)
+/// on HTTPs outcalls for more details.
+pub trait TransformContextRequestExtension: Sized {
+    /// Set the transform context.
+    fn set_transform_context(&mut self, value: TransformContext);
+
+    /// Retrieve the current transform context, if any.
+    fn get_transform_context(&self) -> Option<&TransformContext>;
+
+    /// Convenience method to use the builder pattern.
+    fn transform_context(mut self, value: TransformContext) -> Self {
+        self.set_transform_context(value);
+        self
     }
 }
 
@@ -103,25 +150,6 @@ impl TransformContextRequestExtension for IcHttpRequest {
     }
 }
 
-/// [`IcHttpRequest`] specifying how many cycles should be attached for the HTTPs outcall.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct IcHttpRequestWithCycles {
-    /// Request to be made.
-    pub request: IcHttpRequest,
-    /// Number of cycles to attach.
-    pub cycles: u128,
-}
-
-impl MaxResponseBytesRequestExtension for IcHttpRequestWithCycles {
-    fn set_max_response_bytes(&mut self, value: u64) {
-        self.request.set_max_response_bytes(value);
-    }
-
-    fn get_max_response_bytes(&self) -> Option<u64> {
-        self.request.get_max_response_bytes()
-    }
-}
-
 impl TransformContextRequestExtension for IcHttpRequestWithCycles {
     fn set_transform_context(&mut self, value: TransformContext) {
         self.request.set_transform_context(value);
@@ -129,6 +157,22 @@ impl TransformContextRequestExtension for IcHttpRequestWithCycles {
 
     fn get_transform_context(&self) -> Option<&TransformContext> {
         self.request.get_transform_context()
+    }
+}
+
+/// Characterize errors that are specific to HTTPs outcalls.
+pub trait HttpsOutcallError {
+    /// Determines whether the error indicates that the response was larger than the specified
+    /// [`max_response_bytes`](https://internetcomputer.org/docs/current/references/ic-interface-spec#ic-http_request) specified in the request.
+    ///
+    /// If true, retrying with a larger value for `max_response_bytes` may help.
+    fn is_response_too_large(&self) -> bool;
+}
+
+impl HttpsOutcallError for IcError {
+    fn is_response_too_large(&self) -> bool {
+        self.code == RejectionCode::SysFatal
+            && (self.message.contains("size limit") || self.message.contains("length limit"))
     }
 }
 
