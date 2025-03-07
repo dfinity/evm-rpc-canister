@@ -1,3 +1,8 @@
+//! Middleware for retrying "failed" requests.
+
+#[cfg(test)]
+mod tests;
+
 use crate::{HttpsOutcallError, MaxResponseBytesRequestExtension};
 use std::future;
 use tower::retry;
