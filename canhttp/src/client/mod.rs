@@ -2,10 +2,13 @@
 mod tests;
 
 use crate::convert::ConvertError;
-use crate::{ConvertServiceBuilder, HttpsOutcallError};
+use crate::{
+    ConvertServiceBuilder, HttpsOutcallError, MaxResponseBytesRequestExtension,
+    TransformContextRequestExtension,
+};
 use ic_cdk::api::call::RejectionCode;
 use ic_cdk::api::management_canister::http_request::{
-    CanisterHttpRequestArgument as IcHttpRequest, HttpResponse as IcHttpResponse,
+    CanisterHttpRequestArgument as IcHttpRequest, HttpResponse as IcHttpResponse, TransformContext,
 };
 use std::future::Future;
 use std::pin::Pin;
@@ -21,6 +24,7 @@ use tower::{BoxError, Service, ServiceBuilder};
 /// * [`crate::cycles::CyclesAccounting`]: handles cycles accounting.
 /// * [`crate::observability`]: add logging or metrics.
 /// * [`crate::http`]: use types from the [http](https://crates.io/crates/http) crate for requests and responses.
+/// * [`crate::retry::DoubleMaxResponseBytes`]: automatically retry failed requests due to the response being too big.
 #[derive(Clone, Debug)]
 pub struct Client;
 
@@ -79,6 +83,26 @@ impl Service<IcHttpRequestWithCycles> for Client {
     }
 }
 
+impl MaxResponseBytesRequestExtension for IcHttpRequest {
+    fn set_max_response_bytes(&mut self, value: u64) {
+        self.max_response_bytes = Some(value);
+    }
+
+    fn get_max_response_bytes(&self) -> Option<u64> {
+        self.max_response_bytes
+    }
+}
+
+impl TransformContextRequestExtension for IcHttpRequest {
+    fn set_transform_context(&mut self, value: TransformContext) {
+        self.transform = Some(value);
+    }
+
+    fn get_transform_context(&self) -> Option<&TransformContext> {
+        self.transform.as_ref()
+    }
+}
+
 /// [`IcHttpRequest`] specifying how many cycles should be attached for the HTTPs outcall.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct IcHttpRequestWithCycles {
@@ -86,4 +110,33 @@ pub struct IcHttpRequestWithCycles {
     pub request: IcHttpRequest,
     /// Number of cycles to attach.
     pub cycles: u128,
+}
+
+impl MaxResponseBytesRequestExtension for IcHttpRequestWithCycles {
+    fn set_max_response_bytes(&mut self, value: u64) {
+        self.request.set_max_response_bytes(value);
+    }
+
+    fn get_max_response_bytes(&self) -> Option<u64> {
+        self.request.get_max_response_bytes()
+    }
+}
+
+impl TransformContextRequestExtension for IcHttpRequestWithCycles {
+    fn set_transform_context(&mut self, value: TransformContext) {
+        self.request.set_transform_context(value);
+    }
+
+    fn get_transform_context(&self) -> Option<&TransformContext> {
+        self.request.get_transform_context()
+    }
+}
+
+impl HttpsOutcallError for BoxError {
+    fn is_response_too_large(&self) -> bool {
+        if let Some(ic_error) = self.downcast_ref::<IcError>() {
+            return ic_error.is_response_too_large();
+        }
+        false
+    }
 }
