@@ -33,8 +33,7 @@ impl Client {
     }
 
     /// Creates a new client where error type is erased.
-    pub fn new_with_box_error(
-    ) -> impl Service<IcHttpRequestWithCycles, Response = IcHttpResponse, Error = BoxError> {
+    pub fn new_with_box_error() -> ConvertError<Client, BoxError> {
         Self::new_with_error::<BoxError>()
     }
 }
