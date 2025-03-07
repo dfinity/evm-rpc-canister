@@ -2,8 +2,7 @@
 //! interface.
 
 use crate::http::http_client;
-use crate::logs::{DEBUG, TRACE_HTTP};
-use crate::memory::{get_override_provider, next_request_id};
+use crate::memory::get_override_provider;
 use crate::providers::resolve_rpc_service;
 use crate::rpc_client::eth_rpc_error::{sanitize_send_raw_transaction_result, Parser};
 use crate::rpc_client::json::responses::{
@@ -16,9 +15,7 @@ use canhttp::{
     http::json::JsonRpcRequestBody, MaxResponseBytesRequestExtension,
     TransformContextRequestExtension,
 };
-use evm_rpc_types::{HttpOutcallError, JsonRpcError, RpcError, RpcService};
-use ic_canister_log::log;
-use ic_cdk::api::call::RejectionCode;
+use evm_rpc_types::{JsonRpcError, RpcError, RpcService};
 use ic_cdk::api::management_canister::http_request::{
     HttpResponse, TransformArgs, TransformContext,
 };
@@ -120,11 +117,6 @@ fn cleanup_response(mut args: TransformArgs) -> HttpResponse {
     args.response
 }
 
-pub fn is_response_too_large(code: &RejectionCode, message: &str) -> bool {
-    code == &RejectionCode::SysFatal
-        && (message.contains("size limit") || message.contains("length limit"))
-}
-
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ResponseSizeEstimate(u64);
 
@@ -139,11 +131,6 @@ impl ResponseSizeEstimate {
     /// This number should be less than `MAX_PAYLOAD_SIZE`.
     pub fn get(self) -> u64 {
         self.0
-    }
-
-    /// Returns a higher estimate for the payload size.
-    pub fn adjust(self) -> Self {
-        Self(self.0.max(1024).saturating_mul(2).min(MAX_PAYLOAD_SIZE))
     }
 }
 
@@ -170,7 +157,7 @@ pub async fn call<I, O>(
     provider: &RpcService,
     method: impl Into<String>,
     params: I,
-    mut response_size_estimate: ResponseSizeEstimate,
+    response_size_estimate: ResponseSizeEstimate,
 ) -> Result<O, RpcError>
 where
     I: Serialize + Clone + Debug,

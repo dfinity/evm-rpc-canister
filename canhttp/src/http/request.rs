@@ -1,10 +1,10 @@
 use crate::convert::Convert;
+use crate::{MaxResponseBytesRequestExtension, TransformContextRequestExtension};
 use ic_cdk::api::management_canister::http_request::{
     CanisterHttpRequestArgument as IcHttpRequest, HttpHeader as IcHttpHeader,
     HttpMethod as IcHttpMethod, TransformContext,
 };
 use thiserror::Error;
-use crate::{MaxResponseBytesRequestExtension, TransformContextRequestExtension};
 
 /// HTTP request with a body made of bytes.
 pub type HttpRequest = http::Request<Vec<u8>>;

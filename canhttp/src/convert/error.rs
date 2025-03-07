@@ -11,11 +11,17 @@ pub struct ConvertErrorLayer<E> {
     _marker: PhantomData<E>,
 }
 
-impl<L> ConvertErrorLayer<L> {
+impl<E> ConvertErrorLayer<E> {
     pub fn new() -> Self {
         Self {
             _marker: PhantomData,
         }
+    }
+}
+
+impl<E> Default for ConvertErrorLayer<E> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
