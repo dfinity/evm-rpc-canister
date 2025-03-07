@@ -134,6 +134,10 @@ pub trait ConvertServiceBuilder<L> {
     ///
     /// See the [module docs](crate::convert) for examples.
     fn convert_response<C>(self, f: C) -> ServiceBuilder<Stack<ConvertResponseLayer<C>, L>>;
+
+    /// Convert the error type.
+    ///
+    /// See the [module docs](crate::convert) for examples.
     fn convert_error<NewError>(self) -> ServiceBuilder<Stack<ConvertErrorLayer<NewError>, L>>;
 }
 

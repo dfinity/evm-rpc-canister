@@ -3,8 +3,7 @@
 //! leveraging the modularity of the [tower framework](https://rust-lang.guide/guide/learn-async-rust/tower.html).
 
 #![forbid(unsafe_code)]
-// TODO: XC-287 reenable docs
-// #![forbid(missing_docs)]
+#![forbid(missing_docs)]
 
 pub use client::{Client, IcError, IcHttpRequestWithCycles};
 pub use convert::ConvertServiceBuilder;
@@ -59,6 +58,7 @@ pub trait TransformContextRequestExtension: Sized {
     }
 }
 
+/// Characterize errors that are specific to HTTPs outcalls.
 pub trait HttpsOutcallError {
     /// Determines whether the error indicates that the response was larger than the specified
     /// [`max_response_bytes`](https://internetcomputer.org/docs/current/references/ic-interface-spec#ic-http_request) specified in the request.

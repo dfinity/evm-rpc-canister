@@ -6,12 +6,18 @@ use std::task::{Context, Poll};
 use tower::Service;
 use tower_layer::Layer;
 
+/// Convert error of a service into another type, where the conversion does *not* fail.
+///
+/// This [`Layer`] produces instances of the [`ConvertError`] service.
+///
+/// [`Layer`]: tower::Layer
 #[derive(Debug)]
 pub struct ConvertErrorLayer<E> {
     _marker: PhantomData<E>,
 }
 
 impl<E> ConvertErrorLayer<E> {
+    /// Returns a new [`ConvertErrorLayer`]
     pub fn new() -> Self {
         Self {
             _marker: PhantomData,
@@ -33,6 +39,7 @@ impl<E> Clone for ConvertErrorLayer<E> {
     }
 }
 
+/// Convert the inner service error to another type, where the conversion does *not* fail.
 #[derive(Debug)]
 pub struct ConvertError<S, E> {
     inner: S,
