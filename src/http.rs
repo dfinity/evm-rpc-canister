@@ -1,6 +1,6 @@
 use crate::constants::COLLATERAL_CYCLES_PER_NODE;
 use crate::logs::{INFO, TRACE_HTTP};
-use crate::memory::{get_num_subnet_nodes, is_demo_active};
+use crate::memory::{get_num_subnet_nodes, is_demo_active, next_request_id};
 use crate::{
     add_metric_entry,
     constants::CONTENT_TYPE_VALUE,
@@ -39,6 +39,7 @@ use std::fmt::Debug;
 use thiserror::Error;
 use tower::layer::util::{Identity, Stack};
 use tower::retry::RetryLayer;
+use tower::util::MapRequestLayer;
 use tower::{Service, ServiceBuilder};
 use tower_http::set_header::SetRequestHeaderLayer;
 use tower_http::ServiceBuilderExt;
@@ -91,9 +92,15 @@ where
     } else {
         None
     };
+    let maybe_unique_id = if retry {
+        Some(MapRequestLayer::new(generate_request_id))
+    } else {
+        None
+    };
     ServiceBuilder::new()
         .map_err(|e: HttpClientError| RpcError::from(e))
         .option_layer(maybe_retry)
+        .option_layer(maybe_unique_id)
         .layer(
             ObservabilityLayer::new()
                 .on_request(move |req: &HttpJsonRpcRequest<I>| {
@@ -175,6 +182,12 @@ where
             ChargingPolicyWithCollateral::default(),
         ))
         .service(canhttp::Client::new_with_error::<HttpClientError>())
+}
+
+fn generate_request_id<I>(request: HttpJsonRpcRequest<I>) -> HttpJsonRpcRequest<I> {
+    let (parts, mut body) = request.into_parts();
+    body.set_id(next_request_id());
+    http::Request::from_parts(parts, body)
 }
 
 fn observe_response(method: MetricRpcMethod, host: MetricRpcHost, status: u16) {
