@@ -601,6 +601,31 @@ fn should_canonicalize_json_response() {
 }
 
 #[test]
+fn should_not_modify_json_rpc_request_from_request_endpoint() {
+    let setup = EvmRpcSetup::new();
+
+    let json_rpc_request = r#"{"id":123,"jsonrpc":"2.0","method":"eth_gasPrice"}"#;
+    let mock_response = r#"{"jsonrpc":"2.0","id":123,"result":"0x00112233"}"#;
+
+    let response = setup
+        .request(
+            RpcService::Custom(RpcApi {
+                url: MOCK_REQUEST_URL.to_string(),
+                headers: None,
+            }),
+            json_rpc_request,
+            MOCK_REQUEST_RESPONSE_BYTES,
+        )
+        .mock_http_once(
+            MockOutcallBuilder::new(200, mock_response).with_raw_request_body(json_rpc_request),
+        )
+        .wait()
+        .unwrap();
+
+    assert_eq!(response, mock_response);
+}
+
+#[test]
 fn should_decode_renamed_field() {
     #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, CandidType)]
     pub struct Struct {
