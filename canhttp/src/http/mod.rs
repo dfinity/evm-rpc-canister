@@ -29,7 +29,7 @@
 //! # Examples
 //!
 //! ```rust
-//! use canhttp::{http::{HttpConversionLayer, MaxResponseBytesRequestExtension}, IcError};
+//! use canhttp::{http::{HttpConversionLayer }, IcError, MaxResponseBytesRequestExtension};
 //! use ic_cdk::api::management_canister::http_request::{CanisterHttpRequestArgument as IcHttpRequest, HttpResponse as IcHttpResponse};
 //! use tower::{Service, ServiceBuilder, ServiceExt, BoxError};
 //!
@@ -65,10 +65,7 @@
 #[cfg(test)]
 mod tests;
 
-pub use request::{
-    HttpRequest, HttpRequestConversionError, HttpRequestConverter,
-    MaxResponseBytesRequestExtension, TransformContextRequestExtension,
-};
+pub use request::{HttpRequest, HttpRequestConversionError, HttpRequestConverter};
 pub use response::{
     FilterNonSuccessfulHttpResponse, FilterNonSuccessulHttpResponseError, HttpResponse,
     HttpResponseConversionError, HttpResponseConverter,

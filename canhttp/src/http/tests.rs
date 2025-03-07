@@ -1,10 +1,10 @@
 use crate::http::request::HttpRequestConversionError;
 use crate::http::response::{HttpResponse, HttpResponseConversionError};
-use crate::http::{
-    HttpConversionLayer, HttpRequestConverter, HttpResponseConverter,
-    MaxResponseBytesRequestExtension, TransformContextRequestExtension,
+use crate::http::{HttpConversionLayer, HttpRequestConverter, HttpResponseConverter};
+use crate::{
+    ConvertServiceBuilder, IcError, MaxResponseBytesRequestExtension,
+    TransformContextRequestExtension,
 };
-use crate::{ConvertServiceBuilder, IcError};
 use assert_matches::assert_matches;
 use candid::{Decode, Encode, Principal};
 use http::StatusCode;

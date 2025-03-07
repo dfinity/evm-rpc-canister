@@ -2,8 +2,7 @@
 //! interface.
 
 use crate::http::http_client;
-use crate::logs::{DEBUG, TRACE_HTTP};
-use crate::memory::{get_override_provider, next_request_id};
+use crate::memory::get_override_provider;
 use crate::providers::resolve_rpc_service;
 use crate::rpc_client::eth_rpc_error::{sanitize_send_raw_transaction_result, Parser};
 use crate::rpc_client::json::responses::{
@@ -12,11 +11,11 @@ use crate::rpc_client::json::responses::{
 use crate::rpc_client::numeric::{TransactionCount, Wei};
 use crate::types::MetricRpcMethod;
 use candid::candid_method;
-use canhttp::http::json::JsonRpcRequestBody;
-use canhttp::http::{MaxResponseBytesRequestExtension, TransformContextRequestExtension};
-use evm_rpc_types::{HttpOutcallError, JsonRpcError, RpcError, RpcService};
-use ic_canister_log::log;
-use ic_cdk::api::call::RejectionCode;
+use canhttp::{
+    http::json::JsonRpcRequestBody, MaxResponseBytesRequestExtension,
+    TransformContextRequestExtension,
+};
+use evm_rpc_types::{JsonRpcError, RpcError, RpcService};
 use ic_cdk::api::management_canister::http_request::{
     HttpResponse, TransformArgs, TransformContext,
 };
@@ -118,11 +117,6 @@ fn cleanup_response(mut args: TransformArgs) -> HttpResponse {
     args.response
 }
 
-pub fn is_response_too_large(code: &RejectionCode, message: &str) -> bool {
-    code == &RejectionCode::SysFatal
-        && (message.contains("size limit") || message.contains("length limit"))
-}
-
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ResponseSizeEstimate(u64);
 
@@ -137,11 +131,6 @@ impl ResponseSizeEstimate {
     /// This number should be less than `MAX_PAYLOAD_SIZE`.
     pub fn get(self) -> u64 {
         self.0
-    }
-
-    /// Returns a higher estimate for the payload size.
-    pub fn adjust(self) -> Self {
-        Self(self.0.max(1024).saturating_mul(2).min(MAX_PAYLOAD_SIZE))
     }
 }
 
@@ -168,7 +157,7 @@ pub async fn call<I, O>(
     provider: &RpcService,
     method: impl Into<String>,
     params: I,
-    mut response_size_estimate: ResponseSizeEstimate,
+    response_size_estimate: ResponseSizeEstimate,
 ) -> Result<O, RpcError>
 where
     I: Serialize + Clone + Debug,
@@ -185,8 +174,10 @@ where
         })
         .unwrap_or_default();
 
+    let effective_size_estimate = response_size_estimate.get();
     let request = resolve_rpc_service(provider.clone())?
         .post(&get_override_provider())?
+        .max_response_bytes(effective_size_estimate)
         .transform_context(TransformContext::from_name(
             "cleanup_response".to_owned(),
             transform_op.clone(),
@@ -195,45 +186,13 @@ where
         .expect("BUG: invalid request");
 
     let eth_method = request.body().method().to_string();
-    let mut client = http_client(MetricRpcMethod(eth_method.clone()));
-    let mut retries = 0;
-    loop {
-        let effective_size_estimate = response_size_estimate.get();
-        let request = {
-            let mut request = request.clone().max_response_bytes(effective_size_estimate);
-            let body = request.body_mut();
-            body.set_id(next_request_id());
-            request
-        };
-        let url = request.uri().clone();
-        log!(
-            TRACE_HTTP,
-            "Calling url (retries={retries}): {}, with payload: {request:?}",
-            url
-        );
-
-        let response = match client.call(request).await {
-            Err(RpcError::HttpOutcallError(HttpOutcallError::IcError { code, message }))
-                if is_response_too_large(&code, &message) =>
-            {
-                let new_estimate = response_size_estimate.adjust();
-                if response_size_estimate == new_estimate {
-                    return Err(HttpOutcallError::IcError { code, message }.into());
-                }
-                log!(DEBUG, "The {eth_method} response didn't fit into {response_size_estimate} bytes, retrying with {new_estimate}");
-                response_size_estimate = new_estimate;
-                retries += 1;
-                continue;
-            }
-            result => result?,
-        };
-
-        return match response.into_body().result {
-            canhttp::http::json::JsonRpcResult::Result(r) => Ok(r),
-            canhttp::http::json::JsonRpcResult::Error { code, message } => {
-                Err(JsonRpcError { code, message }.into())
-            }
-        };
+    let mut client = http_client(MetricRpcMethod(eth_method.clone()), true);
+    let response = client.call(request).await?;
+    match response.into_body().result {
+        canhttp::http::json::JsonRpcResult::Result(r) => Ok(r),
+        canhttp::http::json::JsonRpcResult::Error { code, message } => {
+            Err(JsonRpcError { code, message }.into())
+        }
     }
 }
 
