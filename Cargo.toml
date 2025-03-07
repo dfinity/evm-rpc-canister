@@ -18,7 +18,7 @@ inherits = "release"
 
 [dependencies]
 candid = { workspace = true }
-canhttp = { path = "canhttp" }
+canhttp = { path = "canhttp", features = ["json"] }
 ethnum = { workspace = true }
 evm_rpc_types = { path = "evm_rpc_types" }
 futures = { workspace = true }
@@ -36,9 +36,10 @@ minicbor = { workspace = true }
 serde = { workspace = true }
 serde_bytes = { workspace = true }
 serde_json = { workspace = true }
+thiserror = { workspace = true }
 thousands = "0.2"
-tower = {workspace = true}
-tower-http = {workspace = true, features = ["set-header", "util"]}
+tower = { workspace = true }
+tower-http = { workspace = true, features = ["set-header", "util"] }
 url = { workspace = true }
 hex = "0.4"
 ethers-core = "2.0"
@@ -59,9 +60,10 @@ rand = "0.8"
 [workspace.dependencies]
 assert_matches = "1.5.0"
 candid = { version = "0.10.13" }
-candid_parser = {version = "0.1.4"}
+candid_parser = { version = "0.1.4" }
 ethnum = { version = "1.5.0", features = ["serde"] }
 futures = "0.3.31"
+futures-util = "0.3.31"
 getrandom = { version = "0.2", features = ["custom"] }
 hex = "0.4.3"
 http = "1.2.0"
@@ -90,4 +92,4 @@ thiserror = "2.0.11"
 url = "2.5"
 
 [workspace]
-members = [ "canhttp", "e2e/rust", "evm_rpc_types"]
+members = ["canhttp", "e2e/rust", "evm_rpc_types"]

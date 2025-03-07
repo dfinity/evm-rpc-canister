@@ -1,4 +1,5 @@
 use crate::constants::COLLATERAL_CYCLES_PER_NODE;
+use crate::logs::{INFO, TRACE_HTTP};
 use crate::memory::{get_num_subnet_nodes, is_demo_active};
 use crate::{
     add_metric_entry,
@@ -7,21 +8,33 @@ use crate::{
     types::{MetricRpcHost, MetricRpcMethod, ResolvedRpcService},
     util::canonicalize_json,
 };
-use canhttp::http::{
-    HttpRequest, HttpRequestConversionLayer, HttpResponse, HttpResponseConversionLayer,
-    MaxResponseBytesRequestExtension, TransformContextRequestExtension,
-};
 use canhttp::{
-    observability::ObservabilityLayer, CyclesAccounting, CyclesAccountingError,
-    CyclesChargingPolicy,
+    convert::ConvertRequestLayer,
+    http::{
+        json::{
+            HttpJsonRpcRequest, HttpJsonRpcResponse, JsonRequestConversionError,
+            JsonRequestConverter, JsonResponseConversionError, JsonResponseConverter,
+            JsonRpcRequestBody,
+        },
+        FilterNonSuccessfulHttpResponse, FilterNonSuccessulHttpResponseError,
+        HttpRequestConversionError, HttpRequestConverter, HttpResponseConversionError,
+        HttpResponseConverter, MaxResponseBytesRequestExtension, TransformContextRequestExtension,
+    },
+    observability::ObservabilityLayer,
+    ConvertServiceBuilder, CyclesAccounting, CyclesAccountingError, CyclesChargingPolicy, IcError,
 };
 use evm_rpc_types::{HttpOutcallError, ProviderError, RpcError, RpcResult, ValidationError};
 use http::header::CONTENT_TYPE;
 use http::HeaderValue;
+use ic_canister_log::log;
 use ic_cdk::api::management_canister::http_request::{
     CanisterHttpRequestArgument as IcHttpRequest, HttpResponse as IcHttpResponse, TransformArgs,
     TransformContext,
 };
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+use std::fmt::Debug;
+use thiserror::Error;
 use tower::layer::util::{Identity, Stack};
 use tower::{BoxError, Service, ServiceBuilder};
 use tower_http::set_header::SetRequestHeaderLayer;
@@ -31,7 +44,13 @@ pub fn json_rpc_request_arg(
     service: ResolvedRpcService,
     json_rpc_payload: &str,
     max_response_bytes: u64,
-) -> RpcResult<HttpRequest> {
+) -> RpcResult<HttpJsonRpcRequest<serde_json::Value>> {
+    let body: JsonRpcRequestBody<serde_json::Value> = serde_json::from_str(json_rpc_payload)
+        .map_err(|e| {
+            RpcError::ValidationError(ValidationError::Custom(format!(
+                "Invalid JSON RPC request: {e}"
+            )))
+        })?;
     service
         .post(&get_override_provider())?
         .max_response_bytes(max_response_bytes)
@@ -39,7 +58,7 @@ pub fn json_rpc_request_arg(
             "__transform_json_rpc".to_string(),
             vec![],
         ))
-        .body(json_rpc_payload.as_bytes().to_vec())
+        .body(body)
         .map_err(|e| {
             RpcError::ValidationError(ValidationError::Custom(format!("Invalid request: {e}")))
         })
@@ -49,23 +68,29 @@ pub async fn json_rpc_request(
     service: ResolvedRpcService,
     json_rpc_payload: &str,
     max_response_bytes: u64,
-) -> RpcResult<HttpResponse> {
+) -> RpcResult<HttpJsonRpcResponse<serde_json::Value>> {
     let request = json_rpc_request_arg(service, json_rpc_payload, max_response_bytes)?;
     http_client(MetricRpcMethod("request".to_string()))
         .call(request)
         .await
 }
 
-pub fn http_client(
+pub fn http_client<I, O>(
     rpc_method: MetricRpcMethod,
-) -> impl Service<HttpRequest, Response = HttpResponse, Error = RpcError> {
+) -> impl Service<HttpJsonRpcRequest<I>, Response = HttpJsonRpcResponse<O>, Error = RpcError>
+where
+    I: Serialize,
+    O: DeserializeOwned + Debug,
+{
     ServiceBuilder::new()
+        .map_err(|e: HttpClientError| RpcError::from(e))
         .layer(
             ObservabilityLayer::new()
-                .on_request(move |req: &HttpRequest| {
+                .on_request(move |req: &HttpJsonRpcRequest<I>| {
                     let req_data = MetricData {
                         method: rpc_method.clone(),
                         host: MetricRpcHost(req.uri().host().unwrap().to_string()),
+                        request_id: req.body().id().cloned(),
                     };
                     add_metric_entry!(
                         requests,
@@ -74,80 +99,197 @@ pub fn http_client(
                     );
                     req_data
                 })
-                .on_response(|req_data: MetricData, response: &HttpResponse| {
-                    let status: u32 = response.status().as_u16() as u32;
-                    add_metric_entry!(
-                        responses,
-                        (req_data.method, req_data.host, status.into()),
-                        1
+                .on_response(|req_data: MetricData, response: &HttpJsonRpcResponse<O>| {
+                    observe_response(req_data.method, req_data.host, response.status().as_u16());
+                    log!(
+                        TRACE_HTTP,
+                        "Got response for request with id `{:?}`. Response with status {}: {:?}",
+                        req_data.request_id,
+                        response.status(),
+                        response.body()
                     );
                 })
-                .on_error(|req_data: MetricData, error: &RpcError| {
-                    if let RpcError::HttpOutcallError(HttpOutcallError::IcError {
-                        code,
-                        message: _,
-                    }) = error
-                    {
-                        add_metric_entry!(
-                            err_http_outcall,
-                            (req_data.method, req_data.host, *code),
-                            1
-                        );
-                    }
-                }),
+                .on_error(
+                    |req_data: MetricData, error: &HttpClientError| match error {
+                        HttpClientError::IcError(IcError { code, message: _ }) => {
+                            add_metric_entry!(
+                                err_http_outcall,
+                                (req_data.method, req_data.host, *code),
+                                1
+                            );
+                        }
+                        HttpClientError::UnsuccessfulHttpResponse(
+                            FilterNonSuccessulHttpResponseError::UnsuccessfulResponse(response),
+                        ) => {
+                            observe_response(
+                                req_data.method,
+                                req_data.host,
+                                response.status().as_u16(),
+                            );
+                            log!(
+                                TRACE_HTTP,
+                                "Unsuccessful HTTP response for request with id `{:?}`. Response with status {}: {}",
+                                req_data.request_id,
+                                response.status(),
+                                String::from_utf8_lossy(response.body())
+                            );
+                        }
+                        HttpClientError::InvalidJsonResponse(
+                            JsonResponseConversionError::InvalidJsonResponse {
+                                status,
+                                body: _,
+                                parsing_error: _,
+                            },
+                        ) => {
+                            observe_response(req_data.method, req_data.host, *status);
+                            log!(
+                                TRACE_HTTP,
+                                "Invalid JSON RPC response for request with id `{:?}`: {}",
+                                req_data.request_id,
+                                error
+                            );
+                        }
+                        HttpClientError::NotHandledError(e) => {
+                            log!(INFO, "BUG: Unexpected error: {}", e);
+                        }
+                        HttpClientError::CyclesAccountingError(_) => {}
+                    },
+                ),
         )
-        .map_err(map_error)
         .layer(service_request_builder())
-        .layer(HttpResponseConversionLayer)
-        .filter(CyclesAccounting::new(
+        .convert_response(JsonResponseConverter::new())
+        .convert_response(FilterNonSuccessfulHttpResponse)
+        .convert_response(HttpResponseConverter)
+        .convert_request(CyclesAccounting::new(
             get_num_subnet_nodes(),
             ChargingPolicyWithCollateral::default(),
         ))
-        .service(canhttp::Client)
+        .service(canhttp::Client::new_with_error::<HttpClientError>())
 }
+
+fn observe_response(method: MetricRpcMethod, host: MetricRpcHost, status: u16) {
+    let status: u32 = status as u32;
+    add_metric_entry!(responses, (method, host, status.into()), 1);
+}
+
+type JsonRpcServiceBuilder<I> = ServiceBuilder<
+    Stack<
+        ConvertRequestLayer<HttpRequestConverter>,
+        Stack<
+            ConvertRequestLayer<JsonRequestConverter<I>>,
+            Stack<SetRequestHeaderLayer<HeaderValue>, Identity>,
+        >,
+    >,
+>;
 
 /// Middleware that takes care of transforming the request.
 ///
 /// It's required to separate it from the other middlewares, to compute the exact request cost.
-pub fn service_request_builder() -> ServiceBuilder<
-    Stack<HttpRequestConversionLayer, Stack<SetRequestHeaderLayer<HeaderValue>, Identity>>,
-> {
+pub fn service_request_builder<I>() -> JsonRpcServiceBuilder<I> {
     ServiceBuilder::new()
         .insert_request_header_if_not_present(
             CONTENT_TYPE,
             HeaderValue::from_static(CONTENT_TYPE_VALUE),
         )
-        .layer(HttpRequestConversionLayer)
+        .convert_request(JsonRequestConverter::<I>::new())
+        .convert_request(HttpRequestConverter)
+}
+
+#[derive(Error, Debug)]
+pub enum HttpClientError {
+    #[error("IC error: {0}")]
+    IcError(IcError),
+    #[error("unknown error (most likely sign of a bug): {0}")]
+    NotHandledError(BoxError),
+    #[error("cycles accounting error: {0}")]
+    CyclesAccountingError(CyclesAccountingError),
+    #[error("HTTP response was not successful: {0}")]
+    UnsuccessfulHttpResponse(FilterNonSuccessulHttpResponseError<Vec<u8>>),
+    #[error("Error converting response to JSON: {0}")]
+    InvalidJsonResponse(JsonResponseConversionError),
+}
+
+impl From<IcError> for HttpClientError {
+    fn from(value: IcError) -> Self {
+        HttpClientError::IcError(value)
+    }
+}
+
+impl From<HttpResponseConversionError> for HttpClientError {
+    fn from(value: HttpResponseConversionError) -> Self {
+        // Replica should return valid http::Response
+        HttpClientError::NotHandledError(BoxError::from(value))
+    }
+}
+
+impl From<FilterNonSuccessulHttpResponseError<Vec<u8>>> for HttpClientError {
+    fn from(value: FilterNonSuccessulHttpResponseError<Vec<u8>>) -> Self {
+        HttpClientError::UnsuccessfulHttpResponse(value)
+    }
+}
+
+impl From<JsonResponseConversionError> for HttpClientError {
+    fn from(value: JsonResponseConversionError) -> Self {
+        HttpClientError::InvalidJsonResponse(value)
+    }
+}
+
+impl From<CyclesAccountingError> for HttpClientError {
+    fn from(value: CyclesAccountingError) -> Self {
+        HttpClientError::CyclesAccountingError(value)
+    }
+}
+
+impl From<HttpRequestConversionError> for HttpClientError {
+    fn from(value: HttpRequestConversionError) -> Self {
+        HttpClientError::NotHandledError(value.into())
+    }
+}
+
+impl From<JsonRequestConversionError> for HttpClientError {
+    fn from(value: JsonRequestConversionError) -> Self {
+        HttpClientError::NotHandledError(value.into())
+    }
+}
+
+impl From<HttpClientError> for RpcError {
+    fn from(error: HttpClientError) -> Self {
+        match error {
+            HttpClientError::IcError(IcError { code, message }) => {
+                RpcError::HttpOutcallError(HttpOutcallError::IcError { code, message })
+            }
+            HttpClientError::NotHandledError(e) => {
+                RpcError::ValidationError(ValidationError::Custom(e.to_string()))
+            }
+            HttpClientError::CyclesAccountingError(
+                CyclesAccountingError::InsufficientCyclesError { expected, received },
+            ) => RpcError::ProviderError(ProviderError::TooFewCycles { expected, received }),
+            HttpClientError::InvalidJsonResponse(
+                JsonResponseConversionError::InvalidJsonResponse {
+                    status,
+                    body,
+                    parsing_error,
+                },
+            ) => RpcError::HttpOutcallError(HttpOutcallError::InvalidHttpJsonRpcResponse {
+                status,
+                body,
+                parsing_error: Some(parsing_error),
+            }),
+            HttpClientError::UnsuccessfulHttpResponse(
+                FilterNonSuccessulHttpResponseError::UnsuccessfulResponse(response),
+            ) => RpcError::HttpOutcallError(HttpOutcallError::InvalidHttpJsonRpcResponse {
+                status: response.status().as_u16(),
+                body: String::from_utf8_lossy(response.body()).to_string(),
+                parsing_error: None,
+            }),
+        }
+    }
 }
 
 struct MetricData {
     method: MetricRpcMethod,
     host: MetricRpcHost,
-}
-
-fn map_error(e: BoxError) -> RpcError {
-    if let Some(charging_error) = e.downcast_ref::<CyclesAccountingError>() {
-        return match charging_error {
-            CyclesAccountingError::InsufficientCyclesError { expected, received } => {
-                ProviderError::TooFewCycles {
-                    expected: *expected,
-                    received: *received,
-                }
-                .into()
-            }
-        };
-    }
-    if let Some(canhttp::IcError { code, message }) = e.downcast_ref::<canhttp::IcError>() {
-        return HttpOutcallError::IcError {
-            code: *code,
-            message: message.clone(),
-        }
-        .into();
-    }
-    RpcError::ProviderError(ProviderError::InvalidRpcConfig(format!(
-        "Unknown error: {}",
-        e
-    )))
+    request_id: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -197,16 +339,4 @@ pub fn transform_http_request(args: TransformArgs) -> IcHttpResponse {
         // Remove headers (which may contain a timestamp) for consensus
         headers: vec![],
     }
-}
-
-pub fn get_http_response_body(response: HttpResponse) -> Result<String, RpcError> {
-    let (parts, body) = response.into_parts();
-    String::from_utf8(body).map_err(|e| {
-        HttpOutcallError::InvalidHttpJsonRpcResponse {
-            status: parts.status.as_u16(),
-            body: "".to_string(),
-            parsing_error: Some(format!("{e}")),
-        }
-        .into()
-    })
 }

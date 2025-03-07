@@ -6,7 +6,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use thiserror::Error;
-use tower::{BoxError, Service};
+use tower::{BoxError, Service, ServiceBuilder};
 
 /// Thin wrapper around [`ic_cdk::api::management_canister::http_request::http_request`]
 /// that implements the [`tower::Service`] trait. Its functionality can be extended by composing so-called
@@ -18,6 +18,22 @@ use tower::{BoxError, Service};
 /// * [`crate::http`]: use types from the [http](https://crates.io/crates/http) crate for requests and responses.
 #[derive(Clone, Debug)]
 pub struct Client;
+
+impl Client {
+    /// Create a new client returning custom errors.
+    pub fn new_with_error<CustomError: From<IcError>>(
+    ) -> impl Service<IcHttpRequestWithCycles, Response = IcHttpResponse, Error = CustomError> {
+        ServiceBuilder::new()
+            .map_err(CustomError::from)
+            .service(Client)
+    }
+
+    /// Creates a new client where error type is erased.
+    pub fn new_with_box_error(
+    ) -> impl Service<IcHttpRequestWithCycles, Response = IcHttpResponse, Error = BoxError> {
+        Self::new_with_error::<BoxError>()
+    }
+}
 
 /// Error returned by the Internet Computer when making an HTTPs outcall.
 #[derive(Error, Clone, Debug, PartialEq, Eq)]
@@ -42,7 +58,7 @@ impl IcError {
 
 impl Service<IcHttpRequestWithCycles> for Client {
     type Response = IcHttpResponse;
-    type Error = BoxError;
+    type Error = IcError;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
 
     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
@@ -58,14 +74,17 @@ impl Service<IcHttpRequestWithCycles> for Client {
                 .await
             {
                 Ok((response,)) => Ok(response),
-                Err((code, message)) => Err(BoxError::from(IcError { code, message })),
+                Err((code, message)) => Err(IcError { code, message }),
             }
         })
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// [`IcHttpRequest`] specifying how many cycles should be attached for the HTTPs outcall.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct IcHttpRequestWithCycles {
+    /// Request to be made.
     pub request: IcHttpRequest,
+    /// Number of cycles to attach.
     pub cycles: u128,
 }

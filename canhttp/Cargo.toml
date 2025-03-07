@@ -11,10 +11,13 @@ documentation = "https://docs.rs/canhttp"
 
 [dependencies]
 ic-cdk = { workspace = true }
+futures-util = { workspace = true }
 http = { workspace = true, optional = true }
 num-traits = { workspace = true, optional = true }
 pin-project = { workspace = true }
-tower = { workspace = true, features = ["filter", "retry"] }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+tower = { workspace = true, features = ["retry"] }
 tower-layer = { workspace = true, optional = true }
 thiserror = { workspace = true }
 
@@ -27,3 +30,4 @@ tokio = { workspace = true, features = ["full"] }
 [features]
 default = ["http"]
 http = ["dep:http", "dep:num-traits", "dep:tower-layer"]
+json = ["http", "dep:serde", "dep:serde_json"]
