@@ -2143,7 +2143,7 @@ fn should_retry_when_response_too_large() {
         .mock_http_once(mock.clone().with_max_response_bytes(1024 << 8))
         .mock_http_once(mock.clone().with_max_response_bytes(1024 << 9))
         .mock_http_once(mock.clone().with_max_response_bytes(1024 << 10))
-        .mock_http_once(mock.clone().with_max_response_bytes(2_000_000 - 2 * 1024))
+        .mock_http_once(mock.clone().with_max_response_bytes(2_000_000))
         .wait()
         .expect_consistent();
 
