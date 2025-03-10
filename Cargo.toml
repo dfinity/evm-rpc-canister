@@ -82,7 +82,7 @@ pin-project = "1.1.9"
 proptest = "1.6.0"
 serde = "1.0"
 serde_json = "1.0"
-serde_bytes = "0.11.15"
+serde_bytes = "0.11.17"
 strum = { version = "0.26", features = ["derive"] }
 tokio = "1.43.0"
 tower = "0.5.2"
