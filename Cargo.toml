@@ -78,7 +78,7 @@ maplit = "1.0.2"
 minicbor = { version = "0.25.1", features = ["alloc", "derive"] }
 num-bigint = "0.4.6"
 num-traits = "0.2.19"
-pin-project = "1.1.9"
+pin-project = "1.1.10"
 proptest = "1.6.0"
 serde = "1.0"
 serde_json = "1.0"
