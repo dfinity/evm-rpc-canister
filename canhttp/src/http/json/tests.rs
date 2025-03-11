@@ -6,7 +6,7 @@ use serde_json::json;
 use tower::{BoxError, Service, ServiceBuilder, ServiceExt};
 
 mod json_rpc {
-    use crate::http::json::Id;
+    use crate::http::json::{Id, JsonRpcError, JsonRpcResponseBody};
     use serde_json::json;
 
     #[test]
@@ -32,6 +32,31 @@ mod json_rpc {
         for value in [json!(true), json!(["array"]), json!({"an": "object"})] {
             let _error = serde_json::from_value::<Id>(value).expect_err("should fail");
         }
+    }
+
+    #[test]
+    fn should_deserialize_json_ok_response() {
+        let error_response = json!({ "jsonrpc": "2.0", "result": 366632694, "id": 0 });
+
+        let json_response: JsonRpcResponseBody<u64> =
+            serde_json::from_value(error_response).unwrap();
+        let (id, result) = json_response.into_parts();
+
+        assert_eq!(id, Id::ZERO);
+        assert_eq!(result, Ok(366632694));
+    }
+
+    #[test]
+    fn should_deserialize_json_error_response() {
+        let error_response =
+            json!({"jsonrpc":"2.0", "id":0, "error": {"code":123, "message":"Error message"}});
+
+        let json_response: JsonRpcResponseBody<serde_json::Value> =
+            serde_json::from_value(error_response).unwrap();
+        let (id, result) = json_response.into_parts();
+
+        assert_eq!(id, Id::ZERO);
+        assert_eq!(result, Err(JsonRpcError::new(123, "Error message")));
     }
 }
 
