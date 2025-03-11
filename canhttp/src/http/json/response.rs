@@ -1,5 +1,5 @@
 use crate::convert::Convert;
-use crate::http::json::Id;
+use crate::http::json::{Id, Version};
 use crate::http::HttpResponse;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -81,7 +81,7 @@ pub type JsonRpcResult<T> = Result<T, JsonRpcError>;
 /// Body of a JSON-RPC response
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct JsonRpcResponseBody<T> {
-    pub jsonrpc: String,
+    jsonrpc: Version,
     id: Id,
     #[serde(flatten)]
     result: JsonRpcResultEnvelope<T>,
@@ -91,7 +91,7 @@ impl<T> JsonRpcResponseBody<T> {
     /// Creates a new successful response from a request ID and `Error` object.
     pub fn from_ok(id: Id, result: T) -> Self {
         Self {
-            jsonrpc: "2.0".to_string(),
+            jsonrpc: Version::V2,
             result: JsonRpcResultEnvelope::Ok(result),
             id,
         }
@@ -100,7 +100,7 @@ impl<T> JsonRpcResponseBody<T> {
     /// Creates a new error response from a request ID and `Error` object.
     pub fn from_error(id: Id, error: JsonRpcError) -> Self {
         Self {
-            jsonrpc: "2.0".to_string(),
+            jsonrpc: Version::V2,
             result: JsonRpcResultEnvelope::Err(error),
             id,
         }

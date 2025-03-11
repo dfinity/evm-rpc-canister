@@ -1,5 +1,5 @@
 use crate::convert::Convert;
-use crate::http::json::Id;
+use crate::http::json::{Id, Version};
 use crate::http::HttpRequest;
 use http::header::CONTENT_TYPE;
 use http::HeaderValue;
@@ -87,7 +87,7 @@ pub type HttpJsonRpcRequest<T> = http::Request<JsonRpcRequestBody<T>>;
 /// Body for all JSON-RPC requests, see the [specification](https://www.jsonrpc.org/specification).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct JsonRpcRequestBody<T> {
-    jsonrpc: String,
+    jsonrpc: Version,
     method: String,
     id: Id,
     params: Option<T>,
@@ -97,7 +97,7 @@ impl<T> JsonRpcRequestBody<T> {
     /// Create a new body of a JSON-RPC request.
     pub fn new(method: impl Into<String>, params: T) -> Self {
         Self {
-            jsonrpc: "2.0".to_string(),
+            jsonrpc: Version::V2,
             method: method.into(),
             id: Id::ZERO,
             params: Some(params),
