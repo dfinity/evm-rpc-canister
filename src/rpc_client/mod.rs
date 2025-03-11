@@ -472,12 +472,7 @@ impl<T> MultiCallResults<T> {
 
     #[cfg(test)]
     fn from_json_rpc_result<
-        I: IntoIterator<
-            Item = (
-                RpcService,
-                Result<canhttp::http::json::JsonRpcResult<T>, RpcError>,
-            ),
-        >,
+        I: IntoIterator<Item = (RpcService, canhttp::http::json::JsonRpcResult<T>)>,
     >(
         iter: I,
     ) -> Self {
@@ -485,16 +480,15 @@ impl<T> MultiCallResults<T> {
             (
                 provider,
                 match result {
-                    Ok(json_rpc_result) => match json_rpc_result {
-                        canhttp::http::json::JsonRpcResult::Result(value) => Ok(value),
-                        canhttp::http::json::JsonRpcResult::Error { code, message } => {
-                            Err(RpcError::JsonRpcError(evm_rpc_types::JsonRpcError {
-                                code,
-                                message,
-                            }))
-                        }
-                    },
-                    Err(e) => Err(e),
+                    Ok(value) => Ok(value),
+                    Err(canhttp::http::json::JsonRpcError {
+                        code,
+                        message,
+                        data: _,
+                    }) => Err(RpcError::JsonRpcError(evm_rpc_types::JsonRpcError {
+                        code,
+                        message,
+                    })),
                 },
             )
         }))

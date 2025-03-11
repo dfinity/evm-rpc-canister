@@ -1,7 +1,7 @@
 use crate::logs::DEBUG;
 use crate::rpc_client::json::responses::SendRawTransactionResult;
 use crate::rpc_client::json::Hash;
-use canhttp::http::json::{JsonRpcResponseBody, JsonRpcResult};
+use canhttp::http::json::{JsonRpcError, JsonRpcResponseBody};
 use ic_canister_log::log;
 
 #[cfg(test)]
@@ -29,28 +29,28 @@ pub enum SendRawTransactionError {
     NonceTooHigh,
 }
 
-impl<T> From<SendRawTransactionError> for JsonRpcResult<T> {
-    fn from(value: SendRawTransactionError) -> Self {
-        match value {
-            SendRawTransactionError::AlreadyKnown => JsonRpcResult::Error {
-                code: -32_000,
-                message: "Transaction already known".to_string(),
-            },
-            SendRawTransactionError::InsufficientFunds => JsonRpcResult::Error {
-                code: -32_000,
-                message: "insufficient funds for gas * price + value".to_string(),
-            },
-            SendRawTransactionError::NonceTooLow => JsonRpcResult::Error {
-                code: -32_000,
-                message: "nonce too low".to_string(),
-            },
-            SendRawTransactionError::NonceTooHigh => JsonRpcResult::Error {
-                code: -32_000,
-                message: "nonce too high".to_string(),
-            },
-        }
-    }
-}
+// impl<T> From<SendRawTransactionError> for JsonRpcResult<T> {
+//     fn from(value: SendRawTransactionError) -> Self {
+//         match value {
+//             SendRawTransactionError::AlreadyKnown => JsonRpcResult::Error {
+//                 code: -32_000,
+//                 message: "Transaction already known".to_string(),
+//             },
+//             SendRawTransactionError::InsufficientFunds => JsonRpcResult::Error {
+//                 code: -32_000,
+//                 message: "insufficient funds for gas * price + value".to_string(),
+//             },
+//             SendRawTransactionError::NonceTooLow => JsonRpcResult::Error {
+//                 code: -32_000,
+//                 message: "nonce too low".to_string(),
+//             },
+//             SendRawTransactionError::NonceTooHigh => JsonRpcResult::Error {
+//                 code: -32_000,
+//                 message: "nonce too high".to_string(),
+//             },
+//         }
+//     }
+// }
 
 pub trait ErrorParser {
     fn try_parse_send_raw_transaction_error(
@@ -211,37 +211,41 @@ pub fn sanitize_send_raw_transaction_result<T: ErrorParser>(body_bytes: &mut Vec
             return;
         }
     };
+    let (id, result) = response.into_parts();
 
-    let sanitized_result = match response.result {
-        JsonRpcResult::Result(_) => JsonRpcResult::Result(SendRawTransactionResult::Ok),
-        JsonRpcResult::Error { code, message } => {
+    let sanitized_result = match result {
+        Ok(_) => Ok(SendRawTransactionResult::Ok),
+        Err(JsonRpcError {
+            code,
+            message,
+            data,
+        }) => {
             if let Some(error) = parser.try_parse_send_raw_transaction_error(code, message.clone())
             {
                 match error {
                     //transaction already in the mempool, so it was sent successfully
-                    SendRawTransactionError::AlreadyKnown => {
-                        JsonRpcResult::Result(SendRawTransactionResult::Ok)
-                    }
+                    SendRawTransactionError::AlreadyKnown => Ok(SendRawTransactionResult::Ok),
                     SendRawTransactionError::InsufficientFunds => {
-                        JsonRpcResult::Result(SendRawTransactionResult::InsufficientFunds)
+                        Ok(SendRawTransactionResult::InsufficientFunds)
                     }
                     SendRawTransactionError::NonceTooLow => {
-                        JsonRpcResult::Result(SendRawTransactionResult::NonceTooLow)
+                        Ok(SendRawTransactionResult::NonceTooLow)
                     }
                     SendRawTransactionError::NonceTooHigh => {
-                        JsonRpcResult::Result(SendRawTransactionResult::NonceTooHigh)
+                        Ok(SendRawTransactionResult::NonceTooHigh)
                     }
                 }
             } else {
-                JsonRpcResult::Error { code, message }
+                Err(JsonRpcError {
+                    code,
+                    message,
+                    data,
+                })
             }
         }
     };
-    let sanitized_reply: JsonRpcResponseBody<SendRawTransactionResult> = JsonRpcResponseBody {
-        id: response.id,
-        jsonrpc: response.jsonrpc,
-        result: sanitized_result,
-    };
+    let sanitized_reply: JsonRpcResponseBody<SendRawTransactionResult> =
+        JsonRpcResponseBody::from_parts(id, sanitized_result);
 
     *body_bytes = serde_json::to_string(&sanitized_reply)
         .expect("BUG: failed to serialize error response")

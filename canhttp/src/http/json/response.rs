@@ -1,7 +1,9 @@
 use crate::convert::Convert;
+use crate::http::json::Id;
 use crate::http::HttpResponse;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::marker::PhantomData;
 use thiserror::Error;
 
@@ -74,28 +76,107 @@ where
 
 /// JSON-RPC response.
 pub type HttpJsonRpcResponse<T> = http::Response<JsonRpcResponseBody<T>>;
+pub type JsonRpcResult<T> = Result<T, JsonRpcError>;
 
 /// Body of a JSON-RPC response
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct JsonRpcResponseBody<T> {
     pub jsonrpc: String,
-    pub id: serde_json::Value,
+    id: Id,
     #[serde(flatten)]
-    pub result: JsonRpcResult<T>,
+    result: JsonRpcResultEnvelope<T>,
 }
 
-/// An envelope for all JSON-RPC replies.
+impl<T> JsonRpcResponseBody<T> {
+    /// Creates a new successful response from a request ID and `Error` object.
+    pub fn from_ok(id: Id, result: T) -> Self {
+        Self {
+            jsonrpc: "2.0".to_string(),
+            result: JsonRpcResultEnvelope::Ok { result },
+            id,
+        }
+    }
+
+    /// Creates a new error response from a request ID and `Error` object.
+    pub fn from_error(id: Id, error: JsonRpcError) -> Self {
+        Self {
+            jsonrpc: "2.0".to_string(),
+            result: JsonRpcResultEnvelope::Err { error },
+            id,
+        }
+    }
+
+    pub fn from_parts(id: Id, result: JsonRpcResult<T>) -> Self {
+        match result {
+            Ok(r) => JsonRpcResponseBody::from_ok(id, r),
+            Err(e) => JsonRpcResponseBody::from_error(id, e),
+        }
+    }
+
+    pub fn into_parts(self) -> (Id, JsonRpcResult<T>) {
+        (self.id, self.result.into_result())
+    }
+
+    pub fn into_result(self) -> JsonRpcResult<T> {
+        self.result.into_result()
+    }
+
+    pub fn as_result_mut(&mut self) -> Result<&mut T, &mut JsonRpcError> {
+        self.result.as_result_mut()
+    }
+}
+
+/// An envelope for all JSON-RPC responses.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum JsonRpcResult<T> {
+#[serde(untagged)]
+enum JsonRpcResultEnvelope<T> {
     /// Successful JSON-RPC response
-    #[serde(rename = "result")]
-    Result(T),
+    Ok { result: T },
     /// Failed JSON-RPC response
-    #[serde(rename = "error")]
-    Error {
-        /// Indicate error type that occurred.
-        code: i64,
-        /// Short description of the error.
-        message: String,
-    },
+    Err { error: JsonRpcError },
+}
+
+impl<T> JsonRpcResultEnvelope<T> {
+    pub fn into_result(self) -> JsonRpcResult<T> {
+        match self {
+            JsonRpcResultEnvelope::Ok { result } => Ok(result),
+            JsonRpcResultEnvelope::Err { error } => Err(error),
+        }
+    }
+
+    pub fn as_result_mut(&mut self) -> Result<&mut T, &mut JsonRpcError> {
+        match self {
+            JsonRpcResultEnvelope::Ok { result } => Ok(result),
+            JsonRpcResultEnvelope::Err { error } => Err(error),
+        }
+    }
+}
+
+/// A JSON-RPC error object.
+#[derive(Clone, Debug, Eq, PartialEq, Error, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+#[error("JSON-RPC error (code: {code}): {message}. Details: {data:?}")]
+pub struct JsonRpcError {
+    /// Indicate error type that occurred.
+    pub code: i64,
+    /// Short description of the error.
+    pub message: String,
+    /// Additional information about the error, if any.
+    ///
+    /// The value of this member is defined by the Server
+    /// (e.g. detailed error information, nested errors etc.).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data: Option<Value>,
+}
+
+impl JsonRpcError {
+    pub fn new(code: impl Into<i64>, message: impl Into<String>) -> Self {
+        let code = code.into();
+        let message = message.into();
+        Self {
+            code,
+            message,
+            data: None,
+        }
+    }
 }

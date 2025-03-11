@@ -11,7 +11,7 @@ use crate::rpc_client::numeric::{TransactionCount, Wei};
 use crate::types::MetricRpcMethod;
 use candid::candid_method;
 use canhttp::http::{
-    json::{JsonRpcRequestBody, JsonRpcResponseBody, JsonRpcResult},
+    json::{JsonRpcRequestBody, JsonRpcResponseBody},
     MaxResponseBytesRequestExtension, TransformContextRequestExtension,
 };
 use evm_rpc_types::{HttpOutcallError, JsonRpcError, RpcError, RpcService};
@@ -83,7 +83,7 @@ impl ResponseTransform {
                 Err(_) => return,
             };
 
-            if let JsonRpcResult::Result(ref mut result) = response.result {
+            if let Ok(result) = response.as_result_mut() {
                 sort_by_hash(result);
             }
 
@@ -228,11 +228,13 @@ where
             result => result?,
         };
 
-        return match response.into_body().result {
-            canhttp::http::json::JsonRpcResult::Result(r) => Ok(r),
-            canhttp::http::json::JsonRpcResult::Error { code, message } => {
-                Err(JsonRpcError { code, message }.into())
-            }
+        return match response.into_body().into_result() {
+            Ok(r) => Ok(r),
+            Err(canhttp::http::json::JsonRpcError {
+                code,
+                message,
+                data: _,
+            }) => Err(JsonRpcError { code, message }.into()),
         };
     }
 }
