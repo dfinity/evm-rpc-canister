@@ -407,7 +407,7 @@ impl<R: CandidType + DeserializeOwned> CallFlow<R> {
 
     fn mock_http_once_inner(&self, mock: &MockOutcall) {
         if !self.try_mock_http_inner(mock) {
-            panic!("no pending HTTP request")
+            panic!("no pending HTTP request for {}", self.method)
         }
     }
 
