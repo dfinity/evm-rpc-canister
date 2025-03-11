@@ -7,7 +7,9 @@ use tower::{BoxError, Service, ServiceBuilder, ServiceExt};
 
 mod json_rpc {
     use crate::http::json::{Id, JsonRpcError, JsonRpcResponseBody};
+    use serde::de::DeserializeOwned;
     use serde_json::json;
+    use std::fmt::Debug;
 
     #[test]
     fn should_parse_null_id() {
@@ -48,15 +50,22 @@ mod json_rpc {
 
     #[test]
     fn should_deserialize_json_error_response() {
-        let error_response =
-            json!({"jsonrpc":"2.0", "id":0, "error": {"code":123, "message":"Error message"}});
+        fn check<T: DeserializeOwned + PartialEq + Debug>() {
+            let error_response =
+                json!({"jsonrpc":"2.0", "id":0, "error": {"code":123, "message":"Error message"}});
 
-        let json_response: JsonRpcResponseBody<serde_json::Value> =
-            serde_json::from_value(error_response).unwrap();
-        let (id, result) = json_response.into_parts();
+            let json_response: JsonRpcResponseBody<T> =
+                serde_json::from_value(error_response).unwrap();
+            let (id, result) = json_response.into_parts();
 
-        assert_eq!(id, Id::ZERO);
-        assert_eq!(result, Err(JsonRpcError::new(123, "Error message")));
+            assert_eq!(id, Id::ZERO);
+            assert_eq!(result, Err(JsonRpcError::new(123, "Error message")));
+        }
+
+        // The type of the OK result should not influence the deserialization of the error.
+        check::<serde_json::Value>();
+        check::<Option<serde_json::Value>>();
+        check::<Result<serde_json::Value, String>>();
     }
 }
 

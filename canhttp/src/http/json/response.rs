@@ -74,7 +74,7 @@ where
     }
 }
 
-/// JSON-RPC response.
+/// JSON-RPC response over HTTP.
 pub type HttpJsonRpcResponse<T> = http::Response<JsonRpcResponseBody<T>>;
 pub type JsonRpcResult<T> = Result<T, JsonRpcError>;
 
@@ -92,7 +92,7 @@ impl<T> JsonRpcResponseBody<T> {
     pub fn from_ok(id: Id, result: T) -> Self {
         Self {
             jsonrpc: "2.0".to_string(),
-            result: JsonRpcResultEnvelope::Ok { result },
+            result: JsonRpcResultEnvelope::Ok(result),
             id,
         }
     }
@@ -101,7 +101,7 @@ impl<T> JsonRpcResponseBody<T> {
     pub fn from_error(id: Id, error: JsonRpcError) -> Self {
         Self {
             jsonrpc: "2.0".to_string(),
-            result: JsonRpcResultEnvelope::Err { error },
+            result: JsonRpcResultEnvelope::Err(error),
             id,
         }
     }
@@ -128,26 +128,27 @@ impl<T> JsonRpcResponseBody<T> {
 
 /// An envelope for all JSON-RPC responses.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(untagged)]
 enum JsonRpcResultEnvelope<T> {
     /// Successful JSON-RPC response
-    Ok { result: T },
+    #[serde(rename = "result")]
+    Ok(T),
     /// Failed JSON-RPC response
-    Err { error: JsonRpcError },
+    #[serde(rename = "error")]
+    Err(JsonRpcError),
 }
 
 impl<T> JsonRpcResultEnvelope<T> {
     pub fn into_result(self) -> JsonRpcResult<T> {
         match self {
-            JsonRpcResultEnvelope::Ok { result } => Ok(result),
-            JsonRpcResultEnvelope::Err { error } => Err(error),
+            JsonRpcResultEnvelope::Ok(result) => Ok(result),
+            JsonRpcResultEnvelope::Err(error) => Err(error),
         }
     }
 
     pub fn as_result_mut(&mut self) -> Result<&mut T, &mut JsonRpcError> {
         match self {
-            JsonRpcResultEnvelope::Ok { result } => Ok(result),
-            JsonRpcResultEnvelope::Err { error } => Err(error),
+            JsonRpcResultEnvelope::Ok(result) => Ok(result),
+            JsonRpcResultEnvelope::Err(error) => Err(error),
         }
     }
 }
