@@ -5,15 +5,18 @@
 #![forbid(unsafe_code)]
 #![forbid(missing_docs)]
 
-pub use client::{Client, IcError, IcHttpRequestWithCycles};
+pub use client::{
+    Client, HttpsOutcallError, IcError, IcHttpRequestWithCycles, MaxResponseBytesRequestExtension,
+    TransformContextRequestExtension,
+};
 pub use convert::ConvertServiceBuilder;
 pub use cycles::{
     CyclesAccounting, CyclesAccountingError, CyclesChargingPolicy, CyclesCostEstimator,
 };
-
 mod client;
 pub mod convert;
 mod cycles;
 #[cfg(feature = "http")]
 pub mod http;
 pub mod observability;
+pub mod retry;

@@ -98,10 +98,62 @@
 //! # Ok(())
 //! # }
 //! ```
+//!
+//! ## To convert errors
+//!
+//! A service that returns an error of type `Error` can be turned into a service that returns
+//! errors of type `NewError`, if `Error` can be converted `Into` the type `NewError`.
+//! This is automatically the case if `NewError` implements `From<Error>`.
+//!
+//! ```rust
+//! use canhttp::convert::{Convert, ConvertServiceBuilder};
+//! use tower::{ServiceBuilder, Service, ServiceExt};
+//!
+//!  enum Error {
+//!     OhNo
+//!  }
+//!  async fn bare_bone_service(request: Vec<u8>) -> Result<Vec<u8>, Error> {
+//!    Err(Error::OhNo)
+//!  }
+//!
+//! #[derive(Debug, PartialEq)]
+//! enum NewError {
+//!     Oops
+//! }
+//!
+//! impl From<Error> for NewError {
+//!     fn from(value: Error) -> Self {
+//!         match value {  
+//!             Error::OhNo => NewError::Oops
+//!         }
+//!     }
+//! }
+//!
+//! # #[tokio::main]
+//! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let mut service = ServiceBuilder::new()
+//!     .convert_error::<NewError>()
+//!     .service_fn(bare_bone_service);
+//!
+//! let request = vec![42];
+//!
+//! let response = service
+//!     .ready()
+//!     .await
+//!     .unwrap()
+//!     .call(request)
+//!     .await;
+//!
+//! assert_eq!(response, Err(NewError::Oops));
+//! # Ok(())
+//! # }
+//! ```
 
+pub use error::{ConvertError, ConvertErrorLayer};
 pub use request::{ConvertRequest, ConvertRequestLayer};
 pub use response::{ConvertResponse, ConvertResponseLayer};
 
+mod error;
 mod request;
 mod response;
 
@@ -132,6 +184,11 @@ pub trait ConvertServiceBuilder<L> {
     ///
     /// See the [module docs](crate::convert) for examples.
     fn convert_response<C>(self, f: C) -> ServiceBuilder<Stack<ConvertResponseLayer<C>, L>>;
+
+    /// Convert the error type.
+    ///
+    /// See the [module docs](crate::convert) for examples.
+    fn convert_error<NewError>(self) -> ServiceBuilder<Stack<ConvertErrorLayer<NewError>, L>>;
 }
 
 impl<L> ConvertServiceBuilder<L> for ServiceBuilder<L> {
@@ -144,5 +201,9 @@ impl<L> ConvertServiceBuilder<L> for ServiceBuilder<L> {
         converter: C,
     ) -> ServiceBuilder<Stack<ConvertResponseLayer<C>, L>> {
         self.layer(ConvertResponseLayer::new(converter))
+    }
+
+    fn convert_error<NewError>(self) -> ServiceBuilder<Stack<ConvertErrorLayer<NewError>, L>> {
+        self.layer(ConvertErrorLayer::new())
     }
 }

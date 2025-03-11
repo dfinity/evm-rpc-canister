@@ -27,8 +27,7 @@ use pocket_ic::common::rest::{
     RawMessageId,
 };
 use pocket_ic::{
-    management_canister::CanisterSettings, CallError, ErrorCode, PocketIc, PocketIcBuilder,
-    UserError, WasmResult,
+    management_canister::CanisterSettings, ErrorCode, PocketIc, PocketIcBuilder, RejectResponse,
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::json;
@@ -72,13 +71,8 @@ fn evm_rpc_wasm() -> Vec<u8> {
     load_wasm(std::env::var("CARGO_MANIFEST_DIR").unwrap(), "evm_rpc", &[])
 }
 
-fn assert_reply(result: WasmResult) -> Vec<u8> {
-    match result {
-        WasmResult::Reply(bytes) => bytes,
-        result => {
-            panic!("Expected a successful reply, got {:?}", result)
-        }
-    }
+fn assert_reply(result: Result<Vec<u8>, RejectResponse>) -> Vec<u8> {
+    result.unwrap_or_else(|e| panic!("Expected a successful reply, got error {e}"))
 }
 
 #[derive(Clone)]
@@ -153,10 +147,7 @@ impl EvmRpcSetup {
                 Some(self.controller),
             ) {
                 Ok(_) => return,
-                Err(CallError::UserError(UserError {
-                    code: ErrorCode::CanisterInstallCodeRateLimited,
-                    description: _,
-                })) => continue,
+                Err(e) if e.error_code == ErrorCode::CanisterInstallCodeRateLimited => continue,
                 Err(e) => panic!("Error while upgrading canister: {e:?}"),
             }
         }
@@ -184,11 +175,11 @@ impl EvmRpcSetup {
     }
 
     fn call_query<R: CandidType + DeserializeOwned>(&self, method: &str, input: Vec<u8>) -> R {
-        let candid = &assert_reply(
-            self.env
-                .query_call(self.canister_id, self.caller, method, input)
-                .unwrap_or_else(|err| panic!("error during query call to `{}()`: {}", method, err)),
-        );
+        let candid =
+            &assert_reply(
+                self.env
+                    .query_call(self.canister_id, self.caller, method, input),
+            );
         Decode!(candid, R).expect("error while decoding Candid response from query call")
     }
 
@@ -349,16 +340,12 @@ impl EvmRpcSetup {
             body: serde_bytes::ByteBuf::new(),
         };
         let response = Decode!(
-            &assert_reply(
-                self.env
-                    .query_call(
-                        self.canister_id,
-                        Principal::anonymous(),
-                        "http_request",
-                        Encode!(&request).unwrap()
-                    )
-                    .expect("failed to get canister info")
-            ),
+            &assert_reply(self.env.query_call(
+                self.canister_id,
+                Principal::anonymous(),
+                "http_request",
+                Encode!(&request).unwrap()
+            )),
             HttpResponse
         )
         .unwrap();
@@ -420,7 +407,7 @@ impl<R: CandidType + DeserializeOwned> CallFlow<R> {
 
     fn mock_http_once_inner(&self, mock: &MockOutcall) {
         if !self.try_mock_http_inner(mock) {
-            panic!("no pending HTTP request")
+            panic!("no pending HTTP request for {}", self.method)
         }
     }
 
@@ -468,9 +455,7 @@ impl<R: CandidType + DeserializeOwned> CallFlow<R> {
     }
 
     pub fn wait(self) -> R {
-        let candid = &assert_reply(self.setup.env.await_call(self.message_id).unwrap_or_else(
-            |err| panic!("error during update call to `{}()`: {}", self.method, err),
-        ));
+        let candid = &assert_reply(self.setup.env.await_call(self.message_id));
         Decode!(candid, R).expect("error while decoding Candid response from update call")
     }
 }
@@ -598,6 +583,31 @@ fn should_canonicalize_json_response() {
     })
     .collect::<Vec<_>>();
     assert!(responses.windows(2).all(|w| w[0] == w[1]));
+}
+
+#[test]
+fn should_not_modify_json_rpc_request_from_request_endpoint() {
+    let setup = EvmRpcSetup::new();
+
+    let json_rpc_request = r#"{"id":123,"jsonrpc":"2.0","method":"eth_gasPrice"}"#;
+    let mock_response = r#"{"jsonrpc":"2.0","id":123,"result":"0x00112233"}"#;
+
+    let response = setup
+        .request(
+            RpcService::Custom(RpcApi {
+                url: MOCK_REQUEST_URL.to_string(),
+                headers: None,
+            }),
+            json_rpc_request,
+            MOCK_REQUEST_RESPONSE_BYTES,
+        )
+        .mock_http_once(
+            MockOutcallBuilder::new(200, mock_response).with_raw_request_body(json_rpc_request),
+        )
+        .wait()
+        .unwrap();
+
+    assert_eq!(response, mock_response);
 }
 
 #[test]
@@ -2087,7 +2097,7 @@ fn should_reject_http_request_in_replicated_mode() {
             "http_request",
             Encode!(&request).unwrap(),
         ),
-        Err(e) if e.code == ErrorCode::CanisterCalledTrap && e.description.contains("Update call rejected")
+        Err(e) if e.error_code == ErrorCode::CanisterCalledTrap && e.reject_message.contains("Update call rejected")
     );
 }
 
@@ -2143,7 +2153,7 @@ fn should_retry_when_response_too_large() {
         .mock_http_once(mock.clone().with_max_response_bytes(1024 << 8))
         .mock_http_once(mock.clone().with_max_response_bytes(1024 << 9))
         .mock_http_once(mock.clone().with_max_response_bytes(1024 << 10))
-        .mock_http_once(mock.clone().with_max_response_bytes(2_000_000 - 2 * 1024))
+        .mock_http_once(mock.clone().with_max_response_bytes(2_000_000))
         .wait()
         .expect_consistent();
 
@@ -2188,6 +2198,58 @@ fn should_retry_when_response_too_large() {
     assert_matches!(
         response,
         Ok(logs) if logs.len() == 1_000
+    );
+}
+
+#[test]
+fn should_have_different_request_ids_when_retrying_because_response_too_big() {
+    let setup = EvmRpcSetup::new().mock_api_keys();
+
+    let response = setup
+        .eth_get_transaction_count(
+            RpcServices::EthMainnet(Some(vec![EthMainnetService::Cloudflare])),
+            Some(evm_rpc_types::RpcConfig {
+                response_size_estimate: Some(1),
+                response_consensus: None,
+            }),
+            evm_rpc_types::GetTransactionCountArgs {
+                address: "0xdAC17F958D2ee523a2206206994597C13D831ec7"
+                    .parse()
+                    .unwrap(),
+                block: evm_rpc_types::BlockTag::Latest,
+            },
+        )
+        .mock_http_once(
+            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":0,"result":"0x1"}"#)
+                .with_raw_request_body(r#"{"jsonrpc":"2.0","method":"eth_getTransactionCount","params":["0xdac17f958d2ee523a2206206994597c13d831ec7","latest"],"id":0}"#)
+                .with_max_response_bytes(1),
+        )
+        .mock_http_once(
+            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":1,"result":"0x1"}"#)
+                .with_raw_request_body(r#"{"jsonrpc":"2.0","method":"eth_getTransactionCount","params":["0xdac17f958d2ee523a2206206994597c13d831ec7","latest"],"id":1}"#)
+                .with_max_response_bytes(2048),
+        )
+        .wait()
+        .expect_consistent()
+        .unwrap();
+
+    assert_eq!(response, 1_u8.into());
+
+    let rpc_method = || RpcMethod::EthGetTransactionCount.into();
+    assert_eq!(
+        setup.get_metrics(),
+        Metrics {
+            requests: hashmap! {
+                (rpc_method(), CLOUDFLARE_HOSTNAME.into()) => 2,
+            },
+            responses: hashmap! {
+                (rpc_method(), CLOUDFLARE_HOSTNAME.into(), 200.into()) => 1,
+            },
+            err_http_outcall: hashmap! {
+                (rpc_method(), CLOUDFLARE_HOSTNAME.into(), RejectionCode::SysFatal) => 1,
+            },
+            ..Default::default()
+        }
     );
 }
 
