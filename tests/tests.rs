@@ -27,8 +27,7 @@ use pocket_ic::common::rest::{
     RawMessageId,
 };
 use pocket_ic::{
-    management_canister::CanisterSettings, CallError, ErrorCode, PocketIc, PocketIcBuilder,
-    UserError, WasmResult,
+    management_canister::CanisterSettings, ErrorCode, PocketIc, PocketIcBuilder, RejectResponse,
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::json;
@@ -72,13 +71,8 @@ fn evm_rpc_wasm() -> Vec<u8> {
     load_wasm(std::env::var("CARGO_MANIFEST_DIR").unwrap(), "evm_rpc", &[])
 }
 
-fn assert_reply(result: WasmResult) -> Vec<u8> {
-    match result {
-        WasmResult::Reply(bytes) => bytes,
-        result => {
-            panic!("Expected a successful reply, got {:?}", result)
-        }
-    }
+fn assert_reply(result: Result<Vec<u8>, RejectResponse>) -> Vec<u8> {
+    result.unwrap_or_else(|e| panic!("Expected a successful reply, got error {e}"))
 }
 
 #[derive(Clone)]
@@ -153,10 +147,7 @@ impl EvmRpcSetup {
                 Some(self.controller),
             ) {
                 Ok(_) => return,
-                Err(CallError::UserError(UserError {
-                    code: ErrorCode::CanisterInstallCodeRateLimited,
-                    description: _,
-                })) => continue,
+                Err(e) if e.error_code == ErrorCode::CanisterInstallCodeRateLimited => continue,
                 Err(e) => panic!("Error while upgrading canister: {e:?}"),
             }
         }
@@ -184,11 +175,11 @@ impl EvmRpcSetup {
     }
 
     fn call_query<R: CandidType + DeserializeOwned>(&self, method: &str, input: Vec<u8>) -> R {
-        let candid = &assert_reply(
-            self.env
-                .query_call(self.canister_id, self.caller, method, input)
-                .unwrap_or_else(|err| panic!("error during query call to `{}()`: {}", method, err)),
-        );
+        let candid =
+            &assert_reply(
+                self.env
+                    .query_call(self.canister_id, self.caller, method, input),
+            );
         Decode!(candid, R).expect("error while decoding Candid response from query call")
     }
 
@@ -349,16 +340,12 @@ impl EvmRpcSetup {
             body: serde_bytes::ByteBuf::new(),
         };
         let response = Decode!(
-            &assert_reply(
-                self.env
-                    .query_call(
-                        self.canister_id,
-                        Principal::anonymous(),
-                        "http_request",
-                        Encode!(&request).unwrap()
-                    )
-                    .expect("failed to get canister info")
-            ),
+            &assert_reply(self.env.query_call(
+                self.canister_id,
+                Principal::anonymous(),
+                "http_request",
+                Encode!(&request).unwrap()
+            )),
             HttpResponse
         )
         .unwrap();
@@ -420,7 +407,7 @@ impl<R: CandidType + DeserializeOwned> CallFlow<R> {
 
     fn mock_http_once_inner(&self, mock: &MockOutcall) {
         if !self.try_mock_http_inner(mock) {
-            panic!("no pending HTTP request")
+            panic!("no pending HTTP request for {}", self.method)
         }
     }
 
@@ -468,9 +455,7 @@ impl<R: CandidType + DeserializeOwned> CallFlow<R> {
     }
 
     pub fn wait(self) -> R {
-        let candid = &assert_reply(self.setup.env.await_call(self.message_id).unwrap_or_else(
-            |err| panic!("error during update call to `{}()`: {}", self.method, err),
-        ));
+        let candid = &assert_reply(self.setup.env.await_call(self.message_id));
         Decode!(candid, R).expect("error while decoding Candid response from update call")
     }
 }
@@ -2087,7 +2072,7 @@ fn should_reject_http_request_in_replicated_mode() {
             "http_request",
             Encode!(&request).unwrap(),
         ),
-        Err(e) if e.code == ErrorCode::CanisterCalledTrap && e.description.contains("Update call rejected")
+        Err(e) if e.error_code == ErrorCode::CanisterCalledTrap && e.reject_message.contains("Update call rejected")
     );
 }
 
