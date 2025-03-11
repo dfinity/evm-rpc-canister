@@ -69,11 +69,11 @@ mod multi_call_results {
     const CLOUDFLARE: RpcService = RpcService::EthMainnet(EthMainnetService::Cloudflare);
 
     mod reduce_with_equality {
-        use crate::rpc_client::json::responses::JsonRpcResult;
         use crate::rpc_client::tests::multi_call_results::{ANKR, PUBLIC_NODE};
         use crate::rpc_client::{MultiCallError, MultiCallResults};
         use evm_rpc_types::{HttpOutcallError, JsonRpcError, RpcError};
         use ic_cdk::api::call::RejectionCode;
+        use canhttp::http::json::JsonRpcResult;
 
         #[test]
         #[should_panic(expected = "MultiCallResults cannot be empty")]

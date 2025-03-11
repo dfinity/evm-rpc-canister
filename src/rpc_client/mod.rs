@@ -475,7 +475,7 @@ impl<T> MultiCallResults<T> {
         I: IntoIterator<
             Item = (
                 RpcService,
-                Result<json::responses::JsonRpcResult<T>, RpcError>,
+                Result<canhttp::http::json::JsonRpcResult<T>, RpcError>,
             ),
         >,
     >(
@@ -486,8 +486,8 @@ impl<T> MultiCallResults<T> {
                 provider,
                 match result {
                     Ok(json_rpc_result) => match json_rpc_result {
-                        json::responses::JsonRpcResult::Result(value) => Ok(value),
-                        json::responses::JsonRpcResult::Error { code, message } => {
+                        canhttp::http::json::JsonRpcResult::Result(value) => Ok(value),
+                        canhttp::http::json::JsonRpcResult::Error { code, message } => {
                             Err(RpcError::JsonRpcError(evm_rpc_types::JsonRpcError {
                                 code,
                                 message,
