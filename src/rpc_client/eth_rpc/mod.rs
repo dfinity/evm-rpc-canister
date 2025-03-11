@@ -10,8 +10,7 @@ use crate::rpc_client::numeric::{TransactionCount, Wei};
 use crate::types::MetricRpcMethod;
 use candid::candid_method;
 use canhttp::{
-    http::json::JsonRpcRequestBody,
-    json::{JsonRpcRequestBody, JsonRpcResponseBody},
+    http::json::{JsonRpcRequestBody, JsonRpcResponseBody},
     MaxResponseBytesRequestExtension, TransformContextRequestExtension,
 };
 use evm_rpc_types::{JsonRpcError, RpcError, RpcService};
