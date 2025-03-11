@@ -8,6 +8,7 @@ use crate::{
     types::{MetricRpcHost, MetricRpcMethod, ResolvedRpcService},
     util::canonicalize_json,
 };
+use canhttp::http::json::Id;
 use canhttp::{
     convert::ConvertRequestLayer,
     http::{
@@ -90,7 +91,7 @@ where
                     let req_data = MetricData {
                         method: rpc_method.clone(),
                         host: MetricRpcHost(req.uri().host().unwrap().to_string()),
-                        request_id: req.body().id().cloned(),
+                        request_id: req.body().id().clone(),
                     };
                     add_metric_entry!(
                         requests,
@@ -103,7 +104,7 @@ where
                     observe_response(req_data.method, req_data.host, response.status().as_u16());
                     log!(
                         TRACE_HTTP,
-                        "Got response for request with id `{:?}`. Response with status {}: {:?}",
+                        "Got response for request with id `{}`. Response with status {}: {:?}",
                         req_data.request_id,
                         response.status(),
                         response.body()
@@ -128,7 +129,7 @@ where
                             );
                             log!(
                                 TRACE_HTTP,
-                                "Unsuccessful HTTP response for request with id `{:?}`. Response with status {}: {}",
+                                "Unsuccessful HTTP response for request with id `{}`. Response with status {}: {}",
                                 req_data.request_id,
                                 response.status(),
                                 String::from_utf8_lossy(response.body())
@@ -144,7 +145,7 @@ where
                             observe_response(req_data.method, req_data.host, *status);
                             log!(
                                 TRACE_HTTP,
-                                "Invalid JSON RPC response for request with id `{:?}`: {}",
+                                "Invalid JSON RPC response for request with id `{}`: {}",
                                 req_data.request_id,
                                 error
                             );
@@ -289,7 +290,7 @@ impl From<HttpClientError> for RpcError {
 struct MetricData {
     method: MetricRpcMethod,
     host: MetricRpcHost,
-    request_id: Option<serde_json::Value>,
+    request_id: Id,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]

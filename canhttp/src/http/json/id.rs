@@ -19,6 +19,16 @@ pub enum Id {
     Null,
 }
 
+impl Id {
+    pub const ZERO: Id = Id::Number(0);
+}
+
+impl<T: Into<u64>> From<T> for Id {
+    fn from(value: T) -> Self {
+        Id::Number(value.into())
+    }
+}
+
 impl Display for Id {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {

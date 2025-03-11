@@ -1,4 +1,5 @@
 use crate::convert::Convert;
+use crate::http::json::Id;
 use crate::http::HttpRequest;
 use http::header::CONTENT_TYPE;
 use http::HeaderValue;
@@ -88,7 +89,7 @@ pub type HttpJsonRpcRequest<T> = http::Request<JsonRpcRequestBody<T>>;
 pub struct JsonRpcRequestBody<T> {
     jsonrpc: String,
     method: String,
-    id: Option<serde_json::Value>,
+    id: Id,
     params: Option<T>,
 }
 
@@ -98,19 +99,19 @@ impl<T> JsonRpcRequestBody<T> {
         Self {
             jsonrpc: "2.0".to_string(),
             method: method.into(),
-            id: Some(serde_json::Value::Number(0.into())),
+            id: Id::ZERO,
             params: Some(params),
         }
     }
 
     /// Change the request ID.
-    pub fn set_id(&mut self, id: u64) {
-        self.id = Some(serde_json::Value::Number(id.into()));
+    pub fn set_id(&mut self, id: Id) {
+        self.id = id;
     }
 
     /// Returns the request ID, if any.
-    pub fn id(&self) -> Option<&serde_json::Value> {
-        self.id.as_ref()
+    pub fn id(&self) -> &Id {
+        &self.id
     }
 
     /// Returns the JSON-RPC method.

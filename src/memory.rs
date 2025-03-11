@@ -1,5 +1,6 @@
 use crate::types::{ApiKey, LogFilter, Metrics, OverrideProvider, ProviderId};
 use candid::Principal;
+use canhttp::http::json::Id;
 use ic_stable_structures::memory_manager::VirtualMemory;
 use ic_stable_structures::{
     memory_manager::{MemoryId, MemoryManager},
@@ -103,13 +104,13 @@ pub fn set_override_provider(provider: OverrideProvider) {
     });
 }
 
-pub fn next_request_id() -> u64 {
+pub fn next_request_id() -> Id {
     UNSTABLE_HTTP_REQUEST_COUNTER.with_borrow_mut(|counter| {
         let current_request_id = *counter;
         // overflow is not an issue here because we only use `next_request_id` to correlate
         // requests and responses in logs.
         *counter = counter.wrapping_add(1);
-        current_request_id
+        Id::from(current_request_id)
     })
 }
 
