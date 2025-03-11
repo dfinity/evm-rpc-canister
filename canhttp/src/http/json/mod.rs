@@ -58,6 +58,8 @@ pub use response::{
     HttpJsonRpcResponse, JsonResponseConversionError, JsonResponseConverter, JsonRpcError,
     JsonRpcResponseBody, JsonRpcResult,
 };
+pub use version::Version;
+
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::marker::PhantomData;
@@ -69,6 +71,7 @@ mod tests;
 mod id;
 mod request;
 mod response;
+mod version;
 
 /// Middleware that combines [`JsonRequestConverter`] to convert requests
 /// and [`JsonResponseConverter`] to convert responses to a [`Service`].

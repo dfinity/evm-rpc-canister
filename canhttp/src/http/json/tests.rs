@@ -6,7 +6,8 @@ use serde_json::json;
 use tower::{BoxError, Service, ServiceBuilder, ServiceExt};
 
 mod json_rpc {
-    use crate::http::json::{Id, JsonRpcError, JsonRpcResponseBody};
+    use crate::http::json::{Id, JsonRpcError, JsonRpcResponseBody, Version};
+    use assert_matches::assert_matches;
     use serde::de::DeserializeOwned;
     use serde_json::json;
     use std::fmt::Debug;
@@ -66,6 +67,24 @@ mod json_rpc {
         check::<serde_json::Value>();
         check::<Option<serde_json::Value>>();
         check::<Result<serde_json::Value, String>>();
+    }
+
+    #[test]
+    fn should_serialize_version() {
+        assert_eq!(serde_json::to_value(&Version::V2).unwrap(), json!("2.0"));
+    }
+
+    #[test]
+    fn should_deserialize_version() {
+        let version: Version = serde_json::from_value(json!("2.0")).unwrap();
+        assert_eq!(version, Version::V2);
+    }
+
+    #[test]
+    fn should_fail_to_deserialize_unknown_versions() {
+        for version in [json!("1.0"), json!("3.0"), json!("unexpected")] {
+            assert_matches!(serde_json::from_value::<Version>(version), Err(_));
+        }
     }
 }
 
