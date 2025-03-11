@@ -54,7 +54,8 @@ pub use request::{
     HttpJsonRpcRequest, JsonRequestConversionError, JsonRequestConverter, JsonRpcRequestBody,
 };
 pub use response::{
-    HttpJsonRpcResponse, JsonResponseConversionError, JsonResponseConverter, JsonRpcResult,
+    HttpJsonRpcResponse, JsonResponseConversionError, JsonResponseConverter, JsonRpcResponseBody,
+    JsonRpcResult,
 };
 use serde::de::DeserializeOwned;
 use serde::Serialize;

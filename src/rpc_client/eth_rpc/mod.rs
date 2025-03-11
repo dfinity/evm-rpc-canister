@@ -6,14 +6,14 @@ use crate::logs::{DEBUG, TRACE_HTTP};
 use crate::memory::{get_override_provider, next_request_id};
 use crate::providers::resolve_rpc_service;
 use crate::rpc_client::eth_rpc_error::{sanitize_send_raw_transaction_result, Parser};
-use crate::rpc_client::json::responses::{
-    Block, FeeHistory, JsonRpcReply, JsonRpcResult, LogEntry, TransactionReceipt,
-};
+use crate::rpc_client::json::responses::{Block, FeeHistory, LogEntry, TransactionReceipt};
 use crate::rpc_client::numeric::{TransactionCount, Wei};
 use crate::types::MetricRpcMethod;
 use candid::candid_method;
-use canhttp::http::json::JsonRpcRequestBody;
-use canhttp::http::{MaxResponseBytesRequestExtension, TransformContextRequestExtension};
+use canhttp::http::{
+    json::{JsonRpcRequestBody, JsonRpcResponseBody, JsonRpcResult},
+    MaxResponseBytesRequestExtension, TransformContextRequestExtension,
+};
 use evm_rpc_types::{HttpOutcallError, JsonRpcError, RpcError, RpcService};
 use ic_canister_log::log;
 use ic_cdk::api::call::RejectionCode;
@@ -65,7 +65,7 @@ impl ResponseTransform {
         where
             T: Serialize + DeserializeOwned,
         {
-            let response: JsonRpcReply<T> = match serde_json::from_slice(body) {
+            let response: JsonRpcResponseBody<T> = match serde_json::from_slice(body) {
                 Ok(response) => response,
                 Err(_) => return,
             };
@@ -78,7 +78,7 @@ impl ResponseTransform {
         where
             T: Serialize + DeserializeOwned,
         {
-            let mut response: JsonRpcReply<Vec<T>> = match serde_json::from_slice(body) {
+            let mut response: JsonRpcResponseBody<Vec<T>> = match serde_json::from_slice(body) {
                 Ok(response) => response,
                 Err(_) => return,
             };

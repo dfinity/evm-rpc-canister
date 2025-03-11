@@ -1,7 +1,8 @@
 use crate::logs::DEBUG;
-use crate::rpc_client::json::responses::{JsonRpcReply, JsonRpcResult, SendRawTransactionResult};
+use crate::rpc_client::json::responses::{SendRawTransactionResult};
 use crate::rpc_client::json::Hash;
 use ic_canister_log::log;
+use canhttp::http::json::{JsonRpcResult, JsonRpcResponseBody};
 
 #[cfg(test)]
 mod tests;
@@ -203,7 +204,7 @@ impl ErrorParser for Parser {
 /// queried by HTTP outcalls and the fact that `eth_sendRawTransaction` is not idempotent.
 /// The type `JsonRpcReply<Hash>` of the original response is transformed into `JsonRpcReply<SendRawTxResult>`.
 pub fn sanitize_send_raw_transaction_result<T: ErrorParser>(body_bytes: &mut Vec<u8>, parser: T) {
-    let response: JsonRpcReply<Hash> = match serde_json::from_slice(body_bytes) {
+    let response: JsonRpcResponseBody<Hash> = match serde_json::from_slice(body_bytes) {
         Ok(response) => response,
         Err(e) => {
             log!(DEBUG, "Error deserializing: {:?}", e);
@@ -236,7 +237,7 @@ pub fn sanitize_send_raw_transaction_result<T: ErrorParser>(body_bytes: &mut Vec
             }
         }
     };
-    let sanitized_reply: JsonRpcReply<SendRawTransactionResult> = JsonRpcReply {
+    let sanitized_reply: JsonRpcResponseBody<SendRawTransactionResult> = JsonRpcResponseBody {
         id: response.id,
         jsonrpc: response.jsonrpc,
         result: sanitized_result,
