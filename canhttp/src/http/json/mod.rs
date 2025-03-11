@@ -50,6 +50,7 @@
 //! # }
 
 use crate::convert::{ConvertRequest, ConvertRequestLayer, ConvertResponse, ConvertResponseLayer};
+pub use id::Id;
 pub use request::{
     HttpJsonRpcRequest, JsonRequestConversionError, JsonRequestConverter, JsonRpcRequestBody,
 };
@@ -65,6 +66,7 @@ use tower_layer::Layer;
 #[cfg(test)]
 mod tests;
 
+mod id;
 mod request;
 mod response;
 

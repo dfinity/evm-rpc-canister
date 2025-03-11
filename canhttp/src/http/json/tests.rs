@@ -5,6 +5,36 @@ use http::HeaderValue;
 use serde_json::json;
 use tower::{BoxError, Service, ServiceBuilder, ServiceExt};
 
+mod json_rpc {
+    use crate::http::json::Id;
+    use serde_json::json;
+
+    #[test]
+    fn should_parse_null_id() {
+        let id: Id = serde_json::from_value(json!(null)).unwrap();
+        assert_eq!(id, Id::Null);
+    }
+
+    #[test]
+    fn should_parse_numeric_id() {
+        let id: Id = serde_json::from_value(json!(42)).unwrap();
+        assert_eq!(id, Id::Number(42));
+    }
+
+    #[test]
+    fn should_parse_string_id() {
+        let id: Id = serde_json::from_value(json!("forty two")).unwrap();
+        assert_eq!(id, Id::String("forty two".into()));
+    }
+
+    #[test]
+    fn should_fail_to_parse_id_from_wrong_types() {
+        for value in [json!(true), json!(["array"]), json!({"an": "object"})] {
+            let _error = serde_json::from_value::<Id>(value).expect_err("should fail");
+        }
+    }
+}
+
 #[tokio::test]
 async fn should_convert_json_request() {
     let url = "https://internetcomputer.org/";
