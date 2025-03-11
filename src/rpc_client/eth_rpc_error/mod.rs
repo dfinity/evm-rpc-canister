@@ -29,29 +29,6 @@ pub enum SendRawTransactionError {
     NonceTooHigh,
 }
 
-// impl<T> From<SendRawTransactionError> for JsonRpcResult<T> {
-//     fn from(value: SendRawTransactionError) -> Self {
-//         match value {
-//             SendRawTransactionError::AlreadyKnown => JsonRpcResult::Error {
-//                 code: -32_000,
-//                 message: "Transaction already known".to_string(),
-//             },
-//             SendRawTransactionError::InsufficientFunds => JsonRpcResult::Error {
-//                 code: -32_000,
-//                 message: "insufficient funds for gas * price + value".to_string(),
-//             },
-//             SendRawTransactionError::NonceTooLow => JsonRpcResult::Error {
-//                 code: -32_000,
-//                 message: "nonce too low".to_string(),
-//             },
-//             SendRawTransactionError::NonceTooHigh => JsonRpcResult::Error {
-//                 code: -32_000,
-//                 message: "nonce too high".to_string(),
-//             },
-//         }
-//     }
-// }
-
 pub trait ErrorParser {
     fn try_parse_send_raw_transaction_error(
         &self,
