@@ -71,9 +71,9 @@ mod multi_call_results {
     mod reduce_with_equality {
         use crate::rpc_client::tests::multi_call_results::{ANKR, PUBLIC_NODE};
         use crate::rpc_client::{MultiCallError, MultiCallResults};
+        use canhttp::http::json::JsonRpcResult;
         use evm_rpc_types::{HttpOutcallError, JsonRpcError, RpcError};
         use ic_cdk::api::call::RejectionCode;
-        use canhttp::http::json::JsonRpcResult;
 
         #[test]
         #[should_panic(expected = "MultiCallResults cannot be empty")]

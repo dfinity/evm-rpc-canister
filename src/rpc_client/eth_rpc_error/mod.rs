@@ -1,8 +1,8 @@
 use crate::logs::DEBUG;
-use crate::rpc_client::json::responses::{SendRawTransactionResult};
+use crate::rpc_client::json::responses::SendRawTransactionResult;
 use crate::rpc_client::json::Hash;
+use canhttp::http::json::{JsonRpcResponseBody, JsonRpcResult};
 use ic_canister_log::log;
-use canhttp::http::json::{JsonRpcResult, JsonRpcResponseBody};
 
 #[cfg(test)]
 mod tests;
