@@ -2253,6 +2253,33 @@ fn should_have_different_request_ids_when_retrying_because_response_too_big() {
     );
 }
 
+#[test]
+fn should_fail_when_response_id_inconsistent_with_request_id() {
+    let setup = EvmRpcSetup::new().mock_api_keys();
+    
+    let request_id = 0;
+    let response_id = 1;
+    assert_ne!(request_id, response_id);
+    let request = json!({"jsonrpc":"2.0", "id": request_id, "method":"eth_getTransactionCount","params":["0xdac17f958d2ee523a2206206994597c13d831ec7","latest"]});
+    let response = json!({"jsonrpc":"2.0", "id": response_id, "result":"0x1"});
+
+    let error = setup
+        .eth_get_transaction_count(
+            RpcServices::EthMainnet(Some(vec![EthMainnetService::Cloudflare])),
+            None,
+            evm_rpc_types::GetTransactionCountArgs {
+                address: "0xdAC17F958D2ee523a2206206994597C13D831ec7"
+                    .parse()
+                    .unwrap(),
+                block: evm_rpc_types::BlockTag::Latest,
+            },
+        )
+        .mock_http_once(MockOutcallBuilder::new(200, response).with_json_request_body(request))
+        .wait()
+        .expect_consistent()
+        .expect_err("should fail when ID mismatch");
+}
+
 pub fn multi_logs_for_single_transaction(num_logs: usize) -> String {
     let mut logs = Vec::with_capacity(num_logs);
     for log_index in 0..num_logs {

@@ -3,6 +3,7 @@ use pocket_ic::common::rest::{
     CanisterHttpHeader, CanisterHttpMethod, CanisterHttpReject, CanisterHttpReply,
     CanisterHttpRequest, CanisterHttpResponse,
 };
+use serde_json::Value;
 use std::collections::BTreeSet;
 use std::str::FromStr;
 use url::Url;
@@ -22,6 +23,12 @@ impl<'a> From<&'a str> for MockOutcallBody {
 impl From<Vec<u8>> for MockOutcallBody {
     fn from(bytes: Vec<u8>) -> Self {
         MockOutcallBody(bytes)
+    }
+}
+
+impl From<serde_json::Value> for MockOutcallBody {
+    fn from(value: Value) -> Self {
+        Self::from(serde_json::to_vec(&value).unwrap())
     }
 }
 
@@ -79,6 +86,10 @@ impl MockOutcallBuilder {
                 .collect(),
         );
         self
+    }
+
+    pub fn with_json_request_body(self, body: serde_json::Value) -> Self {
+        self.with_request_body(MockJsonRequestBody::from_json_value_unchecked(body))
     }
 
     pub fn with_raw_request_body(self, body: &str) -> Self {
@@ -185,6 +196,10 @@ impl MockJsonRequestBody {
     pub fn from_raw_request_unchecked(raw_request: &str) -> Self {
         let request: serde_json::Value =
             serde_json::from_str(raw_request).expect("BUG: failed to parse JSON request");
+        Self::from_json_value_unchecked(request)
+    }
+
+    pub fn from_json_value_unchecked(request: serde_json::Value) -> Self {
         Self {
             jsonrpc: request["jsonrpc"]
                 .as_str()
