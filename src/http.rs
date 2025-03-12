@@ -16,7 +16,7 @@ use canhttp::{
             JsonRequestConverter, JsonResponseConversionError, JsonResponseConverter,
             JsonRpcRequest,
         },
-        FilterNonSuccessfulHttpResponse, FilterNonSuccessulHttpResponseError,
+        FilterNonSuccessfulHttpResponse, FilterNonSuccessfulHttpResponseError,
         HttpRequestConversionError, HttpRequestConverter, HttpResponseConversionError,
         HttpResponseConverter,
     },
@@ -136,7 +136,7 @@ where
                             );
                         }
                         HttpClientError::UnsuccessfulHttpResponse(
-                            FilterNonSuccessulHttpResponseError::UnsuccessfulResponse(response),
+                            FilterNonSuccessfulHttpResponseError::UnsuccessfulResponse(response),
                         ) => {
                             observe_response(
                                 req_data.method,
@@ -227,7 +227,7 @@ pub enum HttpClientError {
     #[error("cycles accounting error: {0}")]
     CyclesAccountingError(CyclesAccountingError),
     #[error("HTTP response was not successful: {0}")]
-    UnsuccessfulHttpResponse(FilterNonSuccessulHttpResponseError<Vec<u8>>),
+    UnsuccessfulHttpResponse(FilterNonSuccessfulHttpResponseError<Vec<u8>>),
     #[error("Error converting response to JSON: {0}")]
     InvalidJsonResponse(JsonResponseConversionError),
 }
@@ -245,8 +245,8 @@ impl From<HttpResponseConversionError> for HttpClientError {
     }
 }
 
-impl From<FilterNonSuccessulHttpResponseError<Vec<u8>>> for HttpClientError {
-    fn from(value: FilterNonSuccessulHttpResponseError<Vec<u8>>) -> Self {
+impl From<FilterNonSuccessfulHttpResponseError<Vec<u8>>> for HttpClientError {
+    fn from(value: FilterNonSuccessfulHttpResponseError<Vec<u8>>) -> Self {
         HttpClientError::UnsuccessfulHttpResponse(value)
     }
 }
@@ -299,7 +299,7 @@ impl From<HttpClientError> for RpcError {
                 parsing_error: Some(parsing_error),
             }),
             HttpClientError::UnsuccessfulHttpResponse(
-                FilterNonSuccessulHttpResponseError::UnsuccessfulResponse(response),
+                FilterNonSuccessfulHttpResponseError::UnsuccessfulResponse(response),
             ) => RpcError::HttpOutcallError(HttpOutcallError::InvalidHttpJsonRpcResponse {
                 status: response.status().as_u16(),
                 body: String::from_utf8_lossy(response.body()).to_string(),

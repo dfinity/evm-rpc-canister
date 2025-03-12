@@ -67,7 +67,7 @@ mod tests;
 
 pub use request::{HttpRequest, HttpRequestConversionError, HttpRequestConverter};
 pub use response::{
-    FilterNonSuccessfulHttpResponse, FilterNonSuccessulHttpResponseError, HttpResponse,
+    FilterNonSuccessfulHttpResponse, FilterNonSuccessfulHttpResponseError, HttpResponse,
     HttpResponseConversionError, HttpResponseConverter,
 };
 
