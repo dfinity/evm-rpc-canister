@@ -76,6 +76,10 @@ where
 
 /// JSON-RPC response over HTTP.
 pub type HttpJsonRpcResponse<T> = http::Response<JsonRpcResponseBody<T>>;
+
+/// A specialized [`Result`] error type for JSON-RPC responses.
+///
+/// [`Result`]: enum@std::result::Result
 pub type JsonRpcResult<T> = Result<T, JsonRpcError>;
 
 /// Body of a JSON-RPC response
@@ -89,7 +93,7 @@ pub struct JsonRpcResponseBody<T> {
 
 impl<T> JsonRpcResponseBody<T> {
     /// Creates a new successful response from a request ID and `Error` object.
-    pub fn from_ok(id: Id, result: T) -> Self {
+    pub const fn from_ok(id: Id, result: T) -> Self {
         Self {
             jsonrpc: Version::V2,
             result: JsonRpcResultEnvelope::Ok(result),
@@ -98,7 +102,7 @@ impl<T> JsonRpcResponseBody<T> {
     }
 
     /// Creates a new error response from a request ID and `Error` object.
-    pub fn from_error(id: Id, error: JsonRpcError) -> Self {
+    pub const fn from_error(id: Id, error: JsonRpcError) -> Self {
         Self {
             jsonrpc: Version::V2,
             result: JsonRpcResultEnvelope::Err(error),
@@ -106,6 +110,7 @@ impl<T> JsonRpcResponseBody<T> {
         }
     }
 
+    /// Creates a new response from a request ID and either an `Ok(Value)` or `Err(Error)` body.
     pub fn from_parts(id: Id, result: JsonRpcResult<T>) -> Self {
         match result {
             Ok(r) => JsonRpcResponseBody::from_ok(id, r),
@@ -113,14 +118,21 @@ impl<T> JsonRpcResponseBody<T> {
         }
     }
 
+    /// Splits the response into a request ID paired with either an `Ok(Value)` or `Err(Error)` to
+    /// signify whether the response is a success or failure.
     pub fn into_parts(self) -> (Id, JsonRpcResult<T>) {
         (self.id, self.result.into_result())
     }
 
+    /// Convert this response into a result.
+    ///
+    /// A successful response will be converted to an `Ok` value,
+    /// while a non-successful response will be converted into an `Err(JsonRpcError)`.
     pub fn into_result(self) -> JsonRpcResult<T> {
         self.result.into_result()
     }
 
+    /// Mutate this response as a mutable result.
     pub fn as_result_mut(&mut self) -> Result<&mut T, &mut JsonRpcError> {
         self.result.as_result_mut()
     }
@@ -138,14 +150,14 @@ enum JsonRpcResultEnvelope<T> {
 }
 
 impl<T> JsonRpcResultEnvelope<T> {
-    pub fn into_result(self) -> JsonRpcResult<T> {
+    fn into_result(self) -> JsonRpcResult<T> {
         match self {
             JsonRpcResultEnvelope::Ok(result) => Ok(result),
             JsonRpcResultEnvelope::Err(error) => Err(error),
         }
     }
 
-    pub fn as_result_mut(&mut self) -> Result<&mut T, &mut JsonRpcError> {
+    fn as_result_mut(&mut self) -> Result<&mut T, &mut JsonRpcError> {
         match self {
             JsonRpcResultEnvelope::Ok(result) => Ok(result),
             JsonRpcResultEnvelope::Err(error) => Err(error),
@@ -171,6 +183,7 @@ pub struct JsonRpcError {
 }
 
 impl JsonRpcError {
+    /// Create a new JSON-RPC error without `data`.
     pub fn new(code: impl Into<i64>, message: impl Into<String>) -> Self {
         let code = code.into();
         let message = message.into();

@@ -3,8 +3,7 @@
 //! leveraging the modularity of the [tower framework](https://rust-lang.guide/guide/learn-async-rust/tower.html).
 
 #![forbid(unsafe_code)]
-// TODO XC-287: re-enable docs
-// #![forbid(missing_docs)]
+#![forbid(missing_docs)]
 
 pub use client::{
     Client, HttpsOutcallError, IcError, IcHttpRequestWithCycles, MaxResponseBytesRequestExtension,
