@@ -6,7 +6,7 @@ use serde_json::json;
 use tower::{BoxError, Service, ServiceBuilder, ServiceExt};
 
 mod json_rpc {
-    use crate::http::json::{Id, JsonRpcError, JsonRpcRequestBody, JsonRpcResponseBody, Version};
+    use crate::http::json::{Id, JsonRpcError, JsonRpcRequest, JsonRpcResponseBody, Version};
     use assert_matches::assert_matches;
     use serde::de::DeserializeOwned;
     use serde_json::json;
@@ -39,7 +39,7 @@ mod json_rpc {
 
     #[test]
     fn should_serialize_request() {
-        let request = JsonRpcRequestBody::new("subtract", [43, 23]).with_id(Id::from(1_u8));
+        let request = JsonRpcRequest::new("subtract", [43, 23]).with_id(Id::from(1_u8));
         assert_eq!(
             serde_json::to_value(&request).unwrap(),
             json!({"jsonrpc": "2.0", "method": "subtract", "params": [43, 23], "id": 1})

@@ -10,7 +10,7 @@ use crate::rpc_client::numeric::{TransactionCount, Wei};
 use crate::types::MetricRpcMethod;
 use candid::candid_method;
 use canhttp::{
-    http::json::{JsonRpcRequestBody, JsonRpcResponseBody},
+    http::json::{JsonRpcRequest, JsonRpcResponseBody},
     MaxResponseBytesRequestExtension, TransformContextRequestExtension,
 };
 use evm_rpc_types::{JsonRpcError, RpcError, RpcService};
@@ -180,7 +180,7 @@ where
             "cleanup_response".to_owned(),
             transform_op.clone(),
         ))
-        .body(JsonRpcRequestBody::new(method, params))
+        .body(JsonRpcRequest::new(method, params))
         .expect("BUG: invalid request");
 
     let eth_method = request.body().method().to_string();

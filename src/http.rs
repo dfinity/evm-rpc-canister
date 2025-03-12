@@ -14,7 +14,7 @@ use canhttp::{
         json::{
             HttpJsonRpcRequest, HttpJsonRpcResponse, Id, JsonRequestConversionError,
             JsonRequestConverter, JsonResponseConversionError, JsonResponseConverter,
-            JsonRpcRequestBody,
+            JsonRpcRequest,
         },
         FilterNonSuccessfulHttpResponse, FilterNonSuccessulHttpResponseError,
         HttpRequestConversionError, HttpRequestConverter, HttpResponseConversionError,
@@ -49,7 +49,7 @@ pub fn json_rpc_request_arg(
     json_rpc_payload: &str,
     max_response_bytes: u64,
 ) -> RpcResult<HttpJsonRpcRequest<serde_json::Value>> {
-    let body: JsonRpcRequestBody<serde_json::Value> = serde_json::from_str(json_rpc_payload)
+    let body: JsonRpcRequest<serde_json::Value> = serde_json::from_str(json_rpc_payload)
         .map_err(|e| {
             RpcError::ValidationError(ValidationError::Custom(format!(
                 "Invalid JSON RPC request: {e}"
