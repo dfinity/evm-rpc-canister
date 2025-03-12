@@ -104,6 +104,11 @@ impl<T> JsonRpcRequestBody<T> {
         }
     }
 
+    /// Change the request ID following the builder pattern.
+    pub fn with_id(self, id: Id) -> Self {
+        Self { id, ..self }
+    }
+
     /// Change the request ID.
     pub fn set_id(&mut self, id: Id) {
         self.id = id;
