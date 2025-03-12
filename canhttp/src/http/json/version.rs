@@ -1,12 +1,21 @@
 use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
+use std::fmt::{Display, Formatter};
 
 /// Protocol Version
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Version {
     /// JSONRPC 2.0
     V2,
+}
+
+impl Display for Version {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Version::V2 => f.write_str("2.0"),
+        }
+    }
 }
 
 impl Serialize for Version {

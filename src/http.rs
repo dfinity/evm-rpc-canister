@@ -49,8 +49,8 @@ pub fn json_rpc_request_arg(
     json_rpc_payload: &str,
     max_response_bytes: u64,
 ) -> RpcResult<HttpJsonRpcRequest<serde_json::Value>> {
-    let body: JsonRpcRequest<serde_json::Value> = serde_json::from_str(json_rpc_payload)
-        .map_err(|e| {
+    let body: JsonRpcRequest<serde_json::Value> =
+        serde_json::from_str(json_rpc_payload).map_err(|e| {
             RpcError::ValidationError(ValidationError::Custom(format!(
                 "Invalid JSON RPC request: {e}"
             )))
@@ -84,7 +84,7 @@ pub fn http_client<I, O>(
     retry: bool,
 ) -> impl Service<HttpJsonRpcRequest<I>, Response = HttpJsonRpcResponse<O>, Error = RpcError>
 where
-    I: Serialize + Clone,
+    I: Serialize + Clone + Debug,
     O: DeserializeOwned + Debug,
 {
     let maybe_retry = if retry {
@@ -113,6 +113,11 @@ where
                         requests,
                         (req_data.method.clone(), req_data.host.clone()),
                         1
+                    );
+                    log!(TRACE_HTTP, "JSON-RPC request with id `{}` to {}: {:?}",
+                        req_data.request_id,
+                        req_data.host.0,
+                        req.body()
                     );
                     req_data
                 })
