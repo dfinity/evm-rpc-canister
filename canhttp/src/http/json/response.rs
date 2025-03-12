@@ -75,23 +75,23 @@ where
 }
 
 /// JSON-RPC response over HTTP.
-pub type HttpJsonRpcResponse<T> = http::Response<JsonRpcResponseBody<T>>;
+pub type HttpJsonRpcResponse<T> = http::Response<JsonRpcResponse<T>>;
 
 /// A specialized [`Result`] error type for JSON-RPC responses.
 ///
 /// [`Result`]: enum@std::result::Result
 pub type JsonRpcResult<T> = Result<T, JsonRpcError>;
 
-/// Body of a JSON-RPC response
+/// JSON-RPC response.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct JsonRpcResponseBody<T> {
+pub struct JsonRpcResponse<T> {
     jsonrpc: Version,
     id: Id,
     #[serde(flatten)]
     result: JsonRpcResultEnvelope<T>,
 }
 
-impl<T> JsonRpcResponseBody<T> {
+impl<T> JsonRpcResponse<T> {
     /// Creates a new successful response from a request ID and `Error` object.
     pub const fn from_ok(id: Id, result: T) -> Self {
         Self {
@@ -113,8 +113,8 @@ impl<T> JsonRpcResponseBody<T> {
     /// Creates a new response from a request ID and either an `Ok(Value)` or `Err(Error)` body.
     pub fn from_parts(id: Id, result: JsonRpcResult<T>) -> Self {
         match result {
-            Ok(r) => JsonRpcResponseBody::from_ok(id, r),
-            Err(e) => JsonRpcResponseBody::from_error(id, e),
+            Ok(r) => JsonRpcResponse::from_ok(id, r),
+            Err(e) => JsonRpcResponse::from_error(id, e),
         }
     }
 

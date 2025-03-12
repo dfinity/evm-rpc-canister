@@ -6,7 +6,7 @@ use serde_json::json;
 use tower::{BoxError, Service, ServiceBuilder, ServiceExt};
 
 mod json_rpc {
-    use crate::http::json::{Id, JsonRpcError, JsonRpcRequest, JsonRpcResponseBody, Version};
+    use crate::http::json::{Id, JsonRpcError, JsonRpcRequest, JsonRpcResponse, Version};
     use assert_matches::assert_matches;
     use serde::de::DeserializeOwned;
     use serde_json::json;
@@ -50,7 +50,7 @@ mod json_rpc {
     fn should_deserialize_json_ok_response() {
         let error_response = json!({ "jsonrpc": "2.0", "result": 366632694, "id": 0 });
 
-        let json_response: JsonRpcResponseBody<u64> =
+        let json_response: JsonRpcResponse<u64> =
             serde_json::from_value(error_response).unwrap();
         let (id, result) = json_response.into_parts();
 
@@ -64,7 +64,7 @@ mod json_rpc {
             let error_response =
                 json!({"jsonrpc":"2.0", "id":0, "error": {"code":123, "message":"Error message"}});
 
-            let json_response: JsonRpcResponseBody<T> =
+            let json_response: JsonRpcResponse<T> =
                 serde_json::from_value(error_response).unwrap();
             let (id, result) = json_response.into_parts();
 

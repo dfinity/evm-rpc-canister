@@ -10,7 +10,7 @@ use crate::rpc_client::numeric::{TransactionCount, Wei};
 use crate::types::MetricRpcMethod;
 use candid::candid_method;
 use canhttp::{
-    http::json::{JsonRpcRequest, JsonRpcResponseBody},
+    http::json::{JsonRpcRequest, JsonRpcResponse},
     MaxResponseBytesRequestExtension, TransformContextRequestExtension,
 };
 use evm_rpc_types::{JsonRpcError, RpcError, RpcService};
@@ -62,7 +62,7 @@ impl ResponseTransform {
         where
             T: Serialize + DeserializeOwned,
         {
-            let response: JsonRpcResponseBody<T> = match serde_json::from_slice(body) {
+            let response: JsonRpcResponse<T> = match serde_json::from_slice(body) {
                 Ok(response) => response,
                 Err(_) => return,
             };
@@ -75,7 +75,7 @@ impl ResponseTransform {
         where
             T: Serialize + DeserializeOwned,
         {
-            let mut response: JsonRpcResponseBody<Vec<T>> = match serde_json::from_slice(body) {
+            let mut response: JsonRpcResponse<Vec<T>> = match serde_json::from_slice(body) {
                 Ok(response) => response,
                 Err(_) => return,
             };
