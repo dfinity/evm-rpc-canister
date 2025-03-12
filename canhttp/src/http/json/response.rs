@@ -1,10 +1,12 @@
 use crate::convert::Convert;
-use crate::http::json::{Id, Version};
+use crate::http::json::{HttpJsonRpcRequest, Id, Version};
 use crate::http::HttpResponse;
+use crate::validate::Validator;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::marker::PhantomData;
+use assert_matches::assert_matches;
 use thiserror::Error;
 
 /// Convert responses of type [HttpResponse] into [`http::Response<T>`],
@@ -118,6 +120,10 @@ impl<T> JsonRpcResponse<T> {
         }
     }
 
+    pub fn as_parts(&self) -> (&Id, Result<&T, &JsonRpcError>) {
+        (&self.id, self.as_result())
+    }
+
     /// Splits the response into a request ID paired with either an `Ok(Value)` or `Err(Error)` to
     /// signify whether the response is a success or failure.
     pub fn into_parts(self) -> (Id, JsonRpcResult<T>) {
@@ -133,8 +139,17 @@ impl<T> JsonRpcResponse<T> {
     }
 
     /// Mutate this response as a mutable result.
+    pub fn as_result(&self) -> Result<&T, &JsonRpcError> {
+        self.result.as_result()
+    }
+
+    /// Mutate this response as a mutable result.
     pub fn as_result_mut(&mut self) -> Result<&mut T, &mut JsonRpcError> {
         self.result.as_result_mut()
+    }
+
+    pub fn id(&self) -> &Id {
+        &self.id
     }
 }
 
@@ -151,6 +166,13 @@ enum JsonRpcResultEnvelope<T> {
 
 impl<T> JsonRpcResultEnvelope<T> {
     fn into_result(self) -> JsonRpcResult<T> {
+        match self {
+            JsonRpcResultEnvelope::Ok(result) => Ok(result),
+            JsonRpcResultEnvelope::Err(error) => Err(error),
+        }
+    }
+
+    fn as_result(&self) -> Result<&T, &JsonRpcError> {
         match self {
             JsonRpcResultEnvelope::Ok(result) => Ok(result),
             JsonRpcResultEnvelope::Err(error) => Err(error),
@@ -192,5 +214,67 @@ impl JsonRpcError {
             message,
             data: None,
         }
+    }
+
+    pub fn is_parse_error(&self) -> bool {
+        self.code == -32700
+    }
+
+    pub fn is_invalid_request(&self) -> bool {
+        self.code == -32600
+    }
+}
+
+struct ConsistentIdValidator;
+
+pub enum ConsistentIdValidatorError {
+    InconsistentId { request_id: Id, response_id: Id },
+    RequestIdNull,
+}
+
+impl<I, O> Validator<HttpJsonRpcRequest<I>, HttpJsonRpcResponse<O>> for ConsistentIdValidator {
+    type AssociatedRequestData = Id;
+    type Error = ConsistentIdValidatorError;
+
+    fn validate_request(
+        &self,
+        request: &HttpJsonRpcRequest<I>,
+    ) -> Result<Self::AssociatedRequestData, Self::Error> {
+        match request.body().id() {
+            Id::Number(_) | Id::String(_) => Ok(request.body().id().clone()),
+            Id::Null => Err(ConsistentIdValidatorError::RequestIdNull),
+        }
+    }
+
+    fn validate_response(
+        &mut self,
+        request_data: Self::AssociatedRequestData,
+        response: &HttpJsonRpcResponse<O>,
+    ) -> Result<(), Self::Error> {
+        let request_id = request_data;
+        assert_matches!(
+            request_id,
+            Id::Number(_) | Id::String(_),
+            "BUG: validate_request should prevent null IDs"
+        );
+
+        let (response_id, result) = response.body().as_parts();
+        if &request_id == response_id {
+            return Ok(());
+        }
+
+        if response_id.is_null()
+            && result.is_err_and(|e| e.is_parse_error() || e.is_invalid_request())
+        {
+            // From the [JSON-RPC specification](https://www.jsonrpc.org/specification):
+            // If there was an error in detecting the id in the Request object
+            // (e.g. Parse error/Invalid Request), it MUST be Null.
+            return Ok(());
+        }
+
+        Err(ConsistentIdValidatorError::InconsistentId {
+            request_id,
+            response_id: response_id.clone(),
+        })
     }
 }

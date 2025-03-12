@@ -70,6 +70,7 @@ pub struct ResponseFuture<F, Converter> {
     response_future: F,
     converter: Converter,
 }
+
 impl<F, Filter, Response, NewResponse, Error> Future for ResponseFuture<F, Filter>
 where
     F: Future<Output = Result<Response, Error>>,
