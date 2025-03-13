@@ -93,3 +93,76 @@ where
         }
     }
 }
+
+pub trait CreateResponseFilter<Request> {
+    type Filter: Filter<Self::Response, Error = Self::Error>;
+    type Response;
+    type Error;
+
+    fn create_filter(&self, request: &Request) -> Self::Filter;
+}
+
+pub trait Filter<Input> {
+    type Error;
+    fn filter(&mut self, input: Input) -> Result<Input, Self::Error>;
+}
+
+impl<Input, F: Filter<Input>> Convert<Input> for F {
+    type Output = Input;
+    type Error = F::Error;
+
+    fn try_convert(&mut self, response: Input) -> Result<Self::Output, Self::Error> {
+        self.filter(response)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CreateResponseFilterLayer<C> {
+    create_filter: C,
+}
+
+impl<C> CreateResponseFilterLayer<C> {
+    pub fn new(create_filter: C) -> Self {
+        Self { create_filter }
+    }
+}
+
+impl<S, C: Clone> Layer<S> for CreateResponseFilterLayer<C> {
+    type Service = FilterResponse<S, C>;
+
+    fn layer(&self, inner: S) -> Self::Service {
+        FilterResponse {
+            inner,
+            create_filter: self.create_filter.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct FilterResponse<S, C> {
+    inner: S,
+    create_filter: C,
+}
+
+impl<S, Request, Response, C> Service<Request> for FilterResponse<S, C>
+where
+    S: Service<Request, Response = Response>,
+    C: CreateResponseFilter<Request, Response = Response>,
+    C::Error: Into<S::Error>,
+{
+    type Response = S::Response;
+    type Error = S::Error;
+    type Future = ResponseFuture<S::Future, C::Filter>;
+
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.inner.poll_ready(cx)
+    }
+
+    fn call(&mut self, req: Request) -> Self::Future {
+        let filter = self.create_filter.create_filter(&req);
+        ResponseFuture {
+            response_future: self.inner.call(req),
+            converter: filter,
+        }
+    }
+}

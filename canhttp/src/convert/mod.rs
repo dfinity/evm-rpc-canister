@@ -151,7 +151,7 @@
 
 pub use error::{ConvertError, ConvertErrorLayer};
 pub use request::{ConvertRequest, ConvertRequestLayer};
-pub use response::{ConvertResponse, ConvertResponseLayer};
+pub use response::{ConvertResponse, ConvertResponseLayer, CreateResponseFilterLayer};
 
 mod error;
 mod request;
@@ -185,6 +185,8 @@ pub trait ConvertServiceBuilder<L> {
     /// See the [module docs](crate::convert) for examples.
     fn convert_response<C>(self, f: C) -> ServiceBuilder<Stack<ConvertResponseLayer<C>, L>>;
 
+    fn filter_response<F>(self, f: F) -> ServiceBuilder<Stack<CreateResponseFilterLayer<F>, L>>;
+
     /// Convert the error type.
     ///
     /// See the [module docs](crate::convert) for examples.
@@ -201,6 +203,10 @@ impl<L> ConvertServiceBuilder<L> for ServiceBuilder<L> {
         converter: C,
     ) -> ServiceBuilder<Stack<ConvertResponseLayer<C>, L>> {
         self.layer(ConvertResponseLayer::new(converter))
+    }
+
+    fn filter_response<F>(self, f: F) -> ServiceBuilder<Stack<CreateResponseFilterLayer<F>, L>> {
+        self.layer(CreateResponseFilterLayer::new(f))
     }
 
     fn convert_error<NewError>(self) -> ServiceBuilder<Stack<ConvertErrorLayer<NewError>, L>> {
