@@ -56,7 +56,7 @@ pub use request::{
 };
 pub use response::{
     HttpJsonRpcResponse, JsonResponseConversionError, JsonResponseConverter, JsonRpcError,
-    JsonRpcResponse, JsonRpcResult,
+    JsonRpcResponse, JsonRpcResult, CreateResponseIdFilter, ConsistentResponseIdFilter, ConsistentIdValidatorError
 };
 pub use version::Version;
 

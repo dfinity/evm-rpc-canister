@@ -8,6 +8,7 @@ use crate::{
     types::{MetricRpcHost, MetricRpcMethod, ResolvedRpcService},
     util::canonicalize_json,
 };
+use canhttp::http::json::{ConsistentIdValidatorError, CreateResponseIdFilter};
 use canhttp::{
     convert::ConvertRequestLayer,
     http::{
@@ -178,6 +179,7 @@ where
                     },
                 ),
         )
+        .filter_response(CreateResponseIdFilter::new())
         .layer(service_request_builder())
         .convert_response(JsonResponseConverter::new())
         .convert_response(FilterNonSuccessfulHttpResponse)
@@ -277,6 +279,22 @@ impl From<HttpRequestConversionError> for HttpClientError {
 impl From<JsonRequestConversionError> for HttpClientError {
     fn from(value: JsonRequestConversionError) -> Self {
         HttpClientError::NotHandledError(value.to_string())
+    }
+}
+
+impl From<ConsistentIdValidatorError> for HttpClientError {
+    fn from(value: ConsistentIdValidatorError) -> Self {
+        match value {
+            ConsistentIdValidatorError::InconsistentId {
+                request_id,
+                response_id,
+            } => {
+                panic!("Inconsistent id: {} vs {}", request_id, response_id);
+            }
+            ConsistentIdValidatorError::RequestIdNull => {
+                panic!("BOOM!")
+            }
+        }
     }
 }
 

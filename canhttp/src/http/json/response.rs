@@ -1,12 +1,11 @@
-use crate::convert::Convert;
+use crate::convert::{Convert, CreateResponseFilter, Filter};
 use crate::http::json::{HttpJsonRpcRequest, Id, Version};
 use crate::http::HttpResponse;
-use crate::validate::Validator;
+use assert_matches::assert_matches;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::marker::PhantomData;
-use assert_matches::assert_matches;
 use thiserror::Error;
 
 /// Convert responses of type [HttpResponse] into [`http::Response<T>`],
@@ -225,33 +224,61 @@ impl JsonRpcError {
     }
 }
 
-struct ConsistentIdValidator;
-
 pub enum ConsistentIdValidatorError {
     InconsistentId { request_id: Id, response_id: Id },
     RequestIdNull,
 }
 
-impl<I, O> Validator<HttpJsonRpcRequest<I>, HttpJsonRpcResponse<O>> for ConsistentIdValidator {
-    type AssociatedRequestData = Id;
-    type Error = ConsistentIdValidatorError;
+pub struct CreateResponseIdFilter<O> {
+    _marker: PhantomData<O>,
+}
 
-    fn validate_request(
-        &self,
-        request: &HttpJsonRpcRequest<I>,
-    ) -> Result<Self::AssociatedRequestData, Self::Error> {
-        match request.body().id() {
-            Id::Number(_) | Id::String(_) => Ok(request.body().id().clone()),
-            Id::Null => Err(ConsistentIdValidatorError::RequestIdNull),
+impl<O> CreateResponseIdFilter<O> {
+    pub fn new() -> Self {
+        Self {
+            _marker: PhantomData,
         }
     }
+}
 
-    fn validate_response(
+impl<O> Clone for CreateResponseIdFilter<O> {
+    fn clone(&self) -> Self {
+        Self {
+            _marker: self._marker,
+        }
+    }
+}
+
+impl<I, O> CreateResponseFilter<HttpJsonRpcRequest<I>> for CreateResponseIdFilter<O> {
+    type Filter = ConsistentResponseIdFilter<O>;
+    type Response = HttpJsonRpcResponse<O>;
+    type Error = ConsistentIdValidatorError;
+
+    fn create_filter(&self, request: &HttpJsonRpcRequest<I>) -> ConsistentResponseIdFilter<O> {
+        assert_matches!(
+            request.body().id(), Id::Number(_) | Id::String(_),
+            "ERROR: a null request ID is a notification that indicates that the client is not interested in the response."
+        );
+        ConsistentResponseIdFilter {
+            request_id: request.body().id().clone(),
+            _marker: PhantomData::<O>,
+        }
+    }
+}
+
+pub struct ConsistentResponseIdFilter<O> {
+    request_id: Id,
+    _marker: PhantomData<O>,
+}
+
+impl<O> Filter<HttpJsonRpcResponse<O>> for ConsistentResponseIdFilter<O> {
+    type Error = ConsistentIdValidatorError;
+
+    fn filter(
         &mut self,
-        request_data: Self::AssociatedRequestData,
-        response: &HttpJsonRpcResponse<O>,
-    ) -> Result<(), Self::Error> {
-        let request_id = request_data;
+        response: HttpJsonRpcResponse<O>,
+    ) -> Result<HttpJsonRpcResponse<O>, Self::Error> {
+        let request_id = &self.request_id;
         assert_matches!(
             request_id,
             Id::Number(_) | Id::String(_),
@@ -259,8 +286,8 @@ impl<I, O> Validator<HttpJsonRpcRequest<I>, HttpJsonRpcResponse<O>> for Consiste
         );
 
         let (response_id, result) = response.body().as_parts();
-        if &request_id == response_id {
-            return Ok(());
+        if request_id == response_id {
+            return Ok(response);
         }
 
         if response_id.is_null()
@@ -269,11 +296,11 @@ impl<I, O> Validator<HttpJsonRpcRequest<I>, HttpJsonRpcResponse<O>> for Consiste
             // From the [JSON-RPC specification](https://www.jsonrpc.org/specification):
             // If there was an error in detecting the id in the Request object
             // (e.g. Parse error/Invalid Request), it MUST be Null.
-            return Ok(());
+            return Ok(response);
         }
 
         Err(ConsistentIdValidatorError::InconsistentId {
-            request_id,
+            request_id: request_id.clone(),
             response_id: response_id.clone(),
         })
     }
