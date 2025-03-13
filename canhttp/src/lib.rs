@@ -20,4 +20,3 @@ mod cycles;
 pub mod http;
 pub mod observability;
 pub mod retry;
-pub mod validate;
