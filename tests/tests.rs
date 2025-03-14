@@ -32,7 +32,7 @@ use pocket_ic::{
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
-use std::{marker::PhantomData, str::FromStr, time::Duration};
+use std::{marker::PhantomData, mem, str::FromStr, time::Duration};
 
 const DEFAULT_CALLER_TEST_ID: Principal = Principal::from_slice(&[0x9d, 0xf7, 0x01]);
 const DEFAULT_CONTROLLER_TEST_ID: Principal = Principal::from_slice(&[0x9d, 0xf7, 0x02]);
@@ -1854,6 +1854,10 @@ fn should_update_api_key() {
     .as_caller(authorized_caller);
     let provider_id = 1; // Ankr / mainnet
     let api_key = "test-api-key";
+
+    let [response_0, response_1] =
+        json_rpc_sequential_id(json!({"jsonrpc":"2.0","id":0,"result":"0x1"}));
+
     setup.update_api_keys(&[(provider_id, Some(api_key.to_string()))]);
     let response = setup
         .eth_get_transaction_count(
@@ -1864,8 +1868,8 @@ fn should_update_api_key() {
                 block: evm_rpc_types::BlockTag::Latest,
             },
         )
-        .mock_http(
-            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":0,"result":"0x1"}"#)
+        .mock_http_once(
+            MockOutcallBuilder::new(200, response_0)
                 .with_url(format!("https://rpc.ankr.com/eth/{api_key}")),
         )
         .wait()
@@ -1883,9 +1887,8 @@ fn should_update_api_key() {
                 block: evm_rpc_types::BlockTag::Latest,
             },
         )
-        .mock_http(
-            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":0,"result":"0x1"}"#)
-                .with_url("https://rpc.ankr.com/eth"),
+        .mock_http_once(
+            MockOutcallBuilder::new(200, response_1).with_url("https://rpc.ankr.com/eth"),
         )
         .wait()
         .expect_consistent()
@@ -2165,8 +2168,9 @@ fn should_retry_when_response_too_large() {
     let setup = EvmRpcSetup::new().mock_api_keys();
     // around 600 bytes per log
     // we need at least 3334 logs to reach the 2MB limit
-    let large_amount_of_logs = multi_logs_for_single_transaction(3_500);
-    let mock = MockOutcallBuilder::new(200, large_amount_of_logs.clone());
+    let large_amount_of_logs: [serde_json::Value; 12] =
+        json_rpc_sequential_id(multi_logs_for_single_transaction(3_500));
+    let mut mocks = MockOutcallBuilder::new_array(200, large_amount_of_logs);
     let response = setup
         .eth_get_logs(
             RpcServices::EthMainnet(Some(vec![EthMainnetService::Cloudflare])),
@@ -2183,18 +2187,18 @@ fn should_retry_when_response_too_large() {
                 topics: None,
             },
         )
-        .mock_http_once(mock.clone().with_max_response_bytes(1))
-        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 1))
-        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 2))
-        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 3))
-        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 4))
-        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 5))
-        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 6))
-        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 7))
-        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 8))
-        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 9))
-        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 10))
-        .mock_http_once(mock.clone().with_max_response_bytes(2_000_000))
+        .mock_http_once(mem::take(&mut mocks[0]).with_max_response_bytes(1))
+        .mock_http_once(mem::take(&mut mocks[1]).with_max_response_bytes(1024 << 1))
+        .mock_http_once(mem::take(&mut mocks[2]).with_max_response_bytes(1024 << 2))
+        .mock_http_once(mem::take(&mut mocks[3]).with_max_response_bytes(1024 << 3))
+        .mock_http_once(mem::take(&mut mocks[4]).with_max_response_bytes(1024 << 4))
+        .mock_http_once(mem::take(&mut mocks[5]).with_max_response_bytes(1024 << 5))
+        .mock_http_once(mem::take(&mut mocks[6]).with_max_response_bytes(1024 << 6))
+        .mock_http_once(mem::take(&mut mocks[7]).with_max_response_bytes(1024 << 7))
+        .mock_http_once(mem::take(&mut mocks[8]).with_max_response_bytes(1024 << 8))
+        .mock_http_once(mem::take(&mut mocks[9]).with_max_response_bytes(1024 << 9))
+        .mock_http_once(mem::take(&mut mocks[10]).with_max_response_bytes(1024 << 10))
+        .mock_http_once(mem::take(&mut mocks[11]).with_max_response_bytes(2_000_000))
         .wait()
         .expect_consistent();
 
@@ -2204,8 +2208,10 @@ fn should_retry_when_response_too_large() {
         if code == RejectionCode::SysFatal && message.contains("body exceeds size limit")
     );
 
-    let large_amount_of_logs = multi_logs_for_single_transaction(1_000);
-    let mock = MockOutcallBuilder::new(200, large_amount_of_logs.clone());
+    let mut large_amount_of_logs: [serde_json::Value; 11] =
+        json_rpc_sequential_id(multi_logs_for_single_transaction(1_000));
+    add_offset_json_rpc_id(large_amount_of_logs.as_mut_slice(), 12);
+    let mut mocks = MockOutcallBuilder::new_array(200, large_amount_of_logs);
     let response = setup
         .eth_get_logs(
             RpcServices::EthMainnet(Some(vec![EthMainnetService::Cloudflare])),
@@ -2222,17 +2228,17 @@ fn should_retry_when_response_too_large() {
                 topics: None,
             },
         )
-        .mock_http_once(mock.clone().with_max_response_bytes(1))
-        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 1))
-        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 2))
-        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 3))
-        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 4))
-        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 5))
-        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 6))
-        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 7))
-        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 8))
-        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 9))
-        .mock_http_once(mock.clone().with_max_response_bytes(1024 << 10))
+        .mock_http_once(mem::take(&mut mocks[0]).with_max_response_bytes(1))
+        .mock_http_once(mem::take(&mut mocks[1]).with_max_response_bytes(1024 << 1))
+        .mock_http_once(mem::take(&mut mocks[2]).with_max_response_bytes(1024 << 2))
+        .mock_http_once(mem::take(&mut mocks[3]).with_max_response_bytes(1024 << 3))
+        .mock_http_once(mem::take(&mut mocks[4]).with_max_response_bytes(1024 << 4))
+        .mock_http_once(mem::take(&mut mocks[5]).with_max_response_bytes(1024 << 5))
+        .mock_http_once(mem::take(&mut mocks[6]).with_max_response_bytes(1024 << 6))
+        .mock_http_once(mem::take(&mut mocks[7]).with_max_response_bytes(1024 << 7))
+        .mock_http_once(mem::take(&mut mocks[8]).with_max_response_bytes(1024 << 8))
+        .mock_http_once(mem::take(&mut mocks[9]).with_max_response_bytes(1024 << 9))
+        .mock_http_once(mem::take(&mut mocks[10]).with_max_response_bytes(1024 << 10))
         .wait()
         .expect_consistent();
 
@@ -2329,15 +2335,14 @@ fn should_fail_when_response_id_inconsistent_with_request_id() {
     );
 }
 
-pub fn multi_logs_for_single_transaction(num_logs: usize) -> String {
+pub fn multi_logs_for_single_transaction(num_logs: usize) -> serde_json::Value {
     let mut logs = Vec::with_capacity(num_logs);
     for log_index in 0..num_logs {
         let mut log = single_log();
         log.log_index = Some(log_index.into());
         logs.push(log);
     }
-    let logs = serde_json::to_string(&logs).unwrap();
-    format!(r#"{{"jsonrpc":"2.0","result":{logs},"id":0}}"#)
+    json!({"jsonrpc":"2.0","result": logs,"id":0})
 }
 
 fn single_log() -> ethers_core::types::Log {

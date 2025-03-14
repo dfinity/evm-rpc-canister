@@ -32,7 +32,7 @@ impl From<serde_json::Value> for MockOutcallBody {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct MockOutcallBuilder(MockOutcall);
 
 impl MockOutcallBuilder {
@@ -49,6 +49,17 @@ impl MockOutcallBuilder {
                 body: body.into().0,
             }),
         })
+    }
+
+    pub fn new_array<const N: usize>(
+        status: u16,
+        multi_body: [impl Into<MockOutcallBody>; N],
+    ) -> [Self; N] {
+        let mut mocks = Vec::with_capacity(N);
+        for body in multi_body {
+            mocks.push(Self::new(status, body));
+        }
+        mocks.try_into().unwrap()
     }
 
     pub fn new_error(code: RejectionCode, message: impl ToString) -> Self {
@@ -125,6 +136,22 @@ pub struct MockOutcall {
     pub request_body: Option<MockJsonRequestBody>,
     pub max_response_bytes: Option<u64>,
     pub response: CanisterHttpResponse,
+}
+
+impl Default for MockOutcall {
+    fn default() -> Self {
+        Self {
+            method: None,
+            url: None,
+            request_headers: None,
+            request_body: None,
+            max_response_bytes: None,
+            response: CanisterHttpResponse::CanisterHttpReject(CanisterHttpReject {
+                reject_code: u64::MAX,
+                message: "BUG: response to MockOutcall unspecified".to_string(),
+            }),
+        }
+    }
 }
 
 impl MockOutcall {
