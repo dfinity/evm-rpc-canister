@@ -28,6 +28,8 @@ shared ({ caller = installer }) actor class Main() {
         (#EthMainnet(#Llama), ?"eth_sendRawTransaction"), // Non-standard error message
         (#ArbitrumOne(#Ankr), ?"eth_getLogs"), // Timeout expired
         (#BaseMainnet(#Llama), null), // No response (temporary issue)
+        (#OptimismMainnet(#BlockPi), ?"eth_feeHistory"), // Temporary issue with [op-geth](https://github.com/ethereum-optimism/op-geth/issues/542)
+        (#BaseMainnet(#BlockPi), ?"eth_feeHistory"), // Temporary issue with [op-geth](https://github.com/ethereum-optimism/op-geth/issues/542)
     ];
 
     func runTests(caller : Principal, category : TestCategory) : async () {
