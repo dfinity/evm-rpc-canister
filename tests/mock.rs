@@ -3,6 +3,7 @@ use pocket_ic::common::rest::{
     CanisterHttpHeader, CanisterHttpMethod, CanisterHttpReject, CanisterHttpReply,
     CanisterHttpRequest, CanisterHttpResponse,
 };
+use serde_json::Value;
 use std::collections::BTreeSet;
 use std::str::FromStr;
 use url::Url;
@@ -25,7 +26,13 @@ impl From<Vec<u8>> for MockOutcallBody {
     }
 }
 
-#[derive(Clone, Debug)]
+impl From<serde_json::Value> for MockOutcallBody {
+    fn from(value: Value) -> Self {
+        Self::from(serde_json::to_vec(&value).unwrap())
+    }
+}
+
+#[derive(Clone, Debug, Default)]
 pub struct MockOutcallBuilder(MockOutcall);
 
 impl MockOutcallBuilder {
@@ -42,6 +49,17 @@ impl MockOutcallBuilder {
                 body: body.into().0,
             }),
         })
+    }
+
+    pub fn new_array<const N: usize>(
+        status: u16,
+        multi_body: [impl Into<MockOutcallBody>; N],
+    ) -> [Self; N] {
+        let mut mocks = Vec::with_capacity(N);
+        for body in multi_body {
+            mocks.push(Self::new(status, body));
+        }
+        mocks.try_into().unwrap()
     }
 
     pub fn new_error(code: RejectionCode, message: impl ToString) -> Self {
@@ -81,6 +99,10 @@ impl MockOutcallBuilder {
         self
     }
 
+    pub fn with_json_request_body(self, body: serde_json::Value) -> Self {
+        self.with_request_body(MockJsonRequestBody::from_json_value_unchecked(body))
+    }
+
     pub fn with_raw_request_body(self, body: &str) -> Self {
         self.with_request_body(MockJsonRequestBody::from_raw_request_unchecked(body))
     }
@@ -114,6 +136,22 @@ pub struct MockOutcall {
     pub request_body: Option<MockJsonRequestBody>,
     pub max_response_bytes: Option<u64>,
     pub response: CanisterHttpResponse,
+}
+
+impl Default for MockOutcall {
+    fn default() -> Self {
+        Self {
+            method: None,
+            url: None,
+            request_headers: None,
+            request_body: None,
+            max_response_bytes: None,
+            response: CanisterHttpResponse::CanisterHttpReject(CanisterHttpReject {
+                reject_code: u64::MAX,
+                message: "BUG: response to MockOutcall unspecified".to_string(),
+            }),
+        }
+    }
 }
 
 impl MockOutcall {
@@ -185,6 +223,10 @@ impl MockJsonRequestBody {
     pub fn from_raw_request_unchecked(raw_request: &str) -> Self {
         let request: serde_json::Value =
             serde_json::from_str(raw_request).expect("BUG: failed to parse JSON request");
+        Self::from_json_value_unchecked(request)
+    }
+
+    pub fn from_json_value_unchecked(request: serde_json::Value) -> Self {
         Self {
             jsonrpc: request["jsonrpc"]
                 .as_str()

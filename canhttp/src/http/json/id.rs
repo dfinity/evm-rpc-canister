@@ -25,6 +25,11 @@ pub enum Id {
 impl Id {
     /// Zero numeric ID.
     pub const ZERO: Id = Id::Number(0);
+
+    /// Return `true` if and only if the [`Id`] is [`Id::Null`].
+    pub fn is_null(&self) -> bool {
+        matches!(self, Self::Null)
+    }
 }
 
 impl<T: Into<u64>> From<T> for Id {
