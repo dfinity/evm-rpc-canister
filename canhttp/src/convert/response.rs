@@ -1,4 +1,4 @@
-use crate::convert::Convert;
+use crate::convert::{Convert, Filter};
 use pin_project::pin_project;
 use std::future::Future;
 use std::pin::Pin;
@@ -94,33 +94,31 @@ where
     }
 }
 
+/// Create a response filter per request.
+///
+/// This is useful when response validation depends on some request data.
 pub trait CreateResponseFilter<Request, Response> {
+    /// The response filter produced.
     type Filter: Filter<Response, Error = Self::Error>;
+    /// The type of error returned by the filter.
     type Error;
 
+    /// Return a new filter for this request.
     fn create_filter(&self, request: &Request) -> Self::Filter;
 }
 
-pub trait Filter<Input> {
-    type Error;
-    fn filter(&mut self, input: Input) -> Result<Input, Self::Error>;
-}
-
-impl<Input, F: Filter<Input>> Convert<Input> for F {
-    type Output = Input;
-    type Error = F::Error;
-
-    fn try_convert(&mut self, response: Input) -> Result<Self::Output, Self::Error> {
-        self.filter(response)
-    }
-}
-
+/// Filter responses of a service based on the corresponding request.
+///
+/// This [`Layer`] produces instances of the [`FilterResponse`] service.
+///
+/// [`Layer`]: tower::Layer
 #[derive(Debug, Clone)]
 pub struct CreateResponseFilterLayer<C> {
     create_filter: C,
 }
 
 impl<C> CreateResponseFilterLayer<C> {
+    /// Create a new [`CreateResponseFilterLayer`]
     pub fn new(create_filter: C) -> Self {
         Self { create_filter }
     }

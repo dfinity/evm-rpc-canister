@@ -152,7 +152,7 @@
 pub use error::{ConvertError, ConvertErrorLayer};
 pub use request::{ConvertRequest, ConvertRequestLayer};
 pub use response::{
-    ConvertResponse, ConvertResponseLayer, CreateResponseFilter, CreateResponseFilterLayer, Filter,
+    ConvertResponse, ConvertResponseLayer, CreateResponseFilter, CreateResponseFilterLayer,
 };
 
 mod error;
@@ -187,6 +187,9 @@ pub trait ConvertServiceBuilder<L> {
     /// See the [module docs](crate::convert) for examples.
     fn convert_response<C>(self, f: C) -> ServiceBuilder<Stack<ConvertResponseLayer<C>, L>>;
 
+    /// Filter the response depending on the request.
+    ///
+    /// See the [module docs](crate::convert) for examples.
     fn filter_response<F>(self, f: F) -> ServiceBuilder<Stack<CreateResponseFilterLayer<F>, L>>;
 
     /// Convert the error type.
@@ -213,5 +216,25 @@ impl<L> ConvertServiceBuilder<L> for ServiceBuilder<L> {
 
     fn convert_error<NewError>(self) -> ServiceBuilder<Stack<ConvertErrorLayer<NewError>, L>> {
         self.layer(ConvertErrorLayer::new())
+    }
+}
+
+/// Filter the response.
+///
+/// A specialized type of [`Convert`], where the [`Convert::Output`] type is the same as the input type.
+pub trait Filter<Input> {
+    /// Error type if the input is declared invalid.
+    type Error;
+
+    /// Filter the input and return an error if it fails.
+    fn filter(&mut self, input: Input) -> Result<Input, Self::Error>;
+}
+
+impl<Input, F: Filter<Input>> Convert<Input> for F {
+    type Output = Input;
+    type Error = F::Error;
+
+    fn try_convert(&mut self, response: Input) -> Result<Self::Output, Self::Error> {
+        self.filter(response)
     }
 }

@@ -12,7 +12,7 @@ use canhttp::{
     convert::ConvertRequestLayer,
     http::{
         json::{
-            ConsistentIdValidatorError, CreateResponseIdFilter, HttpJsonRpcRequest,
+            ConsistentResponseIdFilterError, CreateJsonRpcIdFilter, HttpJsonRpcRequest,
             HttpJsonRpcResponse, Id, JsonRequestConversionError, JsonRequestConverter,
             JsonResponseConversionError, JsonResponseConverter, JsonRpcRequest,
         },
@@ -171,7 +171,7 @@ where
                                 error
                             );
                         }
-                        HttpClientError::InvalidJsonResponseId(ConsistentIdValidatorError::InconsistentId { status, request_id: _, response_id: _ }) => {
+                        HttpClientError::InvalidJsonResponseId(ConsistentResponseIdFilterError::InconsistentId { status, request_id: _, response_id: _ }) => {
                             observe_response(req_data.method, req_data.host, *status);
                             log!(
                                 TRACE_HTTP,
@@ -187,7 +187,7 @@ where
                     },
                 ),
         )
-        .filter_response(CreateResponseIdFilter::new())
+        .filter_response(CreateJsonRpcIdFilter::new())
         .layer(service_request_builder())
         .convert_response(JsonResponseConverter::new())
         .convert_response(FilterNonSuccessfulHttpResponse)
@@ -246,7 +246,7 @@ pub enum HttpClientError {
     #[error("Error converting response to JSON: {0}")]
     InvalidJsonResponse(JsonResponseConversionError),
     #[error("Invalid JSON-RPC response ID: {0}")]
-    InvalidJsonResponseId(ConsistentIdValidatorError),
+    InvalidJsonResponseId(ConsistentResponseIdFilterError),
 }
 
 impl From<IcError> for HttpClientError {
@@ -292,8 +292,8 @@ impl From<JsonRequestConversionError> for HttpClientError {
     }
 }
 
-impl From<ConsistentIdValidatorError> for HttpClientError {
-    fn from(value: ConsistentIdValidatorError) -> Self {
+impl From<ConsistentResponseIdFilterError> for HttpClientError {
+    fn from(value: ConsistentResponseIdFilterError) -> Self {
         HttpClientError::InvalidJsonResponseId(value)
     }
 }
