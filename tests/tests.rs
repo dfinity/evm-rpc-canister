@@ -666,6 +666,9 @@ fn should_decode_transaction_receipt() {
 
 #[test]
 fn eth_get_logs_should_succeed() {
+    let [response_0, response_1, response_2] = json_rpc_sequential_id(
+        json!({"id":0,"jsonrpc":"2.0","result":[{"address":"0xdac17f958d2ee523a2206206994597c13d831ec7","topics":["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef","0x000000000000000000000000a9d1e08c7793af67e9d92fe308d5697fb81d3e43","0x00000000000000000000000078cccfb3d517cd4ed6d045e263e134712288ace2"],"data":"0x000000000000000000000000000000000000000000000000000000003b9c6433","blockNumber":"0x11dc77e","transactionHash":"0xf3ed91a03ddf964281ac7a24351573efd535b80fc460a5c2ad2b9d23153ec678","transactionIndex":"0x65","blockHash":"0xd5c72ad752b2f0144a878594faf8bd9f570f2f72af8e7f0940d3545a6388f629","logIndex":"0xe8","removed":false}]}),
+    );
     for source in RPC_SERVICES {
         let setup = EvmRpcSetup::new().mock_api_keys();
         let response = setup
@@ -673,13 +676,17 @@ fn eth_get_logs_should_succeed() {
                 source.clone(),
                 None,
                 evm_rpc_types::GetLogsArgs {
-                    addresses: vec!["0xdAC17F958D2ee523a2206206994597C13D831ec7".parse().unwrap()],
+                    addresses: vec!["0xdAC17F958D2ee523a2206206994597C13D831ec7"
+                        .parse()
+                        .unwrap()],
                     from_block: None,
                     to_block: None,
                     topics: None,
                 },
             )
-            .mock_http(MockOutcallBuilder::new(200, r#"{"id":0,"jsonrpc":"2.0","result":[{"address":"0xdac17f958d2ee523a2206206994597c13d831ec7","topics":["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef","0x000000000000000000000000a9d1e08c7793af67e9d92fe308d5697fb81d3e43","0x00000000000000000000000078cccfb3d517cd4ed6d045e263e134712288ace2"],"data":"0x000000000000000000000000000000000000000000000000000000003b9c6433","blockNumber":"0x11dc77e","transactionHash":"0xf3ed91a03ddf964281ac7a24351573efd535b80fc460a5c2ad2b9d23153ec678","transactionIndex":"0x65","blockHash":"0xd5c72ad752b2f0144a878594faf8bd9f570f2f72af8e7f0940d3545a6388f629","logIndex":"0xe8","removed":false}]}"#))
+            .mock_http_once(MockOutcallBuilder::new(200, response_0.clone()))
+            .mock_http_once(MockOutcallBuilder::new(200, response_1.clone()))
+            .mock_http_once(MockOutcallBuilder::new(200, response_2.clone()))
             .wait()
             .expect_consistent()
             .unwrap();
@@ -721,15 +728,16 @@ fn eth_get_logs_should_succeed() {
 
 #[test]
 fn eth_get_block_by_number_should_succeed() {
+    let [response_0, response_1, response_2] = json_rpc_sequential_id(
+        json!({"jsonrpc":"2.0","result":{"baseFeePerGas":"0xd7232aa34","difficulty":"0x0","extraData":"0x546974616e2028746974616e6275696c6465722e78797a29","gasLimit":"0x1c9c380","gasUsed":"0xa768c4","hash":"0xc3674be7b9d95580d7f23c03d32e946f2b453679ee6505e3a778f003c5a3cfae","logsBloom":"0x3e6b8420e1a13038902c24d6c2a9720a7ad4860cdc870cd5c0490011e43631134f608935bd83171247407da2c15d85014f9984608c03684c74aad48b20bc24022134cdca5f2e9d2dee3b502a8ccd39eff8040b1d96601c460e119c408c620b44fa14053013220847045556ea70484e67ec012c322830cf56ef75e09bd0db28a00f238adfa587c9f80d7e30d3aba2863e63a5cad78954555966b1055a4936643366a0bb0b1bac68d0e6267fc5bf8304d404b0c69041125219aa70562e6a5a6362331a414a96d0716990a10161b87dd9568046a742d4280014975e232b6001a0360970e569d54404b27807d7a44c949ac507879d9d41ec8842122da6772101bc8b","miner":"0x388c818ca8b9251b393131c08a736a67ccb19297","mixHash":"0x516a58424d4883a3614da00a9c6f18cd5cd54335a08388229a993a8ecf05042f","nonce":"0x0000000000000000","number":"0x11db01d","parentHash":"0x43325027f6adf9befb223f8ae80db057daddcd7b48e41f60cd94bfa8877181ae","receiptsRoot":"0x66934c3fd9c547036fe0e56ad01bc43c84b170be7c4030a86805ddcdab149929","sha3Uncles":"0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347","size":"0xcd35","stateRoot":"0x13552447dd62f11ad885f21a583c4fa34144efe923c7e35fb018d6710f06b2b6","timestamp":"0x656f96f3","totalDifficulty":"0xc70d815d562d3cfa955","withdrawalsRoot":"0xecae44b2c53871003c5cc75285995764034c9b5978a904229d36c1280b141d48"},"id":0}),
+    );
     for source in RPC_SERVICES {
         let setup = EvmRpcSetup::new().mock_api_keys();
         let response = setup
-            .eth_get_block_by_number(
-                source.clone(),
-                None,
-                evm_rpc_types::BlockTag::Latest,
-            )
-            .mock_http(MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","result":{"baseFeePerGas":"0xd7232aa34","difficulty":"0x0","extraData":"0x546974616e2028746974616e6275696c6465722e78797a29","gasLimit":"0x1c9c380","gasUsed":"0xa768c4","hash":"0xc3674be7b9d95580d7f23c03d32e946f2b453679ee6505e3a778f003c5a3cfae","logsBloom":"0x3e6b8420e1a13038902c24d6c2a9720a7ad4860cdc870cd5c0490011e43631134f608935bd83171247407da2c15d85014f9984608c03684c74aad48b20bc24022134cdca5f2e9d2dee3b502a8ccd39eff8040b1d96601c460e119c408c620b44fa14053013220847045556ea70484e67ec012c322830cf56ef75e09bd0db28a00f238adfa587c9f80d7e30d3aba2863e63a5cad78954555966b1055a4936643366a0bb0b1bac68d0e6267fc5bf8304d404b0c69041125219aa70562e6a5a6362331a414a96d0716990a10161b87dd9568046a742d4280014975e232b6001a0360970e569d54404b27807d7a44c949ac507879d9d41ec8842122da6772101bc8b","miner":"0x388c818ca8b9251b393131c08a736a67ccb19297","mixHash":"0x516a58424d4883a3614da00a9c6f18cd5cd54335a08388229a993a8ecf05042f","nonce":"0x0000000000000000","number":"0x11db01d","parentHash":"0x43325027f6adf9befb223f8ae80db057daddcd7b48e41f60cd94bfa8877181ae","receiptsRoot":"0x66934c3fd9c547036fe0e56ad01bc43c84b170be7c4030a86805ddcdab149929","sha3Uncles":"0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347","size":"0xcd35","stateRoot":"0x13552447dd62f11ad885f21a583c4fa34144efe923c7e35fb018d6710f06b2b6","timestamp":"0x656f96f3","totalDifficulty":"0xc70d815d562d3cfa955","withdrawalsRoot":"0xecae44b2c53871003c5cc75285995764034c9b5978a904229d36c1280b141d48"},"id":0}"#))
+            .eth_get_block_by_number(source.clone(), None, evm_rpc_types::BlockTag::Latest)
+            .mock_http_once(MockOutcallBuilder::new(200, response_0.clone()))
+            .mock_http_once(MockOutcallBuilder::new(200, response_1.clone()))
+            .mock_http_once(MockOutcallBuilder::new(200, response_2.clone()))
             .wait()
             .expect_consistent()
             .unwrap();
@@ -764,15 +772,16 @@ fn eth_get_block_by_number_should_succeed() {
 
 #[test]
 fn eth_get_block_by_number_pre_london_fork_should_succeed() {
+    let [response_0, response_1, response_2] = json_rpc_sequential_id(
+        json!({"jsonrpc":"2.0","id":0,"result":{"number":"0x0","hash":"0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3","transactions":[],"totalDifficulty":"0x400000000","logsBloom":"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","receiptsRoot":"0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421","extraData":"0x11bbe8db4e347b4e8c937c1c8370e4b5ed33adb3db69cbdb7a38e1e50b1b82fa","nonce":"0x0000000000000042","miner":"0x0000000000000000000000000000000000000000","difficulty":"0x400000000","gasLimit":"0x1388","gasUsed":"0x0","uncles":[],"sha3Uncles":"0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347","size":"0x21c","transactionsRoot":"0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421","stateRoot":"0xd7f8974fb5ac78d9ac099b9ad5018bedc2ce0a72dad1827a1709da30580f0544","mixHash":"0x0000000000000000000000000000000000000000000000000000000000000000","parentHash":"0x0000000000000000000000000000000000000000000000000000000000000000","timestamp":"0x0"}}),
+    );
     for source in RPC_SERVICES {
         let setup = EvmRpcSetup::new().mock_api_keys();
         let response = setup
-            .eth_get_block_by_number(
-                source.clone(),
-                None,
-                evm_rpc_types::BlockTag::Latest,
-            )
-            .mock_http(MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":1,"result":{"number":"0x0","hash":"0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3","transactions":[],"totalDifficulty":"0x400000000","logsBloom":"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","receiptsRoot":"0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421","extraData":"0x11bbe8db4e347b4e8c937c1c8370e4b5ed33adb3db69cbdb7a38e1e50b1b82fa","nonce":"0x0000000000000042","miner":"0x0000000000000000000000000000000000000000","difficulty":"0x400000000","gasLimit":"0x1388","gasUsed":"0x0","uncles":[],"sha3Uncles":"0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347","size":"0x21c","transactionsRoot":"0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421","stateRoot":"0xd7f8974fb5ac78d9ac099b9ad5018bedc2ce0a72dad1827a1709da30580f0544","mixHash":"0x0000000000000000000000000000000000000000000000000000000000000000","parentHash":"0x0000000000000000000000000000000000000000000000000000000000000000","timestamp":"0x0"}}"#))
+            .eth_get_block_by_number(source.clone(), None, evm_rpc_types::BlockTag::Latest)
+            .mock_http_once(MockOutcallBuilder::new(200, response_0.clone()))
+            .mock_http_once(MockOutcallBuilder::new(200, response_1.clone()))
+            .mock_http_once(MockOutcallBuilder::new(200, response_2.clone()))
             .wait()
             .expect_consistent()
             .unwrap();
@@ -808,16 +817,27 @@ fn eth_get_block_by_number_pre_london_fork_should_succeed() {
 #[test]
 fn eth_get_block_by_number_should_be_consistent_when_total_difficulty_inconsistent() {
     let setup = EvmRpcSetup::new().mock_api_keys();
-    let response = setup.eth_get_block_by_number(
-        RpcServices::EthMainnet(Some(vec![
-            EthMainnetService::Ankr,
-            EthMainnetService::PublicNode,
-        ])),
-        None,
-        evm_rpc_types::BlockTag::Latest,
-    )
-        .mock_http_once(MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","result":{"baseFeePerGas":"0xd7232aa34","difficulty":"0x0","extraData":"0x546974616e2028746974616e6275696c6465722e78797a29","gasLimit":"0x1c9c380","gasUsed":"0xa768c4","hash":"0xc3674be7b9d95580d7f23c03d32e946f2b453679ee6505e3a778f003c5a3cfae","logsBloom":"0x3e6b8420e1a13038902c24d6c2a9720a7ad4860cdc870cd5c0490011e43631134f608935bd83171247407da2c15d85014f9984608c03684c74aad48b20bc24022134cdca5f2e9d2dee3b502a8ccd39eff8040b1d96601c460e119c408c620b44fa14053013220847045556ea70484e67ec012c322830cf56ef75e09bd0db28a00f238adfa587c9f80d7e30d3aba2863e63a5cad78954555966b1055a4936643366a0bb0b1bac68d0e6267fc5bf8304d404b0c69041125219aa70562e6a5a6362331a414a96d0716990a10161b87dd9568046a742d4280014975e232b6001a0360970e569d54404b27807d7a44c949ac507879d9d41ec8842122da6772101bc8b","miner":"0x388c818ca8b9251b393131c08a736a67ccb19297","mixHash":"0x516a58424d4883a3614da00a9c6f18cd5cd54335a08388229a993a8ecf05042f","nonce":"0x0000000000000000","number":"0x11db01d","parentHash":"0x43325027f6adf9befb223f8ae80db057daddcd7b48e41f60cd94bfa8877181ae","receiptsRoot":"0x66934c3fd9c547036fe0e56ad01bc43c84b170be7c4030a86805ddcdab149929","sha3Uncles":"0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347","size":"0xcd35","stateRoot":"0x13552447dd62f11ad885f21a583c4fa34144efe923c7e35fb018d6710f06b2b6","timestamp":"0x656f96f3","totalDifficulty":"0xc70d815d562d3cfa955","withdrawalsRoot":"0xecae44b2c53871003c5cc75285995764034c9b5978a904229d36c1280b141d48"},"id":0}"#))
-        .mock_http_once(MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","result":{"baseFeePerGas":"0xd7232aa34","difficulty":"0x0","extraData":"0x546974616e2028746974616e6275696c6465722e78797a29","gasLimit":"0x1c9c380","gasUsed":"0xa768c4","hash":"0xc3674be7b9d95580d7f23c03d32e946f2b453679ee6505e3a778f003c5a3cfae","logsBloom":"0x3e6b8420e1a13038902c24d6c2a9720a7ad4860cdc870cd5c0490011e43631134f608935bd83171247407da2c15d85014f9984608c03684c74aad48b20bc24022134cdca5f2e9d2dee3b502a8ccd39eff8040b1d96601c460e119c408c620b44fa14053013220847045556ea70484e67ec012c322830cf56ef75e09bd0db28a00f238adfa587c9f80d7e30d3aba2863e63a5cad78954555966b1055a4936643366a0bb0b1bac68d0e6267fc5bf8304d404b0c69041125219aa70562e6a5a6362331a414a96d0716990a10161b87dd9568046a742d4280014975e232b6001a0360970e569d54404b27807d7a44c949ac507879d9d41ec8842122da6772101bc8b","miner":"0x388c818ca8b9251b393131c08a736a67ccb19297","mixHash":"0x516a58424d4883a3614da00a9c6f18cd5cd54335a08388229a993a8ecf05042f","nonce":"0x0000000000000000","number":"0x11db01d","parentHash":"0x43325027f6adf9befb223f8ae80db057daddcd7b48e41f60cd94bfa8877181ae","receiptsRoot":"0x66934c3fd9c547036fe0e56ad01bc43c84b170be7c4030a86805ddcdab149929","sha3Uncles":"0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347","size":"0xcd35","stateRoot":"0x13552447dd62f11ad885f21a583c4fa34144efe923c7e35fb018d6710f06b2b6","timestamp":"0x656f96f3","withdrawalsRoot":"0xecae44b2c53871003c5cc75285995764034c9b5978a904229d36c1280b141d48"},"id":0}"#))
+    let [response_0, mut response_1] = json_rpc_sequential_id(
+        json!({"jsonrpc":"2.0","result":{"baseFeePerGas":"0xd7232aa34","difficulty":"0x0","extraData":"0x546974616e2028746974616e6275696c6465722e78797a29","gasLimit":"0x1c9c380","gasUsed":"0xa768c4","hash":"0xc3674be7b9d95580d7f23c03d32e946f2b453679ee6505e3a778f003c5a3cfae","logsBloom":"0x3e6b8420e1a13038902c24d6c2a9720a7ad4860cdc870cd5c0490011e43631134f608935bd83171247407da2c15d85014f9984608c03684c74aad48b20bc24022134cdca5f2e9d2dee3b502a8ccd39eff8040b1d96601c460e119c408c620b44fa14053013220847045556ea70484e67ec012c322830cf56ef75e09bd0db28a00f238adfa587c9f80d7e30d3aba2863e63a5cad78954555966b1055a4936643366a0bb0b1bac68d0e6267fc5bf8304d404b0c69041125219aa70562e6a5a6362331a414a96d0716990a10161b87dd9568046a742d4280014975e232b6001a0360970e569d54404b27807d7a44c949ac507879d9d41ec8842122da6772101bc8b","miner":"0x388c818ca8b9251b393131c08a736a67ccb19297","mixHash":"0x516a58424d4883a3614da00a9c6f18cd5cd54335a08388229a993a8ecf05042f","nonce":"0x0000000000000000","number":"0x11db01d","parentHash":"0x43325027f6adf9befb223f8ae80db057daddcd7b48e41f60cd94bfa8877181ae","receiptsRoot":"0x66934c3fd9c547036fe0e56ad01bc43c84b170be7c4030a86805ddcdab149929","sha3Uncles":"0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347","size":"0xcd35","stateRoot":"0x13552447dd62f11ad885f21a583c4fa34144efe923c7e35fb018d6710f06b2b6","timestamp":"0x656f96f3","totalDifficulty":"0xc70d815d562d3cfa955","withdrawalsRoot":"0xecae44b2c53871003c5cc75285995764034c9b5978a904229d36c1280b141d48"},"id":0}),
+    );
+    assert_eq!(
+        Some(json!("0xc70d815d562d3cfa955")),
+        response_1["result"]
+            .as_object_mut()
+            .unwrap()
+            .remove("totalDifficulty")
+    );
+    let response = setup
+        .eth_get_block_by_number(
+            RpcServices::EthMainnet(Some(vec![
+                EthMainnetService::Ankr,
+                EthMainnetService::PublicNode,
+            ])),
+            None,
+            evm_rpc_types::BlockTag::Latest,
+        )
+        .mock_http_once(MockOutcallBuilder::new(200, response_0))
+        .mock_http_once(MockOutcallBuilder::new(200, response_1))
         .wait()
         .expect_consistent()
         .unwrap();
@@ -831,7 +851,7 @@ fn eth_get_transaction_receipt_should_succeed() {
     let test_cases = [
         TestCase {
             request: "0xdd5d4b18923d7aae953c7996d791118102e889bea37b48a651157a4890e4746f",
-            raw_body: r#"{"jsonrpc":"2.0","id":2,"result":{"blockHash":"0x5115c07eb1f20a9d6410db0916ed3df626cfdab161d3904f45c8c8b65c90d0be","blockNumber":"0x11a85ab","contractAddress":null,"cumulativeGasUsed":"0xf02aed","effectiveGasPrice":"0x63c00ee76","from":"0x0aa8ebb6ad5a8e499e550ae2c461197624c6e667","gasUsed":"0x7d89","logs":[],"logsBloom":"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","status":"0x1","to":"0x356cfd6e6d0000400000003900b415f80669009e","transactionHash":"0xdd5d4b18923d7aae953c7996d791118102e889bea37b48a651157a4890e4746f","transactionIndex":"0xd9","type":"0x2"}}"#,
+            raw_body: json!({"jsonrpc":"2.0","id":0,"result":{"blockHash":"0x5115c07eb1f20a9d6410db0916ed3df626cfdab161d3904f45c8c8b65c90d0be","blockNumber":"0x11a85ab","contractAddress":null,"cumulativeGasUsed":"0xf02aed","effectiveGasPrice":"0x63c00ee76","from":"0x0aa8ebb6ad5a8e499e550ae2c461197624c6e667","gasUsed":"0x7d89","logs":[],"logsBloom":"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","status":"0x1","to":"0x356cfd6e6d0000400000003900b415f80669009e","transactionHash":"0xdd5d4b18923d7aae953c7996d791118102e889bea37b48a651157a4890e4746f","transactionIndex":"0xd9","type":"0x2"}}),
             expected: evm_rpc_types::TransactionReceipt {
                 status: Some(0x1_u8.into()),
                 transaction_hash: "0xdd5d4b18923d7aae953c7996d791118102e889bea37b48a651157a4890e4746f".parse().unwrap(),
@@ -850,7 +870,7 @@ fn eth_get_transaction_receipt_should_succeed() {
         },
         TestCase { //first transaction after genesis
             request: "0x5c504ed432cb51138bcf09aa5e8a410dd4a1e204ef84bfed1be16dfba1b22060",
-            raw_body: r#"{"jsonrpc":"2.0","id":1,"result":{"transactionHash":"0x5c504ed432cb51138bcf09aa5e8a410dd4a1e204ef84bfed1be16dfba1b22060","blockHash":"0x4e3a3754410177e6937ef1f84bba68ea139e8d1a2258c5f85db9f1cd715a1bdd","blockNumber":"0xb443","logsBloom":"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","gasUsed":"0x5208","root":"0x96a8e009d2b88b1483e6941e6812e32263b05683fac202abc622a3e31aed1957","contractAddress":null,"cumulativeGasUsed":"0x5208","transactionIndex":"0x0","from":"0xa1e4380a3b1f749673e270229993ee55f35663b4","to":"0x5df9b87991262f6ba471f09758cde1c0fc1de734","type":"0x0","effectiveGasPrice":"0x2d79883d2000","logs":[]}}"#,
+            raw_body: json!({"jsonrpc":"2.0","id":0,"result":{"transactionHash":"0x5c504ed432cb51138bcf09aa5e8a410dd4a1e204ef84bfed1be16dfba1b22060","blockHash":"0x4e3a3754410177e6937ef1f84bba68ea139e8d1a2258c5f85db9f1cd715a1bdd","blockNumber":"0xb443","logsBloom":"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","gasUsed":"0x5208","root":"0x96a8e009d2b88b1483e6941e6812e32263b05683fac202abc622a3e31aed1957","contractAddress":null,"cumulativeGasUsed":"0x5208","transactionIndex":"0x0","from":"0xa1e4380a3b1f749673e270229993ee55f35663b4","to":"0x5df9b87991262f6ba471f09758cde1c0fc1de734","type":"0x0","effectiveGasPrice":"0x2d79883d2000","logs":[]}}),
             expected: evm_rpc_types::TransactionReceipt {
                 status: None,
                 transaction_hash: "0x5c504ed432cb51138bcf09aa5e8a410dd4a1e204ef84bfed1be16dfba1b22060".parse().unwrap(),
@@ -860,7 +880,7 @@ fn eth_get_transaction_receipt_should_succeed() {
                 effective_gas_price: 0x2d79883d2000_u64.into(),
                 gas_used: 0x5208_u32.into(),
                 from: "0xa1e4380a3b1f749673e270229993ee55f35663b4".parse().unwrap(),
-                logs: vec![],
+                logs: vec! [],
                 logs_bloom: "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000".parse().unwrap(),
                 to: Some("0x5df9b87991262f6ba471f09758cde1c0fc1de734".parse().unwrap()),
                 transaction_index: 0x0_u16.into(),
@@ -869,7 +889,7 @@ fn eth_get_transaction_receipt_should_succeed() {
         },
         TestCase { //contract creation
             request: "0x2b8e12d42a187ace19c64b47fae0955def8859bf966c345102c6d3a52f28308b",
-            raw_body: r#"{"jsonrpc":"2.0","id":1,"result":{"transactionHash":"0x2b8e12d42a187ace19c64b47fae0955def8859bf966c345102c6d3a52f28308b","blockHash":"0xd050426a753a7cc4833ba15a5dfcef761fd983f5277230ea8dc700eadd307363","blockNumber":"0x12e64fd","logsBloom":"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","gasUsed":"0x69892","contractAddress":"0x6abda0438307733fc299e9c229fd3cc074bd8cc0","cumulativeGasUsed":"0x3009d2","transactionIndex":"0x17","from":"0xe12e9a6661aeaf57abf95fd060bebb223fbee7dd","to":null,"type":"0x2","effectiveGasPrice":"0x17c01a135","logs":[],"status":"0x1"}}"#,
+            raw_body: json!({"jsonrpc":"2.0","id":0,"result":{"transactionHash":"0x2b8e12d42a187ace19c64b47fae0955def8859bf966c345102c6d3a52f28308b","blockHash":"0xd050426a753a7cc4833ba15a5dfcef761fd983f5277230ea8dc700eadd307363","blockNumber":"0x12e64fd","logsBloom":"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","gasUsed":"0x69892","contractAddress":"0x6abda0438307733fc299e9c229fd3cc074bd8cc0","cumulativeGasUsed":"0x3009d2","transactionIndex":"0x17","from":"0xe12e9a6661aeaf57abf95fd060bebb223fbee7dd","to":null,"type":"0x2","effectiveGasPrice":"0x17c01a135","logs":[],"status":"0x1"}}),
             expected: evm_rpc_types::TransactionReceipt {
                 status: Some(0x1_u8.into()),
                 transaction_hash: "0x2b8e12d42a187ace19c64b47fae0955def8859bf966c345102c6d3a52f28308b".parse().unwrap(),
@@ -879,7 +899,7 @@ fn eth_get_transaction_receipt_should_succeed() {
                 effective_gas_price: 0x17c01a135_u64.into(),
                 gas_used: 0x69892_u32.into(),
                 from: "0xe12e9a6661aeaf57abf95fd060bebb223fbee7dd".parse().unwrap(),
-                logs: vec![],
+                logs: vec ![],
                 logs_bloom: "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000".parse().unwrap(),
                 to: None,
                 transaction_index: 0x17_u16.into(),
@@ -888,23 +908,32 @@ fn eth_get_transaction_receipt_should_succeed() {
         }
     ];
 
+    let mut offset = 0_u64;
     let setup = EvmRpcSetup::new().mock_api_keys();
     for test_case in test_cases {
         for source in RPC_SERVICES {
+            let mut responses: [serde_json::Value; 3] =
+                json_rpc_sequential_id(test_case.raw_body.clone());
+            add_offset_json_rpc_id(responses.as_mut_slice(), offset);
             let response = setup
                 .eth_get_transaction_receipt(source.clone(), None, test_case.request)
-                .mock_http(MockOutcallBuilder::new(200, test_case.raw_body))
+                .mock_http_once(MockOutcallBuilder::new(200, responses[0].clone()))
+                .mock_http_once(MockOutcallBuilder::new(200, responses[1].clone()))
+                .mock_http_once(MockOutcallBuilder::new(200, responses[2].clone()))
                 .wait()
                 .expect_consistent()
                 .unwrap();
 
             assert_eq!(response, Some(test_case.expected.clone()));
+            offset += 3;
         }
     }
 }
 
 #[test]
 fn eth_get_transaction_count_should_succeed() {
+    let [response_0, response_1, response_2] =
+        json_rpc_sequential_id(json!({"jsonrpc":"2.0","id":0,"result":"0x1"}));
     for source in RPC_SERVICES {
         let setup = EvmRpcSetup::new().mock_api_keys();
         let response = setup
@@ -918,10 +947,9 @@ fn eth_get_transaction_count_should_succeed() {
                     block: evm_rpc_types::BlockTag::Latest,
                 },
             )
-            .mock_http(MockOutcallBuilder::new(
-                200,
-                r#"{"jsonrpc":"2.0","id":0,"result":"0x1"}"#,
-            ))
+            .mock_http_once(MockOutcallBuilder::new(200, response_0.clone()))
+            .mock_http_once(MockOutcallBuilder::new(200, response_1.clone()))
+            .mock_http_once(MockOutcallBuilder::new(200, response_2.clone()))
             .wait()
             .expect_consistent()
             .unwrap();
@@ -931,7 +959,7 @@ fn eth_get_transaction_count_should_succeed() {
 
 #[test]
 fn eth_fee_history_should_succeed() {
-    let [request_0, request_1, request_2] = requests_with_sequential_id(
+    let [response_0, response_1, response_2] = json_rpc_sequential_id(
         json!({"id":0,"jsonrpc":"2.0","result":{"oldestBlock":"0x11e57f5","baseFeePerGas":["0x9cf6c61b9","0x97d853982","0x9ba55a0b0","0x9543bf98d"],"reward":[["0x0123"]]}}),
     );
 
@@ -947,9 +975,9 @@ fn eth_fee_history_should_succeed() {
                     reward_percentiles: None,
                 },
             )
-            .mock_http_once(MockOutcallBuilder::new(200, request_0.clone()))
-            .mock_http_once(MockOutcallBuilder::new(200, request_1.clone()))
-            .mock_http_once(MockOutcallBuilder::new(200, request_2.clone()))
+            .mock_http_once(MockOutcallBuilder::new(200, response_0.clone()))
+            .mock_http_once(MockOutcallBuilder::new(200, response_1.clone()))
+            .mock_http_once(MockOutcallBuilder::new(200, response_2.clone()))
             .wait()
             .expect_consistent()
             .unwrap();
@@ -970,14 +998,15 @@ fn eth_fee_history_should_succeed() {
 
 #[test]
 fn eth_send_raw_transaction_should_succeed() {
+    let [response_0, response_1, response_2] =
+        json_rpc_sequential_id(json!({"id":0,"jsonrpc":"2.0","result":"Ok"}));
     for source in RPC_SERVICES {
         let setup = EvmRpcSetup::new().mock_api_keys();
         let response = setup
             .eth_send_raw_transaction(source.clone(), None, MOCK_TRANSACTION)
-            .mock_http(MockOutcallBuilder::new(
-                200,
-                r#"{"id":0,"jsonrpc":"2.0","result":"Ok"}"#,
-            ))
+            .mock_http_once(MockOutcallBuilder::new(200, response_0.clone()))
+            .mock_http_once(MockOutcallBuilder::new(200, response_1.clone()))
+            .mock_http_once(MockOutcallBuilder::new(200, response_2.clone()))
             .wait()
             .expect_consistent()
             .unwrap();
@@ -996,7 +1025,13 @@ fn eth_call_should_succeed() {
     const INPUT_DATA: &str =
         "0x70a08231000000000000000000000000b25eA1D493B49a1DeD42aC5B1208cC618f9A9B80";
 
-    let setup = EvmRpcSetup::new().mock_api_keys();
+    let [response_0, response_1, response_2] = json_rpc_sequential_id(
+        json!({"jsonrpc":"2.0","result":"0x0000000000000000000000000000000000000000000000000000013c3ee36e89","id":0}),
+    );
+    let expected_request = MockJsonRequestBody::builder("eth_call").with_params(
+        json!( [ { "to": ADDRESS.to_lowercase(), "input": INPUT_DATA.to_lowercase(), }, "latest" ]),
+    );
+
     for call_args in [
         evm_rpc_types::CallArgs {
             transaction: evm_rpc_types::TransactionRequest {
@@ -1016,23 +1051,21 @@ fn eth_call_should_succeed() {
         },
     ] {
         for source in RPC_SERVICES {
+            let setup = EvmRpcSetup::new().mock_api_keys();
             let response = setup
                 .eth_call(source.clone(), None, call_args.clone())
-                .mock_http(MockOutcallBuilder::new(
-                    200,
-                    r#"{"jsonrpc":"2.0","result":"0x0000000000000000000000000000000000000000000000000000013c3ee36e89","id":1}"#,
+                .mock_http_once(
+                    MockOutcallBuilder::new(200, response_0.clone())
+                        .with_request_body(expected_request.clone()),
                 )
-                    .with_request_body(
-                        MockJsonRequestBody::builder("eth_call")
-                            .with_params(json!(
-                            [
-                                {
-                                    "to": ADDRESS.to_lowercase(),
-                                    "input": INPUT_DATA.to_lowercase(),
-                                },
-                                "latest"
-                            ]
-                ))))
+                .mock_http_once(
+                    MockOutcallBuilder::new(200, response_1.clone())
+                        .with_request_body(expected_request.clone()),
+                )
+                .mock_http_once(
+                    MockOutcallBuilder::new(200, response_2.clone())
+                        .with_request_body(expected_request.clone()),
+                )
                 .wait()
                 .expect_consistent()
                 .unwrap();
@@ -1048,13 +1081,18 @@ fn eth_call_should_succeed() {
 #[test]
 fn candid_rpc_should_allow_unexpected_response_fields() {
     let setup = EvmRpcSetup::new().mock_api_keys();
+    let [response_0, response_1, response_2] = json_rpc_sequential_id(
+        json!({"jsonrpc":"2.0","id":0,"result":{"unexpectedKey":"unexpectedValue","blockHash":"0xb3b20624f8f0f86eb50dd04688409e5cea4bd02d700bf6e79e9384d47d6a5a35","blockNumber":"0x5bad55","contractAddress":null,"cumulativeGasUsed":"0xb90b0","effectiveGasPrice":"0x746a528800","from":"0x398137383b3d25c92898c656696e41950e47316b","gasUsed":"0x1383f","logs":[],"logsBloom":"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","status":"0x1","to":"0x06012c8cf97bead5deae237070f9587f8e7a266d","transactionHash":"0xbb3a336e3f823ec18197f1e13ee875700f08f03e2cab75f0d0b118dabb44cba0","transactionIndex":"0x11","type":"0x0"}}),
+    );
     let response = setup
         .eth_get_transaction_receipt(
             RpcServices::EthMainnet(None),
             None,
             "0xdd5d4b18923d7aae953c7996d791118102e889bea37b48a651157a4890e4746f",
         )
-        .mock_http(MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":0,"result":{"unexpectedKey":"unexpectedValue","blockHash":"0xb3b20624f8f0f86eb50dd04688409e5cea4bd02d700bf6e79e9384d47d6a5a35","blockNumber":"0x5bad55","contractAddress":null,"cumulativeGasUsed":"0xb90b0","effectiveGasPrice":"0x746a528800","from":"0x398137383b3d25c92898c656696e41950e47316b","gasUsed":"0x1383f","logs":[],"logsBloom":"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","status":"0x1","to":"0x06012c8cf97bead5deae237070f9587f8e7a266d","transactionHash":"0xbb3a336e3f823ec18197f1e13ee875700f08f03e2cab75f0d0b118dabb44cba0","transactionIndex":"0x11","type":"0x0"}}"#))
+        .mock_http_once(MockOutcallBuilder::new(200, response_0.clone()))
+        .mock_http_once(MockOutcallBuilder::new(200, response_1.clone()))
+        .mock_http_once(MockOutcallBuilder::new(200, response_2.clone()))
         .wait()
         .expect_consistent()
         .unwrap()
@@ -2321,14 +2359,12 @@ fn single_log() -> ethers_core::types::Log {
     serde_json::from_value(json_value).expect("BUG: invalid log entry")
 }
 
-fn requests_with_sequential_id<const N: usize>(
-    request: serde_json::Value,
-) -> [serde_json::Value; N] {
-    let first_id = request["id"].as_u64().expect("missing request ID");
+fn json_rpc_sequential_id<const N: usize>(response: serde_json::Value) -> [serde_json::Value; N] {
+    let first_id = response["id"].as_u64().expect("missing request ID");
     let mut requests = Vec::with_capacity(N);
-    requests.push(request.clone());
+    requests.push(response.clone());
     for i in 1..N {
-        let mut next_request = request.clone();
+        let mut next_request = response.clone();
         let new_id = first_id + i as u64;
         *next_request.get_mut("id").unwrap() = serde_json::Value::Number(new_id.into());
         requests.push(next_request);
@@ -2336,8 +2372,16 @@ fn requests_with_sequential_id<const N: usize>(
     requests.try_into().unwrap()
 }
 
+fn add_offset_json_rpc_id(inputs: &mut [serde_json::Value], offset: u64) {
+    for input in inputs {
+        let current = input["id"].as_u64().expect("missing request ID");
+        let new = current + offset;
+        input["id"] = serde_json::Value::Number(new.into());
+    }
+}
+
 pub struct TestCase<Req, Res> {
     pub request: Req,
-    pub raw_body: &'static str,
+    pub raw_body: serde_json::Value,
     pub expected: Res,
 }
