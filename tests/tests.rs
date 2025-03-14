@@ -931,6 +931,10 @@ fn eth_get_transaction_count_should_succeed() {
 
 #[test]
 fn eth_fee_history_should_succeed() {
+    let [request_0, request_1, request_2] = requests_with_sequential_id(
+        json!({"id":0,"jsonrpc":"2.0","result":{"oldestBlock":"0x11e57f5","baseFeePerGas":["0x9cf6c61b9","0x97d853982","0x9ba55a0b0","0x9543bf98d"],"reward":[["0x0123"]]}}),
+    );
+
     for source in RPC_SERVICES {
         let setup = EvmRpcSetup::new().mock_api_keys();
         let response = setup
@@ -943,10 +947,9 @@ fn eth_fee_history_should_succeed() {
                     reward_percentiles: None,
                 },
             )
-            .mock_http(MockOutcallBuilder::new(
-                200,
-                r#"{"id":0,"jsonrpc":"2.0","result":{"oldestBlock":"0x11e57f5","baseFeePerGas":["0x9cf6c61b9","0x97d853982","0x9ba55a0b0","0x9543bf98d"],"reward":[["0x0123"]]}}"#,
-            ))
+            .mock_http_once(MockOutcallBuilder::new(200, request_0.clone()))
+            .mock_http_once(MockOutcallBuilder::new(200, request_1.clone()))
+            .mock_http_once(MockOutcallBuilder::new(200, request_2.clone()))
             .wait()
             .expect_consistent()
             .unwrap();
@@ -2316,6 +2319,21 @@ fn single_log() -> ethers_core::types::Log {
         "transactionIndex": "0x20"
     });
     serde_json::from_value(json_value).expect("BUG: invalid log entry")
+}
+
+fn requests_with_sequential_id<const N: usize>(
+    request: serde_json::Value,
+) -> [serde_json::Value; N] {
+    let first_id = request["id"].as_u64().expect("missing request ID");
+    let mut requests = Vec::with_capacity(N);
+    requests.push(request.clone());
+    for i in 1..N {
+        let mut next_request = request.clone();
+        let new_id = first_id + i as u64;
+        *next_request.get_mut("id").unwrap() = serde_json::Value::Number(new_id.into());
+        requests.push(next_request);
+    }
+    requests.try_into().unwrap()
 }
 
 pub struct TestCase<Req, Res> {
