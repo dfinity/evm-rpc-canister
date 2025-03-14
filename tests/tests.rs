@@ -2256,7 +2256,7 @@ fn should_have_different_request_ids_when_retrying_because_response_too_big() {
 #[test]
 fn should_fail_when_response_id_inconsistent_with_request_id() {
     let setup = EvmRpcSetup::new().mock_api_keys();
-    
+
     let request_id = 0;
     let response_id = 1;
     assert_ne!(request_id, response_id);
@@ -2278,6 +2278,14 @@ fn should_fail_when_response_id_inconsistent_with_request_id() {
         .wait()
         .expect_consistent()
         .expect_err("should fail when ID mismatch");
+
+    assert!(
+        error
+            .to_string()
+            .to_ascii_lowercase()
+            .contains("unexpected identifier"),
+        "unexpected error: {error}"
+    );
 }
 
 pub fn multi_logs_for_single_transaction(num_logs: usize) -> String {
