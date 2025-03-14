@@ -161,7 +161,6 @@
 //! [`tower_http`]: https://crates.io/crates/tower-http
 
 use pin_project::pin_project;
-use std::convert::Infallible;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -278,7 +277,7 @@ impl<S, Request, Response, OnRequest, RequestData, OnResponse, OnError> Service<
 where
     S: Service<Request, Response = Response>,
     OnRequest: RequestObserver<Request, ObservableRequestData = RequestData>,
-    OnResponse: ResponseObserver<RequestData, S::Response, Error = Infallible> + Clone,
+    OnResponse: ResponseObserver<RequestData, S::Response> + Clone,
     OnError: ResponseObserver<RequestData, S::Error> + Clone,
 {
     type Response = S::Response;
@@ -332,25 +331,13 @@ where
 
 /// Trait used to tell [`Observability`] what to do when a response is received.
 pub trait ResponseObserver<RequestData, Response> {
-    type Error;
     /// Observe the response (typically an instance of [`std::result::Result`]) and the request data produced by a [`RequestObserver`].
-    fn observe_response(
-        &self,
-        request_data: RequestData,
-        value: &Response,
-    ) -> Result<(), Self::Error>;
+    fn observe_response(&self, request_data: RequestData, value: &Response);
 }
 
 impl<RequestData, Response> ResponseObserver<RequestData, Response> for () {
-    type Error = Infallible;
-
-    fn observe_response(
-        &self,
-        _request_data: RequestData,
-        _value: &Response,
-    ) -> Result<(), Self::Error> {
+    fn observe_response(&self, _request_data: RequestData, _value: &Response) {
         //NOP
-        Ok(())
     }
 }
 
@@ -358,14 +345,8 @@ impl<F, RequestData, Response> ResponseObserver<RequestData, Response> for F
 where
     F: Fn(RequestData, &Response),
 {
-    type Error = Infallible;
-
-    fn observe_response(
-        &self,
-        request_data: RequestData,
-        value: &Response,
-    ) -> Result<(), Self::Error> {
-        Ok(self(request_data, value))
+    fn observe_response(&self, request_data: RequestData, value: &Response) {
+        self(request_data, value);
     }
 }
 
@@ -383,7 +364,7 @@ impl<F, RequestData, OnResponse, OnError, Response, Error> Future
     for ResponseFuture<F, RequestData, OnResponse, OnError>
 where
     F: Future<Output = Result<Response, Error>>,
-    OnResponse: ResponseObserver<RequestData, Response, Error = Infallible>,
+    OnResponse: ResponseObserver<RequestData, Response>,
     OnError: ResponseObserver<RequestData, Error>,
 {
     type Output = Result<Response, Error>;
@@ -391,24 +372,20 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
         let result_fut = this.response_future.poll(cx);
-        match result_fut {
+        match &result_fut {
             Poll::Ready(result) => {
                 let request_data = this.request_data.take().unwrap();
                 match result {
                     Ok(response) => {
-                        match this.on_response.observe_response(request_data, &response) {
-                            Ok(()) => Poll::Ready(Ok(response)),
-                            Err(_) => panic!(),
-                            // Err(e) => Poll::Ready(Err(e.into())),
-                        }
+                        this.on_response.observe_response(request_data, response);
                     }
                     Err(error) => {
-                        let _ = this.on_error.observe_response(request_data, &error);
-                        Poll::Ready(Err(error))
+                        this.on_error.observe_response(request_data, error);
                     }
                 }
             }
-            Poll::Pending => Poll::Pending,
+            Poll::Pending => {}
         }
+        result_fut
     }
 }
