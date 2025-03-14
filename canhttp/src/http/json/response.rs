@@ -119,10 +119,6 @@ impl<T> JsonRpcResponse<T> {
         }
     }
 
-    pub fn as_parts(&self) -> (&Id, Result<&T, &JsonRpcError>) {
-        (&self.id, self.as_result())
-    }
-
     /// Splits the response into a request ID paired with either an `Ok(Value)` or `Err(Error)` to
     /// signify whether the response is a success or failure.
     pub fn into_parts(self) -> (Id, JsonRpcResult<T>) {
@@ -135,11 +131,6 @@ impl<T> JsonRpcResponse<T> {
     /// while a non-successful response will be converted into an `Err(JsonRpcError)`.
     pub fn into_result(self) -> JsonRpcResult<T> {
         self.result.into_result()
-    }
-
-    /// Mutate this response as a mutable result.
-    pub fn as_result(&self) -> Result<&T, &JsonRpcError> {
-        self.result.as_result()
     }
 
     /// Mutate this response as a mutable result.
@@ -222,19 +213,6 @@ impl JsonRpcError {
     pub fn is_invalid_request(&self) -> bool {
         self.code == -32600
     }
-}
-
-#[derive(Clone, Debug, Error)]
-pub enum ConsistentIdValidatorError {
-    #[error(
-        "Unexpected identifier: expected response ID to be {request_id}, but got {response_id}"
-    )]
-    InconsistentId {
-        /// Response status code
-        status: u16,
-        request_id: Id,
-        response_id: Id,
-    },
 }
 
 pub struct CreateResponseIdFilter<I, O> {

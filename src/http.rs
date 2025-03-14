@@ -8,14 +8,13 @@ use crate::{
     types::{MetricRpcHost, MetricRpcMethod, ResolvedRpcService},
     util::canonicalize_json,
 };
-use canhttp::http::json::{ConsistentIdValidatorError, CreateResponseIdFilter};
 use canhttp::{
     convert::ConvertRequestLayer,
     http::{
         json::{
-            HttpJsonRpcRequest, HttpJsonRpcResponse, Id, JsonRequestConversionError,
-            JsonRequestConverter, JsonResponseConversionError, JsonResponseConverter,
-            JsonRpcRequest,
+            ConsistentIdValidatorError, CreateResponseIdFilter, HttpJsonRpcRequest,
+            HttpJsonRpcResponse, Id, JsonRequestConversionError, JsonRequestConverter,
+            JsonResponseConversionError, JsonResponseConverter, JsonRpcRequest,
         },
         FilterNonSuccessfulHttpResponse, FilterNonSuccessfulHttpResponseError,
         HttpRequestConversionError, HttpRequestConverter, HttpResponseConversionError,

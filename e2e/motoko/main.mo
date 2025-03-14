@@ -27,7 +27,8 @@ shared ({ caller = installer }) actor class Main() {
         (#EthMainnet(#BlockPi), ?"eth_sendRawTransaction"), // "Private transaction replacement (same nonce) with gas price change lower than 10% is not allowed within 30 sec from the previous transaction."
         (#EthMainnet(#Llama), ?"eth_sendRawTransaction"), // Non-standard error message
         (#ArbitrumOne(#Ankr), ?"eth_getLogs"), // Timeout expired
-        (#BaseMainnet(#Llama), null), // No response (temporary issue)
+        (#OptimismMainnet(#BlockPi), ?"eth_feeHistory"), // Temporary issue with [op-geth](https://github.com/ethereum-optimism/op-geth/issues/542)
+        (#BaseMainnet(#BlockPi), ?"eth_feeHistory"), // Temporary issue with [op-geth](https://github.com/ethereum-optimism/op-geth/issues/542)
     ];
 
     func runTests(caller : Principal, category : TestCategory) : async () {
