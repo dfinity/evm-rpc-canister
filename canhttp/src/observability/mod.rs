@@ -165,7 +165,6 @@ use std::convert::Infallible;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use thiserror::Error;
 use tower::{Layer, Service};
 
 /// [`Layer`] that adds high level observability to a [`Service`].

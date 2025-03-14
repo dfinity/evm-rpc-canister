@@ -224,9 +224,17 @@ impl JsonRpcError {
     }
 }
 
+#[derive(Clone, Debug, Error)]
 pub enum ConsistentIdValidatorError {
-    InconsistentId { request_id: Id, response_id: Id },
-    RequestIdNull,
+    #[error(
+        "Unexpected identifier: expected response ID to be {request_id}, but got {response_id}"
+    )]
+    InconsistentId {
+        /// Response status code
+        status: u16,
+        request_id: Id,
+        response_id: Id,
+    },
 }
 
 pub struct CreateResponseIdFilter<I, O> {
@@ -301,6 +309,7 @@ impl<O> Filter<HttpJsonRpcResponse<O>> for ConsistentResponseIdFilter<O> {
         }
 
         Err(ConsistentIdValidatorError::InconsistentId {
+            status: response.status().as_u16(),
             request_id: request_id.clone(),
             response_id: response_id.clone(),
         })
