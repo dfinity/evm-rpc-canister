@@ -229,11 +229,11 @@ pub enum ConsistentIdValidatorError {
     RequestIdNull,
 }
 
-pub struct CreateResponseIdFilter<O> {
-    _marker: PhantomData<O>,
+pub struct CreateResponseIdFilter<I, O> {
+    _marker: PhantomData<(I, O)>,
 }
 
-impl<O> CreateResponseIdFilter<O> {
+impl<I, O> CreateResponseIdFilter<I, O> {
     pub fn new() -> Self {
         Self {
             _marker: PhantomData,
@@ -241,7 +241,7 @@ impl<O> CreateResponseIdFilter<O> {
     }
 }
 
-impl<O> Clone for CreateResponseIdFilter<O> {
+impl<I, O> Clone for CreateResponseIdFilter<I, O> {
     fn clone(&self) -> Self {
         Self {
             _marker: self._marker,
@@ -249,9 +249,10 @@ impl<O> Clone for CreateResponseIdFilter<O> {
     }
 }
 
-impl<I, O> CreateResponseFilter<HttpJsonRpcRequest<I>> for CreateResponseIdFilter<O> {
+impl<I, O> CreateResponseFilter<HttpJsonRpcRequest<I>, HttpJsonRpcResponse<O>>
+    for CreateResponseIdFilter<I, O>
+{
     type Filter = ConsistentResponseIdFilter<O>;
-    type Response = HttpJsonRpcResponse<O>;
     type Error = ConsistentIdValidatorError;
 
     fn create_filter(&self, request: &HttpJsonRpcRequest<I>) -> ConsistentResponseIdFilter<O> {

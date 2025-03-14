@@ -171,7 +171,7 @@ pub trait Convert<Input> {
 
     /// Try to convert an instance of the input type to the output type.
     /// The conversion may fail, in which case an error is returned.
-    fn try_convert(&mut self, response: Input) -> Result<Self::Output, Self::Error>;
+    fn try_convert(&mut self, input: Input) -> Result<Self::Output, Self::Error>;
 }
 
 /// Extension trait that adds methods to [`tower::ServiceBuilder`] for adding middleware

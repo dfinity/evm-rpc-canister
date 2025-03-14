@@ -1,4 +1,4 @@
-use crate::convert::Convert;
+use crate::convert::{Convert, Filter};
 use http::Response;
 use ic_cdk::api::management_canister::http_request::HttpResponse as IcHttpResponse;
 use thiserror::Error;
@@ -91,11 +91,10 @@ pub enum FilterNonSuccessfulHttpResponseError<T> {
 #[derive(Clone, Debug)]
 pub struct FilterNonSuccessfulHttpResponse;
 
-impl<T> Convert<http::Response<T>> for FilterNonSuccessfulHttpResponse {
-    type Output = http::Response<T>;
+impl<T> Filter<http::Response<T>> for FilterNonSuccessfulHttpResponse {
     type Error = FilterNonSuccessfulHttpResponseError<T>;
 
-    fn try_convert(&mut self, response: Response<T>) -> Result<Self::Output, Self::Error> {
+    fn filter(&mut self, response: Response<T>) -> Result<Response<T>, Self::Error> {
         if !response.status().is_success() {
             return Err(FilterNonSuccessfulHttpResponseError::UnsuccessfulResponse(
                 response,

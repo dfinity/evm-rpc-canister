@@ -94,9 +94,8 @@ where
     }
 }
 
-pub trait CreateResponseFilter<Request> {
-    type Filter: Filter<Self::Response, Error = Self::Error>;
-    type Response;
+pub trait CreateResponseFilter<Request, Response> {
+    type Filter: Filter<Response, Error = Self::Error>;
     type Error;
 
     fn create_filter(&self, request: &Request) -> Self::Filter;
@@ -147,7 +146,7 @@ pub struct FilterResponse<S, C> {
 impl<S, Request, Response, C> Service<Request> for FilterResponse<S, C>
 where
     S: Service<Request, Response = Response>,
-    C: CreateResponseFilter<Request, Response = Response>,
+    C: CreateResponseFilter<Request, Response>,
     C::Error: Into<S::Error>,
 {
     type Response = S::Response;
