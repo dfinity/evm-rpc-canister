@@ -69,7 +69,6 @@ mod multi_call_results {
     const CLOUDFLARE: RpcService = RpcService::EthMainnet(EthMainnetService::Cloudflare);
 
     mod reduce_with_equality {
-        use crate::rpc_client::json::responses::JsonRpcResult;
         use crate::rpc_client::tests::multi_call_results::{ANKR, PUBLIC_NODE};
         use crate::rpc_client::{MultiCallError, MultiCallResults};
         use evm_rpc_types::{HttpOutcallError, JsonRpcError, RpcError};
@@ -110,17 +109,17 @@ mod multi_call_results {
             let results: MultiCallResults<String> = MultiCallResults::from_json_rpc_result(vec![
                 (
                     ANKR,
-                    Ok(JsonRpcResult::Error {
-                        code: -32700,
-                        message: "insufficient funds for gas * price + value".to_string(),
-                    }),
+                    Err(canhttp::http::json::JsonRpcError::new(
+                        -32700,
+                        "insufficient funds for gas * price + value",
+                    )),
                 ),
                 (
                     PUBLIC_NODE,
-                    Ok(JsonRpcResult::Error {
-                        code: -32000,
-                        message: "nonce too low".to_string(),
-                    }),
+                    Err(canhttp::http::json::JsonRpcError::new(
+                        -32000,
+                        "nonce too low",
+                    )),
                 ),
             ]);
 
@@ -132,8 +131,8 @@ mod multi_call_results {
         #[test]
         fn should_be_inconsistent_when_different_ok_results() {
             let results: MultiCallResults<String> = MultiCallResults::from_json_rpc_result(vec![
-                (ANKR, Ok(JsonRpcResult::Result("hello".to_string()))),
-                (PUBLIC_NODE, Ok(JsonRpcResult::Result("world".to_string()))),
+                (ANKR, Ok("hello".to_string())),
+                (PUBLIC_NODE, Ok("world".to_string())),
             ]);
 
             let reduced = results.clone().reduce_with_equality();
@@ -178,17 +177,17 @@ mod multi_call_results {
             let results: MultiCallResults<String> = MultiCallResults::from_json_rpc_result(vec![
                 (
                     ANKR,
-                    Ok(JsonRpcResult::Error {
-                        code: -32700,
-                        message: "insufficient funds for gas * price + value".to_string(),
-                    }),
+                    Err(canhttp::http::json::JsonRpcError::new(
+                        -32700,
+                        "insufficient funds for gas * price + value",
+                    )),
                 ),
                 (
                     PUBLIC_NODE,
-                    Ok(JsonRpcResult::Error {
-                        code: -32700,
-                        message: "insufficient funds for gas * price + value".to_string(),
-                    }),
+                    Err(canhttp::http::json::JsonRpcError::new(
+                        -32700,
+                        "insufficient funds for gas * price + value",
+                    )),
                 ),
             ]);
 
@@ -208,8 +207,8 @@ mod multi_call_results {
         #[test]
         fn should_be_consistent_ok_result() {
             let results: MultiCallResults<String> = MultiCallResults::from_json_rpc_result(vec![
-                (ANKR, Ok(JsonRpcResult::Result("0x01".to_string()))),
-                (PUBLIC_NODE, Ok(JsonRpcResult::Result("0x01".to_string()))),
+                (ANKR, Ok("0x01".to_string())),
+                (PUBLIC_NODE, Ok("0x01".to_string())),
             ]);
 
             let reduced = results.clone().reduce_with_equality();

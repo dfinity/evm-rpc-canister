@@ -1,7 +1,9 @@
 use crate::convert::Convert;
+use crate::http::json::{Id, Version};
 use crate::http::HttpResponse;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::marker::PhantomData;
 use thiserror::Error;
 
@@ -72,30 +74,123 @@ where
     }
 }
 
-/// JSON-RPC response.
-pub type HttpJsonRpcResponse<T> = http::Response<JsonRpcResponseBody<T>>;
+/// JSON-RPC response over HTTP.
+pub type HttpJsonRpcResponse<T> = http::Response<JsonRpcResponse<T>>;
 
-/// Body of a JSON-RPC response
+/// A specialized [`Result`] error type for JSON-RPC responses.
+///
+/// [`Result`]: enum@std::result::Result
+pub type JsonRpcResult<T> = Result<T, JsonRpcError>;
+
+/// JSON-RPC response.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct JsonRpcResponseBody<T> {
-    pub jsonrpc: String,
-    pub id: serde_json::Value,
+pub struct JsonRpcResponse<T> {
+    jsonrpc: Version,
+    id: Id,
     #[serde(flatten)]
-    pub result: JsonRpcResult<T>,
+    result: JsonRpcResultEnvelope<T>,
 }
 
-/// An envelope for all JSON-RPC replies.
+impl<T> JsonRpcResponse<T> {
+    /// Creates a new successful response from a request ID and `Error` object.
+    pub const fn from_ok(id: Id, result: T) -> Self {
+        Self {
+            jsonrpc: Version::V2,
+            result: JsonRpcResultEnvelope::Ok(result),
+            id,
+        }
+    }
+
+    /// Creates a new error response from a request ID and `Error` object.
+    pub const fn from_error(id: Id, error: JsonRpcError) -> Self {
+        Self {
+            jsonrpc: Version::V2,
+            result: JsonRpcResultEnvelope::Err(error),
+            id,
+        }
+    }
+
+    /// Creates a new response from a request ID and either an `Ok(Value)` or `Err(Error)` body.
+    pub fn from_parts(id: Id, result: JsonRpcResult<T>) -> Self {
+        match result {
+            Ok(r) => JsonRpcResponse::from_ok(id, r),
+            Err(e) => JsonRpcResponse::from_error(id, e),
+        }
+    }
+
+    /// Splits the response into a request ID paired with either an `Ok(Value)` or `Err(Error)` to
+    /// signify whether the response is a success or failure.
+    pub fn into_parts(self) -> (Id, JsonRpcResult<T>) {
+        (self.id, self.result.into_result())
+    }
+
+    /// Convert this response into a result.
+    ///
+    /// A successful response will be converted to an `Ok` value,
+    /// while a non-successful response will be converted into an `Err(JsonRpcError)`.
+    pub fn into_result(self) -> JsonRpcResult<T> {
+        self.result.into_result()
+    }
+
+    /// Mutate this response as a mutable result.
+    pub fn as_result_mut(&mut self) -> Result<&mut T, &mut JsonRpcError> {
+        self.result.as_result_mut()
+    }
+}
+
+/// An envelope for all JSON-RPC responses.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum JsonRpcResult<T> {
+enum JsonRpcResultEnvelope<T> {
     /// Successful JSON-RPC response
     #[serde(rename = "result")]
-    Result(T),
+    Ok(T),
     /// Failed JSON-RPC response
     #[serde(rename = "error")]
-    Error {
-        /// Indicate error type that occurred.
-        code: i64,
-        /// Short description of the error.
-        message: String,
-    },
+    Err(JsonRpcError),
+}
+
+impl<T> JsonRpcResultEnvelope<T> {
+    fn into_result(self) -> JsonRpcResult<T> {
+        match self {
+            JsonRpcResultEnvelope::Ok(result) => Ok(result),
+            JsonRpcResultEnvelope::Err(error) => Err(error),
+        }
+    }
+
+    fn as_result_mut(&mut self) -> Result<&mut T, &mut JsonRpcError> {
+        match self {
+            JsonRpcResultEnvelope::Ok(result) => Ok(result),
+            JsonRpcResultEnvelope::Err(error) => Err(error),
+        }
+    }
+}
+
+/// A JSON-RPC error object.
+#[derive(Clone, Debug, Eq, PartialEq, Error, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+#[error("JSON-RPC error (code: {code}): {message}. Details: {data:?}")]
+pub struct JsonRpcError {
+    /// Indicate error type that occurred.
+    pub code: i64,
+    /// Short description of the error.
+    pub message: String,
+    /// Additional information about the error, if any.
+    ///
+    /// The value of this member is defined by the Server
+    /// (e.g. detailed error information, nested errors etc.).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data: Option<Value>,
+}
+
+impl JsonRpcError {
+    /// Create a new JSON-RPC error without `data`.
+    pub fn new(code: impl Into<i64>, message: impl Into<String>) -> Self {
+        let code = code.into();
+        let message = message.into();
+        Self {
+            code,
+            message,
+            data: None,
+        }
+    }
 }

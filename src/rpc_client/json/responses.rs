@@ -5,7 +5,6 @@ use crate::rpc_client::numeric::{
     TransactionIndex, Wei, WeiPerGas,
 };
 use candid::Deserialize;
-use evm_rpc_types::{JsonRpcError, RpcError};
 use ic_ethereum_types::Address;
 use serde::Serialize;
 use std::fmt::{Display, Formatter};
@@ -313,43 +312,5 @@ impl From<Vec<u8>> for Data {
 impl AsRef<[u8]> for Data {
     fn as_ref(&self) -> &[u8] {
         &self.0
-    }
-}
-
-//TODO XC-287: remove this type to use the corresponding ones from canhttp
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct JsonRpcReply<T> {
-    pub id: u64,
-    pub jsonrpc: String,
-    #[serde(flatten)]
-    pub result: JsonRpcResult<T>,
-}
-
-/// An envelope for all JSON-RPC replies.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum JsonRpcResult<T> {
-    #[serde(rename = "result")]
-    Result(T),
-    #[serde(rename = "error")]
-    Error { code: i64, message: String },
-}
-
-impl<T> JsonRpcResult<T> {
-    pub fn unwrap(self) -> T {
-        match self {
-            Self::Result(t) => t,
-            Self::Error { code, message } => panic!(
-                "expected JSON RPC call to succeed, got an error: error_code = {code}, message = {message}"
-            ),
-        }
-    }
-}
-
-impl<T> From<JsonRpcResult<T>> for Result<T, RpcError> {
-    fn from(result: JsonRpcResult<T>) -> Self {
-        match result {
-            JsonRpcResult::Result(r) => Ok(r),
-            JsonRpcResult::Error { code, message } => Err(JsonRpcError { code, message }.into()),
-        }
     }
 }

@@ -1,4 +1,5 @@
 use crate::convert::Convert;
+use crate::http::json::{Id, Version};
 use crate::http::HttpRequest;
 use http::header::CONTENT_TYPE;
 use http::HeaderValue;
@@ -81,36 +82,41 @@ fn add_content_type_header_if_missing(mut request: HttpRequest) -> HttpRequest {
 }
 
 /// JSON-RPC request.
-pub type HttpJsonRpcRequest<T> = http::Request<JsonRpcRequestBody<T>>;
+pub type HttpJsonRpcRequest<T> = http::Request<JsonRpcRequest<T>>;
 
 /// Body for all JSON-RPC requests, see the [specification](https://www.jsonrpc.org/specification).
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct JsonRpcRequestBody<T> {
-    jsonrpc: String,
+pub struct JsonRpcRequest<T> {
+    jsonrpc: Version,
     method: String,
-    id: Option<serde_json::Value>,
+    id: Id,
     params: Option<T>,
 }
 
-impl<T> JsonRpcRequestBody<T> {
+impl<T> JsonRpcRequest<T> {
     /// Create a new body of a JSON-RPC request.
     pub fn new(method: impl Into<String>, params: T) -> Self {
         Self {
-            jsonrpc: "2.0".to_string(),
+            jsonrpc: Version::V2,
             method: method.into(),
-            id: Some(serde_json::Value::Number(0.into())),
+            id: Id::ZERO,
             params: Some(params),
         }
     }
 
+    /// Change the request ID following the builder pattern.
+    pub fn with_id(self, id: Id) -> Self {
+        Self { id, ..self }
+    }
+
     /// Change the request ID.
-    pub fn set_id(&mut self, id: u64) {
-        self.id = Some(serde_json::Value::Number(id.into()));
+    pub fn set_id(&mut self, id: Id) {
+        self.id = id;
     }
 
     /// Returns the request ID, if any.
-    pub fn id(&self) -> Option<&serde_json::Value> {
-        self.id.as_ref()
+    pub fn id(&self) -> &Id {
+        &self.id
     }
 
     /// Returns the JSON-RPC method.

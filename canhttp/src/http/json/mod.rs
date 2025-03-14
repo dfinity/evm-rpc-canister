@@ -50,12 +50,16 @@
 //! # }
 
 use crate::convert::{ConvertRequest, ConvertRequestLayer, ConvertResponse, ConvertResponseLayer};
+pub use id::Id;
 pub use request::{
-    HttpJsonRpcRequest, JsonRequestConversionError, JsonRequestConverter, JsonRpcRequestBody,
+    HttpJsonRpcRequest, JsonRequestConversionError, JsonRequestConverter, JsonRpcRequest,
 };
 pub use response::{
-    HttpJsonRpcResponse, JsonResponseConversionError, JsonResponseConverter, JsonRpcResult,
+    HttpJsonRpcResponse, JsonResponseConversionError, JsonResponseConverter, JsonRpcError,
+    JsonRpcResponse, JsonRpcResult,
 };
+pub use version::Version;
+
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::marker::PhantomData;
@@ -64,8 +68,10 @@ use tower_layer::Layer;
 #[cfg(test)]
 mod tests;
 
+mod id;
 mod request;
 mod response;
+mod version;
 
 /// Middleware that combines [`JsonRequestConverter`] to convert requests
 /// and [`JsonResponseConverter`] to convert responses to a [`Service`].

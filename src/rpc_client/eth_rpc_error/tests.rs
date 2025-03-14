@@ -50,14 +50,9 @@ fn check_sanitize_send_raw_transaction_result<T: AsRef<[u8]>>(
     expected: T,
 ) {
     sanitize_send_raw_transaction_result(raw_response, Parser::new());
-    let expected_bytes = expected.as_ref();
-    assert_eq!(
-        raw_response,
-        expected_bytes,
-        "{:?} != {:?}",
-        String::from_utf8_lossy(raw_response),
-        String::from_utf8_lossy(expected_bytes)
-    );
+    let sanitized_response: serde_json::Value = serde_json::from_slice(raw_response).unwrap();
+    let expected_response: serde_json::Value = serde_json::from_slice(expected.as_ref()).unwrap();
+    assert_eq!(sanitized_response, expected_response,);
 }
 
 fn sanitized_ok_response() -> Vec<u8> {

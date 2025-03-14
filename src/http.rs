@@ -8,20 +8,20 @@ use crate::{
     types::{MetricRpcHost, MetricRpcMethod, ResolvedRpcService},
     util::canonicalize_json,
 };
-use canhttp::retry::DoubleMaxResponseBytes;
 use canhttp::{
     convert::ConvertRequestLayer,
     http::{
         json::{
-            HttpJsonRpcRequest, HttpJsonRpcResponse, JsonRequestConversionError,
+            HttpJsonRpcRequest, HttpJsonRpcResponse, Id, JsonRequestConversionError,
             JsonRequestConverter, JsonResponseConversionError, JsonResponseConverter,
-            JsonRpcRequestBody,
+            JsonRpcRequest,
         },
-        FilterNonSuccessfulHttpResponse, FilterNonSuccessulHttpResponseError,
+        FilterNonSuccessfulHttpResponse, FilterNonSuccessfulHttpResponseError,
         HttpRequestConversionError, HttpRequestConverter, HttpResponseConversionError,
         HttpResponseConverter,
     },
     observability::ObservabilityLayer,
+    retry::DoubleMaxResponseBytes,
     ConvertServiceBuilder, CyclesAccounting, CyclesAccountingError, CyclesChargingPolicy,
     HttpsOutcallError, IcError, MaxResponseBytesRequestExtension, TransformContextRequestExtension,
 };
@@ -49,8 +49,8 @@ pub fn json_rpc_request_arg(
     json_rpc_payload: &str,
     max_response_bytes: u64,
 ) -> RpcResult<HttpJsonRpcRequest<serde_json::Value>> {
-    let body: JsonRpcRequestBody<serde_json::Value> = serde_json::from_str(json_rpc_payload)
-        .map_err(|e| {
+    let body: JsonRpcRequest<serde_json::Value> =
+        serde_json::from_str(json_rpc_payload).map_err(|e| {
             RpcError::ValidationError(ValidationError::Custom(format!(
                 "Invalid JSON RPC request: {e}"
             )))
@@ -84,7 +84,7 @@ pub fn http_client<I, O>(
     retry: bool,
 ) -> impl Service<HttpJsonRpcRequest<I>, Response = HttpJsonRpcResponse<O>, Error = RpcError>
 where
-    I: Serialize + Clone,
+    I: Serialize + Clone + Debug,
     O: DeserializeOwned + Debug,
 {
     let maybe_retry = if retry {
@@ -107,12 +107,17 @@ where
                     let req_data = MetricData {
                         method: rpc_method.clone(),
                         host: MetricRpcHost(req.uri().host().unwrap().to_string()),
-                        request_id: req.body().id().cloned(),
+                        request_id: req.body().id().clone(),
                     };
                     add_metric_entry!(
                         requests,
                         (req_data.method.clone(), req_data.host.clone()),
                         1
+                    );
+                    log!(TRACE_HTTP, "JSON-RPC request with id `{}` to {}: {:?}",
+                        req_data.request_id,
+                        req_data.host.0,
+                        req.body()
                     );
                     req_data
                 })
@@ -120,7 +125,7 @@ where
                     observe_response(req_data.method, req_data.host, response.status().as_u16());
                     log!(
                         TRACE_HTTP,
-                        "Got response for request with id `{:?}`. Response with status {}: {:?}",
+                        "Got response for request with id `{}`. Response with status {}: {:?}",
                         req_data.request_id,
                         response.status(),
                         response.body()
@@ -136,7 +141,7 @@ where
                             );
                         }
                         HttpClientError::UnsuccessfulHttpResponse(
-                            FilterNonSuccessulHttpResponseError::UnsuccessfulResponse(response),
+                            FilterNonSuccessfulHttpResponseError::UnsuccessfulResponse(response),
                         ) => {
                             observe_response(
                                 req_data.method,
@@ -145,7 +150,7 @@ where
                             );
                             log!(
                                 TRACE_HTTP,
-                                "Unsuccessful HTTP response for request with id `{:?}`. Response with status {}: {}",
+                                "Unsuccessful HTTP response for request with id `{}`. Response with status {}: {}",
                                 req_data.request_id,
                                 response.status(),
                                 String::from_utf8_lossy(response.body())
@@ -161,7 +166,7 @@ where
                             observe_response(req_data.method, req_data.host, *status);
                             log!(
                                 TRACE_HTTP,
-                                "Invalid JSON RPC response for request with id `{:?}`: {}",
+                                "Invalid JSON RPC response for request with id `{}`: {}",
                                 req_data.request_id,
                                 error
                             );
@@ -227,7 +232,7 @@ pub enum HttpClientError {
     #[error("cycles accounting error: {0}")]
     CyclesAccountingError(CyclesAccountingError),
     #[error("HTTP response was not successful: {0}")]
-    UnsuccessfulHttpResponse(FilterNonSuccessulHttpResponseError<Vec<u8>>),
+    UnsuccessfulHttpResponse(FilterNonSuccessfulHttpResponseError<Vec<u8>>),
     #[error("Error converting response to JSON: {0}")]
     InvalidJsonResponse(JsonResponseConversionError),
 }
@@ -245,8 +250,8 @@ impl From<HttpResponseConversionError> for HttpClientError {
     }
 }
 
-impl From<FilterNonSuccessulHttpResponseError<Vec<u8>>> for HttpClientError {
-    fn from(value: FilterNonSuccessulHttpResponseError<Vec<u8>>) -> Self {
+impl From<FilterNonSuccessfulHttpResponseError<Vec<u8>>> for HttpClientError {
+    fn from(value: FilterNonSuccessfulHttpResponseError<Vec<u8>>) -> Self {
         HttpClientError::UnsuccessfulHttpResponse(value)
     }
 }
@@ -299,7 +304,7 @@ impl From<HttpClientError> for RpcError {
                 parsing_error: Some(parsing_error),
             }),
             HttpClientError::UnsuccessfulHttpResponse(
-                FilterNonSuccessulHttpResponseError::UnsuccessfulResponse(response),
+                FilterNonSuccessfulHttpResponseError::UnsuccessfulResponse(response),
             ) => RpcError::HttpOutcallError(HttpOutcallError::InvalidHttpJsonRpcResponse {
                 status: response.status().as_u16(),
                 body: String::from_utf8_lossy(response.body()).to_string(),
@@ -324,7 +329,7 @@ impl HttpsOutcallError for HttpClientError {
 struct MetricData {
     method: MetricRpcMethod,
     host: MetricRpcHost,
-    request_id: Option<serde_json::Value>,
+    request_id: Id,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]

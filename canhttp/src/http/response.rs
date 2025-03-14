@@ -81,7 +81,7 @@ impl Convert<IcHttpResponse> for HttpResponseConverter {
 
 /// Error returned when converting responses with [`FilterNonSuccessfulHttpResponse`].
 #[derive(Error, Clone, Debug)]
-pub enum FilterNonSuccessulHttpResponseError<T> {
+pub enum FilterNonSuccessfulHttpResponseError<T> {
     /// Response has a non-successful status code.
     #[error("HTTP response is not successful: {0:?}")]
     UnsuccessfulResponse(http::Response<T>),
@@ -93,11 +93,11 @@ pub struct FilterNonSuccessfulHttpResponse;
 
 impl<T> Convert<http::Response<T>> for FilterNonSuccessfulHttpResponse {
     type Output = http::Response<T>;
-    type Error = FilterNonSuccessulHttpResponseError<T>;
+    type Error = FilterNonSuccessfulHttpResponseError<T>;
 
     fn try_convert(&mut self, response: Response<T>) -> Result<Self::Output, Self::Error> {
         if !response.status().is_success() {
-            return Err(FilterNonSuccessulHttpResponseError::UnsuccessfulResponse(
+            return Err(FilterNonSuccessfulHttpResponseError::UnsuccessfulResponse(
                 response,
             ));
         }

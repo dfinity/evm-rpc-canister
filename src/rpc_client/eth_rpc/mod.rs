@@ -5,15 +5,13 @@ use crate::http::http_client;
 use crate::memory::get_override_provider;
 use crate::providers::resolve_rpc_service;
 use crate::rpc_client::eth_rpc_error::{sanitize_send_raw_transaction_result, Parser};
-use crate::rpc_client::json::responses::{
-    Block, FeeHistory, JsonRpcReply, JsonRpcResult, LogEntry, TransactionReceipt,
-};
+use crate::rpc_client::json::responses::{Block, FeeHistory, LogEntry, TransactionReceipt};
 use crate::rpc_client::numeric::{TransactionCount, Wei};
 use crate::types::MetricRpcMethod;
 use candid::candid_method;
 use canhttp::{
-    http::json::JsonRpcRequestBody, MaxResponseBytesRequestExtension,
-    TransformContextRequestExtension,
+    http::json::{JsonRpcRequest, JsonRpcResponse},
+    MaxResponseBytesRequestExtension, TransformContextRequestExtension,
 };
 use evm_rpc_types::{JsonRpcError, RpcError, RpcService};
 use ic_cdk::api::management_canister::http_request::{
@@ -64,7 +62,7 @@ impl ResponseTransform {
         where
             T: Serialize + DeserializeOwned,
         {
-            let response: JsonRpcReply<T> = match serde_json::from_slice(body) {
+            let response: JsonRpcResponse<T> = match serde_json::from_slice(body) {
                 Ok(response) => response,
                 Err(_) => return,
             };
@@ -77,12 +75,12 @@ impl ResponseTransform {
         where
             T: Serialize + DeserializeOwned,
         {
-            let mut response: JsonRpcReply<Vec<T>> = match serde_json::from_slice(body) {
+            let mut response: JsonRpcResponse<Vec<T>> = match serde_json::from_slice(body) {
                 Ok(response) => response,
                 Err(_) => return,
             };
 
-            if let JsonRpcResult::Result(ref mut result) = response.result {
+            if let Ok(result) = response.as_result_mut() {
                 sort_by_hash(result);
             }
 
@@ -182,17 +180,19 @@ where
             "cleanup_response".to_owned(),
             transform_op.clone(),
         ))
-        .body(JsonRpcRequestBody::new(method, params))
+        .body(JsonRpcRequest::new(method, params))
         .expect("BUG: invalid request");
 
     let eth_method = request.body().method().to_string();
     let mut client = http_client(MetricRpcMethod(eth_method.clone()), true);
     let response = client.call(request).await?;
-    match response.into_body().result {
-        canhttp::http::json::JsonRpcResult::Result(r) => Ok(r),
-        canhttp::http::json::JsonRpcResult::Error { code, message } => {
-            Err(JsonRpcError { code, message }.into())
-        }
+    match response.into_body().into_result() {
+        Ok(r) => Ok(r),
+        Err(canhttp::http::json::JsonRpcError {
+            code,
+            message,
+            data: _,
+        }) => Err(JsonRpcError { code, message }.into()),
     }
 }
 
