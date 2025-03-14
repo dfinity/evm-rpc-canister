@@ -1169,6 +1169,9 @@ fn candid_rpc_should_err_with_insufficient_cycles() {
         nodes_in_subnet: Some(34),
         ..Default::default()
     });
+    let [response_0, response_1, response_2] = json_rpc_sequential_id(
+        json!({"jsonrpc":"2.0","id":0,"result":{"blockHash":"0x5115c07eb1f20a9d6410db0916ed3df626cfdab161d3904f45c8c8b65c90d0be","blockNumber":"0x11a85ab","contractAddress":null,"cumulativeGasUsed":"0xf02aed","effectiveGasPrice":"0x63c00ee76","from":"0x0aa8ebb6ad5a8e499e550ae2c461197624c6e667","gasUsed":"0x7d89","logs":[],"logsBloom":"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","status":"0x1","to":"0x356cfd6e6d0000400000003900b415f80669009e","transactionHash":"0xdd5d4b18923d7aae953c7996d791118102e889bea37b48a651157a4890e4746f","transactionIndex":"0xd9","type":"0x2"}}),
+    );
 
     let result = setup
         .eth_get_transaction_receipt(
@@ -1176,7 +1179,9 @@ fn candid_rpc_should_err_with_insufficient_cycles() {
             None,
             "0xdd5d4b18923d7aae953c7996d791118102e889bea37b48a651157a4890e4746f",
         )
-        .mock_http(MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":2,"result":{"blockHash":"0x5115c07eb1f20a9d6410db0916ed3df626cfdab161d3904f45c8c8b65c90d0be","blockNumber":"0x11a85ab","contractAddress":null,"cumulativeGasUsed":"0xf02aed","effectiveGasPrice":"0x63c00ee76","from":"0x0aa8ebb6ad5a8e499e550ae2c461197624c6e667","gasUsed":"0x7d89","logs":[],"logsBloom":"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","status":"0x1","to":"0x356cfd6e6d0000400000003900b415f80669009e","transactionHash":"0xdd5d4b18923d7aae953c7996d791118102e889bea37b48a651157a4890e4746f","transactionIndex":"0xd9","type":"0x2"}}"#))
+        .mock_http_once(MockOutcallBuilder::new(200, response_0))
+        .mock_http_once(MockOutcallBuilder::new(200, response_1))
+        .mock_http_once(MockOutcallBuilder::new(200, response_2))
         .wait()
         .expect_consistent()
         .unwrap();
@@ -1227,6 +1232,9 @@ fn candid_rpc_should_err_when_service_unavailable() {
 #[test]
 fn candid_rpc_should_recognize_json_error() {
     let setup = EvmRpcSetup::new().mock_api_keys();
+    let [response_0, response_1] = json_rpc_sequential_id(
+        json!({"jsonrpc":"2.0","id":0,"error":{"code":123,"message":"Error message"}}),
+    );
     let result = setup
         .eth_get_transaction_receipt(
             RpcServices::EthSepolia(Some(vec![
@@ -1236,10 +1244,8 @@ fn candid_rpc_should_recognize_json_error() {
             None,
             "0xdd5d4b18923d7aae953c7996d791118102e889bea37b48a651157a4890e4746f",
         )
-        .mock_http(MockOutcallBuilder::new(
-            200,
-            r#"{"jsonrpc":"2.0","id":0,"error":{"code":123,"message":"Error message"}}"#,
-        ))
+        .mock_http_once(MockOutcallBuilder::new(200, response_0))
+        .mock_http_once(MockOutcallBuilder::new(200, response_1))
         .wait()
         .expect_consistent();
     assert_eq!(
@@ -1301,7 +1307,7 @@ fn candid_rpc_should_return_inconsistent_results() {
         ))
         .mock_http_once(MockOutcallBuilder::new(
             200,
-            r#"{"id":0,"jsonrpc":"2.0","result":"NonceTooLow"}"#,
+            r#"{"id":1,"jsonrpc":"2.0","result":"NonceTooLow"}"#,
         ))
         .wait()
         .expect_inconsistent();
@@ -1369,21 +1375,21 @@ fn candid_rpc_should_return_3_out_of_4_transaction_count() {
     for successful_mocks in [
         [
             MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":0,"result":"0x1"}"#),
-            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":0,"result":"0x1"}"#),
-            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":0,"result":"0x1"}"#),
-            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":0,"result":"0x1"}"#),
+            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":1,"result":"0x1"}"#),
+            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":2,"result":"0x1"}"#),
+            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":3,"result":"0x1"}"#),
         ],
         [
-            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":0,"result":"0x1"}"#),
+            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":4,"result":"0x1"}"#),
             MockOutcallBuilder::new(500, r#"OFFLINE"#),
-            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":0,"result":"0x1"}"#),
-            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":0,"result":"0x1"}"#),
+            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":6,"result":"0x1"}"#),
+            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":7,"result":"0x1"}"#),
         ],
         [
-            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":0,"result":"0x1"}"#),
-            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":0,"result":"0x1"}"#),
-            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":0,"result":"0x2"}"#),
-            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":0,"result":"0x1"}"#),
+            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":8,"result":"0x1"}"#),
+            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":9,"result":"0x1"}"#),
+            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":10,"result":"0x2"}"#),
+            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":11,"result":"0x1"}"#),
         ],
     ] {
         let result = eth_get_transaction_count_with_3_out_of_4(&setup)
@@ -1453,7 +1459,7 @@ fn candid_rpc_should_return_inconsistent_results_with_error() {
         ))
         .mock_http_once(MockOutcallBuilder::new(
             200,
-            r#"{"jsonrpc":"2.0","id":0,"error":{"code":123,"message":"Unexpected"}}"#,
+            r#"{"jsonrpc":"2.0","id":1,"error":{"code":123,"message":"Unexpected"}}"#,
         ))
         .wait()
         .expect_inconsistent();
@@ -1523,7 +1529,7 @@ fn candid_rpc_should_return_inconsistent_results_with_consensus_error() {
         ))
         .mock_http_once(MockOutcallBuilder::new(
             200,
-            r#"{"jsonrpc":"2.0","id":0,"result":"0x1"}"#,
+            r#"{"jsonrpc":"2.0","id":1,"result":"0x1"}"#,
         ))
         .mock_http_once(MockOutcallBuilder::new_error(
             RejectionCode::SysTransient,
@@ -1683,7 +1689,7 @@ fn candid_rpc_should_handle_already_known() {
         ))
         .mock_http_once(MockOutcallBuilder::new(
             200,
-            r#"{"id":0,"jsonrpc":"2.0","error":{"code":-32000,"message":"already known"}}"#,
+            r#"{"id":1,"jsonrpc":"2.0","error":{"code":-32000,"message":"already known"}}"#,
         ))
         .wait()
         .expect_consistent();
