@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 
 /// An identifier established by the Client that MUST contain a String, Number, or NULL value if included.
-/// 
+///
 /// If it is not included it is assumed to be a notification.
 /// The value SHOULD normally not be Null.
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]

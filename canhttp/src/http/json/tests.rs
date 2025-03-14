@@ -50,8 +50,7 @@ mod json_rpc {
     fn should_deserialize_json_ok_response() {
         let error_response = json!({ "jsonrpc": "2.0", "result": 366632694, "id": 0 });
 
-        let json_response: JsonRpcResponse<u64> =
-            serde_json::from_value(error_response).unwrap();
+        let json_response: JsonRpcResponse<u64> = serde_json::from_value(error_response).unwrap();
         let (id, result) = json_response.into_parts();
 
         assert_eq!(id, Id::ZERO);
@@ -64,8 +63,7 @@ mod json_rpc {
             let error_response =
                 json!({"jsonrpc":"2.0", "id":0, "error": {"code":123, "message":"Error message"}});
 
-            let json_response: JsonRpcResponse<T> =
-                serde_json::from_value(error_response).unwrap();
+            let json_response: JsonRpcResponse<T> = serde_json::from_value(error_response).unwrap();
             let (id, result) = json_response.into_parts();
 
             assert_eq!(id, Id::ZERO);
