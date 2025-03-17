@@ -135,6 +135,7 @@ impl<S, C: Clone> Layer<S> for CreateResponseFilterLayer<C> {
     }
 }
 
+/// Filter the inner service response based on the original request that lead to that response.
 #[derive(Debug, Clone)]
 pub struct FilterResponse<S, C> {
     inner: S,

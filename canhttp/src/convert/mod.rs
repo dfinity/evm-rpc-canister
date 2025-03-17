@@ -153,6 +153,7 @@ pub use error::{ConvertError, ConvertErrorLayer};
 pub use request::{ConvertRequest, ConvertRequestLayer};
 pub use response::{
     ConvertResponse, ConvertResponseLayer, CreateResponseFilter, CreateResponseFilterLayer,
+    FilterResponse,
 };
 
 mod error;
