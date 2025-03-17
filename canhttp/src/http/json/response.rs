@@ -84,7 +84,7 @@ pub type HttpJsonRpcResponse<T> = http::Response<JsonRpcResponse<T>>;
 pub type JsonRpcResult<T> = Result<T, JsonRpcError>;
 
 /// JSON-RPC response.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct JsonRpcResponse<T> {
     jsonrpc: Version,
     id: Id,
@@ -231,7 +231,7 @@ impl JsonRpcError {
 }
 
 /// Error returned by the [`ConsistentJsonRpcIdFilter`].
-#[derive(Clone, Debug, Error)]
+#[derive(Error, Clone, Debug, Eq, PartialEq)]
 pub enum ConsistentResponseIdFilterError {
     /// ID of the response does not match that of the request.
     #[error(

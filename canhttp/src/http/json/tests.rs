@@ -199,6 +199,121 @@ async fn should_convert_both_request_and_response() {
     assert_eq!(response.into_body(), json!({"foo": "bar"}));
 }
 
+mod filter_json_rpc_id {
+    use crate::http::json::{
+        CreateJsonRpcIdFilter, HttpJsonRpcRequest, Id, JsonRpcError, JsonRpcRequest,
+        JsonRpcResponse,
+    };
+    use crate::ConvertServiceBuilder;
+    use serde_json::json;
+    use tower::{BoxError, Service, ServiceBuilder, ServiceExt};
+
+    #[tokio::test]
+    async fn should_check_json_rpc_id_is_consistent() {
+        async fn check(
+            request_id: Id,
+            response: JsonRpcResponse<serde_json::Value>,
+            expected_result: Result<(), String>,
+        ) {
+            let request = http::Request::post("https://internetcomputer.org/")
+                .body(
+                    JsonRpcRequest::new("foo", json!(["param1", "param2"]))
+                        .with_id(request_id.clone()),
+                )
+                .unwrap();
+            let mut service = ServiceBuilder::new()
+                .filter_response(CreateJsonRpcIdFilter::new())
+                .service_fn(|_request: HttpJsonRpcRequest<serde_json::Value>| async {
+                    Ok::<_, BoxError>(http::Response::new(response.clone()))
+                });
+
+            match service.ready().await.unwrap().call(request).await {
+                Ok(service_response) => {
+                    assert_eq!(expected_result, Ok(()));
+                    assert_eq!(service_response.into_body(), response);
+                }
+                Err(error) => {
+                    let expected_error = expected_result.expect_err("expected error");
+                    assert!(
+                        error.to_string().contains(&expected_error),
+                        "Expected error: {expected_error}, but got {error}",
+                    )
+                }
+            }
+        }
+
+        check(
+            Id::from(42_u64),
+            JsonRpcResponse::from_ok(Id::from(42_u64), json!(1)),
+            Ok(()),
+        )
+        .await;
+        check(
+            Id::from(42_u64),
+            JsonRpcResponse::from_ok(Id::from(43_u64), json!(1)),
+            Err("expected response ID".to_string()),
+        )
+        .await;
+
+        check(
+            Id::from(42_u64),
+            JsonRpcResponse::from_error(
+                Id::Null,
+                JsonRpcError {
+                    code: -32700,
+                    message: "Parse error".to_string(),
+                    data: None,
+                },
+            ),
+            Ok(()),
+        )
+        .await;
+        check(
+            Id::from(42_u64),
+            JsonRpcResponse::from_error(
+                Id::Null,
+                JsonRpcError {
+                    code: -32600,
+                    message: "Invalid request".to_string(),
+                    data: None,
+                },
+            ),
+            Ok(()),
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "ERROR: a null request ID")]
+    async fn should_panic_when_request_id_null() {
+        let mut service = ServiceBuilder::new()
+            .filter_response(CreateJsonRpcIdFilter::new())
+            .service_fn(
+                |request: HttpJsonRpcRequest<serde_json::Value>| async move {
+                    let id = request.body().id();
+                    Ok::<_, BoxError>(http::Response::new(JsonRpcResponse::from_ok(
+                        id.clone(),
+                        json!("echo"),
+                    )))
+                },
+            );
+
+        let request = JsonRpcRequest::new("foo", json!(["param1", "param2"])).with_id(Id::Null);
+
+        let _response = service
+            .ready()
+            .await
+            .unwrap()
+            .call(
+                http::Request::post("https://internetcomputer.org/")
+                    .body(request.clone())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+    }
+}
+
 async fn echo_request(request: HttpRequest) -> Result<HttpRequest, BoxError> {
     Ok(request)
 }
