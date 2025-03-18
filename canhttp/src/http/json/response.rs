@@ -306,7 +306,7 @@ impl<O> ConsistentJsonRpcIdFilter<O> {
         assert_matches!(
             request_id,
             Id::Number(_) | Id::String(_),
-            "BUG: validate_request should prevent null IDs"
+            "ERROR: a null request ID is a notification that indicates that the client is not interested in the response."
         );
         Self {
             request_id,
