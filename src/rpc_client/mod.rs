@@ -332,7 +332,7 @@ impl EthRpcClient {
             requests.push(request);
         }
 
-        let mut client =
+        let client =
             http_client(MetricRpcMethod(method.into()), true).map_result(|r| match r {
                 Ok(r) => match r.into_body().into_result() {
                     Ok(value) => Ok(value),

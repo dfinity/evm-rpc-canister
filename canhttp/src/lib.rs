@@ -20,6 +20,7 @@ pub mod convert;
 mod cycles;
 #[cfg(feature = "http")]
 pub mod http;
+#[cfg(feature = "multi")]
 mod multi;
 pub mod observability;
 pub mod retry;
