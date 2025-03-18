@@ -1,11 +1,19 @@
+use crate::http::http_client;
 use crate::logs::{DEBUG, INFO};
+use crate::memory::get_override_provider;
+use crate::providers::resolve_rpc_service;
 use crate::rpc_client::eth_rpc::{HttpResponsePayload, ResponseSizeEstimate, HEADER_SIZE_LIMIT};
 use crate::rpc_client::numeric::TransactionCount;
+use crate::types::MetricRpcMethod;
+use canhttp::{
+    http::json::JsonRpcRequest, MaxResponseBytesRequestExtension, TransformContextRequestExtension,
+};
 use evm_rpc_types::{
-    ConsensusStrategy, EthMainnetService, EthSepoliaService, L2MainnetService, ProviderError,
-    RpcConfig, RpcError, RpcResult, RpcService, RpcServices,
+    ConsensusStrategy, EthMainnetService, EthSepoliaService, JsonRpcError, L2MainnetService,
+    ProviderError, RpcConfig, RpcError, RpcResult, RpcService, RpcServices,
 };
 use ic_canister_log::log;
+use ic_cdk::api::management_canister::http_request::TransformContext;
 use json::requests::{
     BlockSpec, EthCallParams, FeeHistoryParams, GetBlockByNumberParams, GetLogsParam,
     GetTransactionCountParams,
@@ -17,6 +25,7 @@ use json::Hash;
 use serde::{de::DeserializeOwned, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Debug;
+use tower::ServiceExt;
 
 pub mod amount;
 pub(crate) mod eth_rpc;
@@ -298,22 +307,43 @@ impl EthRpcClient {
         O: Debug + DeserializeOwned + HttpResponsePayload,
     {
         let providers = self.providers();
-        let results = {
-            let mut fut = Vec::with_capacity(providers.len());
-            for provider in providers {
-                log!(DEBUG, "[parallel_call]: will call provider: {:?}", provider);
-                fut.push(async {
-                    eth_rpc::call::<_, _>(
-                        provider,
-                        method.clone(),
-                        params.clone(),
-                        response_size_estimate,
-                    )
-                    .await
-                });
-            }
-            futures::future::join_all(fut).await
-        };
+        let transform_op = O::response_transform()
+            .as_ref()
+            .map(|t| {
+                let mut buf = vec![];
+                minicbor::encode(t, &mut buf).unwrap();
+                buf
+            })
+            .unwrap_or_default();
+        let effective_size_estimate = response_size_estimate.get();
+        let mut requests = Vec::with_capacity(providers.len());
+        for provider in providers {
+            let request = resolve_rpc_service(provider.clone())
+                .unwrap()
+                .post(&get_override_provider())
+                .unwrap()
+                .max_response_bytes(effective_size_estimate)
+                .transform_context(TransformContext::from_name(
+                    "cleanup_response".to_owned(),
+                    transform_op.clone(),
+                ))
+                .body(JsonRpcRequest::new(method.clone(), params.clone()))
+                .expect("BUG: invalid request");
+            requests.push(request);
+        }
+
+        let mut client =
+            http_client(MetricRpcMethod(method.into()), true).map_result(|r| match r {
+                Ok(r) => match r.into_body().into_result() {
+                    Ok(value) => Ok(value),
+                    Err(json_rpc_error) => Err(RpcError::JsonRpcError(JsonRpcError {
+                        code: json_rpc_error.code,
+                        message: json_rpc_error.message,
+                    })),
+                },
+                Err(e) => Err(e),
+            });
+        let (_client, results) = canhttp::parallel_call(client, requests).await;
         MultiCallResults::from_non_empty_iter(providers.iter().cloned().zip(results.into_iter()))
     }
 

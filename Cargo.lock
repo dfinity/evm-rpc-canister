@@ -320,6 +320,7 @@ version = "0.1.0"
 dependencies = [
  "assert_matches",
  "candid",
+ "futures-channel",
  "futures-util",
  "http",
  "ic-cdk",
