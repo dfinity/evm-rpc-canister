@@ -282,14 +282,7 @@ impl<I, O> CreateResponseFilter<HttpJsonRpcRequest<I>, HttpJsonRpcResponse<O>>
     type Error = ConsistentResponseIdFilterError;
 
     fn create_filter(&self, request: &HttpJsonRpcRequest<I>) -> ConsistentJsonRpcIdFilter<O> {
-        assert_matches!(
-            request.body().id(), Id::Number(_) | Id::String(_),
-            "ERROR: a null request ID is a notification that indicates that the client is not interested in the response."
-        );
-        ConsistentJsonRpcIdFilter {
-            request_id: request.body().id().clone(),
-            _marker: PhantomData::<O>,
-        }
+        ConsistentJsonRpcIdFilter::new(request.body().id().clone())
     }
 }
 
@@ -300,6 +293,28 @@ pub struct ConsistentJsonRpcIdFilter<O> {
     _marker: PhantomData<O>,
 }
 
+impl<O> ConsistentJsonRpcIdFilter<O> {
+    /// Creates a new JSON-RPC filter to ensure that the ID of the response matches the one given in parameter.
+    ///
+    /// # Panics
+    ///
+    /// The method panics if the given ID is [`Id::Null`].
+    /// This is because a request ID with value [`Id::Null`] indicates a Notification,
+    /// which indicates that the client does not care about the response (see the
+    /// JSON-RPC [specification](https://www.jsonrpc.org/specification)).
+    pub fn new(request_id: Id) -> Self {
+        assert_matches!(
+            request_id,
+            Id::Number(_) | Id::String(_),
+            "BUG: validate_request should prevent null IDs"
+        );
+        Self {
+            request_id,
+            _marker: PhantomData,
+        }
+    }
+}
+
 impl<O> Filter<HttpJsonRpcResponse<O>> for ConsistentJsonRpcIdFilter<O> {
     type Error = ConsistentResponseIdFilterError;
 
@@ -308,12 +323,6 @@ impl<O> Filter<HttpJsonRpcResponse<O>> for ConsistentJsonRpcIdFilter<O> {
         response: HttpJsonRpcResponse<O>,
     ) -> Result<HttpJsonRpcResponse<O>, Self::Error> {
         let request_id = &self.request_id;
-        assert_matches!(
-            request_id,
-            Id::Number(_) | Id::String(_),
-            "BUG: validate_request should prevent null IDs"
-        );
-
         let (response_id, result) = response.body().as_parts();
         if request_id == response_id {
             return Ok(response);
