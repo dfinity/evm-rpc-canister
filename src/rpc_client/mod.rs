@@ -6,7 +6,8 @@ use crate::rpc_client::eth_rpc::{HttpResponsePayload, ResponseSizeEstimate, HEAD
 use crate::rpc_client::numeric::TransactionCount;
 use crate::types::MetricRpcMethod;
 use canhttp::{
-    http::json::JsonRpcRequest, MaxResponseBytesRequestExtension, TransformContextRequestExtension,
+    http::json::JsonRpcRequest, MaxResponseBytesRequestExtension, MultiResults,
+    TransformContextRequestExtension,
 };
 use evm_rpc_types::{
     ConsensusStrategy, EthMainnetService, EthSepoliaService, JsonRpcError, L2MainnetService,
@@ -316,20 +317,22 @@ impl EthRpcClient {
             })
             .unwrap_or_default();
         let effective_size_estimate = response_size_estimate.get();
-        let mut requests = Vec::with_capacity(providers.len());
+        let mut requests = MultiResults::default();
         for provider in providers {
             let request = resolve_rpc_service(provider.clone())
-                .unwrap()
-                .post(&get_override_provider())
-                .unwrap()
-                .max_response_bytes(effective_size_estimate)
-                .transform_context(TransformContext::from_name(
-                    "cleanup_response".to_owned(),
-                    transform_op.clone(),
-                ))
-                .body(JsonRpcRequest::new(method.clone(), params.clone()))
-                .expect("BUG: invalid request");
-            requests.push(request);
+                .map_err(RpcError::from)
+                .and_then(|rpc_service| rpc_service.post(&get_override_provider()))
+                .map(|builder| {
+                    builder
+                        .max_response_bytes(effective_size_estimate)
+                        .transform_context(TransformContext::from_name(
+                            "cleanup_response".to_owned(),
+                            transform_op.clone(),
+                        ))
+                        .body(JsonRpcRequest::new(method.clone(), params.clone()))
+                        .expect("BUG: invalid request")
+                });
+            requests.insert_once(provider.clone(), request);
         }
 
         let client = http_client(MetricRpcMethod(method.into()), true).map_result(|r| match r {
@@ -342,8 +345,12 @@ impl EthRpcClient {
             },
             Err(e) => Err(e),
         });
-        let (_client, results) = canhttp::parallel_call(client, requests).await;
-        MultiCallResults::from_non_empty_iter(providers.iter().cloned().zip(results.into_iter()))
+
+        let (requests, errors) = requests.into_inner();
+        let (_client, mut results) = canhttp::parallel_call(client, requests).await;
+        results.add_errors(errors);
+        assert_eq!(results.len(), providers.len(), "BUG: expected 1 result per provider");
+        results
     }
 
     pub async fn eth_get_logs(
@@ -446,6 +453,8 @@ impl EthRpcClient {
         .reduce(self.consensus_strategy())
     }
 }
+
+pub type MultiCallResults<T> = MultiResults<RpcService, T, RpcError>;
 
 /// Aggregates responses of different providers to the same query.
 /// Guaranteed to be non-empty.

@@ -13,7 +13,7 @@ pub use convert::ConvertServiceBuilder;
 pub use cycles::{
     CyclesAccounting, CyclesAccountingError, CyclesChargingPolicy, CyclesCostEstimator,
 };
-pub use multi::parallel_call;
+pub use multi::{parallel_call, MultiResults};
 
 mod client;
 pub mod convert;
