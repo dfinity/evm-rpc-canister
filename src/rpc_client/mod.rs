@@ -1,5 +1,5 @@
 use crate::http::http_client;
-use crate::logs::{DEBUG, INFO};
+use crate::logs::INFO;
 use crate::memory::get_override_provider;
 use crate::providers::resolve_rpc_service;
 use crate::rpc_client::eth_rpc::{HttpResponsePayload, ResponseSizeEstimate, HEADER_SIZE_LIMIT};
@@ -332,17 +332,16 @@ impl EthRpcClient {
             requests.push(request);
         }
 
-        let client =
-            http_client(MetricRpcMethod(method.into()), true).map_result(|r| match r {
-                Ok(r) => match r.into_body().into_result() {
-                    Ok(value) => Ok(value),
-                    Err(json_rpc_error) => Err(RpcError::JsonRpcError(JsonRpcError {
-                        code: json_rpc_error.code,
-                        message: json_rpc_error.message,
-                    })),
-                },
-                Err(e) => Err(e),
-            });
+        let client = http_client(MetricRpcMethod(method.into()), true).map_result(|r| match r {
+            Ok(r) => match r.into_body().into_result() {
+                Ok(value) => Ok(value),
+                Err(json_rpc_error) => Err(RpcError::JsonRpcError(JsonRpcError {
+                    code: json_rpc_error.code,
+                    message: json_rpc_error.message,
+                })),
+            },
+            Err(e) => Err(e),
+        });
         let (_client, results) = canhttp::parallel_call(client, requests).await;
         MultiCallResults::from_non_empty_iter(providers.iter().cloned().zip(results.into_iter()))
     }
