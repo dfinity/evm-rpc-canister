@@ -1,6 +1,7 @@
 use futures_channel::mpsc;
 use futures_util::StreamExt;
 use std::collections::BTreeMap;
+use std::fmt::Debug;
 use tower::{Service, ServiceExt};
 
 pub async fn parallel_call<S, I, RequestId, Request, Response, Error>(
@@ -99,4 +100,39 @@ impl<K: Ord, V, E> MultiResults<K, V, E> {
             self.insert_once_err(key, error);
         }
     }
+}
+
+pub type ReducedResult<K, V, E> = Result<V, ReductionError<K, V, E>>;
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum ReductionError<K, V, E> {
+    ConsistentError(E),
+    InconsistentResults(MultiResults<K, V, E>),
+}
+
+impl<K, V, E> MultiResults<K, V, E>
+where
+    V: PartialEq,
+    E: PartialEq,
+{
+    fn reduce_with_equality(self) -> ReducedResult<K, V, E> {
+        if !self.errors.is_empty() {
+            if all_equal(&self.errors) && self.ok_results.is_empty() {
+                return Err(ReductionError::ConsistentError(
+                    self.errors.into_values().next().unwrap(),
+                ));
+            }
+            return Err(ReductionError::InconsistentResults(self));
+        }
+        if !all_equal(&self.ok_results) {
+            return Err(ReductionError::InconsistentResults(self));
+        }
+        Ok(self.ok_results.into_values().next().unwrap())
+    }
+}
+
+fn all_equal<K, T: PartialEq>(map: &BTreeMap<K, T>) -> bool {
+    let mut iter = map.values();
+    let base_value = iter.next().expect("BUG: map should be non-empty");
+    iter.all(|value| value == base_value)
 }

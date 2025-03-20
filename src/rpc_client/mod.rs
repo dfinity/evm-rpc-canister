@@ -302,7 +302,7 @@ impl EthRpcClient {
         method: impl Into<String> + Clone,
         params: I,
         response_size_estimate: ResponseSizeEstimate,
-    ) -> MultiCallResults<O>
+    ) -> MultiCallResultsNew<O>
     where
         I: Serialize + Clone + Debug,
         O: Debug + DeserializeOwned + HttpResponsePayload,
@@ -349,7 +349,11 @@ impl EthRpcClient {
         let (requests, errors) = requests.into_inner();
         let (_client, mut results) = canhttp::parallel_call(client, requests).await;
         results.add_errors(errors);
-        assert_eq!(results.len(), providers.len(), "BUG: expected 1 result per provider");
+        assert_eq!(
+            results.len(),
+            providers.len(),
+            "BUG: expected 1 result per provider"
+        );
         results
     }
 
@@ -454,7 +458,7 @@ impl EthRpcClient {
     }
 }
 
-pub type MultiCallResults<T> = MultiResults<RpcService, T, RpcError>;
+pub type MultiCallResultsNew<T> = MultiResults<RpcService, T, RpcError>;
 
 /// Aggregates responses of different providers to the same query.
 /// Guaranteed to be non-empty.
