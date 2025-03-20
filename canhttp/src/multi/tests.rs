@@ -71,3 +71,124 @@ mod reduce_with_equality {
         );
     }
 }
+
+mod reduce_with_threshold {
+    use crate::multi::ReductionError;
+    use crate::MultiResults;
+
+    #[test]
+    fn should_get_consistent_result() {
+        fn check_consistent_result(
+            results: MultiResults<u8, &str, &str>,
+            threshold: u8,
+            expected_result: &str,
+        ) {
+            let reduced = results.reduce_with_threshold(threshold);
+            assert_eq!(reduced, Ok(expected_result));
+        }
+
+        // unanimous
+        check_consistent_result(
+            MultiResults::from_non_empty_iter(vec![
+                (0_u8, Ok("same")),
+                (1, Ok("same")),
+                (2, Ok("same")),
+                (3, Ok("same")),
+            ]),
+            3,
+            "same",
+        );
+
+        // 3 out-of-4 ok
+        for inconsistent_result in [Ok("different"), Err("offline")] {
+            for index_inconsistent in 0..4_usize {
+                let mut results = [Ok("same"), Ok("same"), Ok("same"), Ok("same")];
+                results[index_inconsistent] = inconsistent_result.clone();
+                let [result_0, result_1, result_2, result_3] = results;
+
+                check_consistent_result(
+                    MultiResults::from_non_empty_iter(vec![
+                        (0_u8, result_0),
+                        (1, result_1),
+                        (2, result_2),
+                        (3, result_3),
+                    ]),
+                    3,
+                    "same",
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn should_get_inconsistent_error() {
+        use itertools::Itertools;
+
+        fn check_inconsistent_result(results: MultiResults<u8, &str, &str>, threshold: u8) {
+            let reduced = results.clone().reduce_with_threshold(threshold);
+            assert_eq!(reduced, Err(ReductionError::InconsistentResults(results)));
+        }
+
+        // 2-out-of-4 ok
+        let inconsistent_results = [Ok("different"), Err("offline")];
+        for (inconsistent_res_1, inconsistent_res_2) in inconsistent_results
+            .clone()
+            .iter()
+            .cartesian_product(inconsistent_results)
+        {
+            for indexes in (0..4_usize).permutations(2) {
+                let mut results = [Ok("same"), Ok("same"), Ok("same"), Ok("same")];
+                results[indexes[0]] = inconsistent_res_1.clone();
+                results[indexes[1]] = inconsistent_res_2.clone();
+                let [result_0, result_1, result_2, result_3] = results;
+
+                check_inconsistent_result(
+                    MultiResults::from_non_empty_iter(vec![
+                        (0_u8, result_0),
+                        (1, result_1),
+                        (2, result_2),
+                        (3, result_3),
+                    ]),
+                    3,
+                );
+            }
+        }
+
+        // 1-out-of-4 ok
+        for ok_index in 0..4_usize {
+            let mut results = [
+                Err("offline"),
+                Err("offline"),
+                Err("offline"),
+                Err("offline"),
+            ];
+            results[ok_index] = Ok("same");
+            let [result_0, result_1, result_2, result_3] = results;
+
+            check_inconsistent_result(
+                MultiResults::from_non_empty_iter(vec![
+                    (0_u8, result_0),
+                    (1, result_1),
+                    (2, result_2),
+                    (3, result_3),
+                ]),
+                3,
+            );
+        }
+    }
+
+    #[test]
+    fn should_get_consistent_error() {
+        let results: MultiResults<_, &str, _> = MultiResults::from_non_empty_iter(vec![
+            (0_u8, Err("offline")),
+            (1, Err("offline")),
+            (2, Err("offline")),
+            (3, Err("offline")),
+        ]);
+
+        assert_eq!(
+            results.reduce_with_threshold(3),
+            Err(ReductionError::ConsistentError("offline"))
+        )
+    }
+}

@@ -167,7 +167,7 @@ where
 impl<K, V, E> MultiResults<K, V, E>
 where
     K: Ord + Clone,
-    V: ToBytes,
+    V: AsRef<[u8]>,
     E: PartialEq,
 {
     pub fn reduce_with_threshold(mut self, min: u8) -> ReducedResult<K, V, E> {
@@ -222,10 +222,10 @@ struct OrdByHash<'a, T> {
     value: &'a T,
 }
 
-impl<'a, T: ToBytes> OrdByHash<'a, T> {
+impl<'a, T: AsRef<[u8]>> OrdByHash<'a, T> {
     pub fn new(value: &'a T) -> Self {
         let mut hasher = Sha256::new();
-        hasher.update(value.to_bytes());
+        hasher.update(value.as_ref());
         let hash = hasher.finalize().into();
         Self { hash, value }
     }

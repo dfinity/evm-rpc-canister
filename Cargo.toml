@@ -51,7 +51,7 @@ assert_matches = "1.5"
 candid_parser = { workspace = true }
 ic-crypto-test-utils-reproducible-rng = { git = "https://github.com/dfinity/ic", rev = "release-2024-09-26_01-31-base" }
 ic-test-utilities-load-wasm = { git = "https://github.com/dfinity/ic", rev = "release-2024-09-26_01-31-base" }
-itertools = "0.14.0"
+itertools = {workspace = true}
 maplit = "1"
 pocket-ic = "7.0.0"
 proptest = { workspace = true }
@@ -75,6 +75,7 @@ ic-cdk-macros = "0.17.1"
 ic-certified-map = "0.4"
 ic-metrics-encoder = "1.1"
 ic-stable-structures = "0.6.8"
+itertools = "0.14.0"
 maplit = "1.0.2"
 minicbor = { version = "0.25.1", features = ["alloc", "derive"] }
 num-bigint = "0.4.6"
