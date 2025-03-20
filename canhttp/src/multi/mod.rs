@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod tests;
+
 use futures_channel::mpsc;
 use futures_util::StreamExt;
 use std::collections::BTreeMap;
@@ -68,9 +71,25 @@ impl<K, V, E> MultiResults<K, V, E> {
     pub fn len(&self) -> usize {
         self.ok_results.len() + self.errors.len()
     }
+
+    fn is_empty(&self) -> bool {
+        self.ok_results.is_empty() && self.errors.is_empty()
+    }
 }
 
 impl<K: Ord, V, E> MultiResults<K, V, E> {
+    pub fn from_non_empty_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = (K, Result<V, E>)>,
+    {
+        let mut results = MultiResults::default();
+        for (key, result) in iter {
+            results.insert_once(key, result);
+        }
+        assert!(!results.is_empty(), "ERROR: MultiResults cannot be empty");
+        results
+    }
+
     pub fn insert_once(&mut self, key: K, result: Result<V, E>) {
         match result {
             Ok(value) => {
@@ -116,6 +135,10 @@ where
     E: PartialEq,
 {
     fn reduce_with_equality(self) -> ReducedResult<K, V, E> {
+        assert!(
+            !self.is_empty(),
+            "ERROR: MultiResults is empty and cannot be reduced"
+        );
         if !self.errors.is_empty() {
             if all_equal(&self.errors) && self.ok_results.is_empty() {
                 return Err(ReductionError::ConsistentError(
