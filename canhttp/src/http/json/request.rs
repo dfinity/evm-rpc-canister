@@ -123,4 +123,9 @@ impl<T> JsonRpcRequest<T> {
     pub fn method(&self) -> &str {
         &self.method
     }
+
+    /// Return the JSON-RPC params, if any.
+    pub fn params(&self) -> Option<&T> {
+        self.params.as_ref()
+    }
 }
