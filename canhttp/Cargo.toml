@@ -11,6 +11,7 @@ documentation = "https://docs.rs/canhttp"
 
 [dependencies]
 ic-cdk = { workspace = true }
+sha2 = {workspace = true, optional = true}
 futures-channel = {workspace = true, optional = true}
 futures-util = { workspace = true }
 http = { workspace = true, optional = true }
@@ -32,4 +33,4 @@ tokio = { workspace = true, features = ["full"] }
 default = ["http"]
 http = ["dep:http", "dep:num-traits", "dep:tower-layer"]
 json = ["http", "dep:serde", "dep:serde_json"]
-multi = ["dep:futures-channel"]
+multi = ["dep:sha2", "dep:futures-channel"]

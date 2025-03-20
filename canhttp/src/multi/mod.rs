@@ -3,7 +3,10 @@ mod tests;
 
 use futures_channel::mpsc;
 use futures_util::StreamExt;
-use std::collections::BTreeMap;
+use serde::Serialize;
+use sha2::{Digest, Sha256};
+use std::cmp::Ordering;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Debug;
 use tower::{Service, ServiceExt};
 
@@ -131,21 +134,28 @@ pub enum ReductionError<K, V, E> {
 
 impl<K, V, E> MultiResults<K, V, E>
 where
+    E: PartialEq,
+{
+    fn expect_error(self) -> ReductionError<K, V, E> {
+        if all_equal(&self.errors) && self.ok_results.is_empty() {
+            return ReductionError::ConsistentError(self.errors.into_values().next().unwrap());
+        }
+        ReductionError::InconsistentResults(self)
+    }
+}
+
+impl<K, V, E> MultiResults<K, V, E>
+where
     V: PartialEq,
     E: PartialEq,
 {
-    fn reduce_with_equality(self) -> ReducedResult<K, V, E> {
+    pub fn reduce_with_equality(self) -> ReducedResult<K, V, E> {
         assert!(
             !self.is_empty(),
             "ERROR: MultiResults is empty and cannot be reduced"
         );
         if !self.errors.is_empty() {
-            if all_equal(&self.errors) && self.ok_results.is_empty() {
-                return Err(ReductionError::ConsistentError(
-                    self.errors.into_values().next().unwrap(),
-                ));
-            }
-            return Err(ReductionError::InconsistentResults(self));
+            return Err(self.expect_error());
         }
         if !all_equal(&self.ok_results) {
             return Err(ReductionError::InconsistentResults(self));
@@ -154,8 +164,89 @@ where
     }
 }
 
+impl<K, V, E> MultiResults<K, V, E>
+where
+    K: Ord + Clone,
+    V: ToBytes,
+    E: PartialEq,
+{
+    pub fn reduce_with_threshold(mut self, min: u8) -> ReducedResult<K, V, E> {
+        assert!(
+            !self.is_empty(),
+            "ERROR: MultiResults is empty and cannot be reduced"
+        );
+        assert!(min > 0, "BUG: min must be greater than 0");
+        if self.ok_results.len() < min as usize {
+            // At least total >= min were queried,
+            // so there is at least one error
+            return Err(self.expect_error());
+        }
+        let mut distribution = BTreeMap::new();
+        for (key, value) in &self.ok_results {
+            let wrapped_value = OrdByHash::new(value);
+            distribution
+                .entry(wrapped_value)
+                .or_insert_with(BTreeSet::new)
+                .insert(key);
+        }
+        let (_most_frequent_value, mut keys) = distribution
+            .into_iter()
+            .max_by_key(|(_value, keys)| keys.len())
+            .expect("BUG: distribution should be non-empty");
+        if keys.len() < min as usize {
+            return Err(ReductionError::InconsistentResults(self));
+        }
+        let key_with_most_frequent_value = keys
+            .pop_first()
+            .expect("BUG: keys should contain at least min > 0 elements")
+            .clone();
+        Ok(self
+            .ok_results
+            .remove(&key_with_most_frequent_value)
+            .expect("BUG: missing element"))
+    }
+}
+
 fn all_equal<K, T: PartialEq>(map: &BTreeMap<K, T>) -> bool {
     let mut iter = map.values();
     let base_value = iter.next().expect("BUG: map should be non-empty");
     iter.all(|value| value == base_value)
+}
+
+pub trait ToBytes {
+    fn to_bytes(&self) -> Vec<u8>;
+}
+
+struct OrdByHash<'a, T> {
+    hash: [u8; 32],
+    value: &'a T,
+}
+
+impl<'a, T: ToBytes> OrdByHash<'a, T> {
+    pub fn new(value: &'a T) -> Self {
+        let mut hasher = Sha256::new();
+        hasher.update(value.to_bytes());
+        let hash = hasher.finalize().into();
+        Self { hash, value }
+    }
+}
+
+impl<'a, T> PartialEq for OrdByHash<'a, T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.hash == other.hash
+    }
+}
+
+impl<'a, T> PartialOrd for OrdByHash<'a, T> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.hash.partial_cmp(&other.hash)
+    }
+}
+
+impl<'a, T> Eq for OrdByHash<'a, T> {}
+
+impl<'a, T> Ord for OrdByHash<'a, T> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.hash.cmp(&other.hash)
+    }
 }
