@@ -12,6 +12,39 @@ use std::collections::BTreeMap;
 use std::fmt::Debug;
 use tower::{Service, ServiceExt};
 
+/// Process all requests from the given iterator and produce a result for reach request.
+///
+/// The iterator yields a pair containing:
+/// 1. An ID *uniquely* identifying this request.
+/// 2. The request itself
+///
+/// The requests will be sent to the underlying service in parallel and the result for each request
+/// can be retrieved by the corresponding request ID.
+///
+/// ```rust
+/// # #[tokio::main]
+/// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// use std::convert::Infallible;
+/// use tower::ServiceBuilder;
+/// use canhttp::multi::parallel_call;
+///
+/// let adding_service =
+///     ServiceBuilder::new().service_fn(|(left, right): (u32, u32)| async move {
+///         Ok::<_, Infallible>(left + right)
+///     });
+///
+/// let (_service, results) =
+///     parallel_call(adding_service, vec![(0, (2, 3)), (1, (4, 5))]).await;
+///
+/// assert_eq!(results.get(&0).unwrap(), Ok(&5_u32));
+/// assert_eq!(results.get(&1).unwrap(), Ok(&9_u32));
+/// # Ok(())
+/// # }
+/// ```
+///
+/// # Panics
+///
+/// If two requests produced by the iterator have the same request ID.
 pub async fn parallel_call<S, I, RequestId, Request, Response, Error>(
     service: S,
     requests: I,
@@ -100,6 +133,13 @@ impl<K: Ord, V, E> MultiResults<K, V, E> {
         results
     }
 
+    pub fn get(&self, id: &K) -> Option<Result<&V, &E>> {
+        self.ok_results
+            .get(id)
+            .map(Ok)
+            .or_else(|| self.errors.get(id).map(Err))
+    }
+
     pub fn insert_once(&mut self, key: K, result: Result<V, E>) {
         match result {
             Ok(value) => {
@@ -112,13 +152,25 @@ impl<K: Ord, V, E> MultiResults<K, V, E> {
     }
 
     pub fn insert_once_ok(&mut self, key: K, value: V) {
-        assert!(!self.errors.contains_key(&key));
-        assert!(self.ok_results.insert(key, value).is_none());
+        assert!(
+            !self.errors.contains_key(&key),
+            "ERROR: duplicate key in `errors`"
+        );
+        assert!(
+            self.ok_results.insert(key, value).is_none(),
+            "ERROR: duplicate key in `ok_results`"
+        );
     }
 
     pub fn insert_once_err(&mut self, key: K, error: E) {
-        assert!(!self.ok_results.contains_key(&key));
-        assert!(self.errors.insert(key, error).is_none());
+        assert!(
+            !self.ok_results.contains_key(&key),
+            "ERROR: duplicate key in `ok_results`"
+        );
+        assert!(
+            self.errors.insert(key, error).is_none(),
+            "ERROR: duplicate key in `errors`"
+        );
     }
 
     pub fn add_errors<I>(&mut self, errors: I)

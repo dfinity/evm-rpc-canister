@@ -1,3 +1,21 @@
+mod parallel_call {
+    use crate::multi::parallel_call;
+    use std::convert::Infallible;
+    use tower::ServiceBuilder;
+
+    #[tokio::test]
+    #[should_panic(expected = "duplicate key")]
+    async fn should_panic_when_request_id_not_unique() {
+        let adding_service =
+            ServiceBuilder::new().service_fn(|(left, right): (u32, u32)| async move {
+                Ok::<_, Infallible>(left + right)
+            });
+
+        let (_service, _results) =
+            parallel_call(adding_service, vec![(0, (2, 3)), (1, (4, 5)), (0, (6, 7))]).await;
+    }
+}
+
 mod reduce_with_equality {
     use crate::multi::{MultiResults, ReduceWithEquality, ReductionError};
 
