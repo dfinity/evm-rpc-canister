@@ -141,10 +141,16 @@ impl HttpResponsePayload for TransactionCount {}
 impl HttpResponsePayload for Wei {}
 
 fn sort_by_hash<T: Serialize + DeserializeOwned>(to_sort: &mut [T]) {
-    use ic_sha3::Keccak256;
+    fn hash(input: &[u8]) -> [u8; 32] {
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(input);
+        hasher.finalize().into()
+    }
+
     to_sort.sort_by(|a, b| {
-        let a_hash = Keccak256::hash(serde_json::to_vec(a).expect("BUG: failed to serialize"));
-        let b_hash = Keccak256::hash(serde_json::to_vec(b).expect("BUG: failed to serialize"));
+        let a_hash = hash(&serde_json::to_vec(a).expect("BUG: failed to serialize"));
+        let b_hash = hash(&serde_json::to_vec(b).expect("BUG: failed to serialize"));
         a_hash.cmp(&b_hash)
     });
 }
