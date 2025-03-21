@@ -1,3 +1,6 @@
+//! Make multiple calls in parallel to a [`tower::Service`] and handle their multiple results.
+//! See [`parallel_call`].
+
 pub use reduce::{
     Reduce, ReduceWithEquality, ReduceWithThreshold, ReducedResult, ReductionError, ToBytes,
 };
@@ -20,6 +23,8 @@ use tower::{Service, ServiceExt};
 ///
 /// The requests will be sent to the underlying service in parallel and the result for each request
 /// can be retrieved by the corresponding request ID.
+/// 
+/// # Examples
 ///
 /// ```rust
 /// # #[tokio::main]

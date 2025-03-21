@@ -38,6 +38,37 @@ impl<K, V, E, T: Reduce<K, V, E>> Reduce<K, V, E> for Box<T> {
     }
 }
 
+/// Reduce a [`MultiResults`] by requiring that all elements are ok and all equal to each other.
+/// 
+/// # Examples
+///
+/// ```
+/// use canhttp::multi::{MultiResults, ReduceWithEquality, ReduceWithThreshold, ReductionError};
+///
+/// let results: MultiResults<_, _, ()> = MultiResults::from_non_empty_iter(vec![
+///     (0_u8, Ok("same")),
+///     (1_u8, Ok("same")),
+///     (2_u8, Ok("same"))
+/// ]);
+/// assert_eq!(
+///     results.clone().reduce(ReduceWithEquality),
+///     Ok("same")
+/// );
+/// 
+/// let results = MultiResults::from_non_empty_iter(vec![
+///     (0_u8, Ok("same")),
+///     (1_u8, Err("unknown")),
+///     (2_u8, Ok("same"))
+/// ]);
+/// assert_eq!(
+///     results.clone().reduce(ReduceWithEquality),
+///     Err(ReductionError::InconsistentResults(results))
+/// )
+/// ```
+///
+/// # Panics
+///
+/// If the results is empty.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct ReduceWithEquality;
 
@@ -61,11 +92,44 @@ where
     }
 }
 
+/// Reduce a [`MultiResults`] by requiring that at least threshold many `Ok` results are the same.
+/// 
+/// # Examples
+/// 
+/// ```
+/// use canhttp::multi::{MultiResults, ReduceWithThreshold, ReductionError};
+/// let results = MultiResults::from_non_empty_iter(vec![
+///     (0_u8, Ok("same")),
+///     (1_u8, Err("unknown")),
+///     (2_u8, Ok("same"))
+/// ]);
+/// assert_eq!(results.reduce(ReduceWithThreshold::new(2)), Ok("same"));
+///
+/// let results = MultiResults::from_non_empty_iter(vec![
+///     (0_u8, Ok("same")),
+///     (1_u8, Err("unknown")),
+///     (2_u8, Ok("different"))
+/// ]);
+/// assert_eq!(
+///     results.clone().reduce(ReduceWithThreshold::new(2)),
+///     Err(ReductionError::InconsistentResults(results))
+/// )
+/// ```
+/// 
+/// # Panics
+/// 
+/// If the results is empty.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReduceWithThreshold(u8);
 
 impl ReduceWithThreshold {
+    /// Instantiate [`ReduceWithThreshold`] with the given threshold.
+    ///
+    /// # Panics
+    ///
+    /// If the threshold is 0.
     pub fn new(threshold: u8) -> Self {
+        assert!(threshold > 0, "ERROR: min must be greater than 0");
         Self(threshold)
     }
 }
@@ -82,7 +146,6 @@ where
             "ERROR: MultiResults is empty and cannot be reduced"
         );
         let min = self.0;
-        assert!(min > 0, "BUG: min must be greater than 0");
         if results.ok_results.len() < min as usize {
             if !results.errors.is_empty() {
                 return Err(results.expect_error());
@@ -120,8 +183,10 @@ where
 ///
 /// It's expected that different values will lead to a different result.
 pub trait ToBytes {
+    /// Convert to bytes.
     fn to_bytes(&self) -> Vec<u8>;
 
+    /// Hash the converted bytes on 32 bytes.
     fn hash(&self) -> [u8; 32] {
         use sha2::{Digest, Sha256};
 
