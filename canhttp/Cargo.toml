@@ -10,9 +10,10 @@ include = ["src", "Cargo.toml", "CHANGELOG.md", "LICENSE", "README.md"]
 documentation = "https://docs.rs/canhttp"
 
 [dependencies]
+ciborium = { workspace = true, optional = true }
 ic-cdk = { workspace = true }
-sha2 = {workspace = true, optional = true}
-futures-channel = {workspace = true, optional = true}
+sha2 = { workspace = true, optional = true }
+futures-channel = { workspace = true, optional = true }
 futures-util = { workspace = true }
 http = { workspace = true, optional = true }
 num-traits = { workspace = true, optional = true }
@@ -26,7 +27,7 @@ thiserror = { workspace = true }
 [dev-dependencies]
 assert_matches = { workspace = true }
 candid = { workspace = true }
-itertools = {workspace = true}
+itertools = { workspace = true }
 maplit = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 
@@ -34,4 +35,4 @@ tokio = { workspace = true, features = ["full"] }
 default = ["http"]
 http = ["dep:http", "dep:num-traits", "dep:tower-layer"]
 json = ["http", "dep:serde", "dep:serde_json"]
-multi = ["dep:sha2", "dep:futures-channel"]
+multi = ["dep:ciborium", "dep:sha2", "dep:futures-channel"]

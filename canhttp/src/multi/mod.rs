@@ -167,7 +167,7 @@ where
 impl<K, V, E> MultiResults<K, V, E>
 where
     K: Ord + Clone,
-    V: AsRef<[u8]>,
+    V: ToBytes,
     E: PartialEq,
 {
     pub fn reduce_with_threshold(mut self, min: u8) -> ReducedResult<K, V, E> {
@@ -213,6 +213,9 @@ fn all_equal<K, T: PartialEq>(map: &BTreeMap<K, T>) -> bool {
     iter.all(|value| value == base_value)
 }
 
+/// Convert to bytes.
+/// 
+/// It's expected that different values will lead to a different result.
 pub trait ToBytes {
     fn to_bytes(&self) -> Vec<u8>;
 }
@@ -222,10 +225,10 @@ struct OrdByHash<'a, T> {
     value: &'a T,
 }
 
-impl<'a, T: AsRef<[u8]>> OrdByHash<'a, T> {
+impl<'a, T: ToBytes> OrdByHash<'a, T> {
     pub fn new(value: &'a T) -> Self {
         let mut hasher = Sha256::new();
-        hasher.update(value.as_ref());
+        hasher.update(&value.to_bytes());
         let hash = hasher.finalize().into();
         Self { hash, value }
     }
@@ -248,5 +251,13 @@ impl<'a, T> Eq for OrdByHash<'a, T> {}
 impl<'a, T> Ord for OrdByHash<'a, T> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.hash.cmp(&other.hash)
+    }
+}
+
+impl<T: Serialize> ToBytes for T {
+    fn to_bytes(&self) -> Vec<u8> {
+        let mut buf = Vec::new();
+        ciborium::ser::into_writer(self, &mut buf).expect("failed to serialize type");
+        buf
     }
 }
