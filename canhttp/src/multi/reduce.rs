@@ -84,9 +84,10 @@ where
         let min = self.0;
         assert!(min > 0, "BUG: min must be greater than 0");
         if results.ok_results.len() < min as usize {
-            // At least total >= min were queried,
-            // so there is at least one error
-            return Err(results.expect_error());
+            if !results.errors.is_empty() {
+                return Err(results.expect_error());
+            }
+            return Err(ReductionError::InconsistentResults(results));
         }
         let mut distribution = BTreeMap::new();
         for (key, value) in &results.ok_results {

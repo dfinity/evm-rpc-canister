@@ -127,6 +127,13 @@ mod reduce_with_threshold {
             assert_eq!(reduced, Err(ReductionError::InconsistentResults(results)));
         }
 
+        //not enough results
+        check_inconsistent_result(MultiResults::from_non_empty_iter(vec![(0, Ok("same"))]), 2);
+        check_inconsistent_result(
+            MultiResults::from_non_empty_iter(vec![(0, Ok("same")), (1, Ok("same"))]),
+            3,
+        );
+
         // 2-out-of-4 ok
         let inconsistent_results = [Ok("different"), Err("offline")];
         for (inconsistent_res_1, inconsistent_res_2) in inconsistent_results
