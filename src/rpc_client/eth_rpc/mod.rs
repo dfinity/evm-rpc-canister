@@ -1,22 +1,12 @@
 //! This module contains definitions for communicating witEthereum API using the [JSON RPC](https://ethereum.org/en/developers/docs/apis/json-rpc/)
 //! interface.
 
-use crate::http::http_client;
-use crate::memory::get_override_provider;
-use crate::providers::resolve_rpc_service;
 use crate::rpc_client::eth_rpc_error::{sanitize_send_raw_transaction_result, Parser};
 use crate::rpc_client::json::responses::{Block, FeeHistory, LogEntry, TransactionReceipt};
 use crate::rpc_client::numeric::{TransactionCount, Wei};
-use crate::types::MetricRpcMethod;
 use candid::candid_method;
-use canhttp::{
-    http::json::{JsonRpcRequest, JsonRpcResponse},
-    MaxResponseBytesRequestExtension, TransformContextRequestExtension,
-};
-use evm_rpc_types::{JsonRpcError, RpcError, RpcService};
-use ic_cdk::api::management_canister::http_request::{
-    HttpResponse, TransformArgs, TransformContext,
-};
+use canhttp::http::json::JsonRpcResponse;
+use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs};
 use ic_cdk_macros::query;
 use minicbor::{Decode, Encode};
 use serde::{de::DeserializeOwned, Serialize};
@@ -150,57 +140,17 @@ impl HttpResponsePayload for TransactionCount {}
 
 impl HttpResponsePayload for Wei {}
 
-/// Calls a JSON-RPC method on an Ethereum node at the specified URL.
-pub async fn call<I, O>(
-    provider: &RpcService,
-    method: impl Into<String>,
-    params: I,
-    response_size_estimate: ResponseSizeEstimate,
-) -> Result<O, RpcError>
-where
-    I: Serialize + Clone + Debug,
-    O: Debug + DeserializeOwned + HttpResponsePayload,
-{
-    use tower::Service;
-
-    let transform_op = O::response_transform()
-        .as_ref()
-        .map(|t| {
-            let mut buf = vec![];
-            minicbor::encode(t, &mut buf).unwrap();
-            buf
-        })
-        .unwrap_or_default();
-
-    let effective_size_estimate = response_size_estimate.get();
-    let request = resolve_rpc_service(provider.clone())?
-        .post(&get_override_provider())?
-        .max_response_bytes(effective_size_estimate)
-        .transform_context(TransformContext::from_name(
-            "cleanup_response".to_owned(),
-            transform_op.clone(),
-        ))
-        .body(JsonRpcRequest::new(method, params))
-        .expect("BUG: invalid request");
-
-    let eth_method = request.body().method().to_string();
-    let mut client = http_client(MetricRpcMethod(eth_method.clone()), true);
-    let response = client.call(request).await?;
-    match response.into_body().into_result() {
-        Ok(r) => Ok(r),
-        Err(canhttp::http::json::JsonRpcError {
-            code,
-            message,
-            data: _,
-        }) => Err(JsonRpcError { code, message }.into()),
-    }
-}
-
 fn sort_by_hash<T: Serialize + DeserializeOwned>(to_sort: &mut [T]) {
-    use ic_sha3::Keccak256;
+    fn hash(input: &[u8]) -> [u8; 32] {
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(input);
+        hasher.finalize().into()
+    }
+
     to_sort.sort_by(|a, b| {
-        let a_hash = Keccak256::hash(serde_json::to_vec(a).expect("BUG: failed to serialize"));
-        let b_hash = Keccak256::hash(serde_json::to_vec(b).expect("BUG: failed to serialize"));
+        let a_hash = hash(&serde_json::to_vec(a).expect("BUG: failed to serialize"));
+        let b_hash = hash(&serde_json::to_vec(b).expect("BUG: failed to serialize"));
         a_hash.cmp(&b_hash)
     });
 }
