@@ -1,19 +1,18 @@
 use crate::http::http_client;
-use crate::logs::INFO;
 use crate::memory::get_override_provider;
 use crate::providers::resolve_rpc_service;
 use crate::rpc_client::eth_rpc::{HttpResponsePayload, ResponseSizeEstimate, HEADER_SIZE_LIMIT};
 use crate::rpc_client::numeric::TransactionCount;
 use crate::types::MetricRpcMethod;
 use canhttp::{
-    http::json::JsonRpcRequest, MaxResponseBytesRequestExtension, MultiResults, Reduce,
-    ReduceWithEquality, ReduceWithThreshold, TransformContextRequestExtension,
+    http::json::JsonRpcRequest,
+    multi::{MultiResults, Reduce, ReduceWithEquality, ReduceWithThreshold},
+    MaxResponseBytesRequestExtension, TransformContextRequestExtension,
 };
 use evm_rpc_types::{
     ConsensusStrategy, EthMainnetService, EthSepoliaService, JsonRpcError, L2MainnetService,
-    ProviderError, RpcConfig, RpcError, RpcResult, RpcService, RpcServices,
+    ProviderError, RpcConfig, RpcError, RpcService, RpcServices,
 };
-use ic_canister_log::log;
 use ic_cdk::api::management_canister::http_request::TransformContext;
 use json::requests::{
     BlockSpec, EthCallParams, FeeHistoryParams, GetBlockByNumberParams, GetLogsParam,
@@ -24,7 +23,7 @@ use json::responses::{
 };
 use json::Hash;
 use serde::{de::DeserializeOwned, Serialize};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::fmt::Debug;
 use tower::ServiceExt;
 
@@ -304,7 +303,7 @@ impl EthRpcClient {
         method: impl Into<String> + Clone,
         params: I,
         response_size_estimate: ResponseSizeEstimate,
-    ) -> MultiCallResultsNew<O>
+    ) -> MultiCallResults<O>
     where
         I: Serialize + Clone + Debug,
         O: Debug + DeserializeOwned + HttpResponsePayload,
@@ -349,7 +348,7 @@ impl EthRpcClient {
         });
 
         let (requests, errors) = requests.into_inner();
-        let (_client, mut results) = canhttp::parallel_call(client, requests).await;
+        let (_client, mut results) = canhttp::multi::parallel_call(client, requests).await;
         results.add_errors(errors);
         assert_eq!(
             results.len(),
@@ -468,10 +467,7 @@ impl From<ConsensusStrategy> for ReductionStrategy {
 }
 
 impl<T: PartialEq + Serialize> Reduce<RpcService, T, RpcError> for ReductionStrategy {
-    fn reduce(
-        &self,
-        results: MultiResults<RpcService, T, RpcError>,
-    ) -> canhttp::ReducedResult<RpcService, T, RpcError> {
+    fn reduce(&self, results: MultiResults<RpcService, T, RpcError>) -> ReducedResult<T> {
         match self {
             ReductionStrategy::ByEquality(r) => r.reduce(results),
             ReductionStrategy::ByThreshold(r) => r.reduce(results),
@@ -479,5 +475,5 @@ impl<T: PartialEq + Serialize> Reduce<RpcService, T, RpcError> for ReductionStra
     }
 }
 
-pub type MultiCallResultsNew<T> = MultiResults<RpcService, T, RpcError>;
-pub type ReducedResult<T> = canhttp::ReducedResult<RpcService, T, RpcError>;
+pub type MultiCallResults<T> = MultiResults<RpcService, T, RpcError>;
+pub type ReducedResult<T> = canhttp::multi::ReducedResult<RpcService, T, RpcError>;

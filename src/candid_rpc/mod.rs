@@ -10,7 +10,7 @@ use crate::{
     types::{MetricRpcHost, ResolvedRpcService, RpcMethod},
 };
 use candid::Nat;
-use canhttp::ReductionError;
+use canhttp::multi::ReductionError;
 use ethers_core::{types::Transaction, utils::rlp};
 use evm_rpc_types::{Hex, Hex32, MultiRpcResult, Nat256, RpcResult, ValidationError};
 

@@ -1,6 +1,5 @@
 mod reduce_with_equality {
-    use crate::multi::ReductionError;
-    use crate::MultiResults;
+    use crate::multi::{MultiResults, ReductionError};
 
     #[test]
     #[should_panic(expected = "MultiResults is empty")]
@@ -73,8 +72,7 @@ mod reduce_with_equality {
 }
 
 mod reduce_with_threshold {
-    use crate::multi::ReductionError;
-    use crate::MultiResults;
+    use crate::multi::{MultiResults, ReductionError};
 
     #[test]
     fn should_get_consistent_result() {

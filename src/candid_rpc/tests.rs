@@ -1,14 +1,13 @@
 use crate::candid_rpc::process_result;
 use crate::types::RpcMethod;
-use canhttp::MultiResults;
+use canhttp::multi::MultiResults;
 use evm_rpc_types::{MultiRpcResult, RpcService};
 use evm_rpc_types::{ProviderError, RpcError};
-
-type ReductionError = canhttp::ReductionError<RpcService, u32, RpcError>;
 
 #[test]
 fn test_process_result_mapping() {
     use evm_rpc_types::{EthMainnetService, RpcService};
+    type ReductionError = canhttp::multi::ReductionError<RpcService, u32, RpcError>;
 
     let method = RpcMethod::EthGetTransactionCount;
 

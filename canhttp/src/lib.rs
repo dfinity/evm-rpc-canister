@@ -13,9 +13,6 @@ pub use convert::ConvertServiceBuilder;
 pub use cycles::{
     CyclesAccounting, CyclesAccountingError, CyclesChargingPolicy, CyclesCostEstimator,
 };
-pub use multi::{
-    parallel_call, MultiResults, Reduce, ReduceWithEquality, ReduceWithThreshold, ReductionError,ReducedResult
-};
 
 mod client;
 pub mod convert;
@@ -23,6 +20,6 @@ mod cycles;
 #[cfg(feature = "http")]
 pub mod http;
 #[cfg(feature = "multi")]
-mod multi;
+pub mod multi;
 pub mod observability;
 pub mod retry;
