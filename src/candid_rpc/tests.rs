@@ -1,5 +1,4 @@
 use crate::candid_rpc::process_result;
-use crate::rpc_client::{MultiCallError, MultiCallResults};
 use crate::types::RpcMethod;
 use canhttp::MultiResults;
 use evm_rpc_types::{MultiRpcResult, RpcService};
