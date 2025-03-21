@@ -6,8 +6,8 @@ use crate::rpc_client::eth_rpc::{HttpResponsePayload, ResponseSizeEstimate, HEAD
 use crate::rpc_client::numeric::TransactionCount;
 use crate::types::MetricRpcMethod;
 use canhttp::{
-    http::json::JsonRpcRequest, MaxResponseBytesRequestExtension, MultiResults,
-    TransformContextRequestExtension,
+    http::json::JsonRpcRequest, MaxResponseBytesRequestExtension, MultiResults, Reduce,
+    ReduceWithEquality, ReduceWithThreshold, TransformContextRequestExtension,
 };
 use evm_rpc_types::{
     ConsensusStrategy, EthMainnetService, EthSepoliaService, JsonRpcError, L2MainnetService,
@@ -284,12 +284,14 @@ impl EthRpcClient {
         ResponseSizeEstimate::new(self.config.response_size_estimate.unwrap_or(estimate))
     }
 
-    fn consensus_strategy(&self) -> ConsensusStrategy {
-        self.config
-            .response_consensus
-            .as_ref()
-            .cloned()
-            .unwrap_or_default()
+    fn consensus_strategy(&self) -> ReductionStrategy {
+        ReductionStrategy::from(
+            self.config
+                .response_consensus
+                .as_ref()
+                .cloned()
+                .unwrap_or_default(),
+        )
     }
 
     /// Query all providers in parallel and return all results.
@@ -357,10 +359,7 @@ impl EthRpcClient {
         results
     }
 
-    pub async fn eth_get_logs(
-        &self,
-        params: GetLogsParam,
-    ) -> Result<Vec<LogEntry>, MultiCallError<Vec<LogEntry>>> {
+    pub async fn eth_get_logs(&self, params: GetLogsParam) -> ReducedResult<Vec<LogEntry>> {
         self.parallel_call(
             "eth_getLogs",
             vec![params],
@@ -370,10 +369,7 @@ impl EthRpcClient {
         .reduce(self.consensus_strategy())
     }
 
-    pub async fn eth_get_block_by_number(
-        &self,
-        block: BlockSpec,
-    ) -> Result<Block, MultiCallError<Block>> {
+    pub async fn eth_get_block_by_number(&self, block: BlockSpec) -> ReducedResult<Block> {
         let expected_block_size = match self.chain() {
             EthereumNetwork::SEPOLIA => 12 * 1024,
             EthereumNetwork::MAINNET => 24 * 1024,
@@ -395,7 +391,7 @@ impl EthRpcClient {
     pub async fn eth_get_transaction_receipt(
         &self,
         tx_hash: Hash,
-    ) -> Result<Option<TransactionReceipt>, MultiCallError<Option<TransactionReceipt>>> {
+    ) -> ReducedResult<Option<TransactionReceipt>> {
         self.parallel_call(
             "eth_getTransactionReceipt",
             vec![tx_hash],
@@ -405,10 +401,7 @@ impl EthRpcClient {
         .reduce(self.consensus_strategy())
     }
 
-    pub async fn eth_fee_history(
-        &self,
-        params: FeeHistoryParams,
-    ) -> Result<FeeHistory, MultiCallError<FeeHistory>> {
+    pub async fn eth_fee_history(&self, params: FeeHistoryParams) -> ReducedResult<FeeHistory> {
         // A typical response is slightly above 300 bytes.
         self.parallel_call(
             "eth_feeHistory",
@@ -422,7 +415,7 @@ impl EthRpcClient {
     pub async fn eth_send_raw_transaction(
         &self,
         raw_signed_transaction_hex: String,
-    ) -> Result<SendRawTransactionResult, MultiCallError<SendRawTransactionResult>> {
+    ) -> ReducedResult<SendRawTransactionResult> {
         // A successful reply is under 256 bytes, but we expect most calls to end with an error
         // since we submit the same transaction from multiple nodes.
         self.parallel_call(
@@ -437,7 +430,7 @@ impl EthRpcClient {
     pub async fn eth_get_transaction_count(
         &self,
         params: GetTransactionCountParams,
-    ) -> Result<TransactionCount, MultiCallError<TransactionCount>> {
+    ) -> ReducedResult<TransactionCount> {
         self.parallel_call(
             "eth_getTransactionCount",
             params,
@@ -447,7 +440,7 @@ impl EthRpcClient {
         .reduce(self.consensus_strategy())
     }
 
-    pub async fn eth_call(&self, params: EthCallParams) -> Result<Data, MultiCallError<Data>> {
+    pub async fn eth_call(&self, params: EthCallParams) -> ReducedResult<Data> {
         self.parallel_call(
             "eth_call",
             params,
@@ -458,7 +451,36 @@ impl EthRpcClient {
     }
 }
 
+pub enum ReductionStrategy {
+    ByEquality(ReduceWithEquality),
+    ByThreshold(ReduceWithThreshold),
+}
+
+impl From<ConsensusStrategy> for ReductionStrategy {
+    fn from(value: ConsensusStrategy) -> Self {
+        match value {
+            ConsensusStrategy::Equality => ReductionStrategy::ByEquality(ReduceWithEquality),
+            ConsensusStrategy::Threshold { total: _, min } => {
+                ReductionStrategy::ByThreshold(ReduceWithThreshold::new(min))
+            }
+        }
+    }
+}
+
+impl<T: PartialEq + Serialize> Reduce<RpcService, T, RpcError> for ReductionStrategy {
+    fn reduce(
+        &self,
+        results: MultiResults<RpcService, T, RpcError>,
+    ) -> canhttp::ReducedResult<RpcService, T, RpcError> {
+        match self {
+            ReductionStrategy::ByEquality(r) => r.reduce(results),
+            ReductionStrategy::ByThreshold(r) => r.reduce(results),
+        }
+    }
+}
+
 pub type MultiCallResultsNew<T> = MultiResults<RpcService, T, RpcError>;
+pub type ReducedResult<T> = canhttp::ReducedResult<RpcService, T, RpcError>;
 
 /// Aggregates responses of different providers to the same query.
 /// Guaranteed to be non-empty.

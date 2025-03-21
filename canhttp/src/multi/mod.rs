@@ -78,6 +78,18 @@ impl<K, V, E> MultiResults<K, V, E> {
     fn is_empty(&self) -> bool {
         self.ok_results.is_empty() && self.errors.is_empty()
     }
+
+    pub fn into_vec(self) -> Vec<(K, Result<V, E>)> {
+        self.ok_results
+            .into_iter()
+            .map(|(k, result)| (k, Ok(result)))
+            .chain(self.errors.into_iter().map(|(k, error)| (k, Err(error))))
+            .collect()
+    }
+
+    pub fn reduce<R: Reduce<K, V, E>>(self, reducer: R) -> ReducedResult<K, V, E> {
+        reducer.reduce(self)
+    }
 }
 
 impl<K: Ord, V, E> MultiResults<K, V, E> {
@@ -141,6 +153,49 @@ where
             return ReductionError::ConsistentError(self.errors.into_values().next().unwrap());
         }
         ReductionError::InconsistentResults(self)
+    }
+}
+
+pub trait Reduce<K, V, E> {
+    fn reduce(&self, results: MultiResults<K, V, E>) -> ReducedResult<K, V, E>;
+}
+
+impl<K, V, E, T: Reduce<K, V, E>> Reduce<K, V, E> for Box<T> {
+    fn reduce(&self, results: MultiResults<K, V, E>) -> ReducedResult<K, V, E> {
+        self.as_ref().reduce(results)
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct ReduceWithEquality;
+
+impl<K, V, E> Reduce<K, V, E> for ReduceWithEquality
+where
+    V: PartialEq,
+    E: PartialEq,
+{
+    fn reduce(&self, results: MultiResults<K, V, E>) -> ReducedResult<K, V, E> {
+        results.reduce_with_equality()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReduceWithThreshold(u8);
+
+impl ReduceWithThreshold {
+    pub fn new(threshold: u8) -> Self {
+        Self(threshold)
+    }
+}
+
+impl<K, V, E> Reduce<K, V, E> for ReduceWithThreshold
+where
+    K: Ord + Clone,
+    V: ToBytes,
+    E: PartialEq,
+{
+    fn reduce(&self, results: MultiResults<K, V, E>) -> ReducedResult<K, V, E> {
+        results.reduce_with_threshold(self.0)
     }
 }
 
@@ -214,7 +269,7 @@ fn all_equal<K, T: PartialEq>(map: &BTreeMap<K, T>) -> bool {
 }
 
 /// Convert to bytes.
-/// 
+///
 /// It's expected that different values will lead to a different result.
 pub trait ToBytes {
     fn to_bytes(&self) -> Vec<u8>;
