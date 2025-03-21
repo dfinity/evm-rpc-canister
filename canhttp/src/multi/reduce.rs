@@ -47,27 +47,17 @@ where
     E: PartialEq,
 {
     fn reduce(&self, results: MultiResults<K, V, E>) -> ReducedResult<K, V, E> {
-        results.reduce_with_equality()
-    }
-}
-
-impl<K, V, E> MultiResults<K, V, E>
-where
-    V: PartialEq,
-    E: PartialEq,
-{
-    fn reduce_with_equality(self) -> ReducedResult<K, V, E> {
         assert!(
-            !self.is_empty(),
+            !results.is_empty(),
             "ERROR: MultiResults is empty and cannot be reduced"
         );
-        if !self.errors.is_empty() {
-            return Err(self.expect_error());
+        if !results.errors.is_empty() {
+            return Err(results.expect_error());
         }
-        if !all_equal(&self.ok_results) {
-            return Err(ReductionError::InconsistentResults(self));
+        if !all_equal(&results.ok_results) {
+            return Err(ReductionError::InconsistentResults(results));
         }
-        Ok(self.ok_results.into_values().next().unwrap())
+        Ok(results.ok_results.into_values().next().unwrap())
     }
 }
 
@@ -87,29 +77,19 @@ where
     E: PartialEq,
 {
     fn reduce(&self, results: MultiResults<K, V, E>) -> ReducedResult<K, V, E> {
-        results.reduce_with_threshold(self.0)
-    }
-}
-
-impl<K, V, E> MultiResults<K, V, E>
-where
-    K: Ord + Clone,
-    V: ToBytes,
-    E: PartialEq,
-{
-    fn reduce_with_threshold(mut self, min: u8) -> ReducedResult<K, V, E> {
         assert!(
-            !self.is_empty(),
+            !results.is_empty(),
             "ERROR: MultiResults is empty and cannot be reduced"
         );
+        let min = self.0;
         assert!(min > 0, "BUG: min must be greater than 0");
-        if self.ok_results.len() < min as usize {
+        if results.ok_results.len() < min as usize {
             // At least total >= min were queried,
             // so there is at least one error
-            return Err(self.expect_error());
+            return Err(results.expect_error());
         }
         let mut distribution = BTreeMap::new();
-        for (key, value) in &self.ok_results {
+        for (key, value) in &results.ok_results {
             let hash = value.hash();
             distribution
                 .entry(hash)
@@ -121,13 +101,14 @@ where
             .max_by_key(|(_value, keys)| keys.len())
             .expect("BUG: distribution should be non-empty");
         if keys.len() < min as usize {
-            return Err(ReductionError::InconsistentResults(self));
+            return Err(ReductionError::InconsistentResults(results));
         }
         let key_with_most_frequent_value = keys
             .pop_first()
             .expect("BUG: keys should contain at least min > 0 elements")
             .clone();
-        Ok(self
+        let mut results = results;
+        Ok(results
             .ok_results
             .remove(&key_with_most_frequent_value)
             .expect("BUG: missing element"))

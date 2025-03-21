@@ -1,17 +1,17 @@
 mod reduce_with_equality {
-    use crate::multi::{MultiResults, ReductionError};
+    use crate::multi::{MultiResults, ReduceWithEquality, ReductionError};
 
     #[test]
     #[should_panic(expected = "MultiResults is empty")]
     fn should_panic_when_empty() {
         let empty: MultiResults<String, String, String> = MultiResults::default();
-        let _panic = empty.reduce_with_equality();
+        let _panic = empty.reduce(ReduceWithEquality);
     }
 
     #[test]
     fn should_be_inconsistent_results() {
         fn check_inconsistent_error(results: MultiResults<u8, &str, &str>) {
-            let reduced = results.clone().reduce_with_equality();
+            let reduced = results.clone().reduce(ReduceWithEquality);
             assert_eq!(reduced, Err(ReductionError::InconsistentResults(results)))
         }
 
@@ -36,7 +36,7 @@ mod reduce_with_equality {
     #[test]
     fn should_be_consistent_error() {
         fn check_consistent_error(results: MultiResults<u8, &str, &str>, expected_error: &str) {
-            let reduced = results.reduce_with_equality();
+            let reduced = results.reduce(ReduceWithEquality);
             assert_eq!(
                 reduced,
                 Err(ReductionError::ConsistentError(expected_error))
@@ -56,7 +56,7 @@ mod reduce_with_equality {
     #[test]
     fn should_be_consistent_result() {
         fn check_consistent_result(results: MultiResults<u8, &str, &str>, expected_result: &str) {
-            let reduced = results.reduce_with_equality();
+            let reduced = results.reduce(ReduceWithEquality);
             assert_eq!(reduced, Ok(expected_result))
         }
 
@@ -72,7 +72,7 @@ mod reduce_with_equality {
 }
 
 mod reduce_with_threshold {
-    use crate::multi::{MultiResults, ReductionError};
+    use crate::multi::{MultiResults, ReduceWithThreshold, ReductionError};
 
     #[test]
     fn should_get_consistent_result() {
@@ -81,7 +81,7 @@ mod reduce_with_threshold {
             threshold: u8,
             expected_result: &str,
         ) {
-            let reduced = results.reduce_with_threshold(threshold);
+            let reduced = results.reduce(ReduceWithThreshold::new(threshold));
             assert_eq!(reduced, Ok(expected_result));
         }
 
@@ -123,7 +123,7 @@ mod reduce_with_threshold {
         use itertools::Itertools;
 
         fn check_inconsistent_result(results: MultiResults<u8, &str, &str>, threshold: u8) {
-            let reduced = results.clone().reduce_with_threshold(threshold);
+            let reduced = results.clone().reduce(ReduceWithThreshold::new(threshold));
             assert_eq!(reduced, Err(ReductionError::InconsistentResults(results)));
         }
 
@@ -185,7 +185,7 @@ mod reduce_with_threshold {
         ]);
 
         assert_eq!(
-            results.reduce_with_threshold(3),
+            results.reduce(ReduceWithThreshold::new(3)),
             Err(ReductionError::ConsistentError("offline"))
         )
     }

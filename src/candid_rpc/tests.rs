@@ -1,7 +1,7 @@
 use crate::candid_rpc::process_result;
 use crate::types::RpcMethod;
 use canhttp::multi::MultiResults;
-use evm_rpc_types::{MultiRpcResult, RpcService};
+use evm_rpc_types::MultiRpcResult;
 use evm_rpc_types::{ProviderError, RpcError};
 
 #[test]
