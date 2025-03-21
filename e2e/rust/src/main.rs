@@ -77,7 +77,7 @@ pub async fn test() {
         "eth_getBlockByNumber",
         (
             RpcServices::EthMainnet(Some(vec![
-                EthMainnetService::Ankr,
+                // EthMainnetService::Ankr, // Need API key
                 EthMainnetService::BlockPi,
                 EthMainnetService::Llama,
                 EthMainnetService::PublicNode,

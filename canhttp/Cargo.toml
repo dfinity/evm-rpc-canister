@@ -10,6 +10,7 @@ include = ["src", "Cargo.toml", "CHANGELOG.md", "LICENSE", "README.md"]
 documentation = "https://docs.rs/canhttp"
 
 [dependencies]
+assert_matches = { workspace = true }
 ciborium = { workspace = true, optional = true }
 ic-cdk = { workspace = true }
 sha2 = { workspace = true, optional = true }
@@ -25,7 +26,6 @@ tower-layer = { workspace = true, optional = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-assert_matches = { workspace = true }
 candid = { workspace = true }
 itertools = { workspace = true }
 maplit = { workspace = true }

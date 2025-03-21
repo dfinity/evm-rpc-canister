@@ -1,6 +1,7 @@
-use crate::convert::Convert;
-use crate::http::json::{Id, Version};
+use crate::convert::{Convert, CreateResponseFilter, Filter};
+use crate::http::json::{HttpJsonRpcRequest, Id, Version};
 use crate::http::HttpResponse;
+use assert_matches::assert_matches;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -83,7 +84,7 @@ pub type HttpJsonRpcResponse<T> = http::Response<JsonRpcResponse<T>>;
 pub type JsonRpcResult<T> = Result<T, JsonRpcError>;
 
 /// JSON-RPC response.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct JsonRpcResponse<T> {
     jsonrpc: Version,
     id: Id,
@@ -124,6 +125,11 @@ impl<T> JsonRpcResponse<T> {
         (self.id, self.result.into_result())
     }
 
+    /// Similar to [`Self::into_parts`] but only takes a reference.
+    pub fn as_parts(&self) -> (&Id, Result<&T, &JsonRpcError>) {
+        (&self.id, self.as_result())
+    }
+
     /// Convert this response into a result.
     ///
     /// A successful response will be converted to an `Ok` value,
@@ -132,9 +138,19 @@ impl<T> JsonRpcResponse<T> {
         self.result.into_result()
     }
 
+    /// Similar to [`Self::into_result`] but only takes a reference.
+    pub fn as_result(&self) -> Result<&T, &JsonRpcError> {
+        self.result.as_result()
+    }
+
     /// Mutate this response as a mutable result.
     pub fn as_result_mut(&mut self) -> Result<&mut T, &mut JsonRpcError> {
         self.result.as_result_mut()
+    }
+
+    /// Return the response ID.
+    pub fn id(&self) -> &Id {
+        &self.id
     }
 }
 
@@ -151,6 +167,13 @@ enum JsonRpcResultEnvelope<T> {
 
 impl<T> JsonRpcResultEnvelope<T> {
     fn into_result(self) -> JsonRpcResult<T> {
+        match self {
+            JsonRpcResultEnvelope::Ok(result) => Ok(result),
+            JsonRpcResultEnvelope::Err(error) => Err(error),
+        }
+    }
+
+    fn as_result(&self) -> Result<&T, &JsonRpcError> {
         match self {
             JsonRpcResultEnvelope::Ok(result) => Ok(result),
             JsonRpcResultEnvelope::Err(error) => Err(error),
@@ -192,5 +215,132 @@ impl JsonRpcError {
             message,
             data: None,
         }
+    }
+
+    /// Return `true` if and only if the error code indicates a parsing error
+    /// according to the [JSON-RPC specification](https://www.jsonrpc.org/specification).
+    pub fn is_parse_error(&self) -> bool {
+        self.code == -32700
+    }
+
+    /// Return `true` if and only if the error code indicates an invalid request
+    /// according to the [JSON-RPC specification](https://www.jsonrpc.org/specification).
+    pub fn is_invalid_request(&self) -> bool {
+        self.code == -32600
+    }
+}
+
+/// Error returned by the [`ConsistentJsonRpcIdFilter`].
+#[derive(Error, Clone, Debug, Eq, PartialEq)]
+pub enum ConsistentResponseIdFilterError {
+    /// ID of the response does not match that of the request.
+    #[error(
+        "Unexpected identifier: expected response ID to be {request_id}, but got {response_id}"
+    )]
+    InconsistentId {
+        /// Response status code.
+        status: u16,
+        /// ID from the request.
+        request_id: Id,
+        /// ID from the response.
+        response_id: Id,
+    },
+}
+
+/// Create [`ConsistentJsonRpcIdFilter`] for each request.
+pub struct CreateJsonRpcIdFilter<I, O> {
+    _marker: PhantomData<(I, O)>,
+}
+
+impl<I, O> CreateJsonRpcIdFilter<I, O> {
+    /// Create a new instance of [`CreateJsonRpcIdFilter`]
+    pub fn new() -> Self {
+        Self {
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<I, O> Clone for CreateJsonRpcIdFilter<I, O> {
+    fn clone(&self) -> Self {
+        Self {
+            _marker: self._marker,
+        }
+    }
+}
+
+impl<I, O> Default for CreateJsonRpcIdFilter<I, O> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<I, O> CreateResponseFilter<HttpJsonRpcRequest<I>, HttpJsonRpcResponse<O>>
+    for CreateJsonRpcIdFilter<I, O>
+{
+    type Filter = ConsistentJsonRpcIdFilter<O>;
+    type Error = ConsistentResponseIdFilterError;
+
+    fn create_filter(&self, request: &HttpJsonRpcRequest<I>) -> ConsistentJsonRpcIdFilter<O> {
+        ConsistentJsonRpcIdFilter::new(request.body().id().clone())
+    }
+}
+
+/// Ensure that the ID of the response is consistent with the one from the request
+/// that is stored internally.
+pub struct ConsistentJsonRpcIdFilter<O> {
+    request_id: Id,
+    _marker: PhantomData<O>,
+}
+
+impl<O> ConsistentJsonRpcIdFilter<O> {
+    /// Creates a new JSON-RPC filter to ensure that the ID of the response matches the one given in parameter.
+    ///
+    /// # Panics
+    ///
+    /// The method panics if the given ID is [`Id::Null`].
+    /// This is because a request ID with value [`Id::Null`] indicates a Notification,
+    /// which indicates that the client does not care about the response (see the
+    /// JSON-RPC [specification](https://www.jsonrpc.org/specification)).
+    pub fn new(request_id: Id) -> Self {
+        assert_matches!(
+            request_id,
+            Id::Number(_) | Id::String(_),
+            "ERROR: a null request ID is a notification that indicates that the client is not interested in the response."
+        );
+        Self {
+            request_id,
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<O> Filter<HttpJsonRpcResponse<O>> for ConsistentJsonRpcIdFilter<O> {
+    type Error = ConsistentResponseIdFilterError;
+
+    fn filter(
+        &mut self,
+        response: HttpJsonRpcResponse<O>,
+    ) -> Result<HttpJsonRpcResponse<O>, Self::Error> {
+        let request_id = &self.request_id;
+        let (response_id, result) = response.body().as_parts();
+        if request_id == response_id {
+            return Ok(response);
+        }
+
+        if response_id.is_null()
+            && result.is_err_and(|e| e.is_parse_error() || e.is_invalid_request())
+        {
+            // From the [JSON-RPC specification](https://www.jsonrpc.org/specification):
+            // If there was an error in detecting the id in the Request object
+            // (e.g. Parse error/Invalid Request), it MUST be Null.
+            return Ok(response);
+        }
+
+        Err(ConsistentResponseIdFilterError::InconsistentId {
+            status: response.status().as_u16(),
+            request_id: request_id.clone(),
+            response_id: response_id.clone(),
+        })
     }
 }

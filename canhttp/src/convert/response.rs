@@ -1,4 +1,4 @@
-use crate::convert::Convert;
+use crate::convert::{Convert, Filter};
 use pin_project::pin_project;
 use std::future::Future;
 use std::pin::Pin;
@@ -70,6 +70,7 @@ pub struct ResponseFuture<F, Converter> {
     response_future: F,
     converter: Converter,
 }
+
 impl<F, Filter, Response, NewResponse, Error> Future for ResponseFuture<F, Filter>
 where
     F: Future<Output = Result<Response, Error>>,
@@ -89,6 +90,77 @@ where
                 Err(err) => Poll::Ready(Err(err)),
             },
             Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
+/// Create a response filter per request.
+///
+/// This is useful when response validation depends on some request data.
+pub trait CreateResponseFilter<Request, Response> {
+    /// The response filter produced.
+    type Filter: Filter<Response, Error = Self::Error>;
+    /// The type of error returned by the filter.
+    type Error;
+
+    /// Return a new filter for this request.
+    fn create_filter(&self, request: &Request) -> Self::Filter;
+}
+
+/// Filter responses of a service based on the corresponding request.
+///
+/// This [`Layer`] produces instances of the [`FilterResponse`] service.
+///
+/// [`Layer`]: tower::Layer
+#[derive(Debug, Clone)]
+pub struct CreateResponseFilterLayer<C> {
+    create_filter: C,
+}
+
+impl<C> CreateResponseFilterLayer<C> {
+    /// Create a new [`CreateResponseFilterLayer`]
+    pub fn new(create_filter: C) -> Self {
+        Self { create_filter }
+    }
+}
+
+impl<S, C: Clone> Layer<S> for CreateResponseFilterLayer<C> {
+    type Service = FilterResponse<S, C>;
+
+    fn layer(&self, inner: S) -> Self::Service {
+        FilterResponse {
+            inner,
+            create_filter: self.create_filter.clone(),
+        }
+    }
+}
+
+/// Filter the inner service response based on the original request that lead to that response.
+#[derive(Debug, Clone)]
+pub struct FilterResponse<S, C> {
+    inner: S,
+    create_filter: C,
+}
+
+impl<S, Request, Response, C> Service<Request> for FilterResponse<S, C>
+where
+    S: Service<Request, Response = Response>,
+    C: CreateResponseFilter<Request, Response>,
+    C::Error: Into<S::Error>,
+{
+    type Response = S::Response;
+    type Error = S::Error;
+    type Future = ResponseFuture<S::Future, C::Filter>;
+
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.inner.poll_ready(cx)
+    }
+
+    fn call(&mut self, req: Request) -> Self::Future {
+        let filter = self.create_filter.create_filter(&req);
+        ResponseFuture {
+            response_future: self.inner.call(req),
+            converter: filter,
         }
     }
 }
