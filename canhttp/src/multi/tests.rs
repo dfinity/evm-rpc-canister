@@ -25,12 +25,23 @@ mod reduce_with_equality {
             (0_u8, Ok("hello")),
             (1, Ok("world")),
         ]));
+
         // mix of errors and ok results
-        check_inconsistent_error(MultiResults::from_non_empty_iter(vec![
-            (0_u8, Ok("same")),
-            (1, Err("transient")),
-            (2, Ok("same")),
-        ]));
+        for inconsistent_result in [Ok("different"), Err("offline")] {
+            for index in 0..4 {
+                let mut results = [Ok("same"), Ok("same"), Ok("same"), Ok("same")];
+                results[index] = inconsistent_result.clone();
+
+                let [result_0, result_1, result_2, result_3] = results;
+
+                check_inconsistent_error(MultiResults::from_non_empty_iter(vec![
+                    (0_u8, result_0),
+                    (1, result_1),
+                    (2, result_2),
+                    (3, result_3),
+                ]));
+            }
+        }
     }
 
     #[test]
