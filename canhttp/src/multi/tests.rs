@@ -144,6 +144,10 @@ mod reduce_with_threshold {
             MultiResults::from_non_empty_iter(vec![(0, Ok("same")), (1, Ok("same"))]),
             3,
         );
+        check_inconsistent_result(
+            MultiResults::from_non_empty_iter(vec![(0, Ok("same")), (1, Err("offline"))]),
+            3,
+        );
 
         // 2-out-of-4 ok
         let inconsistent_results = [Ok("different"), Err("offline")];
