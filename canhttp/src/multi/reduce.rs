@@ -72,8 +72,20 @@ impl<K, V, E, T: Reduce<K, V, E>> Reduce<K, V, E> for Box<T> {
 /// assert_eq!(
 ///     results.clone().reduce(ReduceWithEquality),
 ///     Err(ReductionError::InconsistentResults(results))
+/// );
+///
+/// let results: MultiResults<_, (), _> = MultiResults::from_non_empty_iter(vec![
+///     (0_u8, Err("unknown")),
+///     (1_u8, Err("unknown")),
+///     (2_u8, Err("unknown")),
+/// ]);
+/// assert_eq!(
+///     results.clone().reduce(ReduceWithEquality),
+///     Err(ReductionError::ConsistentError("unknown"))
 /// )
 /// ```
+///
+///
 ///
 /// # Panics
 ///
@@ -107,6 +119,7 @@ where
 ///
 /// ```
 /// use canhttp::multi::{MultiResults, ReduceWithThreshold, ReductionError};
+///
 /// let results = MultiResults::from_non_empty_iter(vec![
 ///     (0_u8, Ok("same")),
 ///     (1_u8, Err("unknown")),
@@ -122,6 +135,16 @@ where
 /// assert_eq!(
 ///     results.clone().reduce(ReduceWithThreshold::new(2)),
 ///     Err(ReductionError::InconsistentResults(results))
+/// );
+///
+/// let results: MultiResults<_, (), _> = MultiResults::from_non_empty_iter(vec![
+///     (0_u8, Err("unknown")),
+///     (1_u8, Err("unknown")),
+///     (2_u8, Err("unknown")),
+/// ]);
+/// assert_eq!(
+///     results.clone().reduce(ReduceWithThreshold::new(2)),
+///     Err(ReductionError::ConsistentError("unknown"))
 /// )
 /// ```
 ///
