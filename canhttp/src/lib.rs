@@ -13,10 +13,13 @@ pub use convert::ConvertServiceBuilder;
 pub use cycles::{
     CyclesAccounting, CyclesAccountingError, CyclesChargingPolicy, CyclesCostEstimator,
 };
+
 mod client;
 pub mod convert;
 mod cycles;
 #[cfg(feature = "http")]
 pub mod http;
+#[cfg(feature = "multi")]
+pub mod multi;
 pub mod observability;
 pub mod retry;

@@ -2,7 +2,7 @@ mod cketh_conversion;
 #[cfg(test)]
 mod tests;
 
-use crate::rpc_client::{EthRpcClient, MultiCallError};
+use crate::rpc_client::{EthRpcClient, ReducedResult};
 use crate::{
     add_metric_entry,
     constants::ETH_GET_LOGS_MAX_BLOCKS,
@@ -10,16 +10,17 @@ use crate::{
     types::{MetricRpcHost, ResolvedRpcService, RpcMethod},
 };
 use candid::Nat;
+use canhttp::multi::ReductionError;
 use ethers_core::{types::Transaction, utils::rlp};
 use evm_rpc_types::{Hex, Hex32, MultiRpcResult, Nat256, RpcResult, ValidationError};
 
-fn process_result<T>(method: RpcMethod, result: Result<T, MultiCallError<T>>) -> MultiRpcResult<T> {
+fn process_result<T>(method: RpcMethod, result: ReducedResult<T>) -> MultiRpcResult<T> {
     match result {
         Ok(value) => MultiRpcResult::Consistent(Ok(value)),
         Err(err) => match err {
-            MultiCallError::ConsistentError(err) => MultiRpcResult::Consistent(Err(err)),
-            MultiCallError::InconsistentResults(multi_call_results) => {
-                let results = multi_call_results.into_vec();
+            ReductionError::ConsistentError(err) => MultiRpcResult::Consistent(Err(err)),
+            ReductionError::InconsistentResults(multi_call_results) => {
+                let results: Vec<_> = multi_call_results.into_iter().collect();
                 results.iter().for_each(|(service, _service_result)| {
                     if let Ok(ResolvedRpcService::Provider(provider)) =
                         resolve_rpc_service(service.clone())

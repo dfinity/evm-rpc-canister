@@ -1,11 +1,19 @@
-use crate::logs::{DEBUG, INFO};
+use crate::http::http_client;
+use crate::memory::get_override_provider;
+use crate::providers::resolve_rpc_service;
 use crate::rpc_client::eth_rpc::{HttpResponsePayload, ResponseSizeEstimate, HEADER_SIZE_LIMIT};
 use crate::rpc_client::numeric::TransactionCount;
-use evm_rpc_types::{
-    ConsensusStrategy, EthMainnetService, EthSepoliaService, L2MainnetService, ProviderError,
-    RpcConfig, RpcError, RpcResult, RpcService, RpcServices,
+use crate::types::MetricRpcMethod;
+use canhttp::{
+    http::json::JsonRpcRequest,
+    multi::{MultiResults, Reduce, ReduceWithEquality, ReduceWithThreshold},
+    MaxResponseBytesRequestExtension, TransformContextRequestExtension,
 };
-use ic_canister_log::log;
+use evm_rpc_types::{
+    ConsensusStrategy, EthMainnetService, EthSepoliaService, JsonRpcError, L2MainnetService,
+    ProviderError, RpcConfig, RpcError, RpcService, RpcServices,
+};
+use ic_cdk::api::management_canister::http_request::TransformContext;
 use json::requests::{
     BlockSpec, EthCallParams, FeeHistoryParams, GetBlockByNumberParams, GetLogsParam,
     GetTransactionCountParams,
@@ -15,8 +23,9 @@ use json::responses::{
 };
 use json::Hash;
 use serde::{de::DeserializeOwned, Serialize};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::fmt::Debug;
+use tower::ServiceExt;
 
 pub mod amount;
 pub(crate) mod eth_rpc;
@@ -274,12 +283,14 @@ impl EthRpcClient {
         ResponseSizeEstimate::new(self.config.response_size_estimate.unwrap_or(estimate))
     }
 
-    fn consensus_strategy(&self) -> ConsensusStrategy {
-        self.config
-            .response_consensus
-            .as_ref()
-            .cloned()
-            .unwrap_or_default()
+    fn consensus_strategy(&self) -> ReductionStrategy {
+        ReductionStrategy::from(
+            self.config
+                .response_consensus
+                .as_ref()
+                .cloned()
+                .unwrap_or_default(),
+        )
     }
 
     /// Query all providers in parallel and return all results.
@@ -298,29 +309,55 @@ impl EthRpcClient {
         O: Debug + DeserializeOwned + HttpResponsePayload,
     {
         let providers = self.providers();
-        let results = {
-            let mut fut = Vec::with_capacity(providers.len());
-            for provider in providers {
-                log!(DEBUG, "[parallel_call]: will call provider: {:?}", provider);
-                fut.push(async {
-                    eth_rpc::call::<_, _>(
-                        provider,
-                        method.clone(),
-                        params.clone(),
-                        response_size_estimate,
-                    )
-                    .await
+        let transform_op = O::response_transform()
+            .as_ref()
+            .map(|t| {
+                let mut buf = vec![];
+                minicbor::encode(t, &mut buf).unwrap();
+                buf
+            })
+            .unwrap_or_default();
+        let effective_size_estimate = response_size_estimate.get();
+        let mut requests = MultiResults::default();
+        for provider in providers {
+            let request = resolve_rpc_service(provider.clone())
+                .map_err(RpcError::from)
+                .and_then(|rpc_service| rpc_service.post(&get_override_provider()))
+                .map(|builder| {
+                    builder
+                        .max_response_bytes(effective_size_estimate)
+                        .transform_context(TransformContext::from_name(
+                            "cleanup_response".to_owned(),
+                            transform_op.clone(),
+                        ))
+                        .body(JsonRpcRequest::new(method.clone(), params.clone()))
+                        .expect("BUG: invalid request")
                 });
+            requests.insert_once(provider.clone(), request);
+        }
+
+        let client = http_client(MetricRpcMethod(method.into()), true).map_result(|r| {
+            match r?.into_body().into_result() {
+                Ok(value) => Ok(value),
+                Err(json_rpc_error) => Err(RpcError::JsonRpcError(JsonRpcError {
+                    code: json_rpc_error.code,
+                    message: json_rpc_error.message,
+                })),
             }
-            futures::future::join_all(fut).await
-        };
-        MultiCallResults::from_non_empty_iter(providers.iter().cloned().zip(results.into_iter()))
+        });
+
+        let (requests, errors) = requests.into_inner();
+        let (_client, mut results) = canhttp::multi::parallel_call(client, requests).await;
+        results.add_errors(errors);
+        assert_eq!(
+            results.len(),
+            providers.len(),
+            "BUG: expected 1 result per provider"
+        );
+        results
     }
 
-    pub async fn eth_get_logs(
-        &self,
-        params: GetLogsParam,
-    ) -> Result<Vec<LogEntry>, MultiCallError<Vec<LogEntry>>> {
+    pub async fn eth_get_logs(&self, params: GetLogsParam) -> ReducedResult<Vec<LogEntry>> {
         self.parallel_call(
             "eth_getLogs",
             vec![params],
@@ -330,10 +367,7 @@ impl EthRpcClient {
         .reduce(self.consensus_strategy())
     }
 
-    pub async fn eth_get_block_by_number(
-        &self,
-        block: BlockSpec,
-    ) -> Result<Block, MultiCallError<Block>> {
+    pub async fn eth_get_block_by_number(&self, block: BlockSpec) -> ReducedResult<Block> {
         let expected_block_size = match self.chain() {
             EthereumNetwork::SEPOLIA => 12 * 1024,
             EthereumNetwork::MAINNET => 24 * 1024,
@@ -355,7 +389,7 @@ impl EthRpcClient {
     pub async fn eth_get_transaction_receipt(
         &self,
         tx_hash: Hash,
-    ) -> Result<Option<TransactionReceipt>, MultiCallError<Option<TransactionReceipt>>> {
+    ) -> ReducedResult<Option<TransactionReceipt>> {
         self.parallel_call(
             "eth_getTransactionReceipt",
             vec![tx_hash],
@@ -365,10 +399,7 @@ impl EthRpcClient {
         .reduce(self.consensus_strategy())
     }
 
-    pub async fn eth_fee_history(
-        &self,
-        params: FeeHistoryParams,
-    ) -> Result<FeeHistory, MultiCallError<FeeHistory>> {
+    pub async fn eth_fee_history(&self, params: FeeHistoryParams) -> ReducedResult<FeeHistory> {
         // A typical response is slightly above 300 bytes.
         self.parallel_call(
             "eth_feeHistory",
@@ -382,7 +413,7 @@ impl EthRpcClient {
     pub async fn eth_send_raw_transaction(
         &self,
         raw_signed_transaction_hex: String,
-    ) -> Result<SendRawTransactionResult, MultiCallError<SendRawTransactionResult>> {
+    ) -> ReducedResult<SendRawTransactionResult> {
         // A successful reply is under 256 bytes, but we expect most calls to end with an error
         // since we submit the same transaction from multiple nodes.
         self.parallel_call(
@@ -397,7 +428,7 @@ impl EthRpcClient {
     pub async fn eth_get_transaction_count(
         &self,
         params: GetTransactionCountParams,
-    ) -> Result<TransactionCount, MultiCallError<TransactionCount>> {
+    ) -> ReducedResult<TransactionCount> {
         self.parallel_call(
             "eth_getTransactionCount",
             params,
@@ -407,7 +438,7 @@ impl EthRpcClient {
         .reduce(self.consensus_strategy())
     }
 
-    pub async fn eth_call(&self, params: EthCallParams) -> Result<Data, MultiCallError<Data>> {
+    pub async fn eth_call(&self, params: EthCallParams) -> ReducedResult<Data> {
         self.parallel_call(
             "eth_call",
             params,
@@ -418,262 +449,30 @@ impl EthRpcClient {
     }
 }
 
-/// Aggregates responses of different providers to the same query.
-/// Guaranteed to be non-empty.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MultiCallResults<T> {
-    ok_results: BTreeMap<RpcService, T>,
-    errors: BTreeMap<RpcService, RpcError>,
+pub enum ReductionStrategy {
+    ByEquality(ReduceWithEquality),
+    ByThreshold(ReduceWithThreshold),
 }
 
-impl<T> Default for MultiCallResults<T> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<T> MultiCallResults<T> {
-    pub fn new() -> Self {
-        Self {
-            ok_results: BTreeMap::new(),
-            errors: BTreeMap::new(),
-        }
-    }
-
-    pub fn from_non_empty_iter<I: IntoIterator<Item = (RpcService, RpcResult<T>)>>(
-        iter: I,
-    ) -> Self {
-        let mut results = Self::new();
-        for (provider, result) in iter {
-            results.insert_once(provider, result);
-        }
-        if results.is_empty() {
-            panic!("BUG: MultiCallResults cannot be empty!")
-        }
-        results
-    }
-
-    fn is_empty(&self) -> bool {
-        self.ok_results.is_empty() && self.errors.is_empty()
-    }
-
-    fn insert_once(&mut self, provider: RpcService, result: RpcResult<T>) {
-        match result {
-            Ok(value) => {
-                assert!(!self.errors.contains_key(&provider));
-                assert!(self.ok_results.insert(provider, value).is_none());
-            }
-            Err(error) => {
-                assert!(!self.ok_results.contains_key(&provider));
-                assert!(self.errors.insert(provider, error).is_none());
-            }
-        }
-    }
-
-    #[cfg(test)]
-    fn from_json_rpc_result<
-        I: IntoIterator<Item = (RpcService, canhttp::http::json::JsonRpcResult<T>)>,
-    >(
-        iter: I,
-    ) -> Self {
-        Self::from_non_empty_iter(iter.into_iter().map(|(provider, result)| {
-            (
-                provider,
-                match result {
-                    Ok(value) => Ok(value),
-                    Err(canhttp::http::json::JsonRpcError {
-                        code,
-                        message,
-                        data: _,
-                    }) => Err(RpcError::JsonRpcError(evm_rpc_types::JsonRpcError {
-                        code,
-                        message,
-                    })),
-                },
-            )
-        }))
-    }
-
-    pub fn into_vec(self) -> Vec<(RpcService, RpcResult<T>)> {
-        self.ok_results
-            .into_iter()
-            .map(|(provider, result)| (provider, Ok(result)))
-            .chain(
-                self.errors
-                    .into_iter()
-                    .map(|(provider, error)| (provider, Err(error))),
-            )
-            .collect()
-    }
-
-    fn group_errors(&self) -> BTreeMap<&RpcError, BTreeSet<&RpcService>> {
-        let mut errors: BTreeMap<_, _> = BTreeMap::new();
-        for (provider, error) in self.errors.iter() {
-            errors
-                .entry(error)
-                .or_insert_with(BTreeSet::new)
-                .insert(provider);
-        }
-        errors
-    }
-}
-
-impl<T: PartialEq> MultiCallResults<T> {
-    /// Expects all results to be ok or return the following error:
-    /// * MultiCallError::ConsistentError: all errors are the same and there is no ok results.
-    /// * MultiCallError::InconsistentResults: in all other cases.
-    fn all_ok(self) -> Result<BTreeMap<RpcService, T>, MultiCallError<T>> {
-        if self.errors.is_empty() {
-            return Ok(self.ok_results);
-        }
-        Err(self.expect_error())
-    }
-
-    fn expect_error(self) -> MultiCallError<T> {
-        let errors = self.group_errors();
-        match errors.len() {
-            0 => {
-                panic!("BUG: errors should be non-empty")
-            }
-            1 if self.ok_results.is_empty() => {
-                MultiCallError::ConsistentError(errors.into_keys().next().unwrap().clone())
-            }
-            _ => MultiCallError::InconsistentResults(self),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum MultiCallError<T> {
-    ConsistentError(RpcError),
-    InconsistentResults(MultiCallResults<T>),
-}
-
-impl<T: Debug + PartialEq + Clone + Serialize> MultiCallResults<T> {
-    pub fn reduce(self, strategy: ConsensusStrategy) -> Result<T, MultiCallError<T>> {
-        match strategy {
-            ConsensusStrategy::Equality => self.reduce_with_equality(),
-            ConsensusStrategy::Threshold { total: _, min } => self.reduce_with_threshold(min),
-        }
-    }
-
-    fn reduce_with_equality(self) -> Result<T, MultiCallError<T>> {
-        let mut results = self.all_ok()?.into_iter();
-        let (base_node_provider, base_result) = results
-            .next()
-            .expect("BUG: MultiCallResults is guaranteed to be non-empty");
-        let mut inconsistent_results: Vec<_> = results
-            .filter(|(_provider, result)| result != &base_result)
-            .collect();
-        if !inconsistent_results.is_empty() {
-            inconsistent_results.push((base_node_provider, base_result));
-            let error = MultiCallError::InconsistentResults(MultiCallResults::from_non_empty_iter(
-                inconsistent_results
-                    .into_iter()
-                    .map(|(provider, result)| (provider, Ok(result))),
-            ));
-            log!(
-                INFO,
-                "[reduce_with_equality]: inconsistent results {error:?}"
-            );
-            return Err(error);
-        }
-        Ok(base_result)
-    }
-
-    fn reduce_with_threshold(self, min: u8) -> Result<T, MultiCallError<T>> {
-        assert!(min > 0, "BUG: min must be greater than 0");
-        if self.ok_results.len() < min as usize {
-            // At least total >= min were queried,
-            // so there is at least one error
-            return Err(self.expect_error());
-        }
-        let distribution = ResponseDistribution::from_non_empty_iter(self.ok_results.clone());
-        let (most_likely_response, providers) = distribution
-            .most_frequent()
-            .expect("BUG: distribution should be non-empty");
-        if providers.len() >= min as usize {
-            Ok(most_likely_response.clone())
-        } else {
-            log!(
-                INFO,
-                "[reduce_with_threshold]: too many inconsistent ok responses to reach threshold of {min}, results: {self:?}"
-            );
-            Err(MultiCallError::InconsistentResults(self))
-        }
-    }
-}
-
-/// Distribution of responses observed from different providers.
-///
-/// From the API point of view, it emulates a map from a response instance to a set of providers that returned it.
-/// At the implementation level, to avoid requiring `T` to have a total order (i.e., must implements `Ord` if it were to be used as keys in a `BTreeMap`) which might not always be meaningful,
-/// we use as key the hash of the serialized response instance.
-struct ResponseDistribution<T> {
-    hashes: BTreeMap<[u8; 32], T>,
-    responses: BTreeMap<[u8; 32], BTreeSet<RpcService>>,
-}
-
-impl<T> Default for ResponseDistribution<T> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<T> ResponseDistribution<T> {
-    pub fn new() -> Self {
-        Self {
-            hashes: BTreeMap::new(),
-            responses: BTreeMap::new(),
-        }
-    }
-
-    /// Returns the most frequent response and the set of providers that returned it.
-    pub fn most_frequent(&self) -> Option<(&T, &BTreeSet<RpcService>)> {
-        self.responses
-            .iter()
-            .max_by_key(|(_hash, providers)| providers.len())
-            .map(|(hash, providers)| {
-                (
-                    self.hashes.get(hash).expect("BUG: hash should be present"),
-                    providers,
-                )
-            })
-    }
-}
-
-impl<T: Debug + PartialEq + Serialize> ResponseDistribution<T> {
-    pub fn from_non_empty_iter<I: IntoIterator<Item = (RpcService, T)>>(iter: I) -> Self {
-        let mut distribution = Self::new();
-        for (provider, result) in iter {
-            distribution.insert_once(provider, result);
-        }
-        distribution
-    }
-
-    pub fn insert_once(&mut self, provider: RpcService, result: T) {
-        use ic_sha3::Keccak256;
-        let hash = Keccak256::hash(serde_json::to_vec(&result).expect("BUG: failed to serialize"));
-        match self.hashes.get(&hash) {
-            Some(existing_result) => {
-                assert_eq!(
-                    existing_result, &result,
-                    "BUG: different results once serialized have the same hash"
-                );
-                let providers = self
-                    .responses
-                    .get_mut(&hash)
-                    .expect("BUG: hash is guaranteed to be present");
-                assert!(
-                    providers.insert(provider),
-                    "BUG: provider is already present"
-                );
-            }
-            None => {
-                assert_eq!(self.hashes.insert(hash, result), None);
-                let providers = BTreeSet::from_iter(std::iter::once(provider));
-                assert_eq!(self.responses.insert(hash, providers), None);
+impl From<ConsensusStrategy> for ReductionStrategy {
+    fn from(value: ConsensusStrategy) -> Self {
+        match value {
+            ConsensusStrategy::Equality => ReductionStrategy::ByEquality(ReduceWithEquality),
+            ConsensusStrategy::Threshold { total: _, min } => {
+                ReductionStrategy::ByThreshold(ReduceWithThreshold::new(min))
             }
         }
     }
 }
+
+impl<T: PartialEq + Serialize> Reduce<RpcService, T, RpcError> for ReductionStrategy {
+    fn reduce(&self, results: MultiResults<RpcService, T, RpcError>) -> ReducedResult<T> {
+        match self {
+            ReductionStrategy::ByEquality(r) => r.reduce(results),
+            ReductionStrategy::ByThreshold(r) => r.reduce(results),
+        }
+    }
+}
+
+pub type MultiCallResults<T> = MultiResults<RpcService, T, RpcError>;
+pub type ReducedResult<T> = canhttp::multi::ReducedResult<RpcService, T, RpcError>;
