@@ -1,6 +1,8 @@
 use crate::multi::MultiResults;
 use serde::Serialize;
+use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
+use std::marker::PhantomData;
 
 /// Reduce a [`MultiResults`] into a single [`Result`].
 pub trait Reduce<K, V, E> {
@@ -169,7 +171,7 @@ impl ReduceWithThreshold {
 impl<K, V, E> Reduce<K, V, E> for ReduceWithThreshold
 where
     K: Ord + Clone,
-    V: ToBytes,
+    V: Serialize,
     E: PartialEq,
 {
     fn reduce(&self, results: MultiResults<K, V, E>) -> ReducedResult<K, V, E> {
@@ -186,7 +188,7 @@ where
         }
         let mut distribution = BTreeMap::new();
         for (key, value) in &results.ok_results {
-            let hash = value.hash();
+            let hash = OrdByHash::new(value);
             distribution
                 .entry(hash)
                 .or_insert_with(BTreeSet::new)
@@ -211,28 +213,45 @@ where
     }
 }
 
-/// Convert to bytes.
-///
-/// It's expected that different values will lead to a different result.
-pub trait ToBytes {
-    /// Convert to bytes.
-    fn to_bytes(&self) -> Vec<u8>;
+#[derive(Debug)]
+struct OrdByHash<V> {
+    hash: [u8; 32],
+    marker: PhantomData<V>,
+}
 
-    /// Hash the converted bytes on 32 bytes.
-    fn hash(&self) -> [u8; 32] {
-        use sha2::{Digest, Sha256};
-
-        let mut hasher = Sha256::new();
-        hasher.update(self.to_bytes());
-        hasher.finalize().into()
+impl<V> PartialEq for OrdByHash<V> {
+    fn eq(&self, other: &Self) -> bool {
+        self.hash == other.hash
     }
 }
 
-impl<T: Serialize> ToBytes for T {
-    fn to_bytes(&self) -> Vec<u8> {
+impl<V> Eq for OrdByHash<V> {}
+
+impl<V> PartialOrd for OrdByHash<V> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<V> Ord for OrdByHash<V> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.hash.cmp(&other.hash)
+    }
+}
+
+impl<V: Serialize> OrdByHash<V> {
+    pub fn new(value: &V) -> Self {
+        use sha2::{Digest, Sha256};
         let mut buf = Vec::new();
-        ciborium::ser::into_writer(self, &mut buf).expect("failed to serialize type");
-        buf
+        ciborium::ser::into_writer(value, &mut buf).expect("failed to serialize type");
+
+        let mut hasher = Sha256::new();
+        hasher.update(buf);
+        let hash = hasher.finalize().into();
+        Self {
+            hash,
+            marker: PhantomData,
+        }
     }
 }
 
