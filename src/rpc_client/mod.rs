@@ -336,15 +336,14 @@ impl EthRpcClient {
             requests.insert_once(provider.clone(), request);
         }
 
-        let client = http_client(MetricRpcMethod(method.into()), true).map_result(|r| match r {
-            Ok(r) => match r.into_body().into_result() {
+        let client = http_client(MetricRpcMethod(method.into()), true).map_result(|r| {
+            match r?.into_body().into_result() {
                 Ok(value) => Ok(value),
                 Err(json_rpc_error) => Err(RpcError::JsonRpcError(JsonRpcError {
                     code: json_rpc_error.code,
                     message: json_rpc_error.message,
                 })),
-            },
-            Err(e) => Err(e),
+            }
         });
 
         let (requests, errors) = requests.into_inner();
