@@ -13,6 +13,7 @@ use futures_channel::mpsc;
 use futures_util::StreamExt;
 use std::collections::{btree_map::IntoIter as BTreeMapIntoIter, BTreeMap};
 use std::fmt::Debug;
+use std::iter::FusedIterator;
 use tower::{Service, ServiceExt};
 
 /// Process all requests from the given iterator and produce a result for reach request.
@@ -175,26 +176,26 @@ impl<K, V, E> MultiResults<K, V, E> {
 impl<K: Ord, V, E> MultiResults<K, V, E> {
     /// Return a new instance of [`MultiResults`] by inserting
     /// each key-result pair given by the iterator.
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```rust
     /// use canhttp::multi::MultiResults;
-    /// 
+    ///
     /// let results = MultiResults::from_non_empty_iter(vec![
     ///     (0, Ok("yes")),
     ///     (1, Err("wrong")),
     ///     (2, Ok("no"))
     /// ]);
-    /// 
+    ///
     /// let mut other_results = MultiResults::default();
     /// other_results.insert_once(0, Ok("yes"));
     /// other_results.insert_once(1, Err("wrong"));
     /// other_results.insert_once(2, Ok("no"));
-    /// 
+    ///
     /// assert_eq!(results, other_results);
     /// ```
-    /// 
+    ///
     /// # Panics
     ///
     /// If the iterator is empty or a previous result with the same key exist.
@@ -208,36 +209,6 @@ impl<K: Ord, V, E> MultiResults<K, V, E> {
         }
         assert!(!results.is_empty(), "ERROR: MultiResults cannot be empty");
         results
-    }
-
-    /// Returns an owning iterator over the entries of [`MultiResults`], sorted by key.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use canhttp::multi::MultiResults;
-    ///
-    /// let mut results = MultiResults::from_non_empty_iter(vec![
-    ///     (0, Ok("yes")),
-    ///     (1, Err("wrong")),
-    ///     (2, Ok("no"))
-    /// ]).into_iter();
-    ///
-    /// assert_eq!(results.next(), Some((0, Ok("yes"))));
-    /// assert_eq!(results.next(), Some((1, Err("wrong"))));
-    /// assert_eq!(results.next(), Some((2, Ok("no"))));
-    /// assert_eq!(results.next(), None);
-    ///
-    /// ```
-    pub fn into_iter(self) -> BTreeMapIntoIter<K, Result<V, E>> {
-        let mut results = BTreeMap::new();
-        for (k, v) in self.ok_results.into_iter() {
-            results.insert(k, Ok(v));
-        }
-        for (k, e) in self.errors.into_iter() {
-            results.insert(k, Err(e));
-        }
-        results.into_iter()
     }
 
     /// Return a reference to the result identified by the key.
@@ -273,7 +244,7 @@ impl<K: Ord, V, E> MultiResults<K, V, E> {
     /// results.insert_once(0, Ok("yes"));
     /// assert_eq!(results.is_empty(), false);
     /// assert_eq!(results.get(&0), Some(Ok(&"yes")));
-    /// 
+    ///
     /// results.insert_once(1, Err("wrong"));
     /// assert_eq!(results.get(&1), Some(Err(&"wrong")));
     /// ```
@@ -340,6 +311,62 @@ impl<K: Ord, V, E> MultiResults<K, V, E> {
     {
         for (key, error) in errors.into_iter() {
             self.insert_once_err(key, error);
+        }
+    }
+}
+
+/// An owning iterator over the entries of a [`MultiResults`],
+/// where the [`Ok`] results are given first (sorted by key) and then
+/// the [`Err`] results (also sorted by key).
+///
+/// This `struct` is created by the [`into_iter`] method on [`MultiResults`]
+/// (provided by the [`IntoIterator`] trait). See its documentation for more.
+///
+/// # Examples
+///
+/// ```rust
+/// use canhttp::multi::MultiResults;
+///
+/// let mut results = MultiResults::from_non_empty_iter(vec![
+///     (0, Ok("yes")),
+///     (1, Err("wrong")),
+///     (2, Ok("no"))
+/// ]).into_iter();
+///
+/// assert_eq!(results.next(), Some((0, Ok("yes"))));
+/// assert_eq!(results.next(), Some((2, Ok("no"))));
+/// assert_eq!(results.next(), Some((1, Err("wrong"))));
+/// assert_eq!(results.next(), None);
+///
+/// ```
+///
+/// [`into_iter`]: IntoIterator::into_iter
+pub struct IntoIter<K, V, E> {
+    ok_results_iter: BTreeMapIntoIter<K, V>,
+    errors_iter: BTreeMapIntoIter<K, E>,
+}
+
+impl<K, V, E> Iterator for IntoIter<K, V, E> {
+    type Item = (K, Result<V, E>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.ok_results_iter
+            .next()
+            .map(|(k, v)| (k, Ok(v)))
+            .or_else(|| self.errors_iter.next().map(|(k, e)| (k, Err(e))))
+    }
+}
+
+impl<K, V, E> FusedIterator for IntoIter<K, V, E> {}
+
+impl<K, V, E> IntoIterator for MultiResults<K, V, E> {
+    type Item = (K, Result<V, E>);
+    type IntoIter = IntoIter<K, V, E>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        Self::IntoIter {
+            ok_results_iter: self.ok_results.into_iter(),
+            errors_iter: self.errors.into_iter(),
         }
     }
 }
