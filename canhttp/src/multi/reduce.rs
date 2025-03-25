@@ -2,19 +2,28 @@ use crate::multi::MultiResults;
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 
+/// Reduce a [`MultiResults`] into a single [`Result`].
 pub trait Reduce<K, V, E> {
+    /// Do the reduction.
     fn reduce(&self, results: MultiResults<K, V, E>) -> ReducedResult<K, V, E>;
 }
 
+/// Alias for the type returned by [`Reduce`].
 pub type ReducedResult<K, V, E> = Result<V, ReductionError<K, V, E>>;
 
+/// Error returned by [`Reduce::reduce`].
 #[derive(Debug, PartialEq, Eq)]
 pub enum ReductionError<K, V, E> {
+    /// The given [`MultiResults`] all show the same error pattern that prevent
+    /// them for being reduced to a single value.
     ConsistentError(E),
+    /// The given [`MultiResults`] are declared inconsistent with each other
+    /// and cannot be reduced to a single value.
     InconsistentResults(MultiResults<K, V, E>),
 }
 
 impl<K, V, E> MultiResults<K, V, E> {
+    /// Shorthand for calling a given implementation of [`Reduce`].
     pub fn reduce<R: Reduce<K, V, E>>(self, reducer: R) -> ReducedResult<K, V, E> {
         reducer.reduce(self)
     }
@@ -39,7 +48,7 @@ impl<K, V, E, T: Reduce<K, V, E>> Reduce<K, V, E> for Box<T> {
 }
 
 /// Reduce a [`MultiResults`] by requiring that all elements are ok and all equal to each other.
-/// 
+///
 /// # Examples
 ///
 /// ```
@@ -54,7 +63,7 @@ impl<K, V, E, T: Reduce<K, V, E>> Reduce<K, V, E> for Box<T> {
 ///     results.clone().reduce(ReduceWithEquality),
 ///     Ok("same")
 /// );
-/// 
+///
 /// let results = MultiResults::from_non_empty_iter(vec![
 ///     (0_u8, Ok("same")),
 ///     (1_u8, Err("unknown")),
@@ -93,9 +102,9 @@ where
 }
 
 /// Reduce a [`MultiResults`] by requiring that at least threshold many `Ok` results are the same.
-/// 
+///
 /// # Examples
-/// 
+///
 /// ```
 /// use canhttp::multi::{MultiResults, ReduceWithThreshold, ReductionError};
 /// let results = MultiResults::from_non_empty_iter(vec![
@@ -115,9 +124,9 @@ where
 ///     Err(ReductionError::InconsistentResults(results))
 /// )
 /// ```
-/// 
+///
 /// # Panics
-/// 
+///
 /// If the results is empty.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReduceWithThreshold(u8);

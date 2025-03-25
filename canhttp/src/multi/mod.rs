@@ -11,7 +11,7 @@ mod tests;
 
 use futures_channel::mpsc;
 use futures_util::StreamExt;
-use std::collections::BTreeMap;
+use std::collections::{btree_map::IntoIter as BTreeMapIntoIter, BTreeMap};
 use std::fmt::Debug;
 use tower::{Service, ServiceExt};
 
@@ -23,7 +23,7 @@ use tower::{Service, ServiceExt};
 ///
 /// The requests will be sent to the underlying service in parallel and the result for each request
 /// can be retrieved by the corresponding request ID.
-/// 
+///
 /// # Examples
 ///
 /// ```rust
@@ -79,11 +79,11 @@ where
     (parallel_service.into_inner(), results)
 }
 
-/// Aggregates responses from multiple requests.
+/// Aggregates multiple results, where each result is identified by a *unique* key.
 ///
-/// Typically, those requests are the same excepted for the URL.
-/// This is useful to verify that the responses are consistent between each other
-/// and avoid a single point of failure.
+/// At the implementation level, results are split between [`Ok`] values and [`Err`] values.
+/// The main use-case is to use various reduction strategies (see [`Reduce`]) to transform those
+/// multiple results into a single one.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MultiResults<K, V, E> {
     ok_results: BTreeMap<K, V>,
@@ -97,6 +97,7 @@ impl<K, V, E> Default for MultiResults<K, V, E> {
 }
 
 impl<K, V, E> MultiResults<K, V, E> {
+    /// Create a new empty [`MultiResults`].
     pub fn new() -> Self {
         Self {
             ok_results: BTreeMap::new(),
@@ -104,28 +105,99 @@ impl<K, V, E> MultiResults<K, V, E> {
         }
     }
 
+    /// Consume the [`MultiResults`] and split it into two maps containing the [`Ok`] results
+    /// and the [`Err`] results.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use maplit::btreemap;
+    /// use canhttp::multi::MultiResults;
+    ///
+    /// let results = MultiResults::from_non_empty_iter(vec![
+    ///     (0, Ok("yes")),
+    ///     (1, Err("wrong")),
+    ///     (2, Ok("no"))
+    /// ]);
+    ///
+    /// let (ok, err) = results.into_inner();
+    ///
+    /// assert_eq!(ok, btreemap! {
+    ///     0 => "yes",
+    ///     2 => "no",
+    /// });
+    /// assert_eq!(err, btreemap! {1 => "wrong"});
+    /// ```
     pub fn into_inner(self) -> (BTreeMap<K, V>, BTreeMap<K, E>) {
         (self.ok_results, self.errors)
     }
 
+    /// Return the number of results.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use canhttp::multi::MultiResults;
+    ///
+    /// let results = MultiResults::from_non_empty_iter(vec![
+    ///     (0, Ok("yes")),
+    ///     (1, Err("wrong")),
+    ///     (2, Ok("no"))
+    /// ]);
+    ///
+    /// assert_eq!(results.len(), 3);
+    /// ```
     pub fn len(&self) -> usize {
         self.ok_results.len() + self.errors.len()
     }
 
+    /// Return true if and only if there are no results.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use canhttp::multi::MultiResults;
+    ///
+    /// let mut results = MultiResults::default();
+    /// assert!(results.is_empty());
+    ///
+    /// results.insert_once(1, Ok("yes"));
+    /// assert!(!results.is_empty());
+    ///
+    /// results.insert_once(2, Err("wrong"));
+    /// assert!(!results.is_empty());
+    /// ```
     pub fn is_empty(&self) -> bool {
         self.ok_results.is_empty() && self.errors.is_empty()
-    }
-
-    pub fn into_vec(self) -> Vec<(K, Result<V, E>)> {
-        self.ok_results
-            .into_iter()
-            .map(|(k, result)| (k, Ok(result)))
-            .chain(self.errors.into_iter().map(|(k, error)| (k, Err(error))))
-            .collect()
     }
 }
 
 impl<K: Ord, V, E> MultiResults<K, V, E> {
+    /// Return a new instance of [`MultiResults`] by inserting
+    /// each key-result pair given by the iterator.
+    /// 
+    /// # Examples
+    /// 
+    /// ```rust
+    /// use canhttp::multi::MultiResults;
+    /// 
+    /// let results = MultiResults::from_non_empty_iter(vec![
+    ///     (0, Ok("yes")),
+    ///     (1, Err("wrong")),
+    ///     (2, Ok("no"))
+    /// ]);
+    /// 
+    /// let mut other_results = MultiResults::default();
+    /// other_results.insert_once(0, Ok("yes"));
+    /// other_results.insert_once(1, Err("wrong"));
+    /// other_results.insert_once(2, Ok("no"));
+    /// 
+    /// assert_eq!(results, other_results);
+    /// ```
+    /// 
+    /// # Panics
+    ///
+    /// If the iterator is empty or a previous result with the same key exist.
     pub fn from_non_empty_iter<I>(iter: I) -> Self
     where
         I: IntoIterator<Item = (K, Result<V, E>)>,
@@ -138,6 +210,52 @@ impl<K: Ord, V, E> MultiResults<K, V, E> {
         results
     }
 
+    /// Returns an owning iterator over the entries of [`MultiResults`], sorted by key.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use canhttp::multi::MultiResults;
+    ///
+    /// let mut results = MultiResults::from_non_empty_iter(vec![
+    ///     (0, Ok("yes")),
+    ///     (1, Err("wrong")),
+    ///     (2, Ok("no"))
+    /// ]).into_iter();
+    ///
+    /// assert_eq!(results.next(), Some((0, Ok("yes"))));
+    /// assert_eq!(results.next(), Some((1, Err("wrong"))));
+    /// assert_eq!(results.next(), Some((2, Ok("no"))));
+    /// assert_eq!(results.next(), None);
+    ///
+    /// ```
+    pub fn into_iter(self) -> BTreeMapIntoIter<K, Result<V, E>> {
+        let mut results = BTreeMap::new();
+        for (k, v) in self.ok_results.into_iter() {
+            results.insert(k, Ok(v));
+        }
+        for (k, e) in self.errors.into_iter() {
+            results.insert(k, Err(e));
+        }
+        results.into_iter()
+    }
+
+    /// Return a reference to the result identified by the key.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use canhttp::multi::MultiResults;
+    ///
+    /// let mut results = MultiResults::from_non_empty_iter(vec![
+    ///     (0, Ok("yes")),
+    ///     (1, Err("wrong")),
+    /// ]);
+    ///
+    /// assert_eq!(results.get(&0), Some(Ok(&"yes")));
+    /// assert_eq!(results.get(&1), Some(Err(&"wrong")));
+    /// assert_eq!(results.get(&2), None);
+    /// ```
     pub fn get(&self, id: &K) -> Option<Result<&V, &E>> {
         self.ok_results
             .get(id)
@@ -145,6 +263,24 @@ impl<K: Ord, V, E> MultiResults<K, V, E> {
             .or_else(|| self.errors.get(id).map(Err))
     }
 
+    /// Insert a key-result pair.
+    ///
+    /// # Examples
+    /// ```rust
+    /// use canhttp::multi::MultiResults;
+    ///
+    /// let mut results = MultiResults::default();
+    /// results.insert_once(0, Ok("yes"));
+    /// assert_eq!(results.is_empty(), false);
+    /// assert_eq!(results.get(&0), Some(Ok(&"yes")));
+    /// 
+    /// results.insert_once(1, Err("wrong"));
+    /// assert_eq!(results.get(&1), Some(Err(&"wrong")));
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// If a previous result with the same key exist.
     pub fn insert_once(&mut self, key: K, result: Result<V, E>) {
         match result {
             Ok(value) => {
@@ -156,7 +292,7 @@ impl<K: Ord, V, E> MultiResults<K, V, E> {
         }
     }
 
-    pub fn insert_once_ok(&mut self, key: K, value: V) {
+    fn insert_once_ok(&mut self, key: K, value: V) {
         assert!(
             !self.errors.contains_key(&key),
             "ERROR: duplicate key in `errors`"
@@ -167,7 +303,7 @@ impl<K: Ord, V, E> MultiResults<K, V, E> {
         );
     }
 
-    pub fn insert_once_err(&mut self, key: K, error: E) {
+    fn insert_once_err(&mut self, key: K, error: E) {
         assert!(
             !self.ok_results.contains_key(&key),
             "ERROR: duplicate key in `ok_results`"
@@ -178,6 +314,26 @@ impl<K: Ord, V, E> MultiResults<K, V, E> {
         );
     }
 
+    /// Add multiple errors to the results.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use canhttp::multi::MultiResults;
+    ///
+    /// let mut results: MultiResults<_, (), _> = MultiResults::default();
+    /// results.add_errors(vec![
+    ///     (0, "wrong"),
+    ///     (1, "wrong")
+    /// ]);
+    ///
+    /// assert_eq!(results.get(&0), Some(Err(&"wrong")));
+    /// assert_eq!(results.get(&1), Some(Err(&"wrong")));
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// If a previous result with the same key exist.
     pub fn add_errors<I>(&mut self, errors: I)
     where
         I: IntoIterator<Item = (K, E)>,

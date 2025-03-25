@@ -20,7 +20,7 @@ fn process_result<T>(method: RpcMethod, result: ReducedResult<T>) -> MultiRpcRes
         Err(err) => match err {
             ReductionError::ConsistentError(err) => MultiRpcResult::Consistent(Err(err)),
             ReductionError::InconsistentResults(multi_call_results) => {
-                let results = multi_call_results.into_vec();
+                let results: Vec<_> = multi_call_results.into_iter().collect();
                 results.iter().for_each(|(service, _service_result)| {
                     if let Ok(ResolvedRpcService::Provider(provider)) =
                         resolve_rpc_service(service.clone())
