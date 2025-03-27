@@ -154,7 +154,7 @@ impl<T> JsonRpcResponse<T> {
     }
 
     /// Map this response's result by the given function.
-    pub fn map(self, f: fn(T) -> T) -> Self {
+    pub fn map(self, f: impl FnOnce(T) -> T) -> Self {
         Self {
             result: self.result.map(f),
             ..self
