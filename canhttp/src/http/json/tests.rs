@@ -93,6 +93,16 @@ mod json_rpc {
             assert_matches!(serde_json::from_value::<Version>(version), Err(_));
         }
     }
+
+    #[test]
+    fn should_map_json_rpc_response() {
+        let response = JsonRpcResponse::from_ok(Id::Number(0), 0);
+
+        assert_eq!(
+            response.map(|value| value + 1),
+            JsonRpcResponse::from_ok(Id::Number(0), 1)
+        );
+    }
 }
 
 #[tokio::test]
