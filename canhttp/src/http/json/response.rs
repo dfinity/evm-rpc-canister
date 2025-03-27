@@ -154,8 +154,7 @@ impl<T> JsonRpcResponse<T> {
     }
 
     /// Map this response's result by the given function.
-    #[allow(dead_code)]
-    fn map(self, f: fn(T) -> T) -> Self {
+    pub fn map(self, f: fn(T) -> T) -> Self {
         Self {
             result: self.result.map(f),
             ..self
@@ -196,7 +195,6 @@ impl<T> JsonRpcResultEnvelope<T> {
         }
     }
 
-    #[allow(dead_code)]
     fn map(self, f: fn(T) -> T) -> Self {
         match self {
             JsonRpcResultEnvelope::Ok(result) => JsonRpcResultEnvelope::Ok(f(result)),
