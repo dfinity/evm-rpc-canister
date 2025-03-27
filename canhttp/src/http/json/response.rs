@@ -152,6 +152,14 @@ impl<T> JsonRpcResponse<T> {
     pub fn id(&self) -> &Id {
         &self.id
     }
+
+    /// Map this response's result by the given function.
+    fn map(self, f: fn(T) -> T) -> Self {
+        Self {
+            result: self.result.map(f),
+            ..self
+        }
+    }
 }
 
 /// An envelope for all JSON-RPC responses.
@@ -184,6 +192,13 @@ impl<T> JsonRpcResultEnvelope<T> {
         match self {
             JsonRpcResultEnvelope::Ok(result) => Ok(result),
             JsonRpcResultEnvelope::Err(error) => Err(error),
+        }
+    }
+
+    fn map(self, f: fn(T) -> T) -> Self {
+        match self {
+            JsonRpcResultEnvelope::Ok(result) => JsonRpcResultEnvelope::Ok(f(result)),
+            JsonRpcResultEnvelope::Err(error) => JsonRpcResultEnvelope::Err(error),
         }
     }
 }
