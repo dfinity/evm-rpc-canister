@@ -195,7 +195,7 @@ impl<T> JsonRpcResultEnvelope<T> {
         }
     }
 
-    fn map(self, f: fn(T) -> T) -> Self {
+    fn map(self, f: impl FnOnce(T) -> T) -> Self {
         match self {
             JsonRpcResultEnvelope::Ok(result) => JsonRpcResultEnvelope::Ok(f(result)),
             JsonRpcResultEnvelope::Err(error) => JsonRpcResultEnvelope::Err(error),
