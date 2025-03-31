@@ -154,10 +154,11 @@ impl<T> JsonRpcResponse<T> {
     }
 
     /// Map this response's result by the given function.
-    pub fn map(self, f: impl FnOnce(T) -> T) -> Self {
-        Self {
+    pub fn map<R>(self, f: impl FnOnce(T) -> R) -> JsonRpcResponse<R> {
+        JsonRpcResponse {
+            jsonrpc: self.jsonrpc,
+            id: self.id,
             result: self.result.map(f),
-            ..self
         }
     }
 }
@@ -195,7 +196,7 @@ impl<T> JsonRpcResultEnvelope<T> {
         }
     }
 
-    fn map(self, f: impl FnOnce(T) -> T) -> Self {
+    fn map<R>(self, f: impl FnOnce(T) -> R) -> JsonRpcResultEnvelope<R> {
         match self {
             JsonRpcResultEnvelope::Ok(result) => JsonRpcResultEnvelope::Ok(f(result)),
             JsonRpcResultEnvelope::Err(error) => JsonRpcResultEnvelope::Err(error),
