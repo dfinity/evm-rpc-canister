@@ -329,6 +329,7 @@ dependencies = [
  "maplit",
  "num-traits",
  "pin-project",
+ "proptest",
  "serde",
  "serde_json",
  "sha2",
