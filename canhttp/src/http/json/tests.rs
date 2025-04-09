@@ -111,6 +111,12 @@ mod constant_size_id {
     use proptest::{prop_assert_eq, proptest};
 
     #[test]
+    fn should_add_padding_to_the_left() {
+        let one = ConstantSizeId::from(1_u8);
+        assert_eq!(one.to_string(), "00000000000000000001")
+    }
+
+    #[test]
     fn should_have_necessary_padding() {
         let zero = ConstantSizeId::ZERO.to_string();
         let max = ConstantSizeId::MAX.to_string();

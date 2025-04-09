@@ -118,7 +118,7 @@ impl ConstantSizeId {
     fn to_constant_size_string(&self) -> String {
         // Need at most 20 decimal characters to represent a u64:
         // 19 < log_10(u64::MAX) < 20
-        format!("{:0<20}", self.0)
+        format!("{:0>20}", self.0)
     }
 }
 
