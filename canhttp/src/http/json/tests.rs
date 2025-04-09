@@ -117,7 +117,7 @@ mod constant_size_id {
     }
 
     #[test]
-    fn should_have_necessary_padding() {
+    fn should_have_only_necessary_padding() {
         let zero = ConstantSizeId::ZERO.to_string();
         let max = ConstantSizeId::MAX.to_string();
         assert_eq!(zero.len(), max.len());
