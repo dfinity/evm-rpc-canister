@@ -85,7 +85,7 @@ fn add_content_type_header_if_missing(mut request: HttpRequest) -> HttpRequest {
 pub type HttpJsonRpcRequest<T> = http::Request<JsonRpcRequest<T>>;
 
 /// Body for all JSON-RPC requests, see the [specification](https://www.jsonrpc.org/specification).
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct JsonRpcRequest<T> {
     jsonrpc: Version,
     method: String,
