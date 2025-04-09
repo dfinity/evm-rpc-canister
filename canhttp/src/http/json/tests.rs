@@ -133,6 +133,16 @@ mod constant_size_id {
             let bytes = serde_json::to_vec(&id).unwrap();
             prop_assert_eq!(bytes.len(), 22);
         }
+
+        #[test]
+        fn should_parse_string_value_and_ignore_extra_padding(id in any::<u64>(), extra_padding_len in any::<u8>()) {
+            let id = ConstantSizeId::from(id);
+            let s = id.to_string();
+            prop_assert_eq!(id.clone(), s.parse().unwrap());
+
+            let padded = format!("{}{}", "0".repeat(extra_padding_len as usize), s);
+            prop_assert_eq!(id, padded.parse().unwrap());
+        }
     }
 }
 

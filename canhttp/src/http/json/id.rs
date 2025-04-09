@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
+use std::num::ParseIntError;
+use std::str::FromStr;
 
 /// An identifier established by the Client that MUST contain a String, Number, or NULL value if included.
 ///
@@ -125,5 +127,17 @@ impl ConstantSizeId {
 impl From<ConstantSizeId> for Id {
     fn from(value: ConstantSizeId) -> Self {
         Id::String(value.to_string())
+    }
+}
+
+impl FromStr for ConstantSizeId {
+    type Err = ParseIntError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let num = match s.find(|c| c != '0') {
+            Some(non_zero_index) => s[non_zero_index..].parse::<u64>(),
+            None => s.parse::<u64>(),
+        };
+        num.map(ConstantSizeId::from)
     }
 }
