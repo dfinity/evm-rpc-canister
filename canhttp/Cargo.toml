@@ -29,6 +29,7 @@ thiserror = { workspace = true }
 candid = { workspace = true }
 itertools = { workspace = true }
 maplit = { workspace = true }
+proptest = {workspace = true}
 tokio = { workspace = true, features = ["full"] }
 
 [features]

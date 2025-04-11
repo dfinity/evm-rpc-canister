@@ -50,7 +50,7 @@
 //! # }
 
 use crate::convert::{ConvertRequest, ConvertRequestLayer, ConvertResponse, ConvertResponseLayer};
-pub use id::Id;
+pub use id::{ConstantSizeId, Id};
 pub use request::{
     HttpJsonRpcRequest, JsonRequestConversionError, JsonRequestConverter, JsonRpcRequest,
 };

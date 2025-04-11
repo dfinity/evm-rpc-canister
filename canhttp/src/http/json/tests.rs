@@ -105,6 +105,47 @@ mod json_rpc {
     }
 }
 
+mod constant_size_id {
+    use crate::http::json::{ConstantSizeId, Id};
+    use proptest::prelude::any;
+    use proptest::{prop_assert_eq, proptest};
+
+    #[test]
+    fn should_add_padding_to_the_left() {
+        let one = ConstantSizeId::from(1_u8);
+        assert_eq!(one.to_string(), "00000000000000000001")
+    }
+
+    #[test]
+    fn should_have_only_necessary_padding() {
+        let zero = ConstantSizeId::ZERO.to_string();
+        let max = ConstantSizeId::MAX.to_string();
+        assert_eq!(zero.len(), max.len());
+
+        let u64_max = u64::MAX.to_string();
+        assert_eq!(u64_max, max);
+    }
+
+    proptest! {
+        #[test]
+        fn should_have_constant_size_when_serialized(id in any::<u64>()) {
+            let id = Id::from(ConstantSizeId::from(id));
+            let bytes = serde_json::to_vec(&id).unwrap();
+            prop_assert_eq!(bytes.len(), 22);
+        }
+
+        #[test]
+        fn should_parse_string_value_and_ignore_extra_padding(id in any::<u64>(), extra_padding_len in any::<u8>()) {
+            let id = ConstantSizeId::from(id);
+            let s = id.to_string();
+            prop_assert_eq!(id.clone(), s.parse().unwrap());
+
+            let padded = format!("{}{}", "0".repeat(extra_padding_len as usize), s);
+            prop_assert_eq!(id, padded.parse().unwrap());
+        }
+    }
+}
+
 #[tokio::test]
 async fn should_convert_json_request() {
     let url = "https://internetcomputer.org/";

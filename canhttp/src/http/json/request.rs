@@ -1,5 +1,5 @@
 use crate::convert::Convert;
-use crate::http::json::{Id, Version};
+use crate::http::json::{ConstantSizeId, Id, Version};
 use crate::http::HttpRequest;
 use http::header::CONTENT_TYPE;
 use http::HeaderValue;
@@ -85,7 +85,7 @@ fn add_content_type_header_if_missing(mut request: HttpRequest) -> HttpRequest {
 pub type HttpJsonRpcRequest<T> = http::Request<JsonRpcRequest<T>>;
 
 /// Body for all JSON-RPC requests, see the [specification](https://www.jsonrpc.org/specification).
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct JsonRpcRequest<T> {
     jsonrpc: Version,
     method: String,
@@ -95,18 +95,23 @@ pub struct JsonRpcRequest<T> {
 
 impl<T> JsonRpcRequest<T> {
     /// Create a new body of a JSON-RPC request.
+    ///
+    /// By default, constant-size ID is used. See [`ConstantSizeId`].
     pub fn new(method: impl Into<String>, params: T) -> Self {
         Self {
             jsonrpc: Version::V2,
             method: method.into(),
-            id: Id::ZERO,
+            id: ConstantSizeId::ZERO.into(),
             params: Some(params),
         }
     }
 
     /// Change the request ID following the builder pattern.
-    pub fn with_id(self, id: Id) -> Self {
-        Self { id, ..self }
+    pub fn with_id<I: Into<Id>>(self, id: I) -> Self {
+        Self {
+            id: id.into(),
+            ..self
+        }
     }
 
     /// Change the request ID.
