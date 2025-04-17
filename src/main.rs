@@ -13,7 +13,6 @@ use evm_rpc::providers::{find_provider, resolve_rpc_service, PROVIDERS, SERVICE_
 use evm_rpc::types::{LogFilter, OverrideProvider, Provider, ProviderId, RpcAccess, RpcAuth};
 use evm_rpc::{
     http::{json_rpc_request, json_rpc_request_arg, transform_http_request},
-    http_types,
     memory::UNSTABLE_METRICS,
     types::Metrics,
 };
@@ -29,6 +28,7 @@ use ic_cdk::{
     },
     query, update,
 };
+use ic_http_types::{HttpRequest, HttpResponse, HttpResponseBuilder};
 use ic_metrics_encoder::MetricsEncoder;
 use tower::Service;
 
@@ -318,7 +318,7 @@ fn post_upgrade(args: evm_rpc_types::InstallArgs) {
 }
 
 #[query(hidden = true)]
-fn http_request(request: http_types::HttpRequest) -> http_types::HttpResponse {
+fn http_request(request: HttpRequest) -> HttpResponse {
     if ic_cdk::api::in_replicated_execution() {
         ic_cdk::trap("Update call rejected");
     }
@@ -328,15 +328,14 @@ fn http_request(request: http_types::HttpRequest) -> http_types::HttpResponse {
             let mut writer = MetricsEncoder::new(vec![], ic_cdk::api::time() as i64 / 1_000_000);
 
             match encode_metrics(&mut writer) {
-                Ok(()) => http_types::HttpResponseBuilder::ok()
+                Ok(()) => HttpResponseBuilder::ok()
                     .header("Content-Type", "text/plain; version=0.0.4")
                     .with_body_and_content_length(writer.into_inner())
                     .build(),
-                Err(err) => http_types::HttpResponseBuilder::server_error(format!(
-                    "Failed to encode metrics: {}",
-                    err
-                ))
-                .build(),
+                Err(err) => {
+                    HttpResponseBuilder::server_error(format!("Failed to encode metrics: {}", err))
+                        .build()
+                }
             }
         }
         "/logs" => {
@@ -347,7 +346,7 @@ fn http_request(request: http_types::HttpRequest) -> http_types::HttpResponse {
                 Some(arg) => match u64::from_str(arg) {
                     Ok(value) => value,
                     Err(_) => {
-                        return http_types::HttpResponseBuilder::bad_request()
+                        return HttpResponseBuilder::bad_request()
                             .with_body_and_content_length("failed to parse the 'time' parameter")
                             .build()
                     }
@@ -400,12 +399,12 @@ fn http_request(request: http_types::HttpRequest) -> http_types::HttpResponse {
             ));
 
             const MAX_BODY_SIZE: usize = 2_000_000;
-            http_types::HttpResponseBuilder::ok()
+            HttpResponseBuilder::ok()
                 .header("Content-Type", "application/json; charset=utf-8")
                 .with_body_and_content_length(log.serialize_logs(MAX_BODY_SIZE))
                 .build()
         }
-        _ => http_types::HttpResponseBuilder::not_found().build(),
+        _ => HttpResponseBuilder::not_found().build(),
     }
 }
 

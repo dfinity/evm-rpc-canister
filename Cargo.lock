@@ -804,6 +804,7 @@ dependencies = [
  "ic-cdk-macros",
  "ic-crypto-test-utils-reproducible-rng",
  "ic-ethereum-types",
+ "ic-http-types",
  "ic-metrics-encoder",
  "ic-stable-structures",
  "ic-test-utilities-load-wasm",
@@ -1263,6 +1264,17 @@ dependencies = [
  "minicbor 0.19.1",
  "minicbor-derive 0.13.0",
  "serde",
+]
+
+[[package]]
+name = "ic-http-types"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "207166ed1477b107f56c3d98f6c9ea771ed84be407567bc7099db907d98490a3"
+dependencies = [
+ "candid",
+ "serde",
+ "serde_bytes",
 ]
 
 [[package]]

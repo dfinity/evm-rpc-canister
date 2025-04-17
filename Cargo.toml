@@ -24,6 +24,7 @@ evm_rpc_types = { path = "evm_rpc_types" }
 getrandom = { workspace = true }
 http = { workspace = true }
 ic-ethereum-types = "1.0.0"
+ic-http-types = "0.1.0"
 ic-metrics-encoder = { workspace = true }
 ic-stable-structures = { workspace = true }
 ic-canister-log = { workspace = true }

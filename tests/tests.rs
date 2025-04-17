@@ -7,7 +7,6 @@ use evm_rpc::constants::DEFAULT_MAX_RESPONSE_BYTES;
 use evm_rpc::logs::{Log, LogEntry};
 use evm_rpc::{
     constants::{CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE},
-    http_types::{HttpRequest, HttpResponse},
     providers::PROVIDERS,
     types::{Metrics, ProviderId, RpcAccess, RpcMethod},
 };
@@ -19,6 +18,7 @@ use evm_rpc_types::{
 use ic_cdk::api::call::RejectionCode;
 use ic_cdk::api::management_canister::http_request::HttpHeader;
 use ic_cdk::api::management_canister::main::CanisterId;
+use ic_http_types::{HttpRequest, HttpResponse};
 use ic_test_utilities_load_wasm::load_wasm;
 use maplit::hashmap;
 use mock::{MockOutcall, MockOutcallBuilder};
