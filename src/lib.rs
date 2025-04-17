@@ -1,7 +1,6 @@
 pub mod candid_rpc;
 pub mod constants;
 pub mod http;
-pub mod http_types;
 pub mod logs;
 pub mod memory;
 pub mod metrics;

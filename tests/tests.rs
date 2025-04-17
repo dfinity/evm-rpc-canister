@@ -7,10 +7,10 @@ use evm_rpc::constants::DEFAULT_MAX_RESPONSE_BYTES;
 use evm_rpc::logs::{Log, LogEntry};
 use evm_rpc::{
     constants::{CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE},
-    http_types::{HttpRequest, HttpResponse},
     providers::PROVIDERS,
     types::{Metrics, ProviderId, RpcAccess, RpcMethod},
 };
+use ic_http_types::{HttpRequest, HttpResponse};
 use evm_rpc_types::{
     ConsensusStrategy, EthMainnetService, EthSepoliaService, Hex, Hex20, Hex32, HttpOutcallError,
     InstallArgs, JsonRpcError, MultiRpcResult, Nat256, Provider, ProviderError, RpcApi, RpcConfig,
