@@ -54,7 +54,7 @@ ic-test-utilities-load-wasm = { git = "https://github.com/dfinity/ic", rev = "re
 maplit = "1"
 pocket-ic = "7.0.0"
 proptest = { workspace = true }
-rand = "0.8"
+rand = "0.9"
 
 [workspace.dependencies]
 assert_matches = "1.5.0"
