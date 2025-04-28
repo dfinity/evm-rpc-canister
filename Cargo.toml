@@ -52,7 +52,7 @@ candid_parser = { workspace = true }
 ic-crypto-test-utils-reproducible-rng = { git = "https://github.com/dfinity/ic", rev = "release-2024-09-26_01-31-base" }
 ic-test-utilities-load-wasm = { git = "https://github.com/dfinity/ic", rev = "release-2024-09-26_01-31-base" }
 maplit = "1"
-pocket-ic = "7.0.0"
+pocket-ic = "8.0.0"
 proptest = { workspace = true }
 rand = "0.8"
 
