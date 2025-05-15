@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use candid::{candid_method, Principal};
-use ic_cdk_macros::update;
+use ic_cdk::update;
 
 use evm_rpc_types::{
     Block, BlockTag, EthMainnetService, Hex32, MultiRpcResult, ProviderError, RpcError, RpcService,

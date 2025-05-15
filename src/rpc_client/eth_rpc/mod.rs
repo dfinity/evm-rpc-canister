@@ -7,7 +7,7 @@ use crate::rpc_client::numeric::{TransactionCount, Wei};
 use candid::candid_method;
 use canhttp::http::json::JsonRpcResponse;
 use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs};
-use ic_cdk_macros::query;
+use ic_cdk::query;
 use minicbor::{Decode, Encode};
 use serde::{de::DeserializeOwned, Serialize};
 use std::fmt;

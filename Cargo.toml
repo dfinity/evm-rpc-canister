@@ -29,7 +29,6 @@ ic-metrics-encoder = { workspace = true }
 ic-stable-structures = { workspace = true }
 ic-canister-log = { workspace = true }
 ic-cdk = { workspace = true }
-ic-cdk-macros = { workspace = true }
 maplit = "1.0"
 minicbor = { workspace = true }
 serde = { workspace = true }
@@ -71,7 +70,6 @@ http = "1.3.1"
 ic-canister-log = "0.2.0"
 ic-cdk = "0.17.1"
 ic-cdk-bindgen = "0.1"
-ic-cdk-macros = "0.17.1"
 ic-certified-map = "0.4"
 ic-metrics-encoder = "1.1"
 ic-stable-structures = "0.6.8"
