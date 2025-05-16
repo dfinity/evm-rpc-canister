@@ -93,16 +93,17 @@ impl ResponseTransform {
 
 #[query]
 #[candid_method(query)]
-fn cleanup_response(mut args: TransformArgs) -> HttpRequestResult {
-    args.response.headers.clear();
-    let status_ok = args.response.status >= 200u16 && args.response.status < 300u16;
+fn cleanup_response(args: TransformArgs) -> HttpRequestResult {
+    let mut response = args.response;
+    response.headers.clear();
+    let status_ok = response.status >= 200u16 && response.status < 300u16;
     if status_ok && !args.context.is_empty() {
         let maybe_transform: Result<ResponseTransform, _> = minicbor::decode(&args.context[..]);
         if let Ok(transform) = maybe_transform {
-            transform.apply(&mut args.response.body);
+            transform.apply(&mut response.body);
         }
     }
-    args.response
+    response
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
