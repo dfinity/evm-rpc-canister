@@ -1,4 +1,3 @@
-use ic_cdk::api::call::RejectionCode;
 use pocket_ic::common::rest::{
     CanisterHttpHeader, CanisterHttpMethod, CanisterHttpReject, CanisterHttpReply,
     CanisterHttpRequest, CanisterHttpResponse,
@@ -62,7 +61,7 @@ impl MockOutcallBuilder {
         mocks.try_into().unwrap()
     }
 
-    pub fn new_error(code: RejectionCode, message: impl ToString) -> Self {
+    pub fn new_error(reject_code: u64, message: impl ToString) -> Self {
         Self(MockOutcall {
             method: None,
             url: None,
@@ -70,7 +69,7 @@ impl MockOutcallBuilder {
             request_body: None,
             max_response_bytes: None,
             response: CanisterHttpResponse::CanisterHttpReject(CanisterHttpReject {
-                reject_code: code as u64,
+                reject_code,
                 message: message.to_string(),
             }),
         })

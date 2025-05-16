@@ -6,7 +6,7 @@ use crate::rpc_client::json::responses::{Block, FeeHistory, LogEntry, Transactio
 use crate::rpc_client::numeric::{TransactionCount, Wei};
 use candid::candid_method;
 use canhttp::http::json::JsonRpcResponse;
-use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs};
+use ic_cdk::management_canister::{HttpRequestResult, TransformArgs};
 use ic_cdk::query;
 use minicbor::{Decode, Encode};
 use serde::{de::DeserializeOwned, Serialize};
@@ -93,7 +93,7 @@ impl ResponseTransform {
 
 #[query]
 #[candid_method(query)]
-fn cleanup_response(mut args: TransformArgs) -> HttpResponse {
+fn cleanup_response(mut args: TransformArgs) -> HttpRequestResult {
     args.response.headers.clear();
     let status_ok = args.response.status >= 200u16 && args.response.status < 300u16;
     if status_ok && !args.context.is_empty() {

@@ -8,12 +8,12 @@ use crate::{
 use assert_matches::assert_matches;
 use candid::{Decode, Encode, Principal};
 use http::StatusCode;
-use ic_cdk::api::call::RejectionCode;
-use ic_cdk::api::management_canister::http_request::{
-    CanisterHttpRequestArgument as IcHttpRequest, HttpHeader as IcHttpHeader,
-    HttpMethod as IcHttpMethod, HttpResponse as IcHttpResponse,
+use ic_cdk::call::CallRejected;
+use ic_cdk::management_canister::{
+    transform_context_from_query, HttpHeader as IcHttpHeader, HttpMethod as IcHttpMethod,
+    HttpRequestArgs as IcHttpRequest, HttpRequestResult as IcHttpResponse, TransformContext,
+    TransformFunc,
 };
-use ic_cdk::api::management_canister::http_request::{TransformContext, TransformFunc};
 use std::error::Error;
 use std::fmt::Debug;
 use tower::{BoxError, Service, ServiceBuilder, ServiceExt};
@@ -22,10 +22,7 @@ use tower::{BoxError, Service, ServiceBuilder, ServiceExt};
 async fn should_convert_http_request() {
     let url = "https://internetcomputer.org/";
     let max_response_bytes = 1_000;
-    let transform_context = TransformContext {
-        function: TransformFunc::new(Principal::management_canister(), "sanitize".to_string()),
-        context: vec![35_u8; 20],
-    };
+    let transform_context = transform_context_from_query("sanitize".to_string(), vec![35_u8; 20]);
     let body = vec![42_u8; 32];
 
     let mut service = ServiceBuilder::new()
@@ -149,13 +146,7 @@ async fn should_fail_to_convert_http_response() {
         .service_fn(always_error);
     let error =
         expect_error::<_, IcError>(service.ready().await.unwrap().call(invalid_response).await);
-    assert_eq!(
-        error,
-        IcError {
-            code: RejectionCode::Unknown,
-            message: "always error".to_string(),
-        }
-    )
+    assert!(matches!(error, IcError::CallRejected(..)))
 }
 
 #[tokio::test]
@@ -226,10 +217,9 @@ async fn echo_response(response: IcHttpResponse) -> Result<IcHttpResponse, BoxEr
 }
 
 async fn always_error(_response: IcHttpResponse) -> Result<IcHttpResponse, BoxError> {
-    Err(BoxError::from(IcError {
-        code: RejectionCode::Unknown,
-        message: "always error".to_string(),
-    }))
+    Err(BoxError::from(IcError::CallRejected(
+        CallRejected::with_rejection(1, "always error".to_string()),
+    )))
 }
 
 // http::Response<T> does not implement PartialEq

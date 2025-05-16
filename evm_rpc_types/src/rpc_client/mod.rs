@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests;
 
-pub use ic_cdk::api::management_canister::http_request::HttpHeader;
+pub use ic_management_canister_types::HttpHeader;
 use std::fmt::Debug;
 
 use candid::CandidType;

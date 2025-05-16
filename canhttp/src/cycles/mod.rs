@@ -3,7 +3,7 @@ mod tests;
 
 use crate::client::IcHttpRequestWithCycles;
 use crate::convert::Convert;
-use ic_cdk::api::management_canister::http_request::CanisterHttpRequestArgument;
+use ic_cdk::management_canister::HttpRequestArgs;
 use thiserror::Error;
 
 /// Estimate the amount of cycles to charge for a single HTTPs outcall.
@@ -13,11 +13,7 @@ pub trait CyclesChargingPolicy {
     /// If the value is `0`, no cycles will be charged, meaning that the canister using that library will
     /// pay for HTTPs outcalls with its own cycles. Otherwise, the returned amount of cycles will be transferred
     /// from the caller to the canister's cycles balance to pay (in part or fully) for the HTTPs outcall.
-    fn cycles_to_charge(
-        &self,
-        _request: &CanisterHttpRequestArgument,
-        _attached_cycles: u128,
-    ) -> u128 {
+    fn cycles_to_charge(&self, _request: &HttpRequestArgs, _attached_cycles: u128) -> u128 {
         0
     }
 }
@@ -48,7 +44,7 @@ impl CyclesCostEstimator {
     /// ([IC specification](https://internetcomputer.org/docs/current/references/ic-interface-spec#ic-http_request)).
     /// The required amount of cycles to attach is specified
     /// [here](https://internetcomputer.org/docs/current/developer-docs/gas-cost#https-outcalls).
-    pub fn cost_of_http_request(&self, request: &CanisterHttpRequestArgument) -> u128 {
+    pub fn cost_of_http_request(&self, request: &HttpRequestArgs) -> u128 {
         let payload_body_bytes = request
             .body
             .as_ref()
@@ -126,30 +122,27 @@ impl<Charging> CyclesAccounting<Charging> {
     }
 }
 
-impl<CyclesEstimator> Convert<CanisterHttpRequestArgument> for CyclesAccounting<CyclesEstimator>
+impl<CyclesEstimator> Convert<HttpRequestArgs> for CyclesAccounting<CyclesEstimator>
 where
     CyclesEstimator: CyclesChargingPolicy,
 {
     type Output = IcHttpRequestWithCycles;
     type Error = CyclesAccountingError;
 
-    fn try_convert(
-        &mut self,
-        request: CanisterHttpRequestArgument,
-    ) -> Result<Self::Output, Self::Error> {
+    fn try_convert(&mut self, request: HttpRequestArgs) -> Result<Self::Output, Self::Error> {
         let cycles_to_attach = self.cycles_cost_estimator.cost_of_http_request(&request);
         let cycles_to_charge = self
             .charging_policy
             .cycles_to_charge(&request, cycles_to_attach);
         if cycles_to_charge > 0 {
-            let cycles_available = ic_cdk::api::call::msg_cycles_available128();
+            let cycles_available = ic_cdk::api::canister_cycle_balance();
             if cycles_available < cycles_to_charge {
                 return Err(CyclesAccountingError::InsufficientCyclesError {
                     expected: cycles_to_charge,
                     received: cycles_available,
                 });
             }
-            let cycles_received = ic_cdk::api::call::msg_cycles_accept128(cycles_to_charge);
+            let cycles_received = ic_cdk::api::msg_cycles_accept(cycles_to_charge);
             assert_eq!(
                 cycles_received, cycles_to_charge,
                 "Expected to receive {cycles_to_charge}, but got {cycles_received}"

@@ -3,14 +3,14 @@ mod tests;
 
 use crate::convert::ConvertError;
 use crate::ConvertServiceBuilder;
-use ic_cdk::api::call::RejectionCode;
-use ic_cdk::api::management_canister::http_request::{
-    CanisterHttpRequestArgument as IcHttpRequest, HttpResponse as IcHttpResponse, TransformContext,
+pub use ic_cdk::call::Error as IcError;
+use ic_cdk::call::RejectCode;
+use ic_cdk::management_canister::{
+    HttpRequestArgs as IcHttpRequest, HttpRequestResult as IcHttpResponse, TransformContext,
 };
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use thiserror::Error;
 use tower::{BoxError, Service, ServiceBuilder};
 
 /// Thin wrapper around [`ic_cdk::api::management_canister::http_request::http_request`]
@@ -39,16 +39,6 @@ impl Client {
     }
 }
 
-/// Error returned by the Internet Computer when making an HTTPs outcall.
-#[derive(Error, Clone, Debug, PartialEq, Eq)]
-#[error("Error from ICP: (code {code:?}, message {message})")]
-pub struct IcError {
-    /// Rejection code as specified [here](https://internetcomputer.org/docs/current/references/ic-interface-spec#reject-codes)
-    pub code: RejectionCode,
-    /// Associated helper message.
-    pub message: String,
-}
-
 impl Service<IcHttpRequestWithCycles> for Client {
     type Response = IcHttpResponse;
     type Error = IcError;
@@ -60,16 +50,9 @@ impl Service<IcHttpRequestWithCycles> for Client {
 
     fn call(
         &mut self,
-        IcHttpRequestWithCycles { request, cycles }: IcHttpRequestWithCycles,
+        IcHttpRequestWithCycles { request, cycles: _ }: IcHttpRequestWithCycles,
     ) -> Self::Future {
-        Box::pin(async move {
-            match ic_cdk::api::management_canister::http_request::http_request(request, cycles)
-                .await
-            {
-                Ok((response,)) => Ok(response),
-                Err((code, message)) => Err(IcError { code, message }),
-            }
-        })
+        Box::pin(async move { ic_cdk::management_canister::http_request(&request).await })
     }
 }
 
@@ -171,8 +154,14 @@ pub trait HttpsOutcallError {
 
 impl HttpsOutcallError for IcError {
     fn is_response_too_large(&self) -> bool {
-        self.code == RejectionCode::SysFatal
-            && (self.message.contains("size limit") || self.message.contains("length limit"))
+        match self {
+            IcError::CallRejected(call_rejected) => {
+                call_rejected.reject_code() == Ok(RejectCode::SysFatal)
+                    && (call_rejected.reject_message().contains("size limit")
+                        || call_rejected.reject_message().contains("length limit"))
+            }
+            _ => false,
+        }
     }
 }
 

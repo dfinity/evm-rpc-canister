@@ -18,22 +18,17 @@ use evm_rpc::{
 };
 use evm_rpc_types::{Hex32, HttpOutcallError, MultiRpcResult, RpcResult};
 use ic_canister_log::log;
-use ic_cdk::{
-    api::{
-        is_controller,
-        management_canister::http_request::{
-            CanisterHttpRequestArgument as IcHttpRequest, HttpResponse as IcHttpResponse,
-            TransformArgs,
-        },
-    },
-    query, update,
+use ic_cdk::api::{is_controller, msg_caller};
+use ic_cdk::management_canister::{
+    HttpRequestArgs as IcHttpRequest, HttpRequestResult as IcHttpResponse, TransformArgs,
 };
+use ic_cdk::{query, update};
 use ic_http_types::{HttpRequest, HttpResponse, HttpResponseBuilder};
 use ic_metrics_encoder::MetricsEncoder;
 use tower::Service;
 
 pub fn require_api_key_principal_or_controller() -> Result<(), String> {
-    let caller = ic_cdk::caller();
+    let caller = msg_caller();
     if is_api_key_principal(&caller) || is_controller(&caller) {
         Ok(())
     } else {
@@ -259,7 +254,7 @@ async fn update_api_keys(api_keys: Vec<(ProviderId, Option<String>)>) {
     log!(
         INFO,
         "[{}] Updating API keys for providers: {}",
-        ic_cdk::caller(),
+        msg_caller(),
         api_keys
             .iter()
             .map(|(id, _)| id.to_string())

@@ -1,6 +1,6 @@
 use crate::convert::{Convert, Filter};
 use http::Response;
-use ic_cdk::api::management_canister::http_request::HttpResponse as IcHttpResponse;
+use ic_cdk::management_canister::HttpRequestResult as IcHttpResponse;
 use thiserror::Error;
 
 /// HTTP response with a body made of bytes.
@@ -41,7 +41,7 @@ impl Convert<IcHttpResponse> for HttpResponseConverter {
 
     fn try_convert(&mut self, response: IcHttpResponse) -> Result<Self::Output, Self::Error> {
         use http::{HeaderMap, HeaderName, HeaderValue, StatusCode};
-        use ic_cdk::api::management_canister::http_request::HttpHeader as IcHttpHeader;
+        use ic_cdk::management_canister::HttpHeader as IcHttpHeader;
         use num_traits::ToPrimitive;
 
         let status = response

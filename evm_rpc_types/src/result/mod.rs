@@ -3,7 +3,6 @@ mod tests;
 
 use crate::RpcService;
 use candid::{CandidType, Deserialize};
-use ic_cdk::api::call::RejectionCode;
 use std::fmt::Debug;
 use thiserror::Error;
 
@@ -92,11 +91,8 @@ pub enum ProviderError {
 #[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, CandidType, Deserialize, Error)]
 pub enum HttpOutcallError {
     /// Error from the IC system API.
-    #[error("IC error (code: {code:?}): {message}")]
-    IcError {
-        code: RejectionCode,
-        message: String,
-    },
+    #[error("IC error : {0}")]
+    IcError(String),
     /// Response is not a valid JSON-RPC response,
     /// which means that the response was not successful (status other than 2xx)
     /// or that the response body could not be deserialized into a JSON-RPC response.

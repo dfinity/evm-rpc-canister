@@ -21,7 +21,7 @@ const CANISTER_ID: Option<&str> = None;
 #[update]
 #[candid_method(update)]
 pub async fn test() {
-    assert!(ic_cdk::api::is_controller(&ic_cdk::caller()));
+    assert!(ic_cdk::api::is_controller(&ic_cdk::api::msg_caller()));
 
     let canister_id = Principal::from_str(CANISTER_ID.unwrap())
         .expect("Error parsing canister ID environment variable");

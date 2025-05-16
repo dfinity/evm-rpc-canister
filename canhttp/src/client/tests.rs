@@ -1,5 +1,6 @@
 use crate::retry::DoubleMaxResponseBytes;
-use crate::{Client, HttpsOutcallError, IcError};
+use crate::{Client, HttpsOutcallError};
+use ic_cdk::call::Error as CallError;
 use tower::{ServiceBuilder, ServiceExt};
 
 // Some middlewares like tower::retry need the underlying service to be cloneable.
@@ -28,7 +29,7 @@ async fn should_be_able_to_use_retry_layer() {
 }
 
 #[derive(Debug)]
-struct CustomError(IcError);
+struct CustomError(CallError);
 
 impl HttpsOutcallError for CustomError {
     fn is_response_too_large(&self) -> bool {
@@ -36,8 +37,8 @@ impl HttpsOutcallError for CustomError {
     }
 }
 
-impl From<IcError> for CustomError {
-    fn from(value: IcError) -> Self {
+impl From<CallError> for CustomError {
+    fn from(value: CallError) -> Self {
         CustomError(value)
     }
 }

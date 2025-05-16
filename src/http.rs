@@ -29,9 +29,9 @@ use evm_rpc_types::{HttpOutcallError, ProviderError, RpcError, RpcResult, Valida
 use http::header::CONTENT_TYPE;
 use http::HeaderValue;
 use ic_canister_log::log;
-use ic_cdk::api::management_canister::http_request::{
-    CanisterHttpRequestArgument as IcHttpRequest, HttpResponse as IcHttpResponse, TransformArgs,
-    TransformContext,
+use ic_cdk::management_canister::{
+    transform_context_from_query, HttpRequestArgs as IcHttpRequest,
+    HttpRequestResult as IcHttpResponse, TransformArgs,
 };
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -58,7 +58,7 @@ pub fn json_rpc_request_arg(
     service
         .post(&get_override_provider())?
         .max_response_bytes(max_response_bytes)
-        .transform_context(TransformContext::from_name(
+        .transform_context(transform_context_from_query(
             "__transform_json_rpc".to_string(),
             vec![],
         ))
@@ -133,12 +133,15 @@ where
                 })
                 .on_error(
                     |req_data: MetricData, error: &HttpClientError| match error {
-                        HttpClientError::IcError(IcError { code, message: _ }) => {
-                            add_metric_entry!(
-                                err_http_outcall,
-                                (req_data.method, req_data.host, *code),
-                                1
-                            );
+                        HttpClientError::IcError(e) => {
+                            // Only record the errors that was CallRejected which has a RejectCode
+                            if let IcError::CallRejected(call_rejected) = e {
+                                add_metric_entry!(
+                                    err_http_outcall,
+                                    (req_data.method, req_data.host, call_rejected.raw_reject_code()),
+                                    1
+                                )
+                            }
                         }
                         HttpClientError::UnsuccessfulHttpResponse(
                             FilterNonSuccessfulHttpResponseError::UnsuccessfulResponse(response),
@@ -301,8 +304,8 @@ impl From<ConsistentResponseIdFilterError> for HttpClientError {
 impl From<HttpClientError> for RpcError {
     fn from(error: HttpClientError) -> Self {
         match error {
-            HttpClientError::IcError(IcError { code, message }) => {
-                RpcError::HttpOutcallError(HttpOutcallError::IcError { code, message })
+            HttpClientError::IcError(e) => {
+                RpcError::HttpOutcallError(HttpOutcallError::IcError(e.to_string()))
             }
             HttpClientError::NotHandledError(e) => {
                 RpcError::ValidationError(ValidationError::Custom(e))
