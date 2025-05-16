@@ -4,7 +4,6 @@
 use crate::rpc_client::eth_rpc_error::{sanitize_send_raw_transaction_result, Parser};
 use crate::rpc_client::json::responses::{Block, FeeHistory, LogEntry, TransactionReceipt};
 use crate::rpc_client::numeric::{TransactionCount, Wei};
-use candid::candid_method;
 use canhttp::http::json::JsonRpcResponse;
 use ic_cdk::management_canister::{HttpRequestResult, TransformArgs};
 use ic_cdk::query;
@@ -92,7 +91,6 @@ impl ResponseTransform {
 }
 
 #[query]
-#[candid_method(query)]
 fn cleanup_response(args: TransformArgs) -> HttpRequestResult {
     let mut response = args.response;
     response.headers.clear();

@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use candid::{candid_method, Principal};
+use candid::Principal;
 use ic_cdk::call::Call;
 use ic_cdk::update;
 
@@ -20,7 +20,6 @@ const CANISTER_ID: Option<&str> = Some(std::env!(
 const CANISTER_ID: Option<&str> = None;
 
 #[update]
-#[candid_method(update)]
 pub async fn test() {
     assert!(ic_cdk::api::is_controller(&ic_cdk::api::msg_caller()));
 
