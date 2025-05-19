@@ -1103,10 +1103,6 @@ fn candid_rpc_should_allow_unexpected_response_fields() {
 }
 
 #[test]
-// TODO:
-// ic_cdk::management_canister::http_request handles cycles cost internally since v0.18.
-// Explicit cycles calculation is no longer needed. Consider removing related logic in a following PR.
-#[ignore]
 fn candid_rpc_should_err_without_cycles() {
     let setup = EvmRpcSetup::with_args(InstallArgs {
         demo: None,
@@ -1135,10 +1131,6 @@ fn candid_rpc_should_err_without_cycles() {
 }
 
 #[test]
-// TODO:
-// ic_cdk::management_canister::http_request handles cycles cost internally since v0.18.
-// Explicit cycles calculation is no longer needed. Consider removing related logic in a following PR.
-#[ignore]
 fn candid_rpc_should_err_with_insufficient_cycles() {
     let setup = EvmRpcSetup::with_args(InstallArgs {
         demo: Some(true),
