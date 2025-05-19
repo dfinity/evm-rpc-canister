@@ -1078,7 +1078,7 @@ fn candid_rpc_should_err_with_insufficient_cycles() {
     assert_matches!(
         result.pop().unwrap(),
         (
-            RpcService::EthMainnet(EthMainnetService::Cloudflare),
+            RpcService::EthMainnet(EthMainnetService::PublicNode),
             Err(RpcError::HttpOutcallError(HttpOutcallError::IcError {
                 code: RejectionCode::CanisterReject,
                 message
@@ -1133,12 +1133,12 @@ fn candid_rpc_should_err_when_service_unavailable() {
         Metrics {
             requests: hashmap! {
                 (rpc_method(), BLOCKPI_ETH_HOSTNAME.into()) => 1,
-                (rpc_method(), CLOUDFLARE_HOSTNAME.into()) => 1,
+                (rpc_method(), ANKR_HOSTNAME.into()) => 1,
                 (rpc_method(), PUBLICNODE_ETH_MAINNET_HOSTNAME.into()) => 1,
             },
             responses: hashmap! {
                 (rpc_method(), BLOCKPI_ETH_HOSTNAME.into(), 503.into()) => 1,
-                (rpc_method(), CLOUDFLARE_HOSTNAME.into(), 503.into()) => 1,
+                (rpc_method(), ANKR_HOSTNAME.into(), 503.into()) => 1,
                 (rpc_method(), PUBLICNODE_ETH_MAINNET_HOSTNAME.into(), 503.into()) => 1,
             },
             ..Default::default()
@@ -1458,18 +1458,18 @@ fn candid_rpc_should_return_inconsistent_results_with_consensus_error() {
         result,
         vec![
             (
-                RpcService::EthMainnet(EthMainnetService::PublicNode),
+                RpcService::EthMainnet(EthMainnetService::BlockPi),
                 Ok(1_u8.into())
             ),
             (
-                RpcService::EthMainnet(EthMainnetService::BlockPi),
+                RpcService::EthMainnet(EthMainnetService::Ankr),
                 Err(RpcError::HttpOutcallError(HttpOutcallError::IcError {
                     code: RejectionCode::SysTransient,
                     message: CONSENSUS_ERROR.to_string()
                 }))
             ),
             (
-                RpcService::EthMainnet(EthMainnetService::Cloudflare),
+                RpcService::EthMainnet(EthMainnetService::PublicNode),
                 Err(RpcError::HttpOutcallError(HttpOutcallError::IcError {
                     code: RejectionCode::SysTransient,
                     message: CONSENSUS_ERROR.to_string()
@@ -1483,8 +1483,8 @@ fn candid_rpc_should_return_inconsistent_results_with_consensus_error() {
     assert_eq!(
         err_http_outcall,
         hashmap! {
-            (rpc_method(), BLOCKPI_ETH_HOSTNAME.into(), RejectionCode::SysTransient) => 1,
-            (rpc_method(), CLOUDFLARE_HOSTNAME.into(), RejectionCode::SysTransient) => 1,
+            (rpc_method(), ANKR_HOSTNAME.into(), RejectionCode::SysTransient) => 1,
+            (rpc_method(), PUBLICNODE_ETH_MAINNET_HOSTNAME.into(), RejectionCode::SysTransient) => 1,
         },
     );
 }
