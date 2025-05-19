@@ -88,11 +88,58 @@ pub enum ProviderError {
     InvalidRpcConfig(String),
 }
 
+/// An "outdated" definition of rejection code.
+///
+/// This implementation was [copied](https://github.com/dfinity/cdk-rs/blob/83ba5fc7b3316a6fa4e7f704b689c95c9e677029/src/ic-cdk/src/api/call.rs#L21) from ic-cdk v0.17.
+///
+/// The `ic_cdk::api::call::RejectionCode` type is deprecated since ic-cdk v0.18.
+/// The replacement `ic_cdk::call::RejectCode` re-exports the type defined in the `ic-error-types` crate.
+/// We can not simply switch to the replacement because the existing `RejectionCode` is a public type in evm_rpc canister's interface.
+/// To maintain compatibility, we retain the "outdated" definition here.
+/// 
+/// The `canhttp::client::IcError` converts the error procuded by ic-cdk inter-canister calls into this type.
+#[repr(usize)]
+#[derive(CandidType, Deserialize, Clone, Copy, Hash, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum RejectionCode {
+    NoError = 0,
+
+    SysFatal = 1,
+    SysTransient = 2,
+    DestinationInvalid = 3,
+    CanisterReject = 4,
+    CanisterError = 5,
+
+    Unknown,
+}
+
+impl From<usize> for RejectionCode {
+    fn from(code: usize) -> Self {
+        match code {
+            0 => RejectionCode::NoError,
+            1 => RejectionCode::SysFatal,
+            2 => RejectionCode::SysTransient,
+            3 => RejectionCode::DestinationInvalid,
+            4 => RejectionCode::CanisterReject,
+            5 => RejectionCode::CanisterError,
+            _ => RejectionCode::Unknown,
+        }
+    }
+}
+
+impl From<u32> for RejectionCode {
+    fn from(code: u32) -> Self {
+        RejectionCode::from(code as usize)
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, CandidType, Deserialize, Error)]
 pub enum HttpOutcallError {
     /// Error from the IC system API.
-    #[error("IC error : {0}")]
-    IcError(String),
+    #[error("IC error (code: {code:?}): {message}")]
+    IcError {
+        code: RejectionCode,
+        message: String,
+    },
     /// Response is not a valid JSON-RPC response,
     /// which means that the response was not successful (status other than 2xx)
     /// or that the response body could not be deserialized into a JSON-RPC response.

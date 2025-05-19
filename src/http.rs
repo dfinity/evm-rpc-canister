@@ -133,15 +133,12 @@ where
                 })
                 .on_error(
                     |req_data: MetricData, error: &HttpClientError| match error {
-                        HttpClientError::IcError(e) => {
-                            // Only record the errors that was CallRejected which has a RejectCode
-                            if let IcError::CallRejected(call_rejected) = e {
-                                add_metric_entry!(
-                                    err_http_outcall,
-                                    (req_data.method, req_data.host, call_rejected.raw_reject_code()),
-                                    1
-                                )
-                            }
+                        HttpClientError::IcError(IcError { code, message: _ }) => {
+                            add_metric_entry!(
+                                err_http_outcall,
+                                (req_data.method, req_data.host, *code),
+                                1
+                            );
                         }
                         HttpClientError::UnsuccessfulHttpResponse(
                             FilterNonSuccessfulHttpResponseError::UnsuccessfulResponse(response),
@@ -304,8 +301,8 @@ impl From<ConsistentResponseIdFilterError> for HttpClientError {
 impl From<HttpClientError> for RpcError {
     fn from(error: HttpClientError) -> Self {
         match error {
-            HttpClientError::IcError(e) => {
-                RpcError::HttpOutcallError(HttpOutcallError::IcError(e.to_string()))
+            HttpClientError::IcError(IcError { code, message }) => {
+                RpcError::HttpOutcallError(HttpOutcallError::IcError { code, message })
             }
             HttpClientError::NotHandledError(e) => {
                 RpcError::ValidationError(ValidationError::Custom(e))

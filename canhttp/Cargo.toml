@@ -12,6 +12,7 @@ documentation = "https://docs.rs/canhttp"
 [dependencies]
 assert_matches = { workspace = true }
 ciborium = { workspace = true, optional = true }
+evm_rpc_types = { workspace = true }
 ic-cdk = { workspace = true }
 sha2 = { workspace = true, optional = true }
 futures-channel = { workspace = true, optional = true }
@@ -29,7 +30,7 @@ thiserror = { workspace = true }
 candid = { workspace = true }
 itertools = { workspace = true }
 maplit = { workspace = true }
-proptest = {workspace = true}
+proptest = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 
 [features]

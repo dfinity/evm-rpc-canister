@@ -7,8 +7,8 @@ use crate::{
 };
 use assert_matches::assert_matches;
 use candid::{Decode, Encode, Principal};
+use evm_rpc_types::RejectionCode;
 use http::StatusCode;
-use ic_cdk::call::CallRejected;
 use ic_cdk::management_canister::{
     transform_context_from_query, HttpHeader as IcHttpHeader, HttpMethod as IcHttpMethod,
     HttpRequestArgs as IcHttpRequest, HttpRequestResult as IcHttpResponse, TransformContext,
@@ -146,7 +146,13 @@ async fn should_fail_to_convert_http_response() {
         .service_fn(always_error);
     let error =
         expect_error::<_, IcError>(service.ready().await.unwrap().call(invalid_response).await);
-    assert!(matches!(error, IcError::CallRejected(..)))
+    assert_eq!(
+        error,
+        IcError {
+            code: RejectionCode::Unknown,
+            message: "always error".to_string(),
+        }
+    )
 }
 
 #[tokio::test]
@@ -217,9 +223,10 @@ async fn echo_response(response: IcHttpResponse) -> Result<IcHttpResponse, BoxEr
 }
 
 async fn always_error(_response: IcHttpResponse) -> Result<IcHttpResponse, BoxError> {
-    Err(BoxError::from(IcError::CallRejected(
-        CallRejected::with_rejection(1, "always error".to_string()),
-    )))
+    Err(BoxError::from(IcError {
+        code: RejectionCode::Unknown,
+        message: "always error".to_string(),
+    }))
 }
 
 // http::Response<T> does not implement PartialEq

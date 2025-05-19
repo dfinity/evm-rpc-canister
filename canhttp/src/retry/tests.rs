@@ -2,7 +2,7 @@ use crate::http::HttpRequest;
 use crate::retry::DoubleMaxResponseBytes;
 use crate::{HttpsOutcallError, IcError, MaxResponseBytesRequestExtension};
 use assert_matches::assert_matches;
-use ic_cdk::call::CallRejected;
+use evm_rpc_types::RejectionCode;
 use std::future;
 use std::sync::mpsc;
 use std::sync::mpsc::Sender;
@@ -185,10 +185,10 @@ where
 }
 
 fn response_is_too_large_error() -> IcError {
-    let error = IcError::CallRejected(CallRejected::with_rejection(
-        1,
-        "Http body exceeds size limit".to_string(),
-    ));
+    let error = IcError {
+        code: RejectionCode::SysFatal,
+        message: "Http body exceeds size limit".to_string(),
+    };
     assert!(error.is_response_too_large());
     error
 }

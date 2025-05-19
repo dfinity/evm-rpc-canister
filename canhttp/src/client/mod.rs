@@ -3,16 +3,15 @@ mod tests;
 
 use crate::convert::ConvertError;
 use crate::ConvertServiceBuilder;
-pub use ic_cdk::call::Error as IcError;
-use ic_cdk::call::RejectCode;
+use evm_rpc_types::RejectionCode;
 use ic_cdk::management_canister::{
     HttpRequestArgs as IcHttpRequest, HttpRequestResult as IcHttpResponse, TransformContext,
 };
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use thiserror::Error;
 use tower::{BoxError, Service, ServiceBuilder};
-
 /// Thin wrapper around [`ic_cdk::api::management_canister::http_request::http_request`]
 /// that implements the [`tower::Service`] trait. Its functionality can be extended by composing so-called
 /// [tower middlewares](https://docs.rs/tower/latest/tower/#usage).
@@ -39,6 +38,19 @@ impl Client {
     }
 }
 
+/// Error returned by the Internet Computer when making an HTTPs outcall.
+#[derive(Error, Clone, Debug, PartialEq, Eq)]
+#[error("Error from ICP: (code {code:?}, message {message})")]
+pub struct IcError {
+    /// An "outdated" definition of the rejection code as specified [here](https://internetcomputer.org/docs/current/references/ic-interface-spec#reject-codes).
+    /// 
+    /// It still includes a `NoError` (0) variant.
+    /// It doesn't have the variants greater than 5, e.g. `SYS_UNKNOWN` (6).
+    pub code: RejectionCode,
+    /// Associated helper message.
+    pub message: String,
+}
+
 impl Service<IcHttpRequestWithCycles> for Client {
     type Response = IcHttpResponse;
     type Error = IcError;
@@ -52,7 +64,29 @@ impl Service<IcHttpRequestWithCycles> for Client {
         &mut self,
         IcHttpRequestWithCycles { request, cycles: _ }: IcHttpRequestWithCycles,
     ) -> Self::Future {
-        Box::pin(async move { ic_cdk::management_canister::http_request(&request).await })
+        Box::pin(async move {
+            // The `http_request` method handles cycles cost internally since ic-cdk v0.18.
+            // No need to specify cycles amount.
+            match ic_cdk::management_canister::http_request(&request).await {
+                Ok(response) => Ok(response),
+                Err(e) => match e {
+                    ic_cdk::call::Error::CallRejected(call_rejected) => {
+                        // It's possible that the code here is `Unknown`.
+                        // For example, the IC start to produce `SYS_UNKNOWN` (6) code which was not covered by the "outdated" RejectionCode.
+                        // It is also possible that the IC will produce other reject codes in the future. All of them will be converted to `Unknown` here.
+                        let code = RejectionCode::from(call_rejected.raw_reject_code());
+                        let message = call_rejected.reject_message().to_string();
+                        Err(IcError { code, message })
+                    }
+                    // If the call failed for other reasons than `CallRejected`, the code will be `Unknown`.
+                    // Check `ic_cdk::call::Error` for more information.
+                    _ => Err(IcError {
+                        code: RejectionCode::Unknown,
+                        message: e.to_string(),
+                    }),
+                },
+            }
+        })
     }
 }
 
@@ -154,14 +188,8 @@ pub trait HttpsOutcallError {
 
 impl HttpsOutcallError for IcError {
     fn is_response_too_large(&self) -> bool {
-        match self {
-            IcError::CallRejected(call_rejected) => {
-                call_rejected.reject_code() == Ok(RejectCode::SysFatal)
-                    && (call_rejected.reject_message().contains("size limit")
-                        || call_rejected.reject_message().contains("length limit"))
-            }
-            _ => false,
-        }
+        self.code == RejectionCode::SysFatal
+            && (self.message.contains("size limit") || self.message.contains("length limit"))
     }
 }
 

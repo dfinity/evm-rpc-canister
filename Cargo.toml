@@ -20,7 +20,7 @@ inherits = "release"
 candid = { workspace = true }
 canhttp = { path = "canhttp", features = ["json", "multi"] }
 ethnum = { workspace = true }
-evm_rpc_types = { path = "evm_rpc_types" }
+evm_rpc_types = { workspace = true }
 getrandom = { workspace = true }
 http = { workspace = true }
 ic-ethereum-types = "1.0.0"
@@ -34,7 +34,7 @@ minicbor = { workspace = true }
 serde = { workspace = true }
 serde_bytes = { workspace = true }
 serde_json = { workspace = true }
-sha2 = {workspace = true}
+sha2 = { workspace = true }
 thiserror = { workspace = true }
 thousands = "0.2"
 tower = { workspace = true }
@@ -61,6 +61,7 @@ candid = { version = "0.10.13" }
 candid_parser = { version = "0.1.4" }
 ciborium = "0.2.2"
 ethnum = { version = "1.5.0", features = ["serde"] }
+evm_rpc_types = { path = "evm_rpc_types" }
 futures = "0.3.31"
 futures-channel = "0.3.31"
 futures-util = "0.3.31"
