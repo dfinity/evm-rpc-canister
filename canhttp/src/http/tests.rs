@@ -10,9 +10,8 @@ use candid::{Decode, Encode, Principal};
 use evm_rpc_types::RejectionCode;
 use http::StatusCode;
 use ic_cdk::management_canister::{
-    transform_context_from_query, HttpHeader as IcHttpHeader, HttpMethod as IcHttpMethod,
-    HttpRequestArgs as IcHttpRequest, HttpRequestResult as IcHttpResponse, TransformContext,
-    TransformFunc,
+    HttpHeader as IcHttpHeader, HttpMethod as IcHttpMethod, HttpRequestArgs as IcHttpRequest,
+    HttpRequestResult as IcHttpResponse, TransformContext, TransformFunc,
 };
 use std::error::Error;
 use std::fmt::Debug;
@@ -22,7 +21,13 @@ use tower::{BoxError, Service, ServiceBuilder, ServiceExt};
 async fn should_convert_http_request() {
     let url = "https://internetcomputer.org/";
     let max_response_bytes = 1_000;
-    let transform_context = transform_context_from_query("sanitize".to_string(), vec![35_u8; 20]);
+    let transform_context = TransformContext {
+        function: TransformFunc(candid::Func {
+            principal: Principal::management_canister(),
+            method: "sanitize".to_string(),
+        }),
+        context: vec![35_u8; 20],
+    };
     let body = vec![42_u8; 32];
 
     let mut service = ServiceBuilder::new()
