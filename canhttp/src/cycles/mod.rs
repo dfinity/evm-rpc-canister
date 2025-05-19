@@ -135,7 +135,7 @@ where
             .charging_policy
             .cycles_to_charge(&request, cycles_to_attach);
         if cycles_to_charge > 0 {
-            let cycles_available = ic_cdk::api::canister_cycle_balance();
+            let cycles_available = ic_cdk::api::msg_cycles_available();
             if cycles_available < cycles_to_charge {
                 return Err(CyclesAccountingError::InsufficientCyclesError {
                     expected: cycles_to_charge,
