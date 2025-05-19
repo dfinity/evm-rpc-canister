@@ -22,7 +22,7 @@ const HTTP_MAX_SIZE: u64 = 2_000_000;
 /// ```rust
 /// use tower::{Service, ServiceBuilder, ServiceExt};
 /// use canhttp::{Client, http::HttpRequest, HttpsOutcallError, IcError, MaxResponseBytesRequestExtension, retry::DoubleMaxResponseBytes};
-/// use ic_cdk::api::call::RejectionCode;
+/// use evm_rpc_types::RejectionCode;
 ///
 /// fn response_is_too_large_error() -> IcError {
 ///     let error = IcError {
