@@ -30,7 +30,7 @@ pub async fn test() {
     let params = (
         RpcService::EthMainnet(EthMainnetService::PublicNode), // Ethereum mainnet
         "{\"jsonrpc\":\"2.0\",\"method\":\"eth_gasPrice\",\"params\":null,\"id\":1}".to_string(),
-        1000 as u64,
+        1000u64,
     );
 
     // Get cycles cost
@@ -40,8 +40,8 @@ pub async fn test() {
         .unwrap()
         .candid()
         .unwrap();
-    let cycles = cycles_result
-        .unwrap_or_else(|e| ic_cdk::trap(&format!("error in `request_cost`: {:?}", e)));
+    let cycles =
+        cycles_result.unwrap_or_else(|e| ic_cdk::trap(format!("error in `request_cost`: {:?}", e)));
 
     // Call without sending cycles
     let result_without_cycles: Result<String, RpcError> =
@@ -52,11 +52,11 @@ pub async fn test() {
             .candid()
             .unwrap();
     match result_without_cycles {
-        Ok(s) => ic_cdk::trap(&format!("response from `request` without cycles: {:?}", s)),
+        Ok(s) => ic_cdk::trap(format!("response from `request` without cycles: {:?}", s)),
         Err(RpcError::ProviderError(ProviderError::TooFewCycles { expected, .. })) => {
             assert_eq!(expected, cycles)
         }
-        Err(err) => ic_cdk::trap(&format!("error in `request` without cycles: {:?}", err)),
+        Err(err) => ic_cdk::trap(format!("error in `request` without cycles: {:?}", err)),
     }
 
     // Call with expected number of cycles
@@ -76,7 +76,7 @@ pub async fn test() {
             );
             assert_eq!(&response[response.len() - 2..], "\"}");
         }
-        Err(err) => ic_cdk::trap(&format!("error in `request` with cycles: {:?}", err)),
+        Err(err) => ic_cdk::trap(format!("error in `request` with cycles: {:?}", err)),
     }
 
     // Call a Candid-RPC method
@@ -108,9 +108,9 @@ pub async fn test() {
                     .unwrap()
                 );
             }
-            Err(err) => ic_cdk::trap(&format!("error in `eth_getBlockByNumber`: {:?}", err)),
+            Err(err) => ic_cdk::trap(format!("error in `eth_getBlockByNumber`: {:?}", err)),
         },
-        MultiRpcResult::Inconsistent(results) => ic_cdk::trap(&format!(
+        MultiRpcResult::Inconsistent(results) => ic_cdk::trap(format!(
             "inconsistent results in `eth_getBlockByNumber`: {:?}",
             results
         )),
