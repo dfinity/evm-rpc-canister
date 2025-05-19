@@ -839,6 +839,7 @@ dependencies = [
  "ic-crypto-test-utils-reproducible-rng",
  "ic-ethereum-types",
  "ic-http-types",
+ "ic-management-canister-types",
  "ic-metrics-encoder",
  "ic-stable-structures",
  "ic-test-utilities-load-wasm",
@@ -2018,9 +2019,9 @@ dependencies = [
 
 [[package]]
 name = "pocket-ic"
-version = "7.0.0"
+version = "9.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ccd672d6b262731dccae40cb561e4c578709ea9987fbf649377d51077bf16db3"
+checksum = "1d0dee25e0f699db883fa2228b18b6e86ae874a0f538dd362aef70679ca5cc6d"
 dependencies = [
  "backoff",
  "base64 0.13.1",
@@ -2028,6 +2029,7 @@ dependencies = [
  "flate2",
  "hex",
  "ic-certification",
+ "ic-management-canister-types",
  "ic-transport-types",
  "reqwest",
  "schemars",
@@ -2039,6 +2041,7 @@ dependencies = [
  "slog",
  "strum",
  "strum_macros",
+ "tempfile",
  "thiserror 2.0.12",
  "tokio",
  "tracing",

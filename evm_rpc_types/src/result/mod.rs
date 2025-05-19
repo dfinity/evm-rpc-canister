@@ -96,7 +96,7 @@ pub enum ProviderError {
 /// The replacement `ic_cdk::call::RejectCode` re-exports the type defined in the `ic-error-types` crate.
 /// We can not simply switch to the replacement because the existing `RejectionCode` is a public type in evm_rpc canister's interface.
 /// To maintain compatibility, we retain the "outdated" definition here.
-/// 
+///
 /// The `canhttp::client::IcError` converts the error procuded by ic-cdk inter-canister calls into this type.
 #[repr(usize)]
 #[derive(CandidType, Deserialize, Clone, Copy, Hash, Debug, PartialEq, Eq, PartialOrd, Ord)]

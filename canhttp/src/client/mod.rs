@@ -43,7 +43,7 @@ impl Client {
 #[error("Error from ICP: (code {code:?}, message {message})")]
 pub struct IcError {
     /// An "outdated" definition of the rejection code as specified [here](https://internetcomputer.org/docs/current/references/ic-interface-spec#reject-codes).
-    /// 
+    ///
     /// It still includes a `NoError` (0) variant.
     /// It doesn't have the variants greater than 5, e.g. `SYS_UNKNOWN` (6).
     pub code: RejectionCode,
