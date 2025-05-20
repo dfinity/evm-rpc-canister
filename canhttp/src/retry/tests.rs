@@ -2,7 +2,7 @@ use crate::http::HttpRequest;
 use crate::retry::DoubleMaxResponseBytes;
 use crate::{HttpsOutcallError, IcError, MaxResponseBytesRequestExtension};
 use assert_matches::assert_matches;
-use evm_rpc_types::RejectionCode;
+use ic_cdk::api::call::RejectionCode;
 use std::future;
 use std::sync::mpsc;
 use std::sync::mpsc::Sender;

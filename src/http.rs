@@ -134,9 +134,13 @@ where
                 .on_error(
                     |req_data: MetricData, error: &HttpClientError| match error {
                         HttpClientError::IcError(IcError { code, message: _ }) => {
+                            // canhttp::IcError is using the deprecated RejectionCode from ic_cdk.
+                            // The metrics is using the RejectionCode from evm_rpc_types.
+                            // These are logically equivalent enums but different types from the Rust compiler's perspective.
+                            let code_evm_rpc = (*code as usize).into();
                             add_metric_entry!(
                                 err_http_outcall,
-                                (req_data.method, req_data.host, *code),
+                                (req_data.method, req_data.host, code_evm_rpc),
                                 1
                             );
                         }
@@ -302,7 +306,14 @@ impl From<HttpClientError> for RpcError {
     fn from(error: HttpClientError) -> Self {
         match error {
             HttpClientError::IcError(IcError { code, message }) => {
-                RpcError::HttpOutcallError(HttpOutcallError::IcError { code, message })
+                // canhttp::IcError is using the deprecated RejectionCode from ic_cdk.
+                // The metrics is using the RejectionCode from evm_rpc_types.
+                // These are logically equivalent enums but different types from the Rust compiler's perspective.
+                let code_evm_rpc = (code as usize).into();
+                RpcError::HttpOutcallError(HttpOutcallError::IcError {
+                    code: code_evm_rpc,
+                    message,
+                })
             }
             HttpClientError::NotHandledError(e) => {
                 RpcError::ValidationError(ValidationError::Custom(e))

@@ -3,7 +3,7 @@ mod tests;
 
 use crate::convert::ConvertError;
 use crate::ConvertServiceBuilder;
-use evm_rpc_types::RejectionCode;
+use ic_cdk::api::call::RejectionCode;
 use ic_cdk::management_canister::{
     HttpRequestArgs as IcHttpRequest, HttpRequestResult as IcHttpResponse, TransformContext,
 };

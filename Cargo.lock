@@ -321,7 +321,6 @@ dependencies = [
  "assert_matches",
  "candid",
  "ciborium",
- "evm_rpc_types",
  "futures-channel",
  "futures-util",
  "http",

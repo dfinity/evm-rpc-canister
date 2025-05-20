@@ -20,7 +20,7 @@ inherits = "release"
 candid = { workspace = true }
 canhttp = { path = "canhttp", features = ["json", "multi"] }
 ethnum = { workspace = true }
-evm_rpc_types = { workspace = true }
+evm_rpc_types = { path = "evm_rpc_types" }
 getrandom = { workspace = true }
 http = { workspace = true }
 ic-ethereum-types = "1.0.0"
@@ -62,7 +62,6 @@ candid = { version = "0.10.13" }
 candid_parser = { version = "0.1.4" }
 ciborium = "0.2.2"
 ethnum = { version = "1.5.0", features = ["serde"] }
-evm_rpc_types = { path = "evm_rpc_types" }
 futures = "0.3.31"
 futures-channel = "0.3.31"
 futures-util = "0.3.31"
