@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 use crate::http::request::HttpRequestConversionError;
 use crate::http::response::{HttpResponse, HttpResponseConversionError};
 use crate::http::{HttpConversionLayer, HttpRequestConverter, HttpResponseConverter};
