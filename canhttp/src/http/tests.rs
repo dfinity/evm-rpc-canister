@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 use crate::http::request::HttpRequestConversionError;
 use crate::http::response::{HttpResponse, HttpResponseConversionError};
 use crate::http::{HttpConversionLayer, HttpRequestConverter, HttpResponseConverter};
@@ -9,11 +11,10 @@ use assert_matches::assert_matches;
 use candid::{Decode, Encode, Principal};
 use http::StatusCode;
 use ic_cdk::api::call::RejectionCode;
-use ic_cdk::api::management_canister::http_request::{
-    CanisterHttpRequestArgument as IcHttpRequest, HttpHeader as IcHttpHeader,
-    HttpMethod as IcHttpMethod, HttpResponse as IcHttpResponse,
+use ic_cdk::management_canister::{
+    HttpHeader as IcHttpHeader, HttpMethod as IcHttpMethod, HttpRequestArgs as IcHttpRequest,
+    HttpRequestResult as IcHttpResponse, TransformContext, TransformFunc,
 };
-use ic_cdk::api::management_canister::http_request::{TransformContext, TransformFunc};
 use std::error::Error;
 use std::fmt::Debug;
 use tower::{BoxError, Service, ServiceBuilder, ServiceExt};
@@ -23,7 +24,10 @@ async fn should_convert_http_request() {
     let url = "https://internetcomputer.org/";
     let max_response_bytes = 1_000;
     let transform_context = TransformContext {
-        function: TransformFunc::new(Principal::management_canister(), "sanitize".to_string()),
+        function: TransformFunc(candid::Func {
+            principal: Principal::management_canister(),
+            method: "sanitize".to_string(),
+        }),
         context: vec![35_u8; 20],
     };
     let body = vec![42_u8; 32];

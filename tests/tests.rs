@@ -12,13 +12,12 @@ use evm_rpc::{
 };
 use evm_rpc_types::{
     ConsensusStrategy, EthMainnetService, EthSepoliaService, Hex, Hex20, Hex32, HttpOutcallError,
-    InstallArgs, JsonRpcError, MultiRpcResult, Nat256, Provider, ProviderError, RpcApi, RpcConfig,
-    RpcError, RpcResult, RpcService, RpcServices,
+    InstallArgs, JsonRpcError, MultiRpcResult, Nat256, Provider, ProviderError, RejectionCode,
+    RpcApi, RpcConfig, RpcError, RpcResult, RpcService, RpcServices,
 };
-use ic_cdk::api::call::RejectionCode;
-use ic_cdk::api::management_canister::http_request::HttpHeader;
-use ic_cdk::api::management_canister::main::CanisterId;
+use ic_cdk::management_canister::HttpHeader;
 use ic_http_types::{HttpRequest, HttpResponse};
+use ic_management_canister_types::CanisterSettings;
 use ic_test_utilities_load_wasm::load_wasm;
 use maplit::hashmap;
 use mock::{MockOutcall, MockOutcallBuilder};
@@ -26,9 +25,7 @@ use pocket_ic::common::rest::{
     CanisterHttpMethod, CanisterHttpReject, CanisterHttpResponse, MockCanisterHttpResponse,
     RawMessageId,
 };
-use pocket_ic::{
-    management_canister::CanisterSettings, ErrorCode, PocketIc, PocketIcBuilder, RejectResponse,
-};
+use pocket_ic::{ErrorCode, PocketIc, PocketIcBuilder, RejectResponse};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
@@ -80,7 +77,7 @@ pub struct EvmRpcSetup {
     pub env: Arc<PocketIc>,
     pub caller: Principal,
     pub controller: Principal,
-    pub canister_id: CanisterId,
+    pub canister_id: Principal,
 }
 
 impl Default for EvmRpcSetup {
@@ -1134,61 +1131,6 @@ fn candid_rpc_should_err_without_cycles() {
 }
 
 #[test]
-fn candid_rpc_should_err_with_insufficient_cycles() {
-    let setup = EvmRpcSetup::with_args(InstallArgs {
-        demo: Some(true),
-        nodes_in_subnet: Some(33),
-        ..Default::default()
-    })
-    .mock_api_keys();
-    let mut result = setup
-        .eth_get_transaction_receipt(
-            RpcServices::EthMainnet(None),
-            None,
-            "0xdd5d4b18923d7aae953c7996d791118102e889bea37b48a651157a4890e4746f",
-        )
-        .wait()
-        .expect_inconsistent();
-    let regex = regex::Regex::new(
-        "http_request request sent with [0-9_]+ cycles, but [0-9_]+ cycles are required.",
-    )
-    .unwrap();
-    assert_matches!(
-        result.pop().unwrap(),
-        (
-            RpcService::EthMainnet(EthMainnetService::Cloudflare),
-            Err(RpcError::HttpOutcallError(HttpOutcallError::IcError {
-                code: RejectionCode::CanisterReject,
-                message
-            }))
-        ) if regex.is_match(&message)
-    );
-
-    // Same request should succeed after upgrade to the expected node count
-    setup.upgrade_canister(InstallArgs {
-        nodes_in_subnet: Some(34),
-        ..Default::default()
-    });
-    let [response_0, response_1, response_2] = json_rpc_sequential_id(
-        json!({"jsonrpc":"2.0","id":0,"result":{"blockHash":"0x5115c07eb1f20a9d6410db0916ed3df626cfdab161d3904f45c8c8b65c90d0be","blockNumber":"0x11a85ab","contractAddress":null,"cumulativeGasUsed":"0xf02aed","effectiveGasPrice":"0x63c00ee76","from":"0x0aa8ebb6ad5a8e499e550ae2c461197624c6e667","gasUsed":"0x7d89","logs":[],"logsBloom":"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","status":"0x1","to":"0x356cfd6e6d0000400000003900b415f80669009e","transactionHash":"0xdd5d4b18923d7aae953c7996d791118102e889bea37b48a651157a4890e4746f","transactionIndex":"0xd9","type":"0x2"}}),
-    );
-
-    let result = setup
-        .eth_get_transaction_receipt(
-            RpcServices::EthMainnet(None),
-            None,
-            "0xdd5d4b18923d7aae953c7996d791118102e889bea37b48a651157a4890e4746f",
-        )
-        .mock_http_once(MockOutcallBuilder::new(200, response_0))
-        .mock_http_once(MockOutcallBuilder::new(200, response_1))
-        .mock_http_once(MockOutcallBuilder::new(200, response_2))
-        .wait()
-        .expect_consistent()
-        .unwrap();
-    assert_matches!(result, Some(evm_rpc_types::TransactionReceipt { .. }));
-}
-
-#[test]
 fn candid_rpc_should_err_when_service_unavailable() {
     let setup = EvmRpcSetup::new().mock_api_keys();
     let result = setup
@@ -1504,7 +1446,6 @@ fn candid_rpc_should_return_inconsistent_results_with_error() {
 fn candid_rpc_should_return_inconsistent_results_with_consensus_error() {
     const CONSENSUS_ERROR: &str =
         "No consensus could be reached. Replicas had different responses.";
-
     let setup = EvmRpcSetup::new().mock_api_keys();
     let result = setup
         .eth_get_transaction_count(

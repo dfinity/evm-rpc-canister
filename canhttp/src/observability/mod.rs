@@ -4,11 +4,11 @@
 //! This middleware is strongly inspired by the functionality offered by `Trace`.
 //! The reason for not using this middleware directly is it cannot be used inside a canister:
 //! 1. It measures the latency of a call by calling
-//!     [`Instant::now`](https://github.com/tower-rs/tower-http/blob/469bdac3193ed22da9ea524a454d8cda93ffa0d5/tower-http/src/trace/service.rs#L302),
-//!     which will fail when run from a canister.
+//!    [`Instant::now`](https://github.com/tower-rs/tower-http/blob/469bdac3193ed22da9ea524a454d8cda93ffa0d5/tower-http/src/trace/service.rs#L302),
+//!    which will fail when run from a canister.
 //! 2. It can deal with streaming responses, which is unnecessary for HTTPs outcalls,
-//!     since the response is available to a canister at once. This flexibility brings some complexity
-//!     (body can only be fetched asynchronously, end of stream errors, etc.) which is not useful in a canister environment.
+//!    since the response is available to a canister at once. This flexibility brings some complexity
+//!    (body can only be fetched asynchronously, end of stream errors, etc.) which is not useful in a canister environment.
 //!
 //! # Examples
 //!
@@ -16,7 +16,7 @@
 //!
 //! ```rust
 //! use canhttp::{IcError, observability::ObservabilityLayer};
-//! use ic_cdk::api::management_canister::http_request::{CanisterHttpRequestArgument as IcHttpRequest, HttpResponse as IcHttpResponse};
+//! use ic_cdk::management_canister::{HttpRequestArgs as IcHttpRequest, HttpRequestResult as IcHttpResponse};
 //! use tower::{Service, ServiceBuilder, ServiceExt};
 //! use std::cell::RefCell;
 //!
@@ -76,7 +76,7 @@
 //! The previous example can be refined by extracting request data (such as the request URL) to observe the responses/errors:
 //! ```rust
 //! use canhttp::{IcError, observability::ObservabilityLayer};
-//! use ic_cdk::api::management_canister::http_request::{CanisterHttpRequestArgument as IcHttpRequest, HttpResponse as IcHttpResponse};
+//! use ic_cdk::management_canister::{HttpRequestArgs as IcHttpRequest, HttpRequestResult as IcHttpResponse};
 //! use maplit::btreemap;
 //! use tower::{Service, ServiceBuilder, ServiceExt};
 //! use std::cell::RefCell;

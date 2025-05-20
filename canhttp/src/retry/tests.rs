@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 use crate::http::HttpRequest;
 use crate::retry::DoubleMaxResponseBytes;
 use crate::{HttpsOutcallError, IcError, MaxResponseBytesRequestExtension};

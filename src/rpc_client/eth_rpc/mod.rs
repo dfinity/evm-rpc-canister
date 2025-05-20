@@ -4,10 +4,9 @@
 use crate::rpc_client::eth_rpc_error::{sanitize_send_raw_transaction_result, Parser};
 use crate::rpc_client::json::responses::{Block, FeeHistory, LogEntry, TransactionReceipt};
 use crate::rpc_client::numeric::{TransactionCount, Wei};
-use candid::candid_method;
 use canhttp::http::json::JsonRpcResponse;
-use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs};
-use ic_cdk_macros::query;
+use ic_cdk::management_canister::{HttpRequestResult, TransformArgs};
+use ic_cdk::query;
 use minicbor::{Decode, Encode};
 use serde::{de::DeserializeOwned, Serialize};
 use std::fmt;
@@ -92,17 +91,17 @@ impl ResponseTransform {
 }
 
 #[query]
-#[candid_method(query)]
-fn cleanup_response(mut args: TransformArgs) -> HttpResponse {
-    args.response.headers.clear();
-    let status_ok = args.response.status >= 200u16 && args.response.status < 300u16;
+fn cleanup_response(args: TransformArgs) -> HttpRequestResult {
+    let mut response = args.response;
+    response.headers.clear();
+    let status_ok = response.status >= 200u16 && response.status < 300u16;
     if status_ok && !args.context.is_empty() {
         let maybe_transform: Result<ResponseTransform, _> = minicbor::decode(&args.context[..]);
         if let Ok(transform) = maybe_transform {
-            transform.apply(&mut args.response.body);
+            transform.apply(&mut response.body);
         }
     }
-    args.response
+    response
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

@@ -13,7 +13,7 @@ use evm_rpc_types::{
     ConsensusStrategy, EthMainnetService, EthSepoliaService, JsonRpcError, L2MainnetService,
     ProviderError, RpcConfig, RpcError, RpcService, RpcServices,
 };
-use ic_cdk::api::management_canister::http_request::TransformContext;
+use ic_cdk::management_canister::transform_context_from_query;
 use json::requests::{
     BlockSpec, EthCallParams, FeeHistoryParams, GetBlockByNumberParams, GetLogsParam,
     GetTransactionCountParams,
@@ -326,7 +326,7 @@ impl EthRpcClient {
                 .map(|builder| {
                     builder
                         .max_response_bytes(effective_size_estimate)
-                        .transform_context(TransformContext::from_name(
+                        .transform_context(transform_context_from_query(
                             "cleanup_response".to_owned(),
                             transform_op.clone(),
                         ))

@@ -1,8 +1,8 @@
 use crate::convert::Convert;
 use crate::{MaxResponseBytesRequestExtension, TransformContextRequestExtension};
-use ic_cdk::api::management_canister::http_request::{
-    CanisterHttpRequestArgument as IcHttpRequest, HttpHeader as IcHttpHeader,
-    HttpMethod as IcHttpMethod, TransformContext,
+use ic_cdk::management_canister::{
+    HttpHeader as IcHttpHeader, HttpMethod as IcHttpMethod, HttpRequestArgs as IcHttpRequest,
+    TransformContext,
 };
 use thiserror::Error;
 

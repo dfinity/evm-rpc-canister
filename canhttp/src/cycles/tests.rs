@@ -1,5 +1,5 @@
 use crate::CyclesCostEstimator;
-use ic_cdk::api::management_canister::http_request::CanisterHttpRequestArgument;
+use ic_cdk::management_canister::HttpRequestArgs;
 
 #[test]
 fn test_http_request_fee_components() {
@@ -47,10 +47,10 @@ fn request(
     payload_body_bytes: u32,
     extra_payload_bytes: u32,
     max_response_bytes: u64,
-) -> CanisterHttpRequestArgument {
+) -> HttpRequestArgs {
     let body = Some(vec![42_u8; payload_body_bytes as usize]);
     let max_response_bytes = Some(max_response_bytes);
-    CanisterHttpRequestArgument {
+    HttpRequestArgs {
         url: "a".repeat(extra_payload_bytes as usize),
         max_response_bytes,
         method: Default::default(),

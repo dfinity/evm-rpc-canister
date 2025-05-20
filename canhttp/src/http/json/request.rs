@@ -54,9 +54,7 @@ where
     type Error = JsonRequestConversionError;
 
     fn try_convert(&mut self, request: http::Request<T>) -> Result<Self::Output, Self::Error> {
-        try_serialize_request(request)
-            .map(add_content_type_header_if_missing)
-            .map_err(Into::into)
+        try_serialize_request(request).map(add_content_type_header_if_missing)
     }
 }
 

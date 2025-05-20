@@ -6,9 +6,9 @@ use crate::memory::get_api_key;
 use crate::util::hostname_from_url;
 use crate::validate::validate_api_key;
 use candid::CandidType;
+use evm_rpc_types::RejectionCode;
 use evm_rpc_types::{RpcApi, RpcError, ValidationError};
-use ic_cdk::api::call::RejectionCode;
-use ic_cdk::api::management_canister::http_request::HttpHeader;
+pub use ic_cdk::management_canister::HttpHeader;
 use ic_stable_structures::storable::Bound;
 use ic_stable_structures::Storable;
 use regex::Regex;
@@ -110,7 +110,7 @@ impl MetricLabels for MetricRpcMethod {
 #[derive(Clone, Debug, PartialEq, Eq, Hash, CandidType, Deserialize)]
 pub struct MetricRpcHost(pub String);
 
-impl<'a> From<&'a str> for MetricRpcHost {
+impl From<&str> for MetricRpcHost {
     fn from(hostname: &str) -> Self {
         MetricRpcHost(hostname.to_string())
     }

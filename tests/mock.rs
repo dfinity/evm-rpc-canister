@@ -1,4 +1,4 @@
-use ic_cdk::api::call::RejectionCode;
+use evm_rpc_types::RejectionCode;
 use pocket_ic::common::rest::{
     CanisterHttpHeader, CanisterHttpMethod, CanisterHttpReject, CanisterHttpReply,
     CanisterHttpRequest, CanisterHttpResponse,
