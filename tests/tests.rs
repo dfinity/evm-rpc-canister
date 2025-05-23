@@ -19,6 +19,7 @@ use ic_cdk::api::call::RejectionCode;
 use ic_cdk::api::management_canister::http_request::HttpHeader;
 use ic_cdk::api::management_canister::main::CanisterId;
 use ic_http_types::{HttpRequest, HttpResponse};
+use ic_management_canister_types::CanisterSettings;
 use ic_test_utilities_load_wasm::load_wasm;
 use maplit::hashmap;
 use mock::{MockOutcall, MockOutcallBuilder};
@@ -26,9 +27,7 @@ use pocket_ic::common::rest::{
     CanisterHttpMethod, CanisterHttpReject, CanisterHttpResponse, MockCanisterHttpResponse,
     RawMessageId,
 };
-use pocket_ic::{
-    management_canister::CanisterSettings, ErrorCode, PocketIc, PocketIcBuilder, RejectResponse,
-};
+use pocket_ic::{ErrorCode, PocketIc, PocketIcBuilder, RejectResponse};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;

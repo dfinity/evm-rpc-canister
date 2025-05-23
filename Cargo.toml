@@ -35,7 +35,7 @@ minicbor = { workspace = true }
 serde = { workspace = true }
 serde_bytes = { workspace = true }
 serde_json = { workspace = true }
-sha2 = {workspace = true}
+sha2 = { workspace = true }
 thiserror = { workspace = true }
 thousands = "0.2"
 tower = { workspace = true }
@@ -50,9 +50,10 @@ regex = "1.11"
 assert_matches = "1.5"
 candid_parser = { workspace = true }
 ic-crypto-test-utils-reproducible-rng = { git = "https://github.com/dfinity/ic", rev = "release-2024-09-26_01-31-base" }
+ic-management-canister-types = { workspace = true }
 ic-test-utilities-load-wasm = { git = "https://github.com/dfinity/ic", rev = "release-2024-09-26_01-31-base" }
 maplit = "1"
-pocket-ic = "7.0.0"
+pocket-ic = "9.0.0"
 proptest = { workspace = true }
 rand = "0.8"
 
@@ -73,6 +74,7 @@ ic-cdk = "0.17.1"
 ic-cdk-bindgen = "0.1"
 ic-cdk-macros = "0.17.1"
 ic-certified-map = "0.4"
+ic-management-canister-types = "0.3"
 ic-metrics-encoder = "1.1"
 ic-stable-structures = "0.6.8"
 itertools = "0.14.0"
