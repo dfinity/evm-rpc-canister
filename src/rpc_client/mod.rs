@@ -71,13 +71,13 @@ impl Providers {
     // if the providers are not explicitly specified by the caller.
     const DEFAULT_ETH_MAINNET_SERVICES: &'static [EthMainnetService] = &[
         EthMainnetService::BlockPi,
-        EthMainnetService::Cloudflare,
+        EthMainnetService::Ankr,
         EthMainnetService::PublicNode,
     ];
     const NON_DEFAULT_ETH_MAINNET_SERVICES: &'static [EthMainnetService] = &[
         EthMainnetService::Llama,
         EthMainnetService::Alchemy,
-        EthMainnetService::Ankr,
+        EthMainnetService::Cloudflare,
     ];
 
     const DEFAULT_ETH_SEPOLIA_SERVICES: &'static [EthSepoliaService] = &[

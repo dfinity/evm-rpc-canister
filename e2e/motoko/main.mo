@@ -30,8 +30,6 @@ shared ({ caller = installer }) actor class Main() {
         (#BaseMainnet(#Ankr), null), // Need API key
         (#EthMainnet(#Ankr), null), // Need API key
         (#OptimismMainnet(#Ankr), null), // Need API key
-        (#OptimismMainnet(#BlockPi), ?"eth_feeHistory"), // Temporary issue with [op-geth](https://github.com/ethereum-optimism/op-geth/issues/542)
-        (#BaseMainnet(#BlockPi), ?"eth_feeHistory"), // Temporary issue with [op-geth](https://github.com/ethereum-optimism/op-geth/issues/542)
     ];
 
     func runTests(caller : Principal, category : TestCategory) : async () {
