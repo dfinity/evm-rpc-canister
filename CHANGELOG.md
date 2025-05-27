@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] - 2025-05-27
+
+### Added
+- Library `canhttp` that contains the handling of HTTPs outcalls ([#364](https://github.com/dfinity/evm-rpc-canister/pull/364), [#370](https://github.com/dfinity/evm-rpc-canister/pull/370), [#374](https://github.com/dfinity/evm-rpc-canister/pull/374), [#375](https://github.com/dfinity/evm-rpc-canister/pull/375), [#378](https://github.com/dfinity/evm-rpc-canister/pull/378) and [#391](https://github.com/dfinity/evm-rpc-canister/pull/391))
+
+### Changed
+
+- Improve validation of JSON-RPC requests and responses to adhere to the JSON-RPC specification ([#386](https://github.com/dfinity/evm-rpc-canister/pull/386) and [#387](https://github.com/dfinity/evm-rpc-canister/pull/387))
+- Re-order default Sepolia providers ([#410](https://github.com/dfinity/evm-rpc-canister/pull/410))
+- Remove `http_types` module and use external `ic-http-types` crate ([#400](https://github.com/dfinity/evm-rpc-canister/pull/400))
+- Update dependencies:
+    - Update Rust and libs ([#418](https://github.com/dfinity/evm-rpc-canister/pull/418))
+    - Bump tokio from 1.44.0 to 1.44.1 ([#389](https://github.com/dfinity/evm-rpc-canister/pull/389))
+    - Bump http from 1.2.0 to 1.3.1 ([#388](https://github.com/dfinity/evm-rpc-canister/pull/388))
+    - Bump ic-stable-structures from 0.6.7 to 0.6.8 ([#390](https://github.com/dfinity/evm-rpc-canister/pull/390))
+    - Bump pocket-ic from 6.0.0 to 7.0.0 ([#376](https://github.com/dfinity/evm-rpc-canister/pull/376))
+    - Bump pin-project from 1.1.9 to 1.1.10 ([#382](https://github.com/dfinity/evm-rpc-canister/pull/382))
+    - Bump thiserror from 2.0.11 to 2.0.12 ([#381](https://github.com/dfinity/evm-rpc-canister/pull/381))
+    - Bump tokio from 1.43.0 to 1.44.0 ([#384](https://github.com/dfinity/evm-rpc-canister/pull/384))
+    - Bump serde_json from 1.0.139 to 1.0.140 ([#385](https://github.com/dfinity/evm-rpc-canister/pull/385))
+    - Bump serde_bytes from 0.11.15 to 0.11.17 ([#380](https://github.com/dfinity/evm-rpc-canister/pull/380))
+    - Bump serde from 1.0.218 to 1.0.219 ([#383](https://github.com/dfinity/evm-rpc-canister/pull/383))
+    - Bump ring from 0.17.8 to 0.17.13 ([#379](https://github.com/dfinity/evm-rpc-canister/pull/379))
+    - Bump serde_json from 1.0.138 to 1.0.139 ([#371](https://github.com/dfinity/evm-rpc-canister/pull/371))
+    - Bump serde from 1.0.217 to 1.0.218 ([#372](https://github.com/dfinity/evm-rpc-canister/pull/372))
+
+### Fixed
+
+- Missing TraceHttp logs ([#421](https://github.com/dfinity/evm-rpc-canister/pull/421))
+- Reject calls to HTTP endpoint in replicated mode ([#373](https://github.com/dfinity/evm-rpc-canister/pull/373))
+- Double `max_response_bytes` when response too big ([#368](https://github.com/dfinity/evm-rpc-canister/pull/368))
+
 ## [2.3.1] - 2025-05-19
 
 ### Changed
