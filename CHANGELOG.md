@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.1] - 2025-05-19
+
+### Changed
+
+- Re-order default Sepolia providers ([#413](https://github.com/dfinity/evm-rpc-canister/pull/413))
+
+### Fixed
+
+- Replace Cloudflare with Ankr ([#414](https://github.com/dfinity/evm-rpc-canister/pull/414))
+
 ## [2.3.0] - 2025-02-11
 
 ### Added
