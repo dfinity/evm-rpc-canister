@@ -11,9 +11,10 @@ use evm_rpc::{
     types::{Metrics, ProviderId, RpcAccess, RpcMethod},
 };
 use evm_rpc_types::{
-    BlockTag, ConsensusStrategy, EthMainnetService, EthSepoliaService, Hex, Hex20, Hex32,
-    HttpOutcallError, InstallArgs, JsonRpcError, MultiRpcResult, Nat256, Provider, ProviderError,
-    RpcApi, RpcConfig, RpcError, RpcResult, RpcService, RpcServices, ValidationError,
+    BlockTag, ConsensusStrategy, EthMainnetService, EthSepoliaService, GetLogsRpcConfig, Hex,
+    Hex20, Hex32, HttpOutcallError, InstallArgs, JsonRpcError, MultiRpcResult, Nat256, Provider,
+    ProviderError, RpcApi, RpcConfig, RpcError, RpcResult, RpcService, RpcServices,
+    ValidationError,
 };
 use ic_cdk::api::call::RejectionCode;
 use ic_cdk::api::management_canister::http_request::HttpHeader;
@@ -235,7 +236,7 @@ impl EvmRpcSetup {
     pub fn eth_get_logs(
         &self,
         source: RpcServices,
-        config: Option<evm_rpc_types::RpcConfig>,
+        config: Option<evm_rpc_types::GetLogsRpcConfig>,
         args: evm_rpc_types::GetLogsArgs,
     ) -> CallFlow<MultiRpcResult<Vec<evm_rpc_types::LogEntry>>> {
         self.call_update("eth_getLogs", Encode!(&source, &config, &args).unwrap())
@@ -707,32 +708,49 @@ fn eth_get_logs_should_succeed() {
     let setup = EvmRpcSetup::new().mock_api_keys();
     let mut offset = 0_u64;
     for source in RPC_SERVICES {
-        let mut responses: [serde_json::Value; 3] = mock_responses();
-        add_offset_json_rpc_id(responses.as_mut_slice(), offset);
-
-        let response = setup
-            .eth_get_logs(
-                source.clone(),
+        for (config, from_block, to_block) in [
+            // default block range
+            (
                 None,
-                evm_rpc_types::GetLogsArgs {
-                    addresses: vec!["0xdAC17F958D2ee523a2206206994597C13D831ec7"
-                        .parse()
-                        .unwrap()],
-                    from_block: None,
-                    to_block: None,
-                    topics: None,
-                },
-            )
-            .mock_http_once(MockOutcallBuilder::new(200, responses[0].clone()))
-            .mock_http_once(MockOutcallBuilder::new(200, responses[1].clone()))
-            .mock_http_once(MockOutcallBuilder::new(200, responses[2].clone()))
-            .wait()
-            .expect_consistent()
-            .unwrap();
+                Some(BlockTag::Number(0_u8.into())),
+                Some(BlockTag::Number(500_u16.into())),
+            ),
+            // large block range
+            (
+                Some(GetLogsRpcConfig {
+                    max_block_range: Some(1_000),
+                    ..Default::default()
+                }),
+                Some(BlockTag::Number(0_u8.into())),
+                Some(BlockTag::Number(501_u16.into())),
+            ),
+        ] {
+            let mut responses: [serde_json::Value; 3] = mock_responses();
+            add_offset_json_rpc_id(responses.as_mut_slice(), offset);
 
-        assert_eq!(response, expected_logs());
+            let response = setup
+                .eth_get_logs(
+                    source.clone(),
+                    config,
+                    evm_rpc_types::GetLogsArgs {
+                        addresses: vec!["0xdAC17F958D2ee523a2206206994597C13D831ec7"
+                            .parse()
+                            .unwrap()],
+                        from_block,
+                        to_block,
+                        topics: None,
+                    },
+                )
+                .mock_http_once(MockOutcallBuilder::new(200, responses[0].clone()))
+                .mock_http_once(MockOutcallBuilder::new(200, responses[1].clone()))
+                .mock_http_once(MockOutcallBuilder::new(200, responses[2].clone()))
+                .wait()
+                .expect_consistent()
+                .unwrap();
+            offset += 3;
 
-        offset += 3;
+            assert_eq!(response, expected_logs());
+        }
     }
 }
 
@@ -1805,9 +1823,10 @@ fn should_use_custom_response_size_estimate() {
     let response = setup
         .eth_get_logs(
             RpcServices::EthMainnet(Some(vec![EthMainnetService::Cloudflare])),
-            Some(evm_rpc_types::RpcConfig {
+            Some(evm_rpc_types::GetLogsRpcConfig {
                 response_size_estimate: Some(max_response_bytes),
                 response_consensus: None,
+                ..Default::default()
             }),
             evm_rpc_types::GetLogsArgs {
                 addresses: vec!["0xdAC17F958D2ee523a2206206994597C13D831ec7"
@@ -2219,9 +2238,10 @@ fn should_retry_when_response_too_large() {
     let response = setup
         .eth_get_logs(
             RpcServices::EthMainnet(Some(vec![EthMainnetService::Cloudflare])),
-            Some(evm_rpc_types::RpcConfig {
+            Some(evm_rpc_types::GetLogsRpcConfig {
                 response_size_estimate: Some(1),
                 response_consensus: None,
+                ..Default::default()
             }),
             evm_rpc_types::GetLogsArgs {
                 addresses: vec!["0xdAC17F958D2ee523a2206206994597C13D831ec7"
@@ -2260,9 +2280,10 @@ fn should_retry_when_response_too_large() {
     let response = setup
         .eth_get_logs(
             RpcServices::EthMainnet(Some(vec![EthMainnetService::Cloudflare])),
-            Some(evm_rpc_types::RpcConfig {
+            Some(evm_rpc_types::GetLogsRpcConfig {
                 response_size_estimate: Some(1),
                 response_consensus: None,
+                ..Default::default()
             }),
             evm_rpc_types::GetLogsArgs {
                 addresses: vec!["0xdAC17F958D2ee523a2206206994597C13D831ec7"
