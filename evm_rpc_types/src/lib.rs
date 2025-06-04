@@ -26,8 +26,8 @@ pub use result::{
     ValidationError,
 };
 pub use rpc_client::{
-    ConsensusStrategy, EthMainnetService, EthSepoliaService, HttpHeader, L2MainnetService,
-    Provider, RpcAccess, RpcApi, RpcAuth, RpcConfig, RpcService, RpcServices,
+    ConsensusStrategy, EthMainnetService, EthSepoliaService, GetLogsRpcConfig, HttpHeader,
+    L2MainnetService, Provider, RpcAccess, RpcApi, RpcAuth, RpcConfig, RpcService, RpcServices,
 };
 
 /// A `Nat` that is guaranteed to fit in 256 bits.
