@@ -757,29 +757,49 @@ fn eth_get_logs_should_succeed() {
 #[test]
 fn eth_get_logs_should_fail_when_block_range_too_large() {
     let setup = EvmRpcSetup::new().mock_api_keys();
+    let error_msg_regex =
+        regex::Regex::new("Requested [0-9_]+ blocks; limited to [0-9_]+").unwrap();
 
     for source in RPC_SERVICES {
-        let response = setup
-            .eth_get_logs(
-                source.clone(),
+        for (config, from_block, to_block) in [
+            // default block range
+            (
                 None,
-                evm_rpc_types::GetLogsArgs {
-                    addresses: vec!["0xdAC17F958D2ee523a2206206994597C13D831ec7"
-                        .parse()
-                        .unwrap()],
-                    from_block: Some(BlockTag::Number(0_u8.into())),
-                    to_block: Some(BlockTag::Number(501_u16.into())),
-                    topics: None,
-                },
-            )
-            .wait()
-            .expect_consistent()
-            .unwrap_err();
+                Some(BlockTag::Number(0_u8.into())),
+                Some(BlockTag::Number(501_u16.into())),
+            ),
+            // large block range
+            (
+                Some(GetLogsRpcConfig {
+                    max_block_range: Some(1_000),
+                    ..Default::default()
+                }),
+                Some(BlockTag::Number(0_u8.into())),
+                Some(BlockTag::Number(1001_u16.into())),
+            ),
+        ] {
+            let response = setup
+                .eth_get_logs(
+                    source.clone(),
+                    config,
+                    evm_rpc_types::GetLogsArgs {
+                        addresses: vec!["0xdAC17F958D2ee523a2206206994597C13D831ec7"
+                            .parse()
+                            .unwrap()],
+                        from_block,
+                        to_block,
+                        topics: None,
+                    },
+                )
+                .wait()
+                .expect_consistent()
+                .unwrap_err();
 
-        assert_matches!(
-            response,
-            RpcError::ValidationError(ValidationError::Custom(s)) if s.contains("Requested 501 blocks; limited to 500")
-        )
+            assert_matches!(
+                response,
+                RpcError::ValidationError(ValidationError::Custom(s)) if error_msg_regex.is_match(&s)
+            )
+        }
     }
 }
 
