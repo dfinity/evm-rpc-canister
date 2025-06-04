@@ -48,8 +48,10 @@ pub async fn eth_get_logs(
     config: Option<evm_rpc_types::GetLogsRpcConfig>,
     args: evm_rpc_types::GetLogsArgs,
 ) -> MultiRpcResult<Vec<evm_rpc_types::LogEntry>> {
-    match CandidRpcClient::new(source, config.map(RpcConfig::from)) {
-        Ok(source) => source.eth_get_logs(args).await,
+    let config = config.unwrap_or_default();
+    let max_block_range = config.max_block_range_or_default();
+    match CandidRpcClient::new(source, Some(RpcConfig::from(config))) {
+        Ok(source) => source.eth_get_logs(args, max_block_range).await,
         Err(err) => Err(err).into(),
     }
 }

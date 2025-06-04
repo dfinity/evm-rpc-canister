@@ -5,7 +5,6 @@ mod tests;
 use crate::rpc_client::{EthRpcClient, ReducedResult};
 use crate::{
     add_metric_entry,
-    constants::ETH_GET_LOGS_MAX_BLOCKS,
     providers::resolve_rpc_service,
     types::{MetricRpcHost, ResolvedRpcService, RpcMethod},
 };
@@ -63,6 +62,7 @@ impl CandidRpcClient {
     pub async fn eth_get_logs(
         &self,
         args: evm_rpc_types::GetLogsArgs,
+        max_block_range: u32,
     ) -> MultiRpcResult<Vec<evm_rpc_types::LogEntry>> {
         use crate::candid_rpc::cketh_conversion::{from_log_entries, into_get_logs_param};
 
@@ -74,10 +74,10 @@ impl CandidRpcClient {
             let from = Nat::from(from.clone());
             let to = Nat::from(to.clone());
             let block_count = if to > from { to - from } else { from - to };
-            if block_count > ETH_GET_LOGS_MAX_BLOCKS {
+            if block_count > max_block_range {
                 return MultiRpcResult::Consistent(Err(ValidationError::Custom(format!(
                     "Requested {} blocks; limited to {} when specifying a start and end block",
-                    block_count, ETH_GET_LOGS_MAX_BLOCKS
+                    block_count, max_block_range
                 ))
                 .into()));
             }

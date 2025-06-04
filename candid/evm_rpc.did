@@ -226,7 +226,15 @@ type CallResult = variant { Ok : text; Err : RpcError };
 type RequestResult = variant { Ok : text; Err : RpcError };
 type RequestCostResult = variant { Ok : nat; Err : RpcError };
 type RpcConfig = record { responseSizeEstimate : opt nat64; responseConsensus : opt ConsensusStrategy };
-type GetLogsRpcConfig = record { responseSizeEstimate : opt nat64; responseConsensus : opt ConsensusStrategy };
+type GetLogsRpcConfig = record { 
+    responseSizeEstimate : opt nat64;
+    responseConsensus : opt ConsensusStrategy;
+    // Most providers limit the block range that can be queried with `eth_getLogs`.
+    // By default, the chosen value should work for all supported JSON-RPC providers.
+    // This value could be changed if the providers are explicitly specified and they do support querying a larger block range.
+    // DEFAULT: 500
+    maxBlockRange : opt nat32;
+};
 type ConsensusStrategy = variant {
   Equality;
   Threshold : record {
