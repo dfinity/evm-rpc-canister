@@ -1825,7 +1825,6 @@ fn should_use_custom_response_size_estimate() {
             RpcServices::EthMainnet(Some(vec![EthMainnetService::Cloudflare])),
             Some(evm_rpc_types::GetLogsRpcConfig {
                 response_size_estimate: Some(max_response_bytes),
-                response_consensus: None,
                 ..Default::default()
             }),
             evm_rpc_types::GetLogsArgs {
@@ -2240,7 +2239,6 @@ fn should_retry_when_response_too_large() {
             RpcServices::EthMainnet(Some(vec![EthMainnetService::Cloudflare])),
             Some(evm_rpc_types::GetLogsRpcConfig {
                 response_size_estimate: Some(1),
-                response_consensus: None,
                 ..Default::default()
             }),
             evm_rpc_types::GetLogsArgs {
@@ -2282,7 +2280,6 @@ fn should_retry_when_response_too_large() {
             RpcServices::EthMainnet(Some(vec![EthMainnetService::Cloudflare])),
             Some(evm_rpc_types::GetLogsRpcConfig {
                 response_size_estimate: Some(1),
-                response_consensus: None,
                 ..Default::default()
             }),
             evm_rpc_types::GetLogsArgs {
