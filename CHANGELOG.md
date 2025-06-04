@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.4.0] - 2025-05-27
+## [2.4.0] - 2025-06-04
 
 ### Added
 - Library `canhttp` that contains the handling of HTTPs outcalls ([#364](https://github.com/dfinity/evm-rpc-canister/pull/364), [#370](https://github.com/dfinity/evm-rpc-canister/pull/370), [#374](https://github.com/dfinity/evm-rpc-canister/pull/374), [#375](https://github.com/dfinity/evm-rpc-canister/pull/375), [#378](https://github.com/dfinity/evm-rpc-canister/pull/378) and [#391](https://github.com/dfinity/evm-rpc-canister/pull/391))
