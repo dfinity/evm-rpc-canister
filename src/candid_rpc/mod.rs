@@ -145,6 +145,17 @@ impl CandidRpcClient {
         .map(from_fee_history)
     }
 
+    pub async fn eth_estimate_gas(&self, args: evm_rpc_types::CallArgs) -> MultiRpcResult<Hex> {
+        use crate::candid_rpc::cketh_conversion::{from_data, into_eth_call_params};
+        process_result(
+            RpcMethod::EthEstimateGas,
+            self.client
+                .eth_estimate_gas(into_eth_call_params(args))
+                .await,
+        )
+        .map(from_data)
+    }
+
     pub async fn eth_send_raw_transaction(
         &self,
         raw_signed_transaction_hex: Hex,
