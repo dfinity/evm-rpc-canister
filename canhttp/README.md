@@ -4,3 +4,7 @@
 
 
 # canhttp
+
+Library to make [HTTPs outcalls](https://internetcomputer.org/https-outcalls) from a canister on the Internet Computer, leveraging the modularity of the [tower framework](https://rust-lang.guide/guide/learn-async-rust/tower.html).
+
+See the [Rust documentation](https://docs.rs/canhttp) for more details.
