@@ -11,9 +11,9 @@ use evm_rpc::{
     types::{Metrics, ProviderId, RpcAccess, RpcMethod},
 };
 use evm_rpc_types::{
-    ConsensusStrategy, EthMainnetService, EthSepoliaService, Hex, Hex20, Hex32, HttpOutcallError,
-    InstallArgs, JsonRpcError, MultiRpcResult, Nat256, Provider, ProviderError, RpcApi, RpcConfig,
-    RpcError, RpcResult, RpcService, RpcServices,
+    BlockTag, ConsensusStrategy, EthMainnetService, EthSepoliaService, Hex, Hex20, Hex32,
+    HttpOutcallError, InstallArgs, JsonRpcError, MultiRpcResult, Nat256, Provider, ProviderError,
+    RpcApi, RpcConfig, RpcError, RpcResult, RpcService, RpcServices, ValidationError,
 };
 use ic_cdk::api::call::RejectionCode;
 use ic_cdk::api::management_canister::http_request::HttpHeader;
@@ -722,6 +722,35 @@ fn eth_get_logs_should_succeed() {
                 removed: false
             }]
         );
+    }
+}
+
+#[test]
+fn eth_get_logs_should_fail_when_block_range_too_large() {
+    let setup = EvmRpcSetup::new().mock_api_keys();
+
+    for source in RPC_SERVICES {
+        let response = setup
+            .eth_get_logs(
+                source.clone(),
+                None,
+                evm_rpc_types::GetLogsArgs {
+                    addresses: vec!["0xdAC17F958D2ee523a2206206994597C13D831ec7"
+                        .parse()
+                        .unwrap()],
+                    from_block: Some(BlockTag::Number(0_u8.into())),
+                    to_block: Some(BlockTag::Number(501_u16.into())),
+                    topics: None,
+                },
+            )
+            .wait()
+            .expect_consistent()
+            .unwrap_err();
+
+        assert_matches!(
+            response,
+            RpcError::ValidationError(ValidationError::Custom(s)) if s.contains("Requested 501 blocks; limited to 500")
+        )
     }
 }
 
