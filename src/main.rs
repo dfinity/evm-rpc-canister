@@ -16,7 +16,7 @@ use evm_rpc::{
     memory::UNSTABLE_METRICS,
     types::Metrics,
 };
-use evm_rpc_types::{Hex32, HttpOutcallError, MultiRpcResult, RpcResult};
+use evm_rpc_types::{Hex32, HttpOutcallError, MultiRpcResult, RpcConfig, RpcResult};
 use ic_canister_log::log;
 use ic_cdk::{
     api::{
@@ -45,10 +45,10 @@ pub fn require_api_key_principal_or_controller() -> Result<(), String> {
 #[candid_method(rename = "eth_getLogs")]
 pub async fn eth_get_logs(
     source: evm_rpc_types::RpcServices,
-    config: Option<evm_rpc_types::RpcConfig>,
+    config: Option<evm_rpc_types::GetLogsRpcConfig>,
     args: evm_rpc_types::GetLogsArgs,
 ) -> MultiRpcResult<Vec<evm_rpc_types::LogEntry>> {
-    match CandidRpcClient::new(source, config) {
+    match CandidRpcClient::new(source, config.map(RpcConfig::from)) {
         Ok(source) => source.eth_get_logs(args).await,
         Err(err) => Err(err).into(),
     }

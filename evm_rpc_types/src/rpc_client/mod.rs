@@ -18,6 +18,24 @@ pub struct RpcConfig {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Default, CandidType, Deserialize)]
+pub struct GetLogsRpcConfig {
+    #[serde(rename = "responseSizeEstimate")]
+    pub response_size_estimate: Option<u64>,
+
+    #[serde(rename = "responseConsensus")]
+    pub response_consensus: Option<ConsensusStrategy>,
+}
+
+impl From<GetLogsRpcConfig> for RpcConfig {
+    fn from(config: GetLogsRpcConfig) -> Self {
+        Self {
+            response_size_estimate: config.response_size_estimate,
+            response_consensus: config.response_consensus,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Default, CandidType, Deserialize)]
 pub enum ConsensusStrategy {
     /// All providers must return the same non-error result.
     #[default]

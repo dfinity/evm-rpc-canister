@@ -226,6 +226,7 @@ type CallResult = variant { Ok : text; Err : RpcError };
 type RequestResult = variant { Ok : text; Err : RpcError };
 type RequestCostResult = variant { Ok : nat; Err : RpcError };
 type RpcConfig = record { responseSizeEstimate : opt nat64; responseConsensus : opt ConsensusStrategy };
+type GetLogsRpcConfig = record { responseSizeEstimate : opt nat64; responseConsensus : opt ConsensusStrategy };
 type ConsensusStrategy = variant {
   Equality;
   Threshold : record {
@@ -293,7 +294,7 @@ type ValidationError = variant {
 service : (InstallArgs) -> {
   eth_feeHistory : (RpcServices, opt RpcConfig, FeeHistoryArgs) -> (MultiFeeHistoryResult);
   eth_getBlockByNumber : (RpcServices, opt RpcConfig, BlockTag) -> (MultiGetBlockByNumberResult);
-  eth_getLogs : (RpcServices, opt RpcConfig, GetLogsArgs) -> (MultiGetLogsResult);
+  eth_getLogs : (RpcServices, opt GetLogsRpcConfig, GetLogsArgs) -> (MultiGetLogsResult);
   eth_getTransactionCount : (RpcServices, opt RpcConfig, GetTransactionCountArgs) -> (MultiGetTransactionCountResult);
   eth_getTransactionReceipt : (RpcServices, opt RpcConfig, hash : text) -> (MultiGetTransactionReceiptResult);
   eth_sendRawTransaction : (RpcServices, opt RpcConfig, rawSignedTransactionHex : text) -> (MultiSendRawTransactionResult);
