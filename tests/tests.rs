@@ -11,9 +11,10 @@ use evm_rpc::{
     types::{Metrics, ProviderId, RpcAccess, RpcMethod},
 };
 use evm_rpc_types::{
-    ConsensusStrategy, EthMainnetService, EthSepoliaService, Hex, Hex20, Hex32, HttpOutcallError,
-    InstallArgs, JsonRpcError, MultiRpcResult, Nat256, Provider, ProviderError, RpcApi, RpcConfig,
-    RpcError, RpcResult, RpcService, RpcServices,
+    BlockTag, ConsensusStrategy, EthMainnetService, EthSepoliaService, GetLogsRpcConfig, Hex,
+    Hex20, Hex32, HttpOutcallError, InstallArgs, JsonRpcError, MultiRpcResult, Nat256, Provider,
+    ProviderError, RpcApi, RpcConfig, RpcError, RpcResult, RpcService, RpcServices,
+    ValidationError,
 };
 use ic_cdk::api::call::RejectionCode;
 use ic_cdk::api::management_canister::http_request::HttpHeader;
@@ -235,7 +236,7 @@ impl EvmRpcSetup {
     pub fn eth_get_logs(
         &self,
         source: RpcServices,
-        config: Option<evm_rpc_types::RpcConfig>,
+        config: Option<evm_rpc_types::GetLogsRpcConfig>,
         args: evm_rpc_types::GetLogsArgs,
     ) -> CallFlow<MultiRpcResult<Vec<evm_rpc_types::LogEntry>>> {
         self.call_update("eth_getLogs", Encode!(&source, &config, &args).unwrap())
@@ -665,63 +666,140 @@ fn should_decode_transaction_receipt() {
 
 #[test]
 fn eth_get_logs_should_succeed() {
-    let [response_0, response_1, response_2] = json_rpc_sequential_id(
-        json!({"id":0,"jsonrpc":"2.0","result":[{"address":"0xdac17f958d2ee523a2206206994597c13d831ec7","topics":["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef","0x000000000000000000000000a9d1e08c7793af67e9d92fe308d5697fb81d3e43","0x00000000000000000000000078cccfb3d517cd4ed6d045e263e134712288ace2"],"data":"0x000000000000000000000000000000000000000000000000000000003b9c6433","blockNumber":"0x11dc77e","transactionHash":"0xf3ed91a03ddf964281ac7a24351573efd535b80fc460a5c2ad2b9d23153ec678","transactionIndex":"0x65","blockHash":"0xd5c72ad752b2f0144a878594faf8bd9f570f2f72af8e7f0940d3545a6388f629","logIndex":"0xe8","removed":false}]}),
-    );
+    fn mock_responses() -> [serde_json::Value; 3] {
+        json_rpc_sequential_id(
+            json!({"id":0,"jsonrpc":"2.0","result":[{"address":"0xdac17f958d2ee523a2206206994597c13d831ec7","topics":["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef","0x000000000000000000000000a9d1e08c7793af67e9d92fe308d5697fb81d3e43","0x00000000000000000000000078cccfb3d517cd4ed6d045e263e134712288ace2"],"data":"0x000000000000000000000000000000000000000000000000000000003b9c6433","blockNumber":"0x11dc77e","transactionHash":"0xf3ed91a03ddf964281ac7a24351573efd535b80fc460a5c2ad2b9d23153ec678","transactionIndex":"0x65","blockHash":"0xd5c72ad752b2f0144a878594faf8bd9f570f2f72af8e7f0940d3545a6388f629","logIndex":"0xe8","removed":false}]}),
+        )
+    }
+
+    fn expected_logs() -> Vec<evm_rpc_types::LogEntry> {
+        vec![evm_rpc_types::LogEntry {
+            address: "0xdac17f958d2ee523a2206206994597c13d831ec7"
+                .parse()
+                .unwrap(),
+            topics: vec![
+                "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                "0x000000000000000000000000a9d1e08c7793af67e9d92fe308d5697fb81d3e43",
+                "0x00000000000000000000000078cccfb3d517cd4ed6d045e263e134712288ace2",
+            ]
+            .into_iter()
+            .map(|hex| hex.parse().unwrap())
+            .collect(),
+            data: "0x000000000000000000000000000000000000000000000000000000003b9c6433"
+                .parse()
+                .unwrap(),
+            block_number: Some(0x11dc77e_u32.into()),
+            transaction_hash: Some(
+                "0xf3ed91a03ddf964281ac7a24351573efd535b80fc460a5c2ad2b9d23153ec678"
+                    .parse()
+                    .unwrap(),
+            ),
+            transaction_index: Some(0x65_u32.into()),
+            block_hash: Some(
+                "0xd5c72ad752b2f0144a878594faf8bd9f570f2f72af8e7f0940d3545a6388f629"
+                    .parse()
+                    .unwrap(),
+            ),
+            log_index: Some(0xe8_u32.into()),
+            removed: false,
+        }]
+    }
+
+    let setup = EvmRpcSetup::new().mock_api_keys();
+    let mut offset = 0_u64;
     for source in RPC_SERVICES {
-        let setup = EvmRpcSetup::new().mock_api_keys();
-        let response = setup
-            .eth_get_logs(
-                source.clone(),
+        for (config, from_block, to_block) in [
+            // default block range
+            (
                 None,
-                evm_rpc_types::GetLogsArgs {
-                    addresses: vec!["0xdAC17F958D2ee523a2206206994597C13D831ec7"
-                        .parse()
-                        .unwrap()],
-                    from_block: None,
-                    to_block: None,
-                    topics: None,
-                },
+                Some(BlockTag::Number(0_u8.into())),
+                Some(BlockTag::Number(500_u16.into())),
+            ),
+            // large block range
+            (
+                Some(GetLogsRpcConfig {
+                    max_block_range: Some(1_000),
+                    ..Default::default()
+                }),
+                Some(BlockTag::Number(0_u8.into())),
+                Some(BlockTag::Number(501_u16.into())),
+            ),
+        ] {
+            let mut responses: [serde_json::Value; 3] = mock_responses();
+            add_offset_json_rpc_id(responses.as_mut_slice(), offset);
+
+            let response = setup
+                .eth_get_logs(
+                    source.clone(),
+                    config,
+                    evm_rpc_types::GetLogsArgs {
+                        addresses: vec!["0xdAC17F958D2ee523a2206206994597C13D831ec7"
+                            .parse()
+                            .unwrap()],
+                        from_block,
+                        to_block,
+                        topics: None,
+                    },
+                )
+                .mock_http_once(MockOutcallBuilder::new(200, responses[0].clone()))
+                .mock_http_once(MockOutcallBuilder::new(200, responses[1].clone()))
+                .mock_http_once(MockOutcallBuilder::new(200, responses[2].clone()))
+                .wait()
+                .expect_consistent()
+                .unwrap();
+            offset += 3;
+
+            assert_eq!(response, expected_logs());
+        }
+    }
+}
+
+#[test]
+fn eth_get_logs_should_fail_when_block_range_too_large() {
+    let setup = EvmRpcSetup::new().mock_api_keys();
+    let error_msg_regex =
+        regex::Regex::new("Requested [0-9_]+ blocks; limited to [0-9_]+").unwrap();
+
+    for source in RPC_SERVICES {
+        for (config, from_block, to_block) in [
+            // default block range
+            (
+                None,
+                Some(BlockTag::Number(0_u8.into())),
+                Some(BlockTag::Number(501_u16.into())),
+            ),
+            // large block range
+            (
+                Some(GetLogsRpcConfig {
+                    max_block_range: Some(1_000),
+                    ..Default::default()
+                }),
+                Some(BlockTag::Number(0_u8.into())),
+                Some(BlockTag::Number(1001_u16.into())),
+            ),
+        ] {
+            let response = setup
+                .eth_get_logs(
+                    source.clone(),
+                    config,
+                    evm_rpc_types::GetLogsArgs {
+                        addresses: vec!["0xdAC17F958D2ee523a2206206994597C13D831ec7"
+                            .parse()
+                            .unwrap()],
+                        from_block,
+                        to_block,
+                        topics: None,
+                    },
+                )
+                .wait()
+                .expect_consistent()
+                .unwrap_err();
+
+            assert_matches!(
+                response,
+                RpcError::ValidationError(ValidationError::Custom(s)) if error_msg_regex.is_match(&s)
             )
-            .mock_http_once(MockOutcallBuilder::new(200, response_0.clone()))
-            .mock_http_once(MockOutcallBuilder::new(200, response_1.clone()))
-            .mock_http_once(MockOutcallBuilder::new(200, response_2.clone()))
-            .wait()
-            .expect_consistent()
-            .unwrap();
-        assert_eq!(
-            response,
-            vec![evm_rpc_types::LogEntry {
-                address: "0xdac17f958d2ee523a2206206994597c13d831ec7"
-                    .parse()
-                    .unwrap(),
-                topics: vec![
-                    "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
-                    "0x000000000000000000000000a9d1e08c7793af67e9d92fe308d5697fb81d3e43",
-                    "0x00000000000000000000000078cccfb3d517cd4ed6d045e263e134712288ace2"
-                ]
-                .into_iter()
-                .map(|hex| hex.parse().unwrap())
-                .collect(),
-                data: "0x000000000000000000000000000000000000000000000000000000003b9c6433"
-                    .parse()
-                    .unwrap(),
-                block_number: Some(0x11dc77e_u32.into()),
-                transaction_hash: Some(
-                    "0xf3ed91a03ddf964281ac7a24351573efd535b80fc460a5c2ad2b9d23153ec678"
-                        .parse()
-                        .unwrap()
-                ),
-                transaction_index: Some(0x65_u32.into()),
-                block_hash: Some(
-                    "0xd5c72ad752b2f0144a878594faf8bd9f570f2f72af8e7f0940d3545a6388f629"
-                        .parse()
-                        .unwrap()
-                ),
-                log_index: Some(0xe8_u32.into()),
-                removed: false
-            }]
-        );
+        }
     }
 }
 
@@ -1765,9 +1843,9 @@ fn should_use_custom_response_size_estimate() {
     let response = setup
         .eth_get_logs(
             RpcServices::EthMainnet(Some(vec![EthMainnetService::Cloudflare])),
-            Some(evm_rpc_types::RpcConfig {
+            Some(evm_rpc_types::GetLogsRpcConfig {
                 response_size_estimate: Some(max_response_bytes),
-                response_consensus: None,
+                ..Default::default()
             }),
             evm_rpc_types::GetLogsArgs {
                 addresses: vec!["0xdAC17F958D2ee523a2206206994597C13D831ec7"
@@ -2179,9 +2257,9 @@ fn should_retry_when_response_too_large() {
     let response = setup
         .eth_get_logs(
             RpcServices::EthMainnet(Some(vec![EthMainnetService::Cloudflare])),
-            Some(evm_rpc_types::RpcConfig {
+            Some(evm_rpc_types::GetLogsRpcConfig {
                 response_size_estimate: Some(1),
-                response_consensus: None,
+                ..Default::default()
             }),
             evm_rpc_types::GetLogsArgs {
                 addresses: vec!["0xdAC17F958D2ee523a2206206994597C13D831ec7"
@@ -2220,9 +2298,9 @@ fn should_retry_when_response_too_large() {
     let response = setup
         .eth_get_logs(
             RpcServices::EthMainnet(Some(vec![EthMainnetService::Cloudflare])),
-            Some(evm_rpc_types::RpcConfig {
+            Some(evm_rpc_types::GetLogsRpcConfig {
                 response_size_estimate: Some(1),
-                response_consensus: None,
+                ..Default::default()
             }),
             evm_rpc_types::GetLogsArgs {
                 addresses: vec!["0xdAC17F958D2ee523a2206206994597C13D831ec7"

@@ -18,6 +18,35 @@ pub struct RpcConfig {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Default, CandidType, Deserialize)]
+pub struct GetLogsRpcConfig {
+    #[serde(rename = "responseSizeEstimate")]
+    pub response_size_estimate: Option<u64>,
+
+    #[serde(rename = "responseConsensus")]
+    pub response_consensus: Option<ConsensusStrategy>,
+
+    #[serde(rename = "maxBlockRange")]
+    pub max_block_range: Option<u32>,
+}
+
+impl From<GetLogsRpcConfig> for RpcConfig {
+    fn from(config: GetLogsRpcConfig) -> Self {
+        Self {
+            response_size_estimate: config.response_size_estimate,
+            response_consensus: config.response_consensus,
+        }
+    }
+}
+
+impl GetLogsRpcConfig {
+    pub fn max_block_range_or_default(&self) -> u32 {
+        const DEFAULT_ETH_GET_LOGS_MAX_BLOCK_RANGE: u32 = 500;
+        self.max_block_range
+            .unwrap_or(DEFAULT_ETH_GET_LOGS_MAX_BLOCK_RANGE)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Default, CandidType, Deserialize)]
 pub enum ConsensusStrategy {
     /// All providers must return the same non-error result.
     #[default]
