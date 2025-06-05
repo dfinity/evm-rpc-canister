@@ -307,6 +307,7 @@ service : (InstallArgs) -> {
   eth_getTransactionReceipt : (RpcServices, opt RpcConfig, hash : text) -> (MultiGetTransactionReceiptResult);
   eth_sendRawTransaction : (RpcServices, opt RpcConfig, rawSignedTransactionHex : text) -> (MultiSendRawTransactionResult);
   eth_call : (RpcServices, opt RpcConfig, CallArgs) -> (MultiCallResult);
+  eth_estimateGas : (RpcServices, opt RpcConfig, CallArgs) -> (MultiCallResult);
   request : (RpcService, json : text, maxResponseBytes : nat64) -> (RequestResult);
   requestCost : (RpcService, json : text, maxResponseBytes : nat64) -> (RequestCostResult) query;
   
