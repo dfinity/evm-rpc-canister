@@ -316,7 +316,7 @@ dependencies = [
 
 [[package]]
 name = "canhttp"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "assert_matches",
  "candid",
