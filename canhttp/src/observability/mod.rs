@@ -16,7 +16,7 @@
 //!
 //! ```rust
 //! use canhttp::{IcError, observability::ObservabilityLayer};
-//! use ic_cdk::api::management_canister::http_request::{CanisterHttpRequestArgument as IcHttpRequest, HttpResponse as IcHttpResponse};
+//! use ic_cdk::management_canister::{HttpRequestArgs as IcHttpRequest, HttpRequestResult as IcHttpResponse};
 //! use tower::{Service, ServiceBuilder, ServiceExt};
 //! use std::cell::RefCell;
 //!
@@ -76,7 +76,7 @@
 //! The previous example can be refined by extracting request data (such as the request URL) to observe the responses/errors:
 //! ```rust
 //! use canhttp::{IcError, observability::ObservabilityLayer};
-//! use ic_cdk::api::management_canister::http_request::{CanisterHttpRequestArgument as IcHttpRequest, HttpResponse as IcHttpResponse};
+//! use ic_cdk::management_canister::{HttpRequestArgs as IcHttpRequest, HttpRequestResult as IcHttpResponse};
 //! use maplit::btreemap;
 //! use tower::{Service, ServiceBuilder, ServiceExt};
 //! use std::cell::RefCell;

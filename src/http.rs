@@ -29,9 +29,9 @@ use evm_rpc_types::{HttpOutcallError, ProviderError, RpcError, RpcResult, Valida
 use http::header::CONTENT_TYPE;
 use http::HeaderValue;
 use ic_canister_log::log;
-use ic_cdk::api::management_canister::http_request::{
-    CanisterHttpRequestArgument as IcHttpRequest, HttpResponse as IcHttpResponse, TransformArgs,
-    TransformContext,
+use ic_cdk::management_canister::{
+    transform_context_from_query, HttpRequestArgs as IcHttpRequest,
+    HttpRequestResult as IcHttpResponse, TransformArgs,
 };
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -58,7 +58,7 @@ pub fn json_rpc_request_arg(
     service
         .post(&get_override_provider())?
         .max_response_bytes(max_response_bytes)
-        .transform_context(TransformContext::from_name(
+        .transform_context(transform_context_from_query(
             "__transform_json_rpc".to_string(),
             vec![],
         ))
@@ -134,9 +134,13 @@ where
                 .on_error(
                     |req_data: MetricData, error: &HttpClientError| match error {
                         HttpClientError::IcError(IcError { code, message: _ }) => {
+                            // canhttp::IcError is using the deprecated RejectionCode from ic_cdk.
+                            // The metrics is using the RejectionCode from evm_rpc_types.
+                            // These are logically equivalent enums but different types from the Rust compiler's perspective.
+                            let code_evm_rpc = (*code as usize).into();
                             add_metric_entry!(
                                 err_http_outcall,
-                                (req_data.method, req_data.host, *code),
+                                (req_data.method, req_data.host, code_evm_rpc),
                                 1
                             );
                         }
@@ -302,7 +306,14 @@ impl From<HttpClientError> for RpcError {
     fn from(error: HttpClientError) -> Self {
         match error {
             HttpClientError::IcError(IcError { code, message }) => {
-                RpcError::HttpOutcallError(HttpOutcallError::IcError { code, message })
+                // canhttp::IcError is using the deprecated RejectionCode from ic_cdk.
+                // The metrics is using the RejectionCode from evm_rpc_types.
+                // These are logically equivalent enums but different types from the Rust compiler's perspective.
+                let code_evm_rpc = (code as usize).into();
+                RpcError::HttpOutcallError(HttpOutcallError::IcError {
+                    code: code_evm_rpc,
+                    message,
+                })
             }
             HttpClientError::NotHandledError(e) => {
                 RpcError::ValidationError(ValidationError::Custom(e))

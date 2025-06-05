@@ -1,5 +1,5 @@
 use evm_rpc_types::{EthMainnetService, EthSepoliaService, L2MainnetService, RpcApi, RpcServices};
-use ic_cdk::api::management_canister::http_request::HttpHeader;
+use ic_cdk::management_canister::HttpHeader;
 use proptest::arbitrary::any;
 use proptest::collection::{vec, SizeRange};
 use proptest::prelude::{Just, Strategy};

@@ -24,7 +24,7 @@
 //!
 //! ```rust
 //! use canhttp::http::{HttpRequest, HttpResponse, json::JsonConversionLayer};
-//! use ic_cdk::api::management_canister::http_request::{CanisterHttpRequestArgument as IcHttpRequest, HttpResponse as IcHttpResponse};
+//! use ic_cdk::management_canister::{HttpRequestArgs as IcHttpRequest, HttpRequestResult as IcHttpResponse};
 //! use tower::{Service, ServiceBuilder, ServiceExt, BoxError};
 //! use serde_json::json;
 //!
