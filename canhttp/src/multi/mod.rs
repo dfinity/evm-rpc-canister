@@ -3,6 +3,7 @@
 
 pub use reduce::{Reduce, ReduceWithEquality, ReduceWithThreshold, ReducedResult, ReductionError};
 
+mod cache;
 mod reduce;
 #[cfg(test)]
 mod tests;
