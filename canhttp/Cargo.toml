@@ -14,6 +14,7 @@ documentation = "https://docs.rs/canhttp"
 assert_matches = { workspace = true }
 ciborium = { workspace = true, optional = true }
 ic-cdk = { workspace = true }
+ic-error-types = { workspace = true }
 sha2 = { workspace = true, optional = true }
 futures-channel = { workspace = true, optional = true }
 futures-util = { workspace = true }
@@ -30,7 +31,7 @@ thiserror = { workspace = true }
 candid = { workspace = true }
 itertools = { workspace = true }
 maplit = { workspace = true }
-proptest = {workspace = true}
+proptest = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 
 [features]
