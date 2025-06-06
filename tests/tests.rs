@@ -17,10 +17,10 @@ use evm_rpc_types::{
     ValidationError,
 };
 use ic_cdk::api::call::RejectionCode;
-use ic_cdk::api::management_canister::http_request::HttpHeader;
 use ic_cdk::api::management_canister::main::CanisterId;
 use ic_http_types::{HttpRequest, HttpResponse};
 use ic_management_canister_types::CanisterSettings;
+use ic_management_canister_types::HttpHeader;
 use ic_test_utilities_load_wasm::load_wasm;
 use maplit::hashmap;
 use mock::{MockOutcall, MockOutcallBuilder};

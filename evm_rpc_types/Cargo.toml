@@ -15,6 +15,7 @@ documentation = "https://docs.rs/evm_rpc_types"
 candid = { workspace = true }
 hex = { workspace = true }
 ic-cdk = { workspace = true }
+ic-management-canister-types = { workspace = true }
 num-bigint = { workspace = true }
 serde = { workspace = true }
 strum = { workspace = true }

@@ -8,7 +8,7 @@ use crate::validate::validate_api_key;
 use candid::CandidType;
 use evm_rpc_types::{RpcApi, RpcError, ValidationError};
 use ic_cdk::api::call::RejectionCode;
-use ic_cdk::api::management_canister::http_request::HttpHeader;
+use ic_management_canister_types::HttpHeader;
 use ic_stable_structures::storable::Bound;
 use ic_stable_structures::Storable;
 use regex::Regex;

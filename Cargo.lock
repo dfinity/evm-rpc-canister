@@ -880,6 +880,7 @@ dependencies = [
  "candid",
  "hex",
  "ic-cdk",
+ "ic-management-canister-types",
  "num-bigint",
  "proptest",
  "serde",

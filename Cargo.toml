@@ -30,6 +30,7 @@ ic-stable-structures = { workspace = true }
 ic-canister-log = { workspace = true }
 ic-cdk = { workspace = true }
 ic-cdk-macros = { workspace = true }
+ic-management-canister-types = { workspace = true }
 maplit = "1.0"
 minicbor = { workspace = true }
 serde = { workspace = true }
