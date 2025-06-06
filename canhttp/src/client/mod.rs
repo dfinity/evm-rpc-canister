@@ -71,7 +71,13 @@ impl Service<IcHttpRequestWithCycles> for Client {
                 IcCdkRejectionCode::DestinationInvalid => RejectCode::DestinationInvalid,
                 IcCdkRejectionCode::CanisterReject => RejectCode::CanisterReject,
                 IcCdkRejectionCode::CanisterError => RejectCode::CanisterError,
-                IcCdkRejectionCode::Unknown | RejectionCode::NoError => RejectCode::SysUnknown,
+                IcCdkRejectionCode::Unknown => {
+                    // This can only happen if there is a new error code on ICP that the CDK is not aware of.
+                    // We map it to SysFatal since none of the other error codes apply.
+                    // In particular, note that RejectCode::SysUnknown is only applicable to inter-canister calls that used ic0.call_with_best_effort_response.
+                    RejectCode::SysFatal
+                }
+                RejectionCode::NoError => unreachable!("ic_cdk::api::management_canister::http_request::http_request should never produce a RejectionCode::NoError error")
             }
         }
 
