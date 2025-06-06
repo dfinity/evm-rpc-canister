@@ -50,7 +50,7 @@ mod override_provider {
     use crate::providers::PROVIDERS;
     use crate::types::{OverrideProvider, RegexSubstitution};
     use evm_rpc_types::RpcApi;
-    use ic_cdk::api::management_canister::http_request::HttpHeader;
+    use ic_management_canister_types::HttpHeader;
 
     #[test]
     fn should_override_provider_with_localhost() {

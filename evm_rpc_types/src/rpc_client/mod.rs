@@ -1,11 +1,10 @@
 #[cfg(test)]
 mod tests;
 
-pub use ic_cdk::api::management_canister::http_request::HttpHeader;
-use std::fmt::Debug;
-
 use candid::CandidType;
+pub use ic_management_canister_types::HttpHeader;
 use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
 use strum::VariantArray;
 
 #[derive(Clone, Debug, PartialEq, Eq, Default, CandidType, Deserialize)]

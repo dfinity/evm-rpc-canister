@@ -3,7 +3,7 @@ mod tests;
 
 use crate::RpcService;
 use candid::{CandidType, Deserialize};
-use ic_cdk::api::call::RejectionCode;
+use ic_error_types::RejectCode;
 use std::fmt::Debug;
 use thiserror::Error;
 
@@ -94,7 +94,7 @@ pub enum HttpOutcallError {
     /// Error from the IC system API.
     #[error("IC error (code: {code:?}): {message}")]
     IcError {
-        code: RejectionCode,
+        code: LegacyRejectionCode,
         message: String,
     },
     /// Response is not a valid JSON-RPC response,
@@ -145,5 +145,42 @@ impl From<JsonRpcError> for RpcError {
 impl From<ValidationError> for RpcError {
     fn from(err: ValidationError) -> Self {
         RpcError::ValidationError(err)
+    }
+}
+
+/// Rejection code from calling another canister.
+///
+/// This implementation was [copied](https://github.com/dfinity/cdk-rs/blob/83ba5fc7b3316a6fa4e7f704b689c95c9e677029/src/ic-cdk/src/api/call.rs#L21) from ic-cdk v0.17.
+///
+/// The `ic_cdk::api::call::RejectionCode` type is deprecated since ic-cdk v0.18.
+/// The replacement `ic_cdk::call::RejectCode` re-exports the type defined in the `ic-error-types` crate.
+/// We cannot simply switch to the replacement because the existing `RejectionCode` is a public type in evm_rpc canister's interface.
+/// To maintain compatibility, we retain the "outdated" definition here.
+#[allow(missing_docs)]
+#[repr(i32)]
+#[derive(CandidType, Deserialize, Clone, Copy, Hash, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename = "RejectionCode")]
+pub enum LegacyRejectionCode {
+    NoError = 0,
+
+    SysFatal = 1,
+    SysTransient = 2,
+    DestinationInvalid = 3,
+    CanisterReject = 4,
+    CanisterError = 5,
+
+    Unknown,
+}
+
+impl From<RejectCode> for LegacyRejectionCode {
+    fn from(value: RejectCode) -> Self {
+        match value {
+            RejectCode::SysFatal => Self::SysFatal,
+            RejectCode::SysTransient => Self::SysTransient,
+            RejectCode::DestinationInvalid => Self::DestinationInvalid,
+            RejectCode::CanisterReject => Self::CanisterReject,
+            RejectCode::CanisterError => Self::CanisterError,
+            RejectCode::SysUnknown => Self::Unknown,
+        }
     }
 }

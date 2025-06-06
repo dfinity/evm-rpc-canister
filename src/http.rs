@@ -25,7 +25,9 @@ use canhttp::{
     ConvertServiceBuilder, CyclesAccounting, CyclesAccountingError, CyclesChargingPolicy,
     HttpsOutcallError, IcError, MaxResponseBytesRequestExtension, TransformContextRequestExtension,
 };
-use evm_rpc_types::{HttpOutcallError, ProviderError, RpcError, RpcResult, ValidationError};
+use evm_rpc_types::{
+    HttpOutcallError, LegacyRejectionCode, ProviderError, RpcError, RpcResult, ValidationError,
+};
 use http::header::CONTENT_TYPE;
 use http::HeaderValue;
 use ic_canister_log::log;
@@ -136,7 +138,7 @@ where
                         HttpClientError::IcError(IcError { code, message: _ }) => {
                             add_metric_entry!(
                                 err_http_outcall,
-                                (req_data.method, req_data.host, *code),
+                                (req_data.method, req_data.host, LegacyRejectionCode::from(*code)),
                                 1
                             );
                         }
@@ -302,7 +304,10 @@ impl From<HttpClientError> for RpcError {
     fn from(error: HttpClientError) -> Self {
         match error {
             HttpClientError::IcError(IcError { code, message }) => {
-                RpcError::HttpOutcallError(HttpOutcallError::IcError { code, message })
+                RpcError::HttpOutcallError(HttpOutcallError::IcError {
+                    code: LegacyRejectionCode::from(code),
+                    message,
+                })
             }
             HttpClientError::NotHandledError(e) => {
                 RpcError::ValidationError(ValidationError::Custom(e))
