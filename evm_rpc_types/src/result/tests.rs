@@ -1,7 +1,5 @@
 use crate::result::{ProviderError, RpcError};
 use crate::{EthMainnetService, MultiRpcResult, RpcService};
-use candid::{CandidType, Encode};
-use serde::Deserialize;
 
 #[test]
 fn test_multi_rpc_result_map() {
