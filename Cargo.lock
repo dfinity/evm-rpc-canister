@@ -880,7 +880,6 @@ version = "1.4.0"
 dependencies = [
  "candid",
  "hex",
- "ic-cdk",
  "ic-error-types",
  "ic-management-canister-types",
  "num-bigint",
