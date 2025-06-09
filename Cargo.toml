@@ -92,7 +92,7 @@ strum = { version = "0.27.1", features = ["derive"] }
 tokio = "1.44.1"
 tower = "0.5.2"
 tower-layer = "0.3.3"
-tower-http = "0.6.2"
+tower-http = "0.6.6"
 thiserror = "2.0.12"
 url = "2.5"
 
