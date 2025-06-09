@@ -1387,9 +1387,9 @@ dependencies = [
 
 [[package]]
 name = "ic-transport-types"
-version = "0.39.3"
+version = "0.40.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "979ee7bee5a67150a4c090fb012c93c294a528b4a867bad9a15cc6d01cb4227f"
+checksum = "a2e7706e55836e8104c98149ec0796d20d5213fef972ac01b544657d410f1883"
 dependencies = [
  "candid",
  "hex",
@@ -2127,9 +2127,9 @@ dependencies = [
 
 [[package]]
 name = "pocket-ic"
-version = "9.0.0"
+version = "9.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d0dee25e0f699db883fa2228b18b6e86ae874a0f538dd362aef70679ca5cc6d"
+checksum = "4e523c23bda9dc26ae989aab647b8bd805b54c72a3f2f00d668830d8b490c9c8"
 dependencies = [
  "backoff",
  "base64 0.13.1",
