@@ -410,6 +410,16 @@ impl EthRpcClient {
         .reduce(self.consensus_strategy())
     }
 
+    pub async fn eth_estimate_gas(&self, params: EthCallParams) -> ReducedResult<Data> {
+        self.parallel_call(
+            "eth_estimateGas",
+            params,
+            self.response_size_estimate(512 + HEADER_SIZE_LIMIT),
+        )
+        .await
+        .reduce(self.consensus_strategy())
+    }
+
     pub async fn eth_send_raw_transaction(
         &self,
         raw_signed_transaction_hex: String,
