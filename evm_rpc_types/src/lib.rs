@@ -203,6 +203,24 @@ impl_hex_string!(Hex32([u8; 32]));
 impl_hex_string!(Hex256([u8; 256]));
 impl_hex_string!(Hex(Vec<u8>));
 
+impl Hex20 {
+    pub fn as_array(&self) -> &[u8; 20] {
+        &self.0
+    }
+}
+
+impl Hex32 {
+    pub fn as_array(&self) -> &[u8; 32] {
+        &self.0
+    }
+}
+
+impl Hex256 {
+    pub fn as_array(&self) -> &[u8; 256] {
+        &self.0
+    }
+}
+
 /// A wrapper to be able to decode single character hex string
 /// such as `0x0` or `0x1` into a byte. By default,
 /// `FromHex::from_hex` will return `Err(FromHexError::OddLength)`
