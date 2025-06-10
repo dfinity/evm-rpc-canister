@@ -7,6 +7,7 @@ use ic_cdk::api::call::RejectionCode;
 use ic_cdk::api::management_canister::http_request::{
     CanisterHttpRequestArgument as IcHttpRequest, HttpResponse as IcHttpResponse, TransformContext,
 };
+use ic_error_types::RejectCode;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -44,7 +45,7 @@ impl Client {
 #[error("Error from ICP: (code {code:?}, message {message})")]
 pub struct IcError {
     /// Rejection code as specified [here](https://internetcomputer.org/docs/current/references/ic-interface-spec#reject-codes)
-    pub code: RejectionCode,
+    pub code: RejectCode,
     /// Associated helper message.
     pub message: String,
 }
@@ -62,12 +63,33 @@ impl Service<IcHttpRequestWithCycles> for Client {
         &mut self,
         IcHttpRequestWithCycles { request, cycles }: IcHttpRequestWithCycles,
     ) -> Self::Future {
+        use ic_cdk::api::call::RejectionCode as IcCdkRejectionCode;
+        fn convert_reject_code(code: IcCdkRejectionCode) -> RejectCode {
+            match code {
+                IcCdkRejectionCode::SysFatal => RejectCode::SysFatal,
+                IcCdkRejectionCode::SysTransient => RejectCode::SysTransient,
+                IcCdkRejectionCode::DestinationInvalid => RejectCode::DestinationInvalid,
+                IcCdkRejectionCode::CanisterReject => RejectCode::CanisterReject,
+                IcCdkRejectionCode::CanisterError => RejectCode::CanisterError,
+                IcCdkRejectionCode::Unknown => {
+                    // This can only happen if there is a new error code on ICP that the CDK is not aware of.
+                    // We map it to SysFatal since none of the other error codes apply.
+                    // In particular, note that RejectCode::SysUnknown is only applicable to inter-canister calls that used ic0.call_with_best_effort_response.
+                    RejectCode::SysFatal
+                }
+                RejectionCode::NoError => unreachable!("ic_cdk::api::management_canister::http_request::http_request should never produce a RejectionCode::NoError error")
+            }
+        }
+
         Box::pin(async move {
             match ic_cdk::api::management_canister::http_request::http_request(request, cycles)
                 .await
             {
                 Ok((response,)) => Ok(response),
-                Err((code, message)) => Err(IcError { code, message }),
+                Err((code, message)) => Err(IcError {
+                    code: convert_reject_code(code),
+                    message,
+                }),
             }
         })
     }
@@ -171,7 +193,7 @@ pub trait HttpsOutcallError {
 
 impl HttpsOutcallError for IcError {
     fn is_response_too_large(&self) -> bool {
-        self.code == RejectionCode::SysFatal
+        self.code == RejectCode::SysFatal
             && (self.message.contains("size limit") || self.message.contains("length limit"))
     }
 }

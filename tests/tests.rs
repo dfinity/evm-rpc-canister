@@ -12,15 +12,15 @@ use evm_rpc::{
 };
 use evm_rpc_types::{
     BlockTag, ConsensusStrategy, EthMainnetService, EthSepoliaService, GetLogsRpcConfig, Hex,
-    Hex20, Hex32, HttpOutcallError, InstallArgs, JsonRpcError, MultiRpcResult, Nat256, Provider,
-    ProviderError, RpcApi, RpcConfig, RpcError, RpcResult, RpcService, RpcServices,
-    ValidationError,
+    Hex20, Hex32, HttpOutcallError, InstallArgs, JsonRpcError, LegacyRejectionCode, MultiRpcResult,
+    Nat256, Provider, ProviderError, RpcApi, RpcConfig, RpcError, RpcResult, RpcService,
+    RpcServices, ValidationError,
 };
 use ic_cdk::api::call::RejectionCode;
-use ic_cdk::api::management_canister::http_request::HttpHeader;
 use ic_cdk::api::management_canister::main::CanisterId;
 use ic_http_types::{HttpRequest, HttpResponse};
 use ic_management_canister_types::CanisterSettings;
+use ic_management_canister_types::HttpHeader;
 use ic_test_utilities_load_wasm::load_wasm;
 use maplit::hashmap;
 use mock::{MockOutcall, MockOutcallBuilder};
@@ -1235,7 +1235,7 @@ fn candid_rpc_should_err_with_insufficient_cycles() {
         (
             RpcService::EthMainnet(EthMainnetService::PublicNode),
             Err(RpcError::HttpOutcallError(HttpOutcallError::IcError {
-                code: RejectionCode::CanisterReject,
+                code: LegacyRejectionCode::CanisterReject,
                 message
             }))
         ) if regex.is_match(&message)
@@ -1625,14 +1625,14 @@ fn candid_rpc_should_return_inconsistent_results_with_consensus_error() {
             (
                 RpcService::EthMainnet(EthMainnetService::Ankr),
                 Err(RpcError::HttpOutcallError(HttpOutcallError::IcError {
-                    code: RejectionCode::SysTransient,
+                    code: LegacyRejectionCode::SysTransient,
                     message: CONSENSUS_ERROR.to_string()
                 }))
             ),
             (
                 RpcService::EthMainnet(EthMainnetService::PublicNode),
                 Err(RpcError::HttpOutcallError(HttpOutcallError::IcError {
-                    code: RejectionCode::SysTransient,
+                    code: LegacyRejectionCode::SysTransient,
                     message: CONSENSUS_ERROR.to_string()
                 }))
             ),
@@ -1644,8 +1644,8 @@ fn candid_rpc_should_return_inconsistent_results_with_consensus_error() {
     assert_eq!(
         err_http_outcall,
         hashmap! {
-            (rpc_method(), ANKR_HOSTNAME.into(), RejectionCode::SysTransient) => 1,
-            (rpc_method(), PUBLICNODE_ETH_MAINNET_HOSTNAME.into(), RejectionCode::SysTransient) => 1,
+            (rpc_method(), ANKR_HOSTNAME.into(), LegacyRejectionCode::SysTransient) => 1,
+            (rpc_method(), PUBLICNODE_ETH_MAINNET_HOSTNAME.into(), LegacyRejectionCode::SysTransient) => 1,
         },
     );
 }
@@ -2288,7 +2288,7 @@ fn should_retry_when_response_too_large() {
     assert_matches!(
         response,
         Err(RpcError::HttpOutcallError(HttpOutcallError::IcError { code, message }))
-        if code == RejectionCode::SysFatal && message.contains("body exceeds size limit")
+        if code == LegacyRejectionCode::SysFatal && message.contains("body exceeds size limit")
     );
 
     let mut large_amount_of_logs: [serde_json::Value; 11] =
@@ -2376,7 +2376,7 @@ fn should_have_different_request_ids_when_retrying_because_response_too_big() {
                 (rpc_method(), CLOUDFLARE_HOSTNAME.into(), 200.into()) => 1,
             },
             err_http_outcall: hashmap! {
-                (rpc_method(), CLOUDFLARE_HOSTNAME.into(), RejectionCode::SysFatal) => 1,
+                (rpc_method(), CLOUDFLARE_HOSTNAME.into(), LegacyRejectionCode::SysFatal) => 1,
             },
             ..Default::default()
         }

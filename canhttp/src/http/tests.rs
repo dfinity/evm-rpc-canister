@@ -8,12 +8,12 @@ use crate::{
 use assert_matches::assert_matches;
 use candid::{Decode, Encode, Principal};
 use http::StatusCode;
-use ic_cdk::api::call::RejectionCode;
 use ic_cdk::api::management_canister::http_request::{
     CanisterHttpRequestArgument as IcHttpRequest, HttpHeader as IcHttpHeader,
     HttpMethod as IcHttpMethod, HttpResponse as IcHttpResponse,
 };
 use ic_cdk::api::management_canister::http_request::{TransformContext, TransformFunc};
+use ic_error_types::RejectCode;
 use std::error::Error;
 use std::fmt::Debug;
 use tower::{BoxError, Service, ServiceBuilder, ServiceExt};
@@ -152,7 +152,7 @@ async fn should_fail_to_convert_http_response() {
     assert_eq!(
         error,
         IcError {
-            code: RejectionCode::Unknown,
+            code: RejectCode::SysUnknown,
             message: "always error".to_string(),
         }
     )
@@ -227,7 +227,7 @@ async fn echo_response(response: IcHttpResponse) -> Result<IcHttpResponse, BoxEr
 
 async fn always_error(_response: IcHttpResponse) -> Result<IcHttpResponse, BoxError> {
     Err(BoxError::from(IcError {
-        code: RejectionCode::Unknown,
+        code: RejectCode::SysUnknown,
         message: "always error".to_string(),
     }))
 }

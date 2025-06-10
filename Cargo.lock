@@ -325,6 +325,7 @@ dependencies = [
  "futures-util",
  "http",
  "ic-cdk",
+ "ic-error-types",
  "itertools 0.14.0",
  "maplit",
  "num-traits",
@@ -879,7 +880,8 @@ version = "1.4.0"
 dependencies = [
  "candid",
  "hex",
- "ic-cdk",
+ "ic-error-types",
+ "ic-management-canister-types",
  "num-bigint",
  "proptest",
  "serde",
@@ -1315,6 +1317,17 @@ source = "git+https://github.com/dfinity/ic?rev=release-2024-09-26_01-31-base#35
 dependencies = [
  "rand 0.8.5",
  "rand_chacha 0.3.1",
+]
+
+[[package]]
+name = "ic-error-types"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbeeb3d91aa179d6496d7293becdacedfc413c825cac79fd54ea1906f003ee55"
+dependencies = [
+ "serde",
+ "strum 0.26.3",
+ "strum_macros 0.26.4",
 ]
 
 [[package]]

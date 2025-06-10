@@ -22,8 +22,8 @@ pub use request::{
 };
 pub use response::{Block, FeeHistory, LogEntry, SendRawTransactionStatus, TransactionReceipt};
 pub use result::{
-    HttpOutcallError, JsonRpcError, MultiRpcResult, ProviderError, RpcError, RpcResult,
-    ValidationError,
+    HttpOutcallError, JsonRpcError, LegacyRejectionCode, MultiRpcResult, ProviderError, RpcError,
+    RpcResult, ValidationError,
 };
 pub use rpc_client::{
     ConsensusStrategy, EthMainnetService, EthSepoliaService, GetLogsRpcConfig, HttpHeader,
