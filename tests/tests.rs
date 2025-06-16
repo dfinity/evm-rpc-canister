@@ -309,6 +309,15 @@ impl EvmRpcSetup {
         self.call_update("eth_call", Encode!(&source, &config, &args).unwrap())
     }
 
+    pub fn eth_estimate_gas(
+        &self,
+        source: RpcServices,
+        config: Option<evm_rpc_types::RpcConfig>,
+        args: evm_rpc_types::CallArgs,
+    ) -> CallFlow<MultiRpcResult<evm_rpc_types::Hex>> {
+        self.call_update("eth_estimateGas", Encode!(&source, &config, &args).unwrap())
+    }
+
     pub fn update_api_keys(&self, api_keys: &[(ProviderId, Option<String>)]) {
         self.call_update("updateApiKeys", Encode!(&api_keys).unwrap())
             .wait()
@@ -1070,6 +1079,67 @@ fn eth_fee_history_should_succeed() {
                 reward: vec![vec![Nat256::from(0x0123_u32)]],
             })
         );
+    }
+}
+
+#[test]
+fn eth_estimate_gas_should_succeed() {
+    const ADDRESS: &str = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
+    const INPUT_DATA: &str =
+        "0x70a08231000000000000000000000000b25eA1D493B49a1DeD42aC5B1208cC618f9A9B80";
+
+    let [response_0, response_1, response_2] = json_rpc_sequential_id(
+        json!({"jsonrpc":"2.0","result":"0x5208","id":0}),
+    );
+    let expected_request = MockJsonRequestBody::builder("eth_estimateGas").with_params(
+        json!([{
+            "to": ADDRESS.to_lowercase(),
+            "input": INPUT_DATA.to_lowercase(),
+        }, "latest"]),
+    );
+
+    for call_args in [
+        evm_rpc_types::CallArgs {
+            transaction: evm_rpc_types::TransactionRequest {
+                to: Some(ADDRESS.parse().unwrap()),
+                input: Some(INPUT_DATA.parse().unwrap()),
+                ..evm_rpc_types::TransactionRequest::default()
+            },
+            block: Some(evm_rpc_types::BlockTag::Latest),
+        },
+        evm_rpc_types::CallArgs {
+            transaction: evm_rpc_types::TransactionRequest {
+                to: Some(ADDRESS.parse().unwrap()),
+                input: Some(INPUT_DATA.parse().unwrap()),
+                ..evm_rpc_types::TransactionRequest::default()
+            },
+            block: None, // should be same as specifying Latest
+        },
+    ] {
+        for source in RPC_SERVICES {
+            let setup = EvmRpcSetup::new().mock_api_keys();
+            let response = setup
+                .eth_estimate_gas(source.clone(), None, call_args.clone())
+                .mock_http_once(
+                    MockOutcallBuilder::new(200, response_0.clone())
+                        .with_request_body(expected_request.clone()),
+                )
+                .mock_http_once(
+                    MockOutcallBuilder::new(200, response_1.clone())
+                        .with_request_body(expected_request.clone()),
+                )
+                .mock_http_once(
+                    MockOutcallBuilder::new(200, response_2.clone())
+                        .with_request_body(expected_request.clone()),
+                )
+                .wait()
+                .expect_consistent()
+                .unwrap();
+            assert_eq!(
+                response,
+                Hex::from_str("0x5208").unwrap()
+            );
+        }
     }
 }
 

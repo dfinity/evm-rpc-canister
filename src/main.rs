@@ -108,6 +108,19 @@ pub async fn eth_fee_history(
     }
 }
 
+#[update(name = "eth_estimateGas")]
+#[candid_method(rename = "eth_estimateGas")]
+pub async fn eth_estimate_gas(
+    source: evm_rpc_types::RpcServices,
+    config: Option<evm_rpc_types::RpcConfig>,
+    args: evm_rpc_types::CallArgs,
+) -> MultiRpcResult<evm_rpc_types::Hex> {
+    match CandidRpcClient::new(source, config) {
+        Ok(source) => source.eth_estimate_gas(args).await,
+        Err(err) => Err(err).into(),
+    }
+}
+
 #[update(name = "eth_sendRawTransaction")]
 #[candid_method(rename = "eth_sendRawTransaction")]
 pub async fn eth_send_raw_transaction(
