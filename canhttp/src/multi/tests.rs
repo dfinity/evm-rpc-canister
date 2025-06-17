@@ -230,3 +230,113 @@ mod reduce_with_threshold {
         )
     }
 }
+
+mod timed_size_vec {
+    use crate::multi::cache::TimedSizedVec;
+    use crate::multi::Timestamp;
+    use maplit::btreemap;
+    use std::collections::{BTreeMap, VecDeque};
+    use std::num::NonZeroUsize;
+    use std::time::Duration;
+
+    #[test]
+    fn should_initially_be_empty() {
+        let mut vec: TimedSizedVec<&str> =
+            TimedSizedVec::new(Duration::from_secs(60), NonZeroUsize::new(5).unwrap());
+
+        assert_eq!(vec.len(), 0);
+        assert_eq!(vec.iter().collect::<Vec<_>>(), vec![]);
+    }
+
+    #[test]
+    fn should_evict_when_too_many() {
+        let mut vec: TimedSizedVec<&str> =
+            TimedSizedVec::new(Duration::from_nanos(60), NonZeroUsize::new(5).unwrap());
+
+        for (nanos, value) in ["a", "b", "c", "d", "e"].into_iter().enumerate() {
+            let previous = vec.insert_evict(timestamp(nanos as u64), value);
+            assert_eq!(previous, BTreeMap::default());
+        }
+
+        assert_eq!(
+            vec.iter().collect::<Vec<_>>(),
+            vec![
+                (&timestamp(0), &"a"),
+                (&timestamp(1), &"b"),
+                (&timestamp(2), &"c"),
+                (&timestamp(3), &"d"),
+                (&timestamp(4), &"e"),
+            ]
+        );
+
+        let previous = vec.insert_evict(timestamp(5), "f");
+        assert_eq!(previous, btreemap! {timestamp(0) => VecDeque::from(["a"])});
+        assert_eq!(
+            vec.iter().collect::<Vec<_>>(),
+            vec![
+                (&timestamp(1), &"b"),
+                (&timestamp(2), &"c"),
+                (&timestamp(3), &"d"),
+                (&timestamp(4), &"e"),
+                (&timestamp(5), &"f"),
+            ]
+        );
+    }
+
+    #[test]
+    fn should_have_correct_order_for_values_with_same_timestamp() {
+        let mut vec: TimedSizedVec<&str> =
+            TimedSizedVec::new(Duration::from_nanos(60), NonZeroUsize::new(5).unwrap());
+
+        assert_eq!(vec.insert_evict(timestamp(0), "a"), BTreeMap::default());
+        assert_eq!(vec.insert_evict(timestamp(1), "b"), BTreeMap::default());
+        assert_eq!(vec.insert_evict(timestamp(1), "c"), BTreeMap::default());
+        assert_eq!(vec.insert_evict(timestamp(1), "d"), BTreeMap::default());
+        assert_eq!(vec.insert_evict(timestamp(2), "e"), BTreeMap::default());
+
+        assert_eq!(
+            vec.iter().collect::<Vec<_>>(),
+            vec![
+                (&timestamp(0), &"a"),
+                (&timestamp(1), &"b"),
+                (&timestamp(1), &"c"),
+                (&timestamp(1), &"d"),
+                (&timestamp(2), &"e"),
+            ]
+        );
+
+        assert_eq!(
+            vec.insert_evict(timestamp(2), "f"),
+            btreemap! {timestamp(0) => VecDeque::from(["a"])}
+        );
+        assert_eq!(
+            vec.iter().collect::<Vec<_>>(),
+            vec![
+                (&timestamp(1), &"b"),
+                (&timestamp(1), &"c"),
+                (&timestamp(1), &"d"),
+                (&timestamp(2), &"e"),
+                (&timestamp(2), &"f"),
+            ]
+        );
+
+        assert_eq!(
+            vec.insert_evict(timestamp(2), "g"),
+            btreemap! {timestamp(1) => VecDeque::from(["b"])}
+        );
+        assert_eq!(
+            vec.iter().collect::<Vec<_>>(),
+            vec![
+                (&timestamp(1), &"c"),
+                (&timestamp(1), &"d"),
+                (&timestamp(2), &"e"),
+                (&timestamp(2), &"f"),
+                (&timestamp(2), &"g"),
+            ]
+        );
+    }
+
+    fn timestamp(nanos: u64) -> Timestamp {
+        Timestamp::from_nanos_since_unix_epoch(nanos)
+    }
+}
