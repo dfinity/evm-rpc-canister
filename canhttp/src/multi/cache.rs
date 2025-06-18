@@ -4,7 +4,8 @@ use std::time::Duration;
 
 /// A limited-size vector where older elements are evicted first.
 ///
-/// Element `u` is older than element `v` if and only if:
+/// Elements are ordered by the provided timestamp upon insertion, followed by the order of insertion.
+/// That means that element `u` is older than element `v` if and only if:
 /// 1. The timestamp for the insertion of `u` is before the timestamp for the insertion of `v`.
 /// 2. Or, if they both have the same timestamp for insertion, `u` was inserted before `v`.
 ///
@@ -18,7 +19,21 @@ pub struct TimedSizedVec<T> {
 }
 
 impl<T> TimedSizedVec<T> {
-    /// TODO
+    /// Create a new empty [`TimedSizedVec`].
+    ///
+    /// # Examples
+    ///
+    /// Create a `TimeSizedVec` containing at most 10 elements which are no older than 1 minute.
+    ///
+    /// ```rust
+    /// use std::num::NonZeroUsize;
+    /// use std::time::Duration;
+    /// use canhttp::multi::{TimedSizedVec, Timestamp};
+    ///
+    /// let mut vec = TimedSizedVec::new(Duration::from_secs(60), NonZeroUsize::new(10).unwrap());
+    ///
+    /// let _evicted = vec.insert_evict(Timestamp::from_nanos_since_unix_epoch(1), "a");
+    /// ```
     pub fn new(expiration: Duration, capacity: NonZeroUsize) -> Self {
         Self {
             expiration,
@@ -109,6 +124,11 @@ impl<T> TimedSizedVec<T> {
     /// Returns true if the vector contains no elements.
     pub fn is_empty(&self) -> bool {
         self.size == 0
+    }
+
+    /// Returns the maximum number of elements that can be stored.
+    pub fn capacity(&self) -> NonZeroUsize {
+        self.capacity
     }
 }
 

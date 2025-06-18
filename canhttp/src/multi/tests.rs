@@ -237,7 +237,7 @@ mod timed_size_vec {
     use maplit::btreemap;
     use proptest::collection::vec;
     use proptest::prelude::any;
-    use proptest::{prop_assert_eq, proptest};
+    use proptest::{prop_assert, prop_assert_eq, proptest};
     use std::collections::{BTreeMap, VecDeque};
     use std::num::NonZeroUsize;
     use std::time::Duration;
@@ -428,6 +428,7 @@ mod timed_size_vec {
 
             let expected_len = vec.iter().collect::<Vec<_>>().len();
             prop_assert_eq!(vec.len(), expected_len);
+            prop_assert!(vec.len() <= vec.capacity().get());
         }
     }
 
