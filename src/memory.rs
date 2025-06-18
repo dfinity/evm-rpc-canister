@@ -1,6 +1,9 @@
+use crate::providers::SupportedRpcServiceAccess;
 use crate::types::{ApiKey, LogFilter, Metrics, OverrideProvider, ProviderId};
 use candid::Principal;
 use canhttp::http::json::Id;
+use canhttp::multi::Timestamp;
+use evm_rpc_types::RpcService;
 use ic_stable_structures::memory_manager::VirtualMemory;
 use ic_stable_structures::{
     memory_manager::{MemoryId, MemoryManager},
@@ -22,6 +25,7 @@ thread_local! {
     // Unstable static data: these are reset when the canister is upgraded.
     pub static UNSTABLE_METRICS: RefCell<Metrics> = RefCell::new(Metrics::default());
     static UNSTABLE_HTTP_REQUEST_COUNTER: RefCell<u64> = const {RefCell::new(0)};
+    static UNSTABLE_RPC_SERVICE_OK_RESULTS_TIMESTAMPS: RefCell<SupportedRpcServiceAccess> =  RefCell::new(SupportedRpcServiceAccess::default());
 
     // Stable static data: these are preserved when the canister is upgraded.
     static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> =
@@ -124,6 +128,12 @@ pub fn set_num_subnet_nodes(nodes: u32) {
             .set(nodes)
             .expect("Error while updating number of subnet nodes")
     });
+}
+
+pub fn record_ok_result(service: &RpcService) {
+    let now = Timestamp::from_nanos_since_unix_epoch(ic_cdk::api::time());
+    UNSTABLE_RPC_SERVICE_OK_RESULTS_TIMESTAMPS
+        .with_borrow_mut(|access| access.add_entry(service, now))
 }
 
 #[cfg(test)]

@@ -1,5 +1,5 @@
 use crate::http::http_client;
-use crate::memory::get_override_provider;
+use crate::memory::{get_override_provider, record_ok_result};
 use crate::providers::{resolve_rpc_service, SupportedRpcService};
 use crate::rpc_client::eth_rpc::{HttpResponsePayload, ResponseSizeEstimate, HEADER_SIZE_LIMIT};
 use crate::rpc_client::numeric::TransactionCount;
@@ -304,6 +304,10 @@ impl EthRpcClient {
         let (requests, errors) = requests.into_inner();
         let (_client, mut results) = canhttp::multi::parallel_call(client, requests).await;
         results.add_errors(errors);
+        results
+            .ok_results()
+            .keys()
+            .for_each(|service| record_ok_result(service));
         assert_eq!(
             results.len(),
             providers.len(),
