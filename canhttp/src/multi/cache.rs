@@ -63,22 +63,15 @@ impl<T> TimedSizedVec<T> {
                 let expired = non_expired;
                 // adjust size
                 if expired.len() < self.store.len() {
-                    let num_expired_elements = expired
-                        .iter()
-                        .map(|(_timestamp, values)| values.len())
-                        .sum();
+                    let num_expired_elements = expired.values().map(|values| values.len()).sum();
                     self.size = self
                         .size
                         .checked_sub(num_expired_elements)
                         .expect("BUG: unexpected number of elements");
                 } else {
-                    self.size = self
-                        .store
-                        .iter()
-                        .map(|(_timestamp, values)| values.len())
-                        .sum()
+                    self.size = self.store.values().map(|values| values.len()).sum()
                 }
-                return expired;
+                expired
             }
             None => BTreeMap::default(),
         }
@@ -97,7 +90,7 @@ impl<T> TimedSizedVec<T> {
                 }
                 return Some((timestamp, removed));
             }
-            return None;
+            None
         })
     }
 
@@ -108,16 +101,14 @@ impl<T> TimedSizedVec<T> {
             .flat_map(|(timestamp, values)| values.iter().map(move |value| (timestamp, value)))
     }
 
-    /// TODO
-    pub fn into_iter(self) -> impl Iterator<Item = (Timestamp, T)> {
-        self.store
-            .into_iter()
-            .flat_map(|(timestamp, values)| values.into_iter().map(move |value| (timestamp, value)))
-    }
-
     /// Returns the number of elements.
     pub fn len(&self) -> usize {
         self.size
+    }
+
+    /// Returns true if the vector contains no elements.
+    pub fn is_empty(&self) -> bool {
+        self.size == 0
     }
 }
 
