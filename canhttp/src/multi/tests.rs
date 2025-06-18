@@ -235,13 +235,16 @@ mod timed_size_vec {
     use crate::multi::cache::TimedSizedVec;
     use crate::multi::Timestamp;
     use maplit::btreemap;
+    use proptest::collection::vec;
+    use proptest::prelude::any;
+    use proptest::{prop_assert_eq, proptest};
     use std::collections::{BTreeMap, VecDeque};
     use std::num::NonZeroUsize;
     use std::time::Duration;
 
     #[test]
     fn should_initially_be_empty() {
-        let mut vec: TimedSizedVec<&str> =
+        let vec: TimedSizedVec<&str> =
             TimedSizedVec::new(Duration::from_secs(60), NonZeroUsize::new(5).unwrap());
 
         assert_eq!(vec.len(), 0);
@@ -268,6 +271,7 @@ mod timed_size_vec {
                 (&timestamp(4), &"e"),
             ]
         );
+        assert_eq!(vec.len(), 5);
 
         let previous = vec.insert_evict(timestamp(5), "f");
         assert_eq!(previous, btreemap! {timestamp(0) => VecDeque::from(["a"])});
@@ -281,6 +285,77 @@ mod timed_size_vec {
                 (&timestamp(5), &"f"),
             ]
         );
+        assert_eq!(vec.len(), 5);
+    }
+
+    #[test]
+    fn should_evict_when_expired() {
+        let mut vec: TimedSizedVec<&str> =
+            TimedSizedVec::new(Duration::from_nanos(60), NonZeroUsize::new(6).unwrap());
+
+        assert_eq!(vec.insert_evict(timestamp(0), "a"), BTreeMap::default());
+        assert_eq!(vec.insert_evict(timestamp(1), "b"), BTreeMap::default());
+        assert_eq!(vec.insert_evict(timestamp(1), "c"), BTreeMap::default());
+        assert_eq!(vec.insert_evict(timestamp(1), "d"), BTreeMap::default());
+        assert_eq!(vec.insert_evict(timestamp(2), "e"), BTreeMap::default());
+
+        assert_eq!(
+            vec.iter().collect::<Vec<_>>(),
+            vec![
+                (&timestamp(0), &"a"),
+                (&timestamp(1), &"b"),
+                (&timestamp(1), &"c"),
+                (&timestamp(1), &"d"),
+                (&timestamp(2), &"e"),
+            ]
+        );
+        assert_eq!(vec.len(), 5);
+
+        assert_eq!(vec.insert_evict(timestamp(60), "f"), BTreeMap::default());
+        assert_eq!(
+            vec.iter().collect::<Vec<_>>(),
+            vec![
+                (&timestamp(0), &"a"),
+                (&timestamp(1), &"b"),
+                (&timestamp(1), &"c"),
+                (&timestamp(1), &"d"),
+                (&timestamp(2), &"e"),
+                (&timestamp(60), &"f"),
+            ]
+        );
+        assert_eq!(vec.len(), 6);
+
+        assert_eq!(
+            vec.insert_evict(timestamp(61), "g"),
+            btreemap! {timestamp(0) => VecDeque::from(["a"])}
+        );
+        assert_eq!(
+            vec.iter().collect::<Vec<_>>(),
+            vec![
+                (&timestamp(1), &"b"),
+                (&timestamp(1), &"c"),
+                (&timestamp(1), &"d"),
+                (&timestamp(2), &"e"),
+                (&timestamp(60), &"f"),
+                (&timestamp(61), &"g"),
+            ]
+        );
+        assert_eq!(vec.len(), 6);
+
+        assert_eq!(
+            vec.insert_evict(timestamp(62), "h"),
+            btreemap! {timestamp(1) => VecDeque::from(["b", "c", "d"])}
+        );
+        assert_eq!(
+            vec.iter().collect::<Vec<_>>(),
+            vec![
+                (&timestamp(2), &"e"),
+                (&timestamp(60), &"f"),
+                (&timestamp(61), &"g"),
+                (&timestamp(62), &"h"),
+            ]
+        );
+        assert_eq!(vec.len(), 4);
     }
 
     #[test]
@@ -334,6 +409,26 @@ mod timed_size_vec {
                 (&timestamp(2), &"g"),
             ]
         );
+    }
+
+    proptest! {
+        #[test]
+        fn should_have_len_consistent_with_iter(
+                expiration in 0..1_000_u64,
+                capacity in 1..1_000_usize,
+                timestamp_deltas in vec(any::<u64>(), 0..1_000)
+        ) {
+            let mut vec: TimedSizedVec<()> =
+                TimedSizedVec::new(Duration::from_nanos(expiration), NonZeroUsize::new(capacity).unwrap());
+            let mut now = 0_u64;
+            for delta in timestamp_deltas {
+                now = now.saturating_add(delta); //mock sequentially non-decreasing time sequence
+                let _ = vec.insert_evict(timestamp(now), ());
+            }
+
+            let expected_len = vec.iter().collect::<Vec<_>>().len();
+            prop_assert_eq!(vec.len(), expected_len);
+        }
     }
 
     fn timestamp(nanos: u64) -> Timestamp {
