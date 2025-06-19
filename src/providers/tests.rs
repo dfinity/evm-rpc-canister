@@ -1,7 +1,7 @@
 use crate::providers::{PROVIDERS, SERVICE_PROVIDER_MAP};
 
 mod static_map {
-    use std::collections::{HashMap, HashSet};
+    use std::collections::{BTreeSet, HashMap};
 
     use crate::{
         constants::API_KEY_REPLACE_STRING,
@@ -58,12 +58,12 @@ mod static_map {
         SERVICE_PROVIDER_MAP.with(|map| {
             assert_eq!(
                 map.len(),
-                map.keys().collect::<HashSet<_>>().len(),
+                map.keys().collect::<BTreeSet<_>>().len(),
                 "Duplicate service in mapping"
             );
             assert_eq!(
                 map.len(),
-                map.values().collect::<HashSet<_>>().len(),
+                map.values().collect::<BTreeSet<_>>().len(),
                 "Duplicate provider in mapping"
             );
         })
