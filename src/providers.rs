@@ -369,6 +369,63 @@ pub enum SupportedRpcService {
     OptimismMainnet(L2MainnetService),
 }
 
+impl SupportedRpcService {
+    // Order of providers matters!
+    // The threshold consensus strategy will consider the first `total` providers in the order
+    // they are specified (taking the default ones first, followed by the non default ones if necessary)
+    // if the providers are not explicitly specified by the caller.
+    pub const fn eth_mainnet() -> &'static [SupportedRpcService] {
+        &[
+            SupportedRpcService::EthMainnet(EthMainnetService::BlockPi),
+            SupportedRpcService::EthMainnet(EthMainnetService::Ankr),
+            SupportedRpcService::EthMainnet(EthMainnetService::PublicNode),
+            SupportedRpcService::EthMainnet(EthMainnetService::Llama),
+            SupportedRpcService::EthMainnet(EthMainnetService::Alchemy),
+            SupportedRpcService::EthMainnet(EthMainnetService::Cloudflare),
+        ]
+    }
+
+    pub const fn eth_sepolia() -> &'static [SupportedRpcService] {
+        &[
+            SupportedRpcService::EthSepolia(EthSepoliaService::PublicNode),
+            SupportedRpcService::EthSepolia(EthSepoliaService::Ankr),
+            SupportedRpcService::EthSepolia(EthSepoliaService::BlockPi),
+            SupportedRpcService::EthSepolia(EthSepoliaService::Alchemy),
+            SupportedRpcService::EthSepolia(EthSepoliaService::Sepolia),
+        ]
+    }
+
+    pub const fn arbitrum_one() -> &'static [SupportedRpcService] {
+        &[
+            SupportedRpcService::ArbitrumOne(L2MainnetService::Llama),
+            SupportedRpcService::ArbitrumOne(L2MainnetService::BlockPi),
+            SupportedRpcService::ArbitrumOne(L2MainnetService::PublicNode),
+            SupportedRpcService::ArbitrumOne(L2MainnetService::Alchemy),
+            SupportedRpcService::ArbitrumOne(L2MainnetService::Ankr),
+        ]
+    }
+
+    pub const fn base_mainnet() -> &'static [SupportedRpcService] {
+        &[
+            SupportedRpcService::BaseMainnet(L2MainnetService::Llama),
+            SupportedRpcService::BaseMainnet(L2MainnetService::BlockPi),
+            SupportedRpcService::BaseMainnet(L2MainnetService::PublicNode),
+            SupportedRpcService::BaseMainnet(L2MainnetService::Alchemy),
+            SupportedRpcService::BaseMainnet(L2MainnetService::Ankr),
+        ]
+    }
+
+    pub const fn optimism_mainnet() -> &'static [SupportedRpcService] {
+        &[
+            SupportedRpcService::OptimismMainnet(L2MainnetService::Llama),
+            SupportedRpcService::OptimismMainnet(L2MainnetService::BlockPi),
+            SupportedRpcService::OptimismMainnet(L2MainnetService::PublicNode),
+            SupportedRpcService::OptimismMainnet(L2MainnetService::Alchemy),
+            SupportedRpcService::OptimismMainnet(L2MainnetService::Ankr),
+        ]
+    }
+}
+
 impl From<SupportedRpcService> for RpcService {
     fn from(value: SupportedRpcService) -> Self {
         match value {

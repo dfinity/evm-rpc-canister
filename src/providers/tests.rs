@@ -1,14 +1,11 @@
-use crate::providers::{PROVIDERS, SERVICE_PROVIDER_MAP};
-
 mod static_map {
+    use crate::providers::{PROVIDERS, SERVICE_PROVIDER_MAP};
     use std::collections::{BTreeSet, HashMap};
 
     use crate::{
         constants::API_KEY_REPLACE_STRING,
         types::{Provider, RpcAccess, RpcAuth},
     };
-
-    use super::{PROVIDERS, SERVICE_PROVIDER_MAP};
 
     #[test]
     fn test_provider_id_sequence() {
@@ -81,5 +78,63 @@ mod static_map {
                 );
             }
         })
+    }
+}
+
+mod supported_rpc_service {
+    use crate::providers::SupportedRpcService;
+    use evm_rpc_types::{EthMainnetService, EthSepoliaService, L2MainnetService};
+    use std::collections::BTreeSet;
+
+    #[test]
+    fn should_have_all_supported_providers() {
+        fn assert_same_set(
+            left: impl Iterator<Item = SupportedRpcService>,
+            right: &[SupportedRpcService],
+        ) {
+            let left: BTreeSet<_> = left.collect();
+            let right: BTreeSet<_> = right.iter().copied().collect();
+            assert_eq!(left, right);
+        }
+
+        assert_same_set(
+            EthMainnetService::all()
+                .iter()
+                .copied()
+                .map(SupportedRpcService::EthMainnet),
+            SupportedRpcService::eth_mainnet(),
+        );
+
+        assert_same_set(
+            EthSepoliaService::all()
+                .iter()
+                .copied()
+                .map(SupportedRpcService::EthSepolia),
+            SupportedRpcService::eth_sepolia(),
+        );
+
+        assert_same_set(
+            L2MainnetService::all()
+                .iter()
+                .copied()
+                .map(SupportedRpcService::ArbitrumOne),
+            SupportedRpcService::arbitrum_one(),
+        );
+
+        assert_same_set(
+            L2MainnetService::all()
+                .iter()
+                .copied()
+                .map(SupportedRpcService::BaseMainnet),
+            SupportedRpcService::base_mainnet(),
+        );
+
+        assert_same_set(
+            L2MainnetService::all()
+                .iter()
+                .copied()
+                .map(SupportedRpcService::OptimismMainnet),
+            SupportedRpcService::optimism_mainnet(),
+        );
     }
 }
