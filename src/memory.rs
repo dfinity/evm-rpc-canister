@@ -1,4 +1,4 @@
-use crate::providers::SupportedRpcServiceAccess;
+use crate::providers::{SupportedRpcService, SupportedRpcServiceAccess};
 use crate::types::{ApiKey, LogFilter, Metrics, OverrideProvider, ProviderId};
 use candid::Principal;
 use canhttp::http::json::Id;
@@ -134,6 +134,11 @@ pub fn record_ok_result(service: &RpcService) {
     let now = Timestamp::from_nanos_since_unix_epoch(ic_cdk::api::time());
     UNSTABLE_RPC_SERVICE_OK_RESULTS_TIMESTAMPS
         .with_borrow_mut(|access| access.add_entry(service, now))
+}
+
+pub fn rank_providers(services: &[SupportedRpcService]) -> Vec<SupportedRpcService> {
+    let now = Timestamp::from_nanos_since_unix_epoch(ic_cdk::api::time());
+    UNSTABLE_RPC_SERVICE_OK_RESULTS_TIMESTAMPS.with_borrow_mut(|access| access.rank(services, now))
 }
 
 #[cfg(test)]

@@ -1,5 +1,5 @@
 use crate::http::http_client;
-use crate::memory::{get_override_provider, record_ok_result};
+use crate::memory::{get_override_provider, rank_providers, record_ok_result};
 use crate::providers::{resolve_rpc_service, SupportedRpcService};
 use crate::rpc_client::eth_rpc::{HttpResponsePayload, ResponseSizeEstimate, HEADER_SIZE_LIMIT};
 use crate::rpc_client::numeric::TransactionCount;
@@ -138,10 +138,9 @@ fn choose_providers(
     match strategy {
         ConsensusStrategy::Equality => Ok(user_input
             .unwrap_or_else(|| {
-                supported_providers
-                    .iter()
+                rank_providers(supported_providers)
+                    .into_iter()
                     .take(Providers::DEFAULT_NUM_PROVIDERS_FOR_EQUALITY)
-                    .copied()
                     .map(RpcService::from)
                     .collect()
             })
@@ -177,10 +176,9 @@ fn choose_providers(
                             total, all_providers_len
                         )));
                     }
-                    let providers: BTreeSet<_> = supported_providers
-                        .iter()
+                    let providers: BTreeSet<_> = rank_providers(supported_providers)
+                        .into_iter()
                         .take(total as usize)
-                        .copied()
                         .map(RpcService::from)
                         .collect();
                     assert_eq!(providers.len(), total as usize, "BUG: duplicate providers");
@@ -304,10 +302,7 @@ impl EthRpcClient {
         let (requests, errors) = requests.into_inner();
         let (_client, mut results) = canhttp::multi::parallel_call(client, requests).await;
         results.add_errors(errors);
-        results
-            .ok_results()
-            .keys()
-            .for_each(|service| record_ok_result(service));
+        results.ok_results().keys().for_each(record_ok_result);
         assert_eq!(
             results.len(),
             providers.len(),

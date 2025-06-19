@@ -370,6 +370,23 @@ pub enum SupportedRpcService {
 }
 
 impl SupportedRpcService {
+
+    pub fn new(service: &RpcService) -> Option<Self> {
+        match service {
+            RpcService::Provider(id) => find_provider(|provider| &provider.provider_id == id)
+                .and_then(|provider| provider.alias.as_ref())
+                .and_then(SupportedRpcService::new),
+            RpcService::Custom(_) => None,
+            RpcService::EthMainnet(service) => Some(SupportedRpcService::EthMainnet(*service)),
+            RpcService::EthSepolia(service) => Some(SupportedRpcService::EthSepolia(*service)),
+            RpcService::ArbitrumOne(service) => Some(SupportedRpcService::ArbitrumOne(*service)),
+            RpcService::BaseMainnet(service) => Some(SupportedRpcService::BaseMainnet(*service)),
+            RpcService::OptimismMainnet(service) => {
+                Some(SupportedRpcService::OptimismMainnet(*service))
+            }
+        }
+    }
+
     // Order of providers matters!
     // The threshold consensus strategy will consider the first `total` providers in the order
     // they are specified (taking the default ones first, followed by the non default ones if necessary)
