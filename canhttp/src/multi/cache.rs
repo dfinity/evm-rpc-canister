@@ -11,6 +11,7 @@ use std::time::Duration;
 ///
 /// # Examples
 ///
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TimedSizedVec<T> {
     expiration: Duration,
     capacity: NonZeroUsize,
@@ -70,7 +71,8 @@ impl<T> TimedSizedVec<T> {
         evicted
     }
 
-    fn evict_expired(&mut self, now: Timestamp) -> BTreeMap<Timestamp, VecDeque<T>> {
+    /// TODO
+    pub fn evict_expired(&mut self, now: Timestamp) -> BTreeMap<Timestamp, VecDeque<T>> {
         match now.checked_sub(self.expiration) {
             Some(cutoff) => {
                 let mut non_expired = self.store.split_off(&cutoff);
@@ -117,8 +119,16 @@ impl<T> TimedSizedVec<T> {
     }
 
     /// Returns the number of elements.
+    ///
+    /// To avoid containing expired elements, use [`Self::refresh_len`].
     pub fn len(&self) -> usize {
         self.size
+    }
+
+    /// Returns the number of non-expired elements by evicting expired elements first.
+    pub fn refresh_len(&mut self, now: Timestamp) -> usize {
+        self.evict_expired(now);
+        self.len()
     }
 
     /// Returns true if the vector contains no elements.
@@ -162,5 +172,58 @@ impl Timestamp {
         } else {
             None
         }
+    }
+}
+
+pub struct TimedSizedMap<K, V> {
+    expiration: Duration,
+    capacity: NonZeroUsize,
+    store: BTreeMap<K, TimedSizedVec<V>>,
+}
+
+impl<K, V> TimedSizedMap<K, V> {
+    pub fn new(expiration: Duration, capacity: NonZeroUsize) -> Self {
+        Self {
+            expiration,
+            capacity,
+            store: BTreeMap::default(),
+        }
+    }
+
+    pub fn insert_evict(
+        &mut self,
+        now: Timestamp,
+        key: K,
+        value: V,
+    ) -> BTreeMap<Timestamp, VecDeque<V>>
+    where
+        K: Ord,
+    {
+        let values = self
+            .store
+            .entry(key)
+            .or_insert_with(|| TimedSizedVec::new(self.expiration, self.capacity));
+        values.insert_evict(now, value)
+    }
+
+    pub fn sort_keys_by<'a, ExtractSortKeyFn, SortKey>(
+        &mut self,
+        keys: &'a [K],
+        extractor: ExtractSortKeyFn,
+    ) -> impl Iterator<Item = &'a K>
+    where
+        K: Ord,
+        ExtractSortKeyFn: Fn(Option<&mut TimedSizedVec<V>>) -> SortKey,
+        SortKey: Ord,
+    {
+        let mut sorted_keys = Vec::with_capacity(keys.len());
+        for key in keys {
+            let sort_key = extractor(self.store.get_mut(key));
+            sorted_keys.push((sort_key, key));
+        }
+        sorted_keys.sort_by(|(left_sort_key, _left_key), (right_sort_key, _right_key)| {
+            left_sort_key.cmp(right_sort_key)
+        });
+        sorted_keys.into_iter().map(|(_sort_key, key)| key)
     }
 }
