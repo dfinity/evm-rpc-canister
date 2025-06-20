@@ -1,4 +1,5 @@
-use super::{LogFilter, OverrideProvider, RegexString, RegexSubstitution};
+use super::{OverrideProvider, RegexString, RegexSubstitution, StorableLogFilter};
+use canlog::LogFilter;
 use ic_stable_structures::Storable;
 use proptest::prelude::{Just, Strategy};
 use proptest::{option, prop_oneof, proptest};
@@ -27,13 +28,14 @@ fn arb_regex_substitution() -> impl Strategy<Value = RegexSubstitution> {
     })
 }
 
-fn arb_log_filter() -> impl Strategy<Value = LogFilter> {
+fn arb_log_filter() -> impl Strategy<Value = StorableLogFilter> {
     prop_oneof![
         Just(LogFilter::ShowAll),
         Just(LogFilter::HideAll),
         arb_regex().prop_map(LogFilter::ShowPattern),
         arb_regex().prop_map(LogFilter::HidePattern),
     ]
+    .prop_map(|filter| StorableLogFilter(filter))
 }
 
 fn arb_override_provider() -> impl Strategy<Value = OverrideProvider> {

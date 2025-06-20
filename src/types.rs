@@ -1,11 +1,13 @@
 #[cfg(test)]
 mod tests;
 
-use crate::constants::{API_KEY_MAX_SIZE, API_KEY_REPLACE_STRING};
+use crate::constants::{API_KEY_MAX_SIZE, API_KEY_REPLACE_STRING, MESSAGE_FILTER_MAX_SIZE};
 use crate::memory::get_api_key;
 use crate::util::hostname_from_url;
 use crate::validate::validate_api_key;
 use candid::CandidType;
+use canlog::LogFilter;
+use derive_more::{From, Into};
 use evm_rpc_types::{LegacyRejectionCode, RpcApi, RpcError, ValidationError};
 use ic_management_canister_types::HttpHeader;
 use ic_stable_structures::storable::Bound;
@@ -224,6 +226,25 @@ impl Storable for ApiKey {
     const BOUND: Bound = Bound::Bounded {
         max_size: API_KEY_MAX_SIZE,
         is_fixed_size: false,
+    };
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, From, Into)]
+pub struct StorableLogFilter(LogFilter);
+
+impl Storable for StorableLogFilter {
+    fn to_bytes(&self) -> Cow<[u8]> {
+        serde_json::to_vec(self)
+            .expect("Error while serializing `LogFilter`")
+            .into()
+    }
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        serde_json::from_slice(&bytes).expect("Error while deserializing `LogFilter`")
+    }
+
+    const BOUND: Bound = Bound::Bounded {
+        max_size: MESSAGE_FILTER_MAX_SIZE,
+        is_fixed_size: true,
     };
 }
 

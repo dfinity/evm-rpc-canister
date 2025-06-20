@@ -1,18 +1,14 @@
-use crate::constants::MESSAGE_FILTER_MAX_SIZE;
-use crate::types::{ApiKey, Metrics, OverrideProvider, ProviderId};
+use crate::types::{ApiKey, Metrics, OverrideProvider, ProviderId, StorableLogFilter};
 use candid::{Deserialize, Principal};
 use canhttp::http::json::Id;
 use canlog::LogFilter;
-use derive_more::{From, Into};
 use ic_stable_structures::memory_manager::VirtualMemory;
-use ic_stable_structures::storable::Bound;
 use ic_stable_structures::{
     memory_manager::{MemoryId, MemoryManager},
     DefaultMemoryImpl, Storable,
 };
 use ic_stable_structures::{Cell, StableBTreeMap};
 use serde::Serialize;
-use std::borrow::Cow;
 use std::cell::RefCell;
 
 const IS_DEMO_ACTIVE_MEMORY_ID: MemoryId = MemoryId::new(4);
@@ -130,25 +126,6 @@ pub fn set_num_subnet_nodes(nodes: u32) {
             .set(nodes)
             .expect("Error while updating number of subnet nodes")
     });
-}
-
-#[derive(Clone, Default, Serialize, Deserialize, From, Into)]
-struct StorableLogFilter(LogFilter);
-
-impl Storable for StorableLogFilter {
-    fn to_bytes(&self) -> Cow<[u8]> {
-        serde_json::to_vec(self)
-            .expect("Error while serializing `LogFilter`")
-            .into()
-    }
-    fn from_bytes(bytes: Cow<[u8]>) -> Self {
-        serde_json::from_slice(&bytes).expect("Error while deserializing `LogFilter`")
-    }
-
-    const BOUND: Bound = Bound::Bounded {
-        max_size: MESSAGE_FILTER_MAX_SIZE,
-        is_fixed_size: true,
-    };
 }
 
 #[cfg(test)]
