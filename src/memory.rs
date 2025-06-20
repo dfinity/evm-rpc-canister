@@ -1,6 +1,7 @@
-use crate::types::{ApiKey, LogFilter, Metrics, OverrideProvider, ProviderId};
+use crate::types::{ApiKey, Metrics, OverrideProvider, ProviderId, StorableLogFilter};
 use candid::Principal;
 use canhttp::http::json::Id;
+use canlog::LogFilter;
 use ic_stable_structures::memory_manager::VirtualMemory;
 use ic_stable_structures::{
     memory_manager::{MemoryId, MemoryManager},
@@ -32,8 +33,8 @@ thread_local! {
         RefCell::new(StableBTreeMap::init(MEMORY_MANAGER.with_borrow(|m| m.get(API_KEY_MAP_MEMORY_ID))));
     static MANAGE_API_KEYS: RefCell<ic_stable_structures::Vec<Principal, StableMemory>> =
         RefCell::new(ic_stable_structures::Vec::init(MEMORY_MANAGER.with_borrow(|m| m.get(MANAGE_API_KEYS_MEMORY_ID))).expect("Unable to read API key principals from stable memory"));
-    static LOG_FILTER: RefCell<Cell<LogFilter, StableMemory>> =
-        RefCell::new(Cell::init(MEMORY_MANAGER.with_borrow(|m| m.get(LOG_FILTER_MEMORY_ID)), LogFilter::default()).expect("Unable to read log message filter from stable memory"));
+    static LOG_FILTER: RefCell<Cell<StorableLogFilter, StableMemory>> =
+        RefCell::new(Cell::init(MEMORY_MANAGER.with_borrow(|m| m.get(LOG_FILTER_MEMORY_ID)), StorableLogFilter::default()).expect("Unable to read log message filter from stable memory"));
     static OVERRIDE_PROVIDER: RefCell<Cell<OverrideProvider, StableMemory>> =
         RefCell::new(Cell::init(MEMORY_MANAGER.with_borrow(|m| m.get(OVERRIDE_PROVIDER_MEMORY_ID)), OverrideProvider::default()).expect("Unable to read provider override from stable memory"));
     static NUM_SUBNET_NODES: RefCell<Cell<u32, StableMemory>> =
@@ -81,13 +82,13 @@ pub fn set_demo_active(is_active: bool) {
 }
 
 pub fn get_log_filter() -> LogFilter {
-    LOG_FILTER.with_borrow(|filter| filter.get().clone())
+    LOG_FILTER.with_borrow(|filter| filter.get().clone().into())
 }
 
 pub fn set_log_filter(filter: LogFilter) {
     LOG_FILTER.with_borrow_mut(|state| {
         state
-            .set(filter)
+            .set(filter.into())
             .expect("Error while updating log message filter")
     });
 }

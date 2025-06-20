@@ -22,6 +22,28 @@ pub enum LogFilter {
     HidePattern(RegexString),
 }
 
+impl From<LogFilter> for canlog::LogFilter {
+    fn from(filter: LogFilter) -> Self {
+        match filter {
+            LogFilter::ShowAll => Self::ShowAll,
+            LogFilter::HideAll => Self::HideAll,
+            LogFilter::ShowPattern(RegexString(value)) => Self::ShowPattern(value.as_str().into()),
+            LogFilter::HidePattern(RegexString(value)) => Self::HidePattern(value.as_str().into()),
+        }
+    }
+}
+
+impl From<canlog::LogFilter> for LogFilter {
+    fn from(filter: canlog::LogFilter) -> Self {
+        match filter {
+            canlog::LogFilter::ShowAll => Self::ShowAll,
+            canlog::LogFilter::HideAll => Self::HideAll,
+            canlog::LogFilter::ShowPattern(value) => Self::ShowPattern(RegexString(value.0)),
+            canlog::LogFilter::HidePattern(value) => Self::HidePattern(RegexString(value.0)),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, CandidType, Serialize, Deserialize)]
 pub struct OverrideProvider {
     #[serde(rename = "overrideUrl")]

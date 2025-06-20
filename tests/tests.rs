@@ -3,8 +3,9 @@ mod mock;
 use crate::mock::MockJsonRequestBody;
 use assert_matches::assert_matches;
 use candid::{CandidType, Decode, Encode, Nat, Principal};
+use canlog::{Log, LogEntry};
 use evm_rpc::constants::DEFAULT_MAX_RESPONSE_BYTES;
-use evm_rpc::logs::{Log, LogEntry};
+use evm_rpc::logs::Priority;
 use evm_rpc::{
     constants::{CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE},
     providers::PROVIDERS,
@@ -332,7 +333,7 @@ impl EvmRpcSetup {
         self
     }
 
-    pub fn http_get_logs(&self, priority: &str) -> Vec<LogEntry> {
+    pub fn http_get_logs(&self, priority: &str) -> Vec<LogEntry<Priority>> {
         let request = HttpRequest {
             method: "".to_string(),
             url: format!("/logs?priority={priority}"),
@@ -349,7 +350,7 @@ impl EvmRpcSetup {
             HttpResponse
         )
         .unwrap();
-        serde_json::from_slice::<Log>(&response.body)
+        serde_json::from_slice::<Log<Priority>>(&response.body)
             .expect("failed to parse EVM_RPC minter log")
             .entries
     }
