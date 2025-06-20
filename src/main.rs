@@ -1,4 +1,5 @@
 use candid::candid_method;
+use canhttp::multi::Timestamp;
 use canhttp::{CyclesChargingPolicy, CyclesCostEstimator};
 use evm_rpc::candid_rpc::CandidRpcClient;
 use evm_rpc::http::{service_request_builder, ChargingPolicyWithCollateral};
@@ -50,7 +51,7 @@ pub async fn eth_get_logs(
 ) -> MultiRpcResult<Vec<evm_rpc_types::LogEntry>> {
     let config = config.unwrap_or_default();
     let max_block_range = config.max_block_range_or_default();
-    match CandidRpcClient::new(source, Some(RpcConfig::from(config))) {
+    match CandidRpcClient::new(source, Some(RpcConfig::from(config)), now()) {
         Ok(source) => source.eth_get_logs(args, max_block_range).await,
         Err(err) => Err(err).into(),
     }
@@ -63,7 +64,7 @@ pub async fn eth_get_block_by_number(
     config: Option<evm_rpc_types::RpcConfig>,
     block: evm_rpc_types::BlockTag,
 ) -> MultiRpcResult<evm_rpc_types::Block> {
-    match CandidRpcClient::new(source, config) {
+    match CandidRpcClient::new(source, config, now()) {
         Ok(source) => source.eth_get_block_by_number(block).await,
         Err(err) => Err(err).into(),
     }
@@ -76,7 +77,7 @@ pub async fn eth_get_transaction_receipt(
     config: Option<evm_rpc_types::RpcConfig>,
     tx_hash: Hex32,
 ) -> MultiRpcResult<Option<evm_rpc_types::TransactionReceipt>> {
-    match CandidRpcClient::new(source, config) {
+    match CandidRpcClient::new(source, config, now()) {
         Ok(source) => source.eth_get_transaction_receipt(tx_hash).await,
         Err(err) => Err(err).into(),
     }
@@ -89,7 +90,7 @@ pub async fn eth_get_transaction_count(
     config: Option<evm_rpc_types::RpcConfig>,
     args: evm_rpc_types::GetTransactionCountArgs,
 ) -> MultiRpcResult<evm_rpc_types::Nat256> {
-    match CandidRpcClient::new(source, config) {
+    match CandidRpcClient::new(source, config, now()) {
         Ok(source) => source.eth_get_transaction_count(args).await,
         Err(err) => Err(err).into(),
     }
@@ -102,7 +103,7 @@ pub async fn eth_fee_history(
     config: Option<evm_rpc_types::RpcConfig>,
     args: evm_rpc_types::FeeHistoryArgs,
 ) -> MultiRpcResult<evm_rpc_types::FeeHistory> {
-    match CandidRpcClient::new(source, config) {
+    match CandidRpcClient::new(source, config, now()) {
         Ok(source) => source.eth_fee_history(args).await,
         Err(err) => Err(err).into(),
     }
@@ -115,7 +116,7 @@ pub async fn eth_send_raw_transaction(
     config: Option<evm_rpc_types::RpcConfig>,
     raw_signed_transaction_hex: evm_rpc_types::Hex,
 ) -> MultiRpcResult<evm_rpc_types::SendRawTransactionStatus> {
-    match CandidRpcClient::new(source, config) {
+    match CandidRpcClient::new(source, config, now()) {
         Ok(source) => {
             source
                 .eth_send_raw_transaction(raw_signed_transaction_hex)
@@ -132,7 +133,7 @@ pub async fn eth_call(
     config: Option<evm_rpc_types::RpcConfig>,
     args: evm_rpc_types::CallArgs,
 ) -> MultiRpcResult<evm_rpc_types::Hex> {
-    match CandidRpcClient::new(source, config) {
+    match CandidRpcClient::new(source, config, now()) {
         Ok(source) => source.eth_call(args).await,
         Err(err) => Err(err).into(),
     }
@@ -419,6 +420,10 @@ fn http_request(request: HttpRequest) -> HttpResponse {
 #[candid_method(query, rename = "getMetrics")]
 fn get_metrics() -> Metrics {
     UNSTABLE_METRICS.with(|metrics| (*metrics.borrow()).clone())
+}
+
+fn now() -> Timestamp {
+    Timestamp::from_nanos_since_unix_epoch(ic_cdk::api::time())
 }
 
 #[cfg(not(any(target_arch = "wasm32", test)))]

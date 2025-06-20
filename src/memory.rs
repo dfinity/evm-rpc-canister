@@ -140,8 +140,10 @@ pub fn record_ok_result(service: &RpcService) {
     }
 }
 
-pub fn rank_providers(services: &[SupportedRpcService]) -> Vec<SupportedRpcService> {
-    let now = Timestamp::from_nanos_since_unix_epoch(ic_cdk::api::time());
+pub fn rank_providers(
+    services: &[SupportedRpcService],
+    now: Timestamp,
+) -> Vec<SupportedRpcService> {
     UNSTABLE_RPC_SERVICE_OK_RESULTS_TIMESTAMPS.with_borrow_mut(|access| {
         access
             .sort_keys_by(services, |values| {
