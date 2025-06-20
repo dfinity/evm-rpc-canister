@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests;
 
-use crate::constants::{API_KEY_MAX_SIZE, API_KEY_REPLACE_STRING, MESSAGE_FILTER_MAX_SIZE};
+use crate::constants::{API_KEY_MAX_SIZE, API_KEY_REPLACE_STRING};
 use crate::memory::get_api_key;
 use crate::util::hostname_from_url;
 use crate::validate::validate_api_key;
@@ -322,32 +322,6 @@ impl RpcAccess {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
-pub enum LogFilter {
-    #[default]
-    ShowAll,
-    HideAll,
-    ShowPattern(RegexString),
-    HidePattern(RegexString),
-}
-
-impl TryFrom<evm_rpc_types::LogFilter> for LogFilter {
-    type Error = regex::Error;
-
-    fn try_from(value: evm_rpc_types::LogFilter) -> Result<Self, Self::Error> {
-        Ok(match value {
-            evm_rpc_types::LogFilter::ShowAll => LogFilter::ShowAll,
-            evm_rpc_types::LogFilter::HideAll => LogFilter::HideAll,
-            evm_rpc_types::LogFilter::ShowPattern(regex) => {
-                LogFilter::ShowPattern(RegexString::try_from(regex)?)
-            }
-            evm_rpc_types::LogFilter::HidePattern(regex) => {
-                LogFilter::HidePattern(RegexString::try_from(regex)?)
-            }
-        })
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct RegexString(String);
 
 impl TryFrom<evm_rpc_types::RegexString> for RegexString {
@@ -393,37 +367,6 @@ impl TryFrom<evm_rpc_types::RegexSubstitution> for RegexSubstitution {
             replacement: value.replacement,
         })
     }
-}
-
-impl LogFilter {
-    pub fn is_match(&self, message: &str) -> bool {
-        match self {
-            Self::ShowAll => true,
-            Self::HideAll => false,
-            Self::ShowPattern(regex) => regex
-                .try_is_valid(message)
-                .expect("Invalid regex in ShowPattern log filter"),
-            Self::HidePattern(regex) => !regex
-                .try_is_valid(message)
-                .expect("Invalid regex in HidePattern log filter"),
-        }
-    }
-}
-
-impl Storable for LogFilter {
-    fn to_bytes(&self) -> Cow<[u8]> {
-        serde_json::to_vec(self)
-            .expect("Error while serializing `LogFilter`")
-            .into()
-    }
-    fn from_bytes(bytes: Cow<[u8]>) -> Self {
-        serde_json::from_slice(&bytes).expect("Error while deserializing `LogFilter`")
-    }
-
-    const BOUND: Bound = Bound::Bounded {
-        max_size: MESSAGE_FILTER_MAX_SIZE,
-        is_fixed_size: true,
-    };
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]

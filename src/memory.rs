@@ -1,12 +1,18 @@
-use crate::types::{ApiKey, LogFilter, Metrics, OverrideProvider, ProviderId};
-use candid::Principal;
+use crate::constants::MESSAGE_FILTER_MAX_SIZE;
+use crate::types::{ApiKey, Metrics, OverrideProvider, ProviderId};
+use candid::{Deserialize, Principal};
 use canhttp::http::json::Id;
+use canlog::LogFilter;
+use derive_more::{From, Into};
 use ic_stable_structures::memory_manager::VirtualMemory;
+use ic_stable_structures::storable::Bound;
 use ic_stable_structures::{
     memory_manager::{MemoryId, MemoryManager},
-    DefaultMemoryImpl,
+    DefaultMemoryImpl, Storable,
 };
 use ic_stable_structures::{Cell, StableBTreeMap};
+use serde::Serialize;
+use std::borrow::Cow;
 use std::cell::RefCell;
 
 const IS_DEMO_ACTIVE_MEMORY_ID: MemoryId = MemoryId::new(4);
@@ -32,8 +38,8 @@ thread_local! {
         RefCell::new(StableBTreeMap::init(MEMORY_MANAGER.with_borrow(|m| m.get(API_KEY_MAP_MEMORY_ID))));
     static MANAGE_API_KEYS: RefCell<ic_stable_structures::Vec<Principal, StableMemory>> =
         RefCell::new(ic_stable_structures::Vec::init(MEMORY_MANAGER.with_borrow(|m| m.get(MANAGE_API_KEYS_MEMORY_ID))).expect("Unable to read API key principals from stable memory"));
-    static LOG_FILTER: RefCell<Cell<LogFilter, StableMemory>> =
-        RefCell::new(Cell::init(MEMORY_MANAGER.with_borrow(|m| m.get(LOG_FILTER_MEMORY_ID)), LogFilter::default()).expect("Unable to read log message filter from stable memory"));
+    static LOG_FILTER: RefCell<Cell<StorableLogFilter, StableMemory>> =
+        RefCell::new(Cell::init(MEMORY_MANAGER.with_borrow(|m| m.get(LOG_FILTER_MEMORY_ID)), StorableLogFilter::default()).expect("Unable to read log message filter from stable memory"));
     static OVERRIDE_PROVIDER: RefCell<Cell<OverrideProvider, StableMemory>> =
         RefCell::new(Cell::init(MEMORY_MANAGER.with_borrow(|m| m.get(OVERRIDE_PROVIDER_MEMORY_ID)), OverrideProvider::default()).expect("Unable to read provider override from stable memory"));
     static NUM_SUBNET_NODES: RefCell<Cell<u32, StableMemory>> =
@@ -81,13 +87,13 @@ pub fn set_demo_active(is_active: bool) {
 }
 
 pub fn get_log_filter() -> LogFilter {
-    LOG_FILTER.with_borrow(|filter| filter.get().clone())
+    LOG_FILTER.with_borrow(|filter| filter.get().clone().into())
 }
 
 pub fn set_log_filter(filter: LogFilter) {
     LOG_FILTER.with_borrow_mut(|state| {
         state
-            .set(filter)
+            .set(filter.into())
             .expect("Error while updating log message filter")
     });
 }
@@ -124,6 +130,25 @@ pub fn set_num_subnet_nodes(nodes: u32) {
             .set(nodes)
             .expect("Error while updating number of subnet nodes")
     });
+}
+
+#[derive(Clone, Default, Serialize, Deserialize, From, Into)]
+struct StorableLogFilter(LogFilter);
+
+impl Storable for StorableLogFilter {
+    fn to_bytes(&self) -> Cow<[u8]> {
+        serde_json::to_vec(self)
+            .expect("Error while serializing `LogFilter`")
+            .into()
+    }
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        serde_json::from_slice(&bytes).expect("Error while deserializing `LogFilter`")
+    }
+
+    const BOUND: Bound = Bound::Bounded {
+        max_size: MESSAGE_FILTER_MAX_SIZE,
+        is_fixed_size: true,
+    };
 }
 
 #[cfg(test)]
