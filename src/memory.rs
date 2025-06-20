@@ -1,6 +1,9 @@
+use crate::providers::SupportedRpcService;
 use crate::types::{ApiKey, LogFilter, Metrics, OverrideProvider, ProviderId};
 use candid::Principal;
 use canhttp::http::json::Id;
+use canhttp::multi::{TimedSizedMap, TimedSizedVec, Timestamp};
+use evm_rpc_types::RpcService;
 use ic_stable_structures::memory_manager::VirtualMemory;
 use ic_stable_structures::{
     memory_manager::{MemoryId, MemoryManager},
@@ -8,6 +11,8 @@ use ic_stable_structures::{
 };
 use ic_stable_structures::{Cell, StableBTreeMap};
 use std::cell::RefCell;
+use std::num::NonZeroUsize;
+use std::time::Duration;
 
 const IS_DEMO_ACTIVE_MEMORY_ID: MemoryId = MemoryId::new(4);
 const API_KEY_MAP_MEMORY_ID: MemoryId = MemoryId::new(5);
@@ -22,6 +27,7 @@ thread_local! {
     // Unstable static data: these are reset when the canister is upgraded.
     pub static UNSTABLE_METRICS: RefCell<Metrics> = RefCell::new(Metrics::default());
     static UNSTABLE_HTTP_REQUEST_COUNTER: RefCell<u64> = const {RefCell::new(0)};
+    static UNSTABLE_RPC_SERVICE_OK_RESULTS_TIMESTAMPS: RefCell<TimedSizedMap<SupportedRpcService, ()>> =  RefCell::new(TimedSizedMap::new(Duration::from_secs(20 * 60), NonZeroUsize::new(500).unwrap()));
 
     // Stable static data: these are preserved when the canister is upgraded.
     static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> =
@@ -124,6 +130,34 @@ pub fn set_num_subnet_nodes(nodes: u32) {
             .set(nodes)
             .expect("Error while updating number of subnet nodes")
     });
+}
+
+pub fn record_ok_result(service: &RpcService) {
+    if let Some(service) = SupportedRpcService::new(service) {
+        let now = Timestamp::from_nanos_since_unix_epoch(ic_cdk::api::time());
+        UNSTABLE_RPC_SERVICE_OK_RESULTS_TIMESTAMPS
+            .with_borrow_mut(|access| access.insert_evict(now, service, ()));
+    }
+}
+
+pub fn rank_providers(
+    services: &[SupportedRpcService],
+    now: Timestamp,
+) -> Vec<SupportedRpcService> {
+    UNSTABLE_RPC_SERVICE_OK_RESULTS_TIMESTAMPS.with_borrow_mut(|access| {
+        access
+            .sort_keys_by(services, |values| {
+                ascending_num_non_expired_elements(values, now)
+            })
+            .copied()
+            .collect()
+    })
+}
+fn ascending_num_non_expired_elements<V>(
+    values: Option<&mut TimedSizedVec<V>>,
+    now: Timestamp,
+) -> impl Ord {
+    std::cmp::Reverse(values.map(|v| v.unexpired_len(now)).unwrap_or_default())
 }
 
 #[cfg(test)]

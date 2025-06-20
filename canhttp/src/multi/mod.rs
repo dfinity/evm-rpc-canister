@@ -133,6 +133,31 @@ impl<K, V, E> MultiResults<K, V, E> {
         (self.ok_results, self.errors)
     }
 
+    /// Return a reference to the [`Ok`] results contained in the [`MultiResults`].
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use maplit::btreemap;
+    /// use canhttp::multi::MultiResults;
+    ///
+    /// let results = MultiResults::from_non_empty_iter(vec![
+    ///     (0, Ok("yes")),
+    ///     (1, Err("wrong")),
+    ///     (2, Ok("no"))
+    /// ]);
+    ///
+    /// let ok = results.ok_results();
+    ///
+    /// assert_eq!(ok, &btreemap! {
+    ///     0 => "yes",
+    ///     2 => "no",
+    /// });
+    /// ```
+    pub fn ok_results(&self) -> &BTreeMap<K, V> {
+        &self.ok_results
+    }
+
     /// Return the number of results.
     ///
     /// # Examples

@@ -9,7 +9,7 @@ use crate::{
     types::{MetricRpcHost, ResolvedRpcService, RpcMethod},
 };
 use candid::Nat;
-use canhttp::multi::ReductionError;
+use canhttp::multi::{ReductionError, Timestamp};
 use ethers_core::{types::Transaction, utils::rlp};
 use evm_rpc_types::{Hex, Hex32, MultiRpcResult, Nat256, RpcResult, ValidationError};
 
@@ -53,9 +53,10 @@ impl CandidRpcClient {
     pub fn new(
         source: evm_rpc_types::RpcServices,
         config: Option<evm_rpc_types::RpcConfig>,
+        now: Timestamp,
     ) -> RpcResult<Self> {
         Ok(Self {
-            client: EthRpcClient::new(source, config)?,
+            client: EthRpcClient::new(source, config, now)?,
         })
     }
 

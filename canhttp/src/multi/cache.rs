@@ -144,10 +144,13 @@ impl<T> TimedSizedVec<T> {
 }
 
 /// Time in nanoseconds since the epoch (1970-01-01).
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Timestamp(u64);
 
 impl Timestamp {
+    /// The Unix epoch.
+    pub const UNIX_EPOCH: Timestamp = Timestamp::from_nanos_since_unix_epoch(0);
+
     /// TODO
     pub const fn from_nanos_since_unix_epoch(nanos: u64) -> Self {
         Timestamp(nanos)
@@ -173,6 +176,12 @@ impl Timestamp {
         } else {
             None
         }
+    }
+}
+
+impl Default for Timestamp {
+    fn default() -> Self {
+        Timestamp::UNIX_EPOCH
     }
 }
 
