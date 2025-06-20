@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::collections::{BTreeMap, VecDeque};
 use std::num::NonZeroUsize;
 use std::time::Duration;
@@ -211,13 +212,14 @@ impl<K, V> TimedSizedMap<K, V> {
     }
 
     /// TODO
-    pub fn sort_keys_by<'a, ExtractSortKeyFn, SortKey>(
+    pub fn sort_keys_by<'a, ExtractSortKeyFn, SortKey, Q>(
         &mut self,
-        keys: &'a [&K],
+        keys: &'a [Q],
         extractor: ExtractSortKeyFn,
-    ) -> impl Iterator<Item = &'a K>
+    ) -> impl Iterator<Item = &'a Q>
     where
-        K: Ord,
+        K: Borrow<Q> + Ord,
+        Q: Ord,
         ExtractSortKeyFn: Fn(Option<&mut TimedSizedVec<V>>) -> SortKey,
         SortKey: Ord,
     {
@@ -229,7 +231,7 @@ impl<K, V> TimedSizedMap<K, V> {
         sorted_keys.sort_by(|(left_sort_key, _left_key), (right_sort_key, _right_key)| {
             left_sort_key.cmp(right_sort_key)
         });
-        sorted_keys.into_iter().map(|(_sort_key, key)| *key)
+        sorted_keys.into_iter().map(|(_sort_key, key)| key)
     }
 
     /// TODO

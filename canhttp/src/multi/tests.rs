@@ -460,11 +460,12 @@ mod timed_sized_map {
         }
 
         let now = timestamp(60); //no timestamp expired
-        for subset in Keys::VARIANTS.iter().powerset() {
+        for subset in Keys::VARIANTS.iter().cloned().powerset() {
             assert_eq!(
                 map.sort_keys_by(subset.as_slice(), |values| {
                     ascending_num_non_expired_elements(values, now)
                 })
+                .cloned()
                 .collect::<Vec<_>>(),
                 subset
             );
@@ -510,7 +511,7 @@ mod timed_sized_map {
         let map_before = map.clone();
         let now = timestamp(60); //no timestamp expired
         assert_eq!(
-            map.sort_keys_by(&[&Keys::Key1, &Keys::Key2, &Keys::Key3], |values| {
+            map.sort_keys_by(&[Keys::Key1, Keys::Key2, Keys::Key3], |values| {
                 ascending_num_non_expired_elements(values, now)
             })
             .collect::<Vec<_>>(),
@@ -520,7 +521,7 @@ mod timed_sized_map {
 
         let now = timestamp(63); //timestamps 0,1,2 expired.
         assert_eq!(
-            map.sort_keys_by(&[&Keys::Key1, &Keys::Key2, &Keys::Key3], |values| {
+            map.sort_keys_by(&[Keys::Key1, Keys::Key2, Keys::Key3], |values| {
                 ascending_num_non_expired_elements(values, now)
             })
             .collect::<Vec<_>>(),
