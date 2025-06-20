@@ -120,13 +120,13 @@ impl<T> TimedSizedVec<T> {
 
     /// Returns the number of elements.
     ///
-    /// To avoid containing expired elements, use [`Self::refresh_len`].
+    /// To avoid containing expired elements, use [`Self::unexpired_len`].
     pub fn len(&self) -> usize {
         self.size
     }
 
     /// Returns the number of non-expired elements by evicting expired elements first.
-    pub fn refresh_len(&mut self, now: Timestamp) -> usize {
+    pub fn unexpired_len(&mut self, now: Timestamp) -> usize {
         self.evict_expired(now);
         self.len()
     }
@@ -175,6 +175,8 @@ impl Timestamp {
     }
 }
 
+/// TODO
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TimedSizedMap<K, V> {
     expiration: Duration,
     capacity: NonZeroUsize,
@@ -182,6 +184,7 @@ pub struct TimedSizedMap<K, V> {
 }
 
 impl<K, V> TimedSizedMap<K, V> {
+    /// TODO
     pub fn new(expiration: Duration, capacity: NonZeroUsize) -> Self {
         Self {
             expiration,
@@ -190,6 +193,7 @@ impl<K, V> TimedSizedMap<K, V> {
         }
     }
 
+    /// TODO
     pub fn insert_evict(
         &mut self,
         now: Timestamp,
@@ -206,9 +210,10 @@ impl<K, V> TimedSizedMap<K, V> {
         values.insert_evict(now, value)
     }
 
+    /// TODO
     pub fn sort_keys_by<'a, ExtractSortKeyFn, SortKey>(
         &mut self,
-        keys: &'a [K],
+        keys: &'a [&K],
         extractor: ExtractSortKeyFn,
     ) -> impl Iterator<Item = &'a K>
     where
@@ -224,6 +229,15 @@ impl<K, V> TimedSizedMap<K, V> {
         sorted_keys.sort_by(|(left_sort_key, _left_key), (right_sort_key, _right_key)| {
             left_sort_key.cmp(right_sort_key)
         });
-        sorted_keys.into_iter().map(|(_sort_key, key)| key)
+        sorted_keys.into_iter().map(|(_sort_key, key)| *key)
+    }
+
+    /// TODO
+    pub fn iter(&self) -> impl Iterator<Item = (&K, &Timestamp, &V)> {
+        self.store.iter().flat_map(|(k, values)| {
+            values
+                .iter()
+                .map(move |(timestamp, value)| (k, timestamp, value))
+        })
     }
 }

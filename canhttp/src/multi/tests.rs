@@ -1,3 +1,5 @@
+use crate::multi::Timestamp;
+
 mod parallel_call {
     use crate::multi::parallel_call;
     use std::convert::Infallible;
@@ -233,7 +235,7 @@ mod reduce_with_threshold {
 
 mod timed_size_vec {
     use crate::multi::cache::TimedSizedVec;
-    use crate::multi::Timestamp;
+    use crate::multi::tests::timestamp;
     use maplit::btreemap;
     use proptest::collection::vec;
     use proptest::prelude::any;
@@ -431,8 +433,126 @@ mod timed_size_vec {
             prop_assert!(vec.len() <= vec.capacity().get());
         }
     }
+}
 
-    fn timestamp(nanos: u64) -> Timestamp {
-        Timestamp::from_nanos_since_unix_epoch(nanos)
+mod timed_sized_map {
+    use crate::multi::cache::TimedSizedMap;
+    use crate::multi::tests::timestamp;
+    use crate::multi::{TimedSizedVec, Timestamp};
+    use itertools::Itertools;
+    use std::collections::BTreeMap;
+    use std::num::NonZeroUsize;
+    use std::time::Duration;
+    use strum::VariantArray;
+
+    #[test]
+    fn should_initially_be_empty() {
+        let map: TimedSizedMap<Keys, &str> =
+            TimedSizedMap::new(Duration::from_nanos(60), NonZeroUsize::new(5).unwrap());
+        assert_eq!(map.iter().next(), None);
     }
+
+    #[test]
+    fn should_be_stable_when_sorting() {
+        let mut map = TimedSizedMap::new(Duration::from_nanos(60), NonZeroUsize::new(5).unwrap());
+        for key in Keys::VARIANTS {
+            map.insert_evict(timestamp(1), key.clone(), "ok");
+        }
+
+        let now = timestamp(60); //no timestamp expired
+        for subset in Keys::VARIANTS.iter().powerset() {
+            assert_eq!(
+                map.sort_keys_by(subset.as_slice(), |values| {
+                    ascending_num_non_expired_elements(values, now)
+                })
+                .collect::<Vec<_>>(),
+                subset
+            );
+        }
+    }
+
+    #[test]
+    fn should_evict_expired_entries_while_sorting() {
+        let mut map = TimedSizedMap::new(Duration::from_nanos(60), NonZeroUsize::new(5).unwrap());
+        for nanos in 0..3_u64 {
+            assert_eq!(
+                map.insert_evict(timestamp(nanos), Keys::Key3, "ok"),
+                BTreeMap::default()
+            );
+        }
+        for nanos in 3..5_u64 {
+            assert_eq!(
+                map.insert_evict(timestamp(nanos), Keys::Key1, "ok"),
+                BTreeMap::default()
+            );
+            assert_eq!(
+                map.insert_evict(timestamp(nanos), Keys::Key3, "ok"),
+                BTreeMap::default()
+            );
+        }
+        assert_eq!(
+            map.insert_evict(timestamp(5), Keys::Key1, "ok"),
+            BTreeMap::default()
+        );
+        assert_eq!(
+            map.iter().collect::<Vec<_>>(),
+            vec![
+                (&Keys::Key1, &timestamp(3), &"ok"),
+                (&Keys::Key1, &timestamp(4), &"ok"),
+                (&Keys::Key1, &timestamp(5), &"ok"),
+                (&Keys::Key3, &timestamp(0), &"ok"),
+                (&Keys::Key3, &timestamp(1), &"ok"),
+                (&Keys::Key3, &timestamp(2), &"ok"),
+                (&Keys::Key3, &timestamp(3), &"ok"),
+                (&Keys::Key3, &timestamp(4), &"ok"),
+            ]
+        );
+        let map_before = map.clone();
+        let now = timestamp(60); //no timestamp expired
+        assert_eq!(
+            map.sort_keys_by(&[&Keys::Key1, &Keys::Key2, &Keys::Key3], |values| {
+                ascending_num_non_expired_elements(values, now)
+            })
+            .collect::<Vec<_>>(),
+            vec![&Keys::Key3, &Keys::Key1, &Keys::Key2]
+        );
+        assert_eq!(map_before, map);
+
+        let now = timestamp(63); //timestamps 0,1,2 expired.
+        assert_eq!(
+            map.sort_keys_by(&[&Keys::Key1, &Keys::Key2, &Keys::Key3], |values| {
+                ascending_num_non_expired_elements(values, now)
+            })
+            .collect::<Vec<_>>(),
+            vec![&Keys::Key1, &Keys::Key3, &Keys::Key2]
+        );
+        assert_eq!(
+            map.iter().collect::<Vec<_>>(),
+            vec![
+                (&Keys::Key1, &timestamp(3), &"ok"),
+                (&Keys::Key1, &timestamp(4), &"ok"),
+                (&Keys::Key1, &timestamp(5), &"ok"),
+                (&Keys::Key3, &timestamp(3), &"ok"),
+                (&Keys::Key3, &timestamp(4), &"ok"),
+            ]
+        );
+    }
+
+    #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, VariantArray)]
+    enum Keys {
+        Key1,
+        Key2,
+        Key3,
+    }
+
+    fn ascending_num_non_expired_elements<V>(
+        values: Option<&mut TimedSizedVec<V>>,
+        now: Timestamp,
+    ) -> impl Ord {
+        std::cmp::Reverse(values.map(|v| v.unexpired_len(now)).unwrap_or_default())
+    }
+}
+
+fn timestamp(nanos: u64) -> Timestamp {
+    Timestamp::from_nanos_since_unix_epoch(nanos)
 }

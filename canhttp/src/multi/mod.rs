@@ -1,7 +1,7 @@
 //! Make multiple calls in parallel to a [`tower::Service`] and handle their multiple results.
 //! See [`parallel_call`].
 
-pub use cache::{TimedSizedVec, Timestamp};
+pub use cache::{TimedSizedMap, TimedSizedVec, Timestamp};
 pub use reduce::{Reduce, ReduceWithEquality, ReduceWithThreshold, ReducedResult, ReductionError};
 
 mod cache;
