@@ -308,7 +308,7 @@ fn post_upgrade(args: evm_rpc_types::InstallArgs) {
         set_api_key_principals(principals);
     }
     if let Some(filter) = args.log_filter {
-        set_log_filter(LogFilter::try_from(filter).expect("ERROR: Invalid log filter"));
+        set_log_filter(LogFilter::from(filter));
     }
     if let Some(override_provider) = args.override_provider {
         set_override_provider(
