@@ -370,12 +370,10 @@ pub enum SupportedRpcService {
 }
 
 impl SupportedRpcService {
-
     pub fn new(service: &RpcService) -> Option<Self> {
         match service {
             RpcService::Provider(id) => find_provider(|provider| &provider.provider_id == id)
-                .and_then(|provider| provider.alias.as_ref())
-                .and_then(SupportedRpcService::new),
+                .and_then(|provider| provider.alias),
             RpcService::Custom(_) => None,
             RpcService::EthMainnet(service) => Some(SupportedRpcService::EthMainnet(*service)),
             RpcService::EthSepolia(service) => Some(SupportedRpcService::EthSepolia(*service)),
