@@ -1,14 +1,13 @@
 use crate::types::{ApiKey, Metrics, OverrideProvider, ProviderId, StorableLogFilter};
-use candid::{Deserialize, Principal};
+use candid::Principal;
 use canhttp::http::json::Id;
 use canlog::LogFilter;
 use ic_stable_structures::memory_manager::VirtualMemory;
 use ic_stable_structures::{
     memory_manager::{MemoryId, MemoryManager},
-    DefaultMemoryImpl, Storable,
+    DefaultMemoryImpl,
 };
 use ic_stable_structures::{Cell, StableBTreeMap};
-use serde::Serialize;
 use std::cell::RefCell;
 
 const IS_DEMO_ACTIVE_MEMORY_ID: MemoryId = MemoryId::new(4);

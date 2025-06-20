@@ -17,13 +17,9 @@ proptest! {
     }
 }
 
-fn arb_regex() -> impl Strategy<Value = RegexString> {
-    ".*".prop_map(|r| RegexString::from(r.as_str()))
-}
-
 fn arb_regex_substitution() -> impl Strategy<Value = RegexSubstitution> {
-    (arb_regex(), ".*").prop_map(|(pattern, replacement)| RegexSubstitution {
-        pattern,
+    (".*", ".*").prop_map(|(pattern, replacement)| RegexSubstitution {
+        pattern: RegexString::from(pattern.as_str()),
         replacement,
     })
 }
@@ -32,10 +28,10 @@ fn arb_log_filter() -> impl Strategy<Value = StorableLogFilter> {
     prop_oneof![
         Just(LogFilter::ShowAll),
         Just(LogFilter::HideAll),
-        arb_regex().prop_map(LogFilter::ShowPattern),
-        arb_regex().prop_map(LogFilter::HidePattern),
+        ".*".prop_map(|value| LogFilter::ShowPattern(value.as_str().into())),
+        ".*".prop_map(|value| LogFilter::HidePattern(value.as_str().into())),
     ]
-    .prop_map(|filter| StorableLogFilter(filter))
+    .prop_map(StorableLogFilter)
 }
 
 fn arb_override_provider() -> impl Strategy<Value = OverrideProvider> {
