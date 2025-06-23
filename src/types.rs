@@ -345,10 +345,10 @@ impl RpcAccess {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct RegexString(String);
 
-impl TryFrom<evm_rpc_types::RegexString> for RegexString {
+impl TryFrom<canlog::RegexString> for RegexString {
     type Error = regex::Error;
 
-    fn try_from(value: evm_rpc_types::RegexString) -> Result<Self, Self::Error> {
+    fn try_from(value: canlog::RegexString) -> Result<Self, Self::Error> {
         let ensure_regex_is_valid = Regex::new(&value.0)?;
         Ok(Self(ensure_regex_is_valid.as_str().to_string()))
     }
@@ -379,10 +379,10 @@ pub struct RegexSubstitution {
     pub replacement: String,
 }
 
-impl TryFrom<evm_rpc_types::RegexSubstitution> for RegexSubstitution {
+impl TryFrom<canlog::RegexSubstitution> for RegexSubstitution {
     type Error = regex::Error;
 
-    fn try_from(value: evm_rpc_types::RegexSubstitution) -> Result<Self, Self::Error> {
+    fn try_from(value: canlog::RegexSubstitution) -> Result<Self, Self::Error> {
         Ok(Self {
             pattern: RegexString::try_from(value.pattern)?,
             replacement: value.replacement,
