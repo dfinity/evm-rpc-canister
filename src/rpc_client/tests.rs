@@ -1,5 +1,6 @@
 mod eth_rpc_client {
     use crate::rpc_client::EthRpcClient;
+    use canhttp::multi::Timestamp;
     use evm_rpc_types::{EthMainnetService, ProviderError, RpcService, RpcServices};
     use maplit::btreeset;
 
@@ -17,7 +18,7 @@ mod eth_rpc_client {
             RpcServices::OptimismMainnet(Some(vec![])),
         ] {
             assert_eq!(
-                EthRpcClient::new(empty_source, None),
+                EthRpcClient::new(empty_source, None, Timestamp::default()),
                 Err(ProviderError::ProviderNotFound)
             );
         }
@@ -32,7 +33,7 @@ mod eth_rpc_client {
             RpcServices::BaseMainnet(None),
             RpcServices::OptimismMainnet(None),
         ] {
-            let client = EthRpcClient::new(empty_source, None).unwrap();
+            let client = EthRpcClient::new(empty_source, None, Timestamp::default()).unwrap();
             assert!(!client.providers().is_empty());
         }
     }
@@ -45,6 +46,7 @@ mod eth_rpc_client {
         let client = EthRpcClient::new(
             RpcServices::EthMainnet(Some(vec![provider1, provider2])),
             None,
+            Timestamp::default(),
         )
         .unwrap();
 
@@ -93,7 +95,7 @@ mod eth_get_transaction_receipt {
                 block_hash: Hash::from_str(
                     "0x82005d2f17b251900968f01b0ed482cb49b7e1d797342bc504904d442b64dbe4"
                 )
-                .unwrap(),
+                    .unwrap(),
                 block_number: BlockNumber::new(0x4132ec),
                 effective_gas_price: WeiPerGas::new(0xfefbee3e),
                 gas_used: GasAmount::new(0x5208),
@@ -101,7 +103,7 @@ mod eth_get_transaction_receipt {
                 transaction_hash: Hash::from_str(
                     "0x0e59bd032b9b22aca5e2784e4cf114783512db00988c716cf17a1cc755a0a93d"
                 )
-                .unwrap(),
+                    .unwrap(),
                 contract_address: None,
                 from: "0x1789f79e95324a47c5fd6693071188e82e9a3558".parse().unwrap(),
                 logs: vec![],
@@ -182,6 +184,7 @@ mod providers {
     use crate::arbitrary::{arb_custom_rpc_services, arb_rpc_services};
     use crate::rpc_client::Providers;
     use assert_matches::assert_matches;
+    use canhttp::multi::Timestamp;
     use evm_rpc_types::{
         ConsensusStrategy, EthMainnetService, EthSepoliaService, L2MainnetService, ProviderError,
         RpcServices,
@@ -218,18 +221,21 @@ mod providers {
             let providers = Providers::new(
                 not_enough_custom_providers,
                 strategy.clone(),
+                Timestamp::default()
             );
             assert_matches!(providers, Err(ProviderError::InvalidRpcConfig(_)));
 
              let providers = Providers::new(
                 too_many_custom_providers,
                 strategy.clone(),
+                Timestamp::default()
             );
             assert_matches!(providers, Err(ProviderError::InvalidRpcConfig(_)));
 
             let _providers = Providers::new(
                 custom_providers.clone(),
                 strategy,
+                Timestamp::default()
             ).unwrap();
         }
     }
@@ -248,7 +254,8 @@ mod providers {
             RpcServices::BaseMainnet(None),
             RpcServices::OptimismMainnet(None),
         ] {
-            let providers = Providers::new(default_services, strategy.clone());
+            let providers =
+                Providers::new(default_services, strategy.clone(), Timestamp::default());
             assert_matches!(providers, Err(ProviderError::InvalidRpcConfig(_)));
         }
     }
@@ -282,7 +289,7 @@ mod providers {
                     total: Some((max_total + 1) as u8),
                     min,
                 };
-                let providers = Providers::new(default_services, strategy);
+                let providers = Providers::new(default_services, strategy, Timestamp::default());
                 assert_matches!(providers, Err(ProviderError::InvalidRpcConfig(_)));
             }
         }
@@ -295,14 +302,14 @@ mod providers {
                 total: Some(4),
                 min: 5,
             };
-            let providers = Providers::new(services.clone(), strategy.clone());
+            let providers = Providers::new(services.clone(), strategy.clone(), Timestamp::default());
             assert_matches!(providers, Err(ProviderError::InvalidRpcConfig(_)));
 
              let strategy = ConsensusStrategy::Threshold {
                 total: Some(4),
                 min: 0,
             };
-            let providers = Providers::new(services, strategy.clone());
+            let providers = Providers::new(services, strategy.clone(), Timestamp::default());
             assert_matches!(providers, Err(ProviderError::InvalidRpcConfig(_)));
         }
     }
