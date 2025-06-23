@@ -1,6 +1,6 @@
 use candid::candid_method;
 use canhttp::{CyclesChargingPolicy, CyclesCostEstimator};
-use canlog::{Log, LogFilter, Sort};
+use canlog::{Log, Sort};
 use evm_rpc::candid_rpc::CandidRpcClient;
 use evm_rpc::http::{service_request_builder, ChargingPolicyWithCollateral};
 use evm_rpc::logs::{Priority, INFO};
@@ -308,7 +308,7 @@ fn post_upgrade(args: evm_rpc_types::InstallArgs) {
         set_api_key_principals(principals);
     }
     if let Some(filter) = args.log_filter {
-        set_log_filter(LogFilter::from(filter));
+        set_log_filter(filter);
     }
     if let Some(override_provider) = args.override_provider {
         set_override_provider(
