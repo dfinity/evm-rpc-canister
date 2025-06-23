@@ -6,13 +6,12 @@ use crate::memory::get_api_key;
 use crate::util::hostname_from_url;
 use crate::validate::validate_api_key;
 use candid::CandidType;
-use canlog::LogFilter;
+use canlog::{LogFilter, RegexSubstitution};
 use derive_more::{From, Into};
 use evm_rpc_types::{LegacyRejectionCode, RpcApi, RpcError, ValidationError};
 use ic_management_canister_types::HttpHeader;
 use ic_stable_structures::storable::Bound;
 use ic_stable_structures::Storable;
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -343,54 +342,6 @@ impl RpcAccess {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
-pub struct RegexString(String);
-
-impl TryFrom<canlog::RegexString> for RegexString {
-    type Error = regex::Error;
-
-    fn try_from(value: canlog::RegexString) -> Result<Self, Self::Error> {
-        let ensure_regex_is_valid = Regex::new(&value.0)?;
-        Ok(Self(ensure_regex_is_valid.as_str().to_string()))
-    }
-}
-
-impl From<&str> for RegexString {
-    fn from(value: &str) -> Self {
-        RegexString(value.to_string())
-    }
-}
-
-impl RegexString {
-    /// Compile the string into a regular expression.
-    ///
-    /// This is a relatively expensive operation that's currently not cached.
-    pub fn compile(&self) -> Result<Regex, regex::Error> {
-        Regex::new(&self.0)
-    }
-
-    pub fn try_is_valid(&self, value: &str) -> Result<bool, regex::Error> {
-        Ok(self.compile()?.is_match(value))
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RegexSubstitution {
-    pub pattern: RegexString,
-    pub replacement: String,
-}
-
-impl TryFrom<canlog::RegexSubstitution> for RegexSubstitution {
-    type Error = regex::Error;
-
-    fn try_from(value: canlog::RegexSubstitution) -> Result<Self, Self::Error> {
-        Ok(Self {
-            pattern: RegexString::try_from(value.pattern)?,
-            replacement: value.replacement,
-        })
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct OverrideProvider {
     pub override_url: Option<RegexSubstitution>,
 }
@@ -430,7 +381,7 @@ impl TryFrom<evm_rpc_types::OverrideProvider> for OverrideProvider {
         evm_rpc_types::OverrideProvider { override_url }: evm_rpc_types::OverrideProvider,
     ) -> Result<Self, Self::Error> {
         override_url
-            .map(RegexSubstitution::try_from)
+            .map(|url| url.pattern.compile().map(|_| url))
             .transpose()
             .map(|substitution| Self {
                 override_url: substitution,

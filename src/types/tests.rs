@@ -1,5 +1,5 @@
-use super::{OverrideProvider, RegexString, RegexSubstitution, StorableLogFilter};
-use canlog::LogFilter;
+use super::{OverrideProvider, StorableLogFilter};
+use canlog::{LogFilter, RegexString, RegexSubstitution};
 use ic_stable_structures::Storable;
 use proptest::prelude::{Just, Strategy};
 use proptest::{option, prop_oneof, proptest};
@@ -17,9 +17,13 @@ proptest! {
     }
 }
 
+fn arb_regex_string() -> impl Strategy<Value = RegexString> {
+    (".*").prop_map(RegexString)
+}
+
 fn arb_regex_substitution() -> impl Strategy<Value = RegexSubstitution> {
-    (".*", ".*").prop_map(|(pattern, replacement)| RegexSubstitution {
-        pattern: RegexString::from(pattern.as_str()),
+    (arb_regex_string(), ".*").prop_map(|(pattern, replacement)| RegexSubstitution {
+        pattern,
         replacement,
     })
 }
@@ -28,8 +32,8 @@ fn arb_log_filter() -> impl Strategy<Value = StorableLogFilter> {
     prop_oneof![
         Just(LogFilter::ShowAll),
         Just(LogFilter::HideAll),
-        ".*".prop_map(|value| LogFilter::ShowPattern(value.as_str().into())),
-        ".*".prop_map(|value| LogFilter::HidePattern(value.as_str().into())),
+        arb_regex_string().prop_map(LogFilter::ShowPattern),
+        arb_regex_string().prop_map(LogFilter::HidePattern),
     ]
     .prop_map(StorableLogFilter)
 }
