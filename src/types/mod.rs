@@ -3,6 +3,7 @@ mod tests;
 
 use crate::constants::{API_KEY_MAX_SIZE, API_KEY_REPLACE_STRING, MESSAGE_FILTER_MAX_SIZE};
 use crate::memory::get_api_key;
+use crate::providers::SupportedRpcService;
 use crate::util::hostname_from_url;
 use crate::validate::validate_api_key;
 use candid::CandidType;
@@ -270,7 +271,7 @@ pub struct Provider {
     pub provider_id: ProviderId,
     pub chain_id: u64,
     pub access: RpcAccess,
-    pub alias: Option<evm_rpc_types::RpcService>,
+    pub alias: Option<SupportedRpcService>,
 }
 
 impl Provider {

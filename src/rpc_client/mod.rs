@@ -1,6 +1,6 @@
 use crate::http::http_client;
 use crate::memory::get_override_provider;
-use crate::providers::resolve_rpc_service;
+use crate::providers::{resolve_rpc_service, SupportedRpcService};
 use crate::rpc_client::eth_rpc::{HttpResponsePayload, ResponseSizeEstimate, HEADER_SIZE_LIMIT};
 use crate::rpc_client::numeric::TransactionCount;
 use crate::types::MetricRpcMethod;
@@ -10,8 +10,7 @@ use canhttp::{
     MaxResponseBytesRequestExtension, TransformContextRequestExtension,
 };
 use evm_rpc_types::{
-    ConsensusStrategy, EthMainnetService, EthSepoliaService, JsonRpcError, L2MainnetService,
-    ProviderError, RpcConfig, RpcError, RpcService, RpcServices,
+    ConsensusStrategy, JsonRpcError, ProviderError, RpcConfig, RpcError, RpcService, RpcServices,
 };
 use ic_cdk::api::management_canister::http_request::TransformContext;
 use json::requests::{
@@ -65,107 +64,63 @@ pub struct Providers {
 }
 
 impl Providers {
-    // Order of providers matters!
-    // The threshold consensus strategy will consider the first `total` providers in the order
-    // they are specified (taking the default ones first, followed by the non default ones if necessary)
-    // if the providers are not explicitly specified by the caller.
-    const DEFAULT_ETH_MAINNET_SERVICES: &'static [EthMainnetService] = &[
-        EthMainnetService::BlockPi,
-        EthMainnetService::Ankr,
-        EthMainnetService::PublicNode,
-    ];
-    const NON_DEFAULT_ETH_MAINNET_SERVICES: &'static [EthMainnetService] = &[
-        EthMainnetService::Llama,
-        EthMainnetService::Alchemy,
-        EthMainnetService::Cloudflare,
-    ];
-
-    const DEFAULT_ETH_SEPOLIA_SERVICES: &'static [EthSepoliaService] = &[
-        EthSepoliaService::PublicNode,
-        EthSepoliaService::Ankr,
-        EthSepoliaService::BlockPi,
-    ];
-    const NON_DEFAULT_ETH_SEPOLIA_SERVICES: &'static [EthSepoliaService] =
-        &[EthSepoliaService::Alchemy, EthSepoliaService::Sepolia];
-
-    const DEFAULT_L2_MAINNET_SERVICES: &'static [L2MainnetService] = &[
-        L2MainnetService::Llama,
-        L2MainnetService::BlockPi,
-        L2MainnetService::PublicNode,
-    ];
-    const NON_DEFAULT_L2_MAINNET_SERVICES: &'static [L2MainnetService] =
-        &[L2MainnetService::Alchemy, L2MainnetService::Ankr];
+    const DEFAULT_NUM_PROVIDERS_FOR_EQUALITY: usize = 3;
 
     pub fn new(source: RpcServices, strategy: ConsensusStrategy) -> Result<Self, ProviderError> {
-        let (chain, providers): (_, BTreeSet<_>) = match source {
-            RpcServices::Custom { chain_id, services } => (
-                EthereumNetwork::from(chain_id),
-                choose_providers(Some(services), &[], &[], strategy)?
-                    .into_iter()
-                    .map(RpcService::Custom)
-                    .collect(),
-            ),
-            RpcServices::EthMainnet(services) => (
-                EthereumNetwork::MAINNET,
-                choose_providers(
-                    services,
-                    Self::DEFAULT_ETH_MAINNET_SERVICES,
-                    Self::NON_DEFAULT_ETH_MAINNET_SERVICES,
-                    strategy,
-                )?
-                .into_iter()
-                .map(RpcService::EthMainnet)
-                .collect(),
-            ),
-            RpcServices::EthSepolia(services) => (
-                EthereumNetwork::SEPOLIA,
-                choose_providers(
-                    services,
-                    Self::DEFAULT_ETH_SEPOLIA_SERVICES,
-                    Self::NON_DEFAULT_ETH_SEPOLIA_SERVICES,
-                    strategy,
-                )?
-                .into_iter()
-                .map(RpcService::EthSepolia)
-                .collect(),
-            ),
-            RpcServices::ArbitrumOne(services) => (
-                EthereumNetwork::ARBITRUM,
-                choose_providers(
-                    services,
-                    Self::DEFAULT_L2_MAINNET_SERVICES,
-                    Self::NON_DEFAULT_L2_MAINNET_SERVICES,
-                    strategy,
-                )?
-                .into_iter()
-                .map(RpcService::ArbitrumOne)
-                .collect(),
-            ),
-            RpcServices::BaseMainnet(services) => (
-                EthereumNetwork::BASE,
-                choose_providers(
-                    services,
-                    Self::DEFAULT_L2_MAINNET_SERVICES,
-                    Self::NON_DEFAULT_L2_MAINNET_SERVICES,
-                    strategy,
-                )?
-                .into_iter()
-                .map(RpcService::BaseMainnet)
-                .collect(),
-            ),
-            RpcServices::OptimismMainnet(services) => (
-                EthereumNetwork::OPTIMISM,
-                choose_providers(
-                    services,
-                    Self::DEFAULT_L2_MAINNET_SERVICES,
-                    Self::NON_DEFAULT_L2_MAINNET_SERVICES,
-                    strategy,
-                )?
-                .into_iter()
-                .map(RpcService::OptimismMainnet)
-                .collect(),
-            ),
-        };
+        fn user_defined_providers(source: RpcServices) -> Option<Vec<RpcService>> {
+            fn map_services<T, F>(
+                services: impl Into<Option<Vec<T>>>,
+                f: F,
+            ) -> Option<Vec<RpcService>>
+            where
+                F: Fn(T) -> RpcService,
+            {
+                services.into().map(|s| s.into_iter().map(f).collect())
+            }
+            match source {
+                RpcServices::Custom { services, .. } => map_services(services, RpcService::Custom),
+                RpcServices::EthMainnet(services) => map_services(services, RpcService::EthMainnet),
+                RpcServices::EthSepolia(services) => map_services(services, RpcService::EthSepolia),
+                RpcServices::ArbitrumOne(services) => {
+                    map_services(services, RpcService::ArbitrumOne)
+                }
+                RpcServices::BaseMainnet(services) => {
+                    map_services(services, RpcService::BaseMainnet)
+                }
+                RpcServices::OptimismMainnet(services) => {
+                    map_services(services, RpcService::OptimismMainnet)
+                }
+            }
+        }
+
+        fn supported_providers(
+            source: &RpcServices,
+        ) -> (EthereumNetwork, &'static [SupportedRpcService]) {
+            match source {
+                RpcServices::Custom { chain_id, .. } => (EthereumNetwork::from(*chain_id), &[]),
+                RpcServices::EthMainnet(_) => {
+                    (EthereumNetwork::MAINNET, SupportedRpcService::eth_mainnet())
+                }
+                RpcServices::EthSepolia(_) => {
+                    (EthereumNetwork::SEPOLIA, SupportedRpcService::eth_sepolia())
+                }
+                RpcServices::ArbitrumOne(_) => (
+                    EthereumNetwork::ARBITRUM,
+                    SupportedRpcService::arbitrum_one(),
+                ),
+                RpcServices::BaseMainnet(_) => {
+                    (EthereumNetwork::BASE, SupportedRpcService::base_mainnet())
+                }
+                RpcServices::OptimismMainnet(_) => (
+                    EthereumNetwork::OPTIMISM,
+                    SupportedRpcService::optimism_mainnet(),
+                ),
+            }
+        }
+
+        let (chain, supported_providers) = supported_providers(&source);
+        let user_input = user_defined_providers(source);
+        let providers = choose_providers(user_input, supported_providers, strategy)?;
 
         if providers.is_empty() {
             return Err(ProviderError::ProviderNotFound);
@@ -178,18 +133,21 @@ impl Providers {
     }
 }
 
-fn choose_providers<T>(
-    user_input: Option<Vec<T>>,
-    default_providers: &[T],
-    non_default_providers: &[T],
+fn choose_providers(
+    user_input: Option<Vec<RpcService>>,
+    supported_providers: &[SupportedRpcService],
     strategy: ConsensusStrategy,
-) -> Result<BTreeSet<T>, ProviderError>
-where
-    T: Clone + Ord,
-{
+) -> Result<BTreeSet<RpcService>, ProviderError> {
     match strategy {
         ConsensusStrategy::Equality => Ok(user_input
-            .unwrap_or_else(|| default_providers.to_vec())
+            .unwrap_or_else(|| {
+                supported_providers
+                    .iter()
+                    .take(Providers::DEFAULT_NUM_PROVIDERS_FOR_EQUALITY)
+                    .copied()
+                    .map(RpcService::from)
+                    .collect()
+            })
             .into_iter()
             .collect()),
         ConsensusStrategy::Threshold { total, min } => {
@@ -202,7 +160,6 @@ where
             }
             match user_input {
                 None => {
-                    let all_providers_len = default_providers.len() + non_default_providers.len();
                     let total = total.ok_or_else(|| {
                         ProviderError::InvalidRpcConfig(
                             "total must be specified when using default providers".to_string(),
@@ -216,17 +173,18 @@ where
                         )));
                     }
 
+                    let all_providers_len = supported_providers.len();
                     if total > all_providers_len as u8 {
                         return Err(ProviderError::InvalidRpcConfig(format!(
                             "total {} is greater than the number of all supported providers {}",
                             total, all_providers_len
                         )));
                     }
-                    let providers: BTreeSet<_> = default_providers
+                    let providers: BTreeSet<_> = supported_providers
                         .iter()
-                        .chain(non_default_providers.iter())
                         .take(total as usize)
-                        .cloned()
+                        .copied()
+                        .map(RpcService::from)
                         .collect();
                     assert_eq!(providers.len(), total as usize, "BUG: duplicate providers");
                     Ok(providers)
