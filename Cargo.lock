@@ -343,7 +343,8 @@ dependencies = [
 [[package]]
 name = "canlog"
 version = "0.1.1"
-source = "git+https://github.com/dfinity/ic?rev=b677c5a2843f7782bde179ad40d9f6d0d78f4ea5#b677c5a2843f7782bde179ad40d9f6d0d78f4ea5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a49cd58324d235ecc1ef9e47d018c10dfe8b60d62ab001f2f2cfcef1505a081"
 dependencies = [
  "candid",
  "canlog_derive",
@@ -357,7 +358,8 @@ dependencies = [
 [[package]]
 name = "canlog_derive"
 version = "0.1.0"
-source = "git+https://github.com/dfinity/ic?rev=b677c5a2843f7782bde179ad40d9f6d0d78f4ea5#b677c5a2843f7782bde179ad40d9f6d0d78f4ea5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6620814f83b784938b29ca6ca8867967a93a4f7f08c1b7ec6256d12c1b53abe8"
 dependencies = [
  "darling",
  "proc-macro2",

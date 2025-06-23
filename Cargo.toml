@@ -63,7 +63,7 @@ rand = "0.8"
 [workspace.dependencies]
 assert_matches = "1.5.0"
 candid = { version = "0.10.13" }
-canlog = { version = "0.1.1", git = "https://github.com/dfinity/ic", rev = "b677c5a2843f7782bde179ad40d9f6d0d78f4ea5", features = ["derive"] } # TODO: bump to v0.1.1
+canlog = { version = "0.1.1", features = ["derive"] }
 candid_parser = { version = "0.1.4" }
 ciborium = "0.2.2"
 derive_more = { version = "2.0.1", features = ["from", "into"] }
