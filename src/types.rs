@@ -167,6 +167,7 @@ pub struct Metrics {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RpcMethod {
+    EthCall,
     EthFeeHistory,
     EthGetLogs,
     EthGetBlockByNumber,
@@ -178,6 +179,7 @@ pub enum RpcMethod {
 impl RpcMethod {
     fn name(self) -> &'static str {
         match self {
+            RpcMethod::EthCall => "eth_call",
             RpcMethod::EthFeeHistory => "eth_feeHistory",
             RpcMethod::EthGetLogs => "eth_getLogs",
             RpcMethod::EthGetBlockByNumber => "eth_getBlockByNumber",
