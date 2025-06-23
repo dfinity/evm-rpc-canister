@@ -1,4 +1,3 @@
-use crate::memory::get_log_filter;
 use canlog::{GetLogFilter, LogFilter, LogPriorityLevels};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -15,7 +14,7 @@ pub enum Priority {
 
 impl GetLogFilter for Priority {
     fn get_log_filter() -> LogFilter {
-        get_log_filter()
+        crate::memory::get_log_filter()
     }
 }
 
