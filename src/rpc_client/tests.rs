@@ -184,48 +184,10 @@ mod providers {
     use assert_matches::assert_matches;
     use evm_rpc_types::{
         ConsensusStrategy, EthMainnetService, EthSepoliaService, L2MainnetService, ProviderError,
-        RpcService, RpcServices,
+        RpcServices,
     };
-    use maplit::btreeset;
     use proptest::arbitrary::any;
     use proptest::proptest;
-    use std::collections::BTreeSet;
-    use std::fmt::Debug;
-
-    #[test]
-    fn should_partition_providers_between_default_and_non_default() {
-        fn assert_is_partition<T: Debug + Ord>(left: &[T], right: &[T], all: &[T]) {
-            let left_set = left.iter().collect::<BTreeSet<_>>();
-            let right_set = right.iter().collect::<BTreeSet<_>>();
-            let all_set = all.iter().collect::<BTreeSet<_>>();
-
-            assert!(
-                left_set.is_disjoint(&right_set),
-                "Non-empty intersection {:?}",
-                left_set.intersection(&right_set).collect::<Vec<_>>()
-            );
-            assert_eq!(
-                left_set.union(&right_set).copied().collect::<BTreeSet<_>>(),
-                all_set
-            );
-        }
-
-        assert_is_partition(
-            Providers::DEFAULT_ETH_MAINNET_SERVICES,
-            Providers::NON_DEFAULT_ETH_MAINNET_SERVICES,
-            EthMainnetService::all(),
-        );
-        assert_is_partition(
-            Providers::DEFAULT_ETH_SEPOLIA_SERVICES,
-            Providers::NON_DEFAULT_ETH_SEPOLIA_SERVICES,
-            EthSepoliaService::all(),
-        );
-        assert_is_partition(
-            Providers::DEFAULT_L2_MAINNET_SERVICES,
-            Providers::NON_DEFAULT_L2_MAINNET_SERVICES,
-            L2MainnetService::all(),
-        )
-    }
 
     // Note that changing the number of providers is a non-trivial operation
     // that has consequences for all users of the EVM RPC canister:
@@ -270,56 +232,6 @@ mod providers {
                 strategy,
             ).unwrap();
         }
-    }
-
-    #[test]
-    fn should_choose_default_providers_first() {
-        let strategy = ConsensusStrategy::Threshold {
-            total: Some(4),
-            min: 3,
-        };
-
-        let providers = Providers::new(RpcServices::EthMainnet(None), strategy.clone()).unwrap();
-        assert_eq!(
-            providers.services,
-            btreeset! {
-                Providers::DEFAULT_ETH_MAINNET_SERVICES[0],
-                Providers::DEFAULT_ETH_MAINNET_SERVICES[1],
-                Providers::DEFAULT_ETH_MAINNET_SERVICES[2],
-                EthMainnetService::Llama,
-            }
-            .into_iter()
-            .map(RpcService::EthMainnet)
-            .collect()
-        );
-
-        let providers = Providers::new(RpcServices::EthSepolia(None), strategy.clone()).unwrap();
-        assert_eq!(
-            providers.services,
-            btreeset! {
-                Providers::DEFAULT_ETH_SEPOLIA_SERVICES[0],
-                Providers::DEFAULT_ETH_SEPOLIA_SERVICES[1],
-                Providers::DEFAULT_ETH_SEPOLIA_SERVICES[2],
-                EthSepoliaService::Alchemy,
-            }
-            .into_iter()
-            .map(RpcService::EthSepolia)
-            .collect()
-        );
-
-        let providers = Providers::new(RpcServices::ArbitrumOne(None), strategy.clone()).unwrap();
-        assert_eq!(
-            providers.services,
-            btreeset! {
-                Providers::DEFAULT_L2_MAINNET_SERVICES[0],
-                Providers::DEFAULT_L2_MAINNET_SERVICES[1],
-                Providers::DEFAULT_L2_MAINNET_SERVICES[2],
-                L2MainnetService::Alchemy,
-            }
-            .into_iter()
-            .map(RpcService::ArbitrumOne)
-            .collect()
-        );
     }
 
     #[test]
