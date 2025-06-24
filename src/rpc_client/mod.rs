@@ -372,7 +372,7 @@ impl EthRpcClient {
         self.parallel_call(
             "eth_estimateGas",
             params,
-            self.response_size_estimate(512 + HEADER_SIZE_LIMIT),
+            self.response_size_estimate(256 + HEADER_SIZE_LIMIT),
         )
         .await
         .reduce(self.consensus_strategy())
