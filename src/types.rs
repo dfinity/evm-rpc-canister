@@ -174,6 +174,7 @@ pub enum RpcMethod {
     EthGetTransactionCount,
     EthGetTransactionReceipt,
     EthSendRawTransaction,
+    EthEstimateGas,
 }
 
 impl RpcMethod {
@@ -186,6 +187,7 @@ impl RpcMethod {
             RpcMethod::EthGetTransactionCount => "eth_getTransactionCount",
             RpcMethod::EthGetTransactionReceipt => "eth_getTransactionReceipt",
             RpcMethod::EthSendRawTransaction => "eth_sendRawTransaction",
+            RpcMethod::EthEstimateGas => "eth_estimateGas",
         }
     }
 }
