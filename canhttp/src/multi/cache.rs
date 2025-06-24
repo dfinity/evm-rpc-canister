@@ -145,12 +145,17 @@ impl<T> TimedSizedVec<T> {
 
 /// Time in nanoseconds since the epoch (1970-01-01).
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Ord, PartialOrd)]
-pub struct Timestamp(u64);
+pub struct Timestamp(Duration);
 
 impl Timestamp {
     /// TODO
     pub const fn from_nanos_since_unix_epoch(nanos: u64) -> Self {
-        Timestamp(nanos)
+        Timestamp::from_unix_epoch(Duration::from_nanos(nanos))
+    }
+
+    /// TODO
+    pub const fn from_unix_epoch(duration: Duration) -> Self {
+        Timestamp(duration)
     }
 
     /// Checked `Time` subtraction with a `Duration`. Computes `self - rhs`,
@@ -168,11 +173,7 @@ impl Timestamp {
     /// assert_eq!(Timestamp::from_nanos_since_unix_epoch(2).checked_sub(Duration::from_nanos(3)), None);
     /// ```
     pub fn checked_sub(self, rhs: Duration) -> Option<Timestamp> {
-        if let Ok(rhs_nanos) = u64::try_from(rhs.as_nanos()) {
-            Some(Timestamp(self.0.checked_sub(rhs_nanos)?))
-        } else {
-            None
-        }
+        self.0.checked_sub(rhs).map(Timestamp::from_unix_epoch)
     }
 }
 
