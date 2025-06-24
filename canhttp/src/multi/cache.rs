@@ -45,7 +45,7 @@ impl<T> TimedSizedVec<T> {
         }
     }
 
-    /// Insert a new element and returns evicted elements.
+    /// Insert a new element and return evicted elements.
     ///
     /// # Examples
     ///
@@ -260,7 +260,7 @@ impl Timestamp {
     }
 }
 
-/// A map where values are a limited-size vector with older elements are evicted first.
+/// A map where values are limited-size vectors with older elements evicted first.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TimedSizedMap<K, V> {
     expiration: Duration,
@@ -279,7 +279,7 @@ impl<K, V> TimedSizedMap<K, V> {
         }
     }
 
-    /// Insert a new element and returns evicted elements for **that** key.
+    /// Insert a new element and return evicted elements for **that** key.
     ///
     /// # Examples
     ///
