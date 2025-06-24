@@ -550,7 +550,7 @@ mod timed_sized_map {
         values: Option<&mut TimedSizedVec<V>>,
         now: Timestamp,
     ) -> impl Ord {
-        std::cmp::Reverse(values.map(|v| v.refresh_len(now)).unwrap_or_default())
+        std::cmp::Reverse(values.map(|v| v.evict_then_len(now)).unwrap_or_default())
     }
 }
 

@@ -121,13 +121,13 @@ impl<T> TimedSizedVec<T> {
 
     /// Returns the number of elements.
     ///
-    /// To avoid containing expired elements, use [`Self::refresh_len`].
+    /// To avoid containing expired elements, use [`Self::evict_then_len`].
     pub fn len(&self) -> usize {
         self.size
     }
 
     /// Evicts expired elements and return the remaining number of (non-expired) elements.
-    pub fn refresh_len(&mut self, now: Timestamp) -> usize {
+    pub fn evict_then_len(&mut self, now: Timestamp) -> usize {
         self.evict_expired(now);
         self.len()
     }
