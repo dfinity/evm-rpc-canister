@@ -1,7 +1,10 @@
+#[cfg(test)]
+mod tests;
+
 use evm_rpc_types::{
     EthMainnetService, EthSepoliaService, L2MainnetService, ProviderError, RpcApi, RpcService,
 };
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use crate::{
     constants::{
@@ -21,7 +24,9 @@ pub const PROVIDERS: &[Provider] = &[
             },
             public_url: Some("https://cloudflare-eth.com/v1/mainnet"),
         },
-        alias: Some(RpcService::EthMainnet(EthMainnetService::Cloudflare)),
+        alias: Some(SupportedRpcService::EthMainnet(
+            EthMainnetService::Cloudflare,
+        )),
     },
     Provider {
         provider_id: 1,
@@ -32,7 +37,7 @@ pub const PROVIDERS: &[Provider] = &[
             },
             public_url: Some("https://rpc.ankr.com/eth"),
         },
-        alias: Some(RpcService::EthMainnet(EthMainnetService::Ankr)),
+        alias: Some(SupportedRpcService::EthMainnet(EthMainnetService::Ankr)),
     },
     Provider {
         provider_id: 2,
@@ -40,7 +45,9 @@ pub const PROVIDERS: &[Provider] = &[
         access: RpcAccess::Unauthenticated {
             public_url: "https://ethereum-rpc.publicnode.com",
         },
-        alias: Some(RpcService::EthMainnet(EthMainnetService::PublicNode)),
+        alias: Some(SupportedRpcService::EthMainnet(
+            EthMainnetService::PublicNode,
+        )),
     },
     Provider {
         provider_id: 3,
@@ -51,7 +58,7 @@ pub const PROVIDERS: &[Provider] = &[
             },
             public_url: Some("https://ethereum.blockpi.network/v1/rpc/public"),
         },
-        alias: Some(RpcService::EthMainnet(EthMainnetService::BlockPi)),
+        alias: Some(SupportedRpcService::EthMainnet(EthMainnetService::BlockPi)),
     },
     Provider {
         provider_id: 4,
@@ -59,7 +66,7 @@ pub const PROVIDERS: &[Provider] = &[
         access: RpcAccess::Unauthenticated {
             public_url: "https://rpc.sepolia.org",
         },
-        alias: Some(RpcService::EthSepolia(EthSepoliaService::Sepolia)),
+        alias: Some(SupportedRpcService::EthSepolia(EthSepoliaService::Sepolia)),
     },
     Provider {
         provider_id: 5,
@@ -70,7 +77,7 @@ pub const PROVIDERS: &[Provider] = &[
             },
             public_url: Some("https://rpc.ankr.com/eth_sepolia"),
         },
-        alias: Some(RpcService::EthSepolia(EthSepoliaService::Ankr)),
+        alias: Some(SupportedRpcService::EthSepolia(EthSepoliaService::Ankr)),
     },
     Provider {
         provider_id: 6,
@@ -81,7 +88,7 @@ pub const PROVIDERS: &[Provider] = &[
             },
             public_url: Some("https://ethereum-sepolia.blockpi.network/v1/rpc/public"),
         },
-        alias: Some(RpcService::EthSepolia(EthSepoliaService::BlockPi)),
+        alias: Some(SupportedRpcService::EthSepolia(EthSepoliaService::BlockPi)),
     },
     Provider {
         provider_id: 7,
@@ -89,7 +96,9 @@ pub const PROVIDERS: &[Provider] = &[
         access: RpcAccess::Unauthenticated {
             public_url: "https://ethereum-sepolia-rpc.publicnode.com",
         },
-        alias: Some(RpcService::EthSepolia(EthSepoliaService::PublicNode)),
+        alias: Some(SupportedRpcService::EthSepolia(
+            EthSepoliaService::PublicNode,
+        )),
     },
     Provider {
         provider_id: 8,
@@ -100,7 +109,7 @@ pub const PROVIDERS: &[Provider] = &[
             },
             public_url: Some("https://eth-mainnet.g.alchemy.com/v2/demo"),
         },
-        alias: Some(RpcService::EthMainnet(EthMainnetService::Alchemy)),
+        alias: Some(SupportedRpcService::EthMainnet(EthMainnetService::Alchemy)),
     },
     Provider {
         provider_id: 9,
@@ -111,7 +120,7 @@ pub const PROVIDERS: &[Provider] = &[
             },
             public_url: Some("https://eth-sepolia.g.alchemy.com/v2/demo"),
         },
-        alias: Some(RpcService::EthSepolia(EthSepoliaService::Alchemy)),
+        alias: Some(SupportedRpcService::EthSepolia(EthSepoliaService::Alchemy)),
     },
     Provider {
         provider_id: 10,
@@ -122,7 +131,7 @@ pub const PROVIDERS: &[Provider] = &[
             },
             public_url: Some("https://rpc.ankr.com/arbitrum"),
         },
-        alias: Some(RpcService::ArbitrumOne(L2MainnetService::Ankr)),
+        alias: Some(SupportedRpcService::ArbitrumOne(L2MainnetService::Ankr)),
     },
     Provider {
         provider_id: 11,
@@ -133,7 +142,7 @@ pub const PROVIDERS: &[Provider] = &[
             },
             public_url: Some("https://arb-mainnet.g.alchemy.com/v2/demo"),
         },
-        alias: Some(RpcService::ArbitrumOne(L2MainnetService::Alchemy)),
+        alias: Some(SupportedRpcService::ArbitrumOne(L2MainnetService::Alchemy)),
     },
     Provider {
         provider_id: 12,
@@ -144,7 +153,7 @@ pub const PROVIDERS: &[Provider] = &[
             },
             public_url: Some("https://arbitrum.blockpi.network/v1/rpc/public"),
         },
-        alias: Some(RpcService::ArbitrumOne(L2MainnetService::BlockPi)),
+        alias: Some(SupportedRpcService::ArbitrumOne(L2MainnetService::BlockPi)),
     },
     Provider {
         provider_id: 13,
@@ -152,7 +161,9 @@ pub const PROVIDERS: &[Provider] = &[
         access: RpcAccess::Unauthenticated {
             public_url: "https://arbitrum-one-rpc.publicnode.com",
         },
-        alias: Some(RpcService::ArbitrumOne(L2MainnetService::PublicNode)),
+        alias: Some(SupportedRpcService::ArbitrumOne(
+            L2MainnetService::PublicNode,
+        )),
     },
     Provider {
         provider_id: 14,
@@ -163,7 +174,7 @@ pub const PROVIDERS: &[Provider] = &[
             },
             public_url: Some("https://rpc.ankr.com/base"),
         },
-        alias: Some(RpcService::BaseMainnet(L2MainnetService::Ankr)),
+        alias: Some(SupportedRpcService::BaseMainnet(L2MainnetService::Ankr)),
     },
     Provider {
         provider_id: 15,
@@ -174,7 +185,7 @@ pub const PROVIDERS: &[Provider] = &[
             },
             public_url: Some("https://base-mainnet.g.alchemy.com/v2/demo"),
         },
-        alias: Some(RpcService::BaseMainnet(L2MainnetService::Alchemy)),
+        alias: Some(SupportedRpcService::BaseMainnet(L2MainnetService::Alchemy)),
     },
     Provider {
         provider_id: 16,
@@ -185,7 +196,7 @@ pub const PROVIDERS: &[Provider] = &[
             },
             public_url: Some("https://base.blockpi.network/v1/rpc/public"),
         },
-        alias: Some(RpcService::BaseMainnet(L2MainnetService::BlockPi)),
+        alias: Some(SupportedRpcService::BaseMainnet(L2MainnetService::BlockPi)),
     },
     Provider {
         provider_id: 17,
@@ -193,7 +204,9 @@ pub const PROVIDERS: &[Provider] = &[
         access: RpcAccess::Unauthenticated {
             public_url: "https://base-rpc.publicnode.com",
         },
-        alias: Some(RpcService::BaseMainnet(L2MainnetService::PublicNode)),
+        alias: Some(SupportedRpcService::BaseMainnet(
+            L2MainnetService::PublicNode,
+        )),
     },
     Provider {
         provider_id: 18,
@@ -204,7 +217,7 @@ pub const PROVIDERS: &[Provider] = &[
             },
             public_url: Some("https://rpc.ankr.com/optimism"),
         },
-        alias: Some(RpcService::OptimismMainnet(L2MainnetService::Ankr)),
+        alias: Some(SupportedRpcService::OptimismMainnet(L2MainnetService::Ankr)),
     },
     Provider {
         provider_id: 19,
@@ -215,7 +228,9 @@ pub const PROVIDERS: &[Provider] = &[
             },
             public_url: Some("https://opt-mainnet.g.alchemy.com/v2/demo"),
         },
-        alias: Some(RpcService::OptimismMainnet(L2MainnetService::Alchemy)),
+        alias: Some(SupportedRpcService::OptimismMainnet(
+            L2MainnetService::Alchemy,
+        )),
     },
     Provider {
         provider_id: 20,
@@ -226,7 +241,9 @@ pub const PROVIDERS: &[Provider] = &[
             },
             public_url: Some("https://optimism.blockpi.network/v1/rpc/public"),
         },
-        alias: Some(RpcService::OptimismMainnet(L2MainnetService::BlockPi)),
+        alias: Some(SupportedRpcService::OptimismMainnet(
+            L2MainnetService::BlockPi,
+        )),
     },
     Provider {
         provider_id: 21,
@@ -234,7 +251,9 @@ pub const PROVIDERS: &[Provider] = &[
         access: RpcAccess::Unauthenticated {
             public_url: "https://optimism-rpc.publicnode.com",
         },
-        alias: Some(RpcService::OptimismMainnet(L2MainnetService::PublicNode)),
+        alias: Some(SupportedRpcService::OptimismMainnet(
+            L2MainnetService::PublicNode,
+        )),
     },
     Provider {
         provider_id: 22,
@@ -242,7 +261,7 @@ pub const PROVIDERS: &[Provider] = &[
         access: RpcAccess::Unauthenticated {
             public_url: "https://eth.llamarpc.com",
         },
-        alias: Some(RpcService::EthMainnet(EthMainnetService::Llama)),
+        alias: Some(SupportedRpcService::EthMainnet(EthMainnetService::Llama)),
     },
     Provider {
         provider_id: 23,
@@ -250,7 +269,7 @@ pub const PROVIDERS: &[Provider] = &[
         access: RpcAccess::Unauthenticated {
             public_url: "https://arbitrum.llamarpc.com",
         },
-        alias: Some(RpcService::ArbitrumOne(L2MainnetService::Llama)),
+        alias: Some(SupportedRpcService::ArbitrumOne(L2MainnetService::Llama)),
     },
     Provider {
         provider_id: 24,
@@ -258,7 +277,7 @@ pub const PROVIDERS: &[Provider] = &[
         access: RpcAccess::Unauthenticated {
             public_url: "https://base.llamarpc.com",
         },
-        alias: Some(RpcService::BaseMainnet(L2MainnetService::Llama)),
+        alias: Some(SupportedRpcService::BaseMainnet(L2MainnetService::Llama)),
     },
     Provider {
         provider_id: 25,
@@ -266,34 +285,25 @@ pub const PROVIDERS: &[Provider] = &[
         access: RpcAccess::Unauthenticated {
             public_url: "https://optimism.llamarpc.com",
         },
-        alias: Some(RpcService::OptimismMainnet(L2MainnetService::Llama)),
+        alias: Some(SupportedRpcService::OptimismMainnet(
+            L2MainnetService::Llama,
+        )),
     },
 ];
 
 thread_local! {
-    pub static PROVIDER_MAP: HashMap<ProviderId, Provider> =
+    pub static PROVIDER_MAP: BTreeMap<ProviderId, Provider> =
         PROVIDERS.iter()
             .map(|provider| (provider.provider_id, provider.clone())).collect();
 
-    pub static SERVICE_PROVIDER_MAP: HashMap<RpcService, ProviderId> =
+    pub static SERVICE_PROVIDER_MAP: BTreeMap<SupportedRpcService, ProviderId> =
         PROVIDERS.iter()
-            .filter_map(|provider| Some((provider.alias.clone()?, provider.provider_id)))
+            .filter_map(|provider| Some((provider.alias?, provider.provider_id)))
             .collect();
 }
 
 pub fn find_provider(f: impl Fn(&Provider) -> bool) -> Option<&'static Provider> {
     PROVIDERS.iter().find(|&provider| f(provider))
-}
-
-fn lookup_provider_for_service(service: &RpcService) -> Result<Provider, ProviderError> {
-    let provider_id = SERVICE_PROVIDER_MAP.with(|map| {
-        map.get(service)
-            .copied()
-            .ok_or(ProviderError::MissingRequiredProvider)
-    })?;
-    PROVIDER_MAP
-        .with(|map| map.get(&provider_id).cloned())
-        .ok_or(ProviderError::ProviderNotFound)
 }
 
 pub fn get_known_chain_id(service: &RpcService) -> Option<u64> {
@@ -322,104 +332,108 @@ pub fn resolve_rpc_service(service: RpcService) -> Result<ResolvedRpcService, Pr
             ResolvedRpcService::Api(RpcApi { url, headers })
         }
         RpcService::EthMainnet(service) => ResolvedRpcService::Provider(
-            lookup_provider_for_service(&RpcService::EthMainnet(service))?,
+            lookup_provider_for_service(&SupportedRpcService::EthMainnet(service))?,
         ),
         RpcService::EthSepolia(service) => ResolvedRpcService::Provider(
-            lookup_provider_for_service(&RpcService::EthSepolia(service))?,
+            lookup_provider_for_service(&SupportedRpcService::EthSepolia(service))?,
         ),
         RpcService::ArbitrumOne(service) => ResolvedRpcService::Provider(
-            lookup_provider_for_service(&RpcService::ArbitrumOne(service))?,
+            lookup_provider_for_service(&SupportedRpcService::ArbitrumOne(service))?,
         ),
         RpcService::BaseMainnet(service) => ResolvedRpcService::Provider(
-            lookup_provider_for_service(&RpcService::BaseMainnet(service))?,
+            lookup_provider_for_service(&SupportedRpcService::BaseMainnet(service))?,
         ),
         RpcService::OptimismMainnet(service) => ResolvedRpcService::Provider(
-            lookup_provider_for_service(&RpcService::OptimismMainnet(service))?,
+            lookup_provider_for_service(&SupportedRpcService::OptimismMainnet(service))?,
         ),
     })
 }
 
-#[cfg(test)]
-mod test {
-    use std::collections::{HashMap, HashSet};
+fn lookup_provider_for_service(service: &SupportedRpcService) -> Result<Provider, ProviderError> {
+    let provider_id = SERVICE_PROVIDER_MAP.with(|map| {
+        map.get(service)
+            .copied()
+            .ok_or(ProviderError::MissingRequiredProvider)
+    })?;
+    PROVIDER_MAP
+        .with(|map| map.get(&provider_id).cloned())
+        .ok_or(ProviderError::ProviderNotFound)
+}
 
-    use crate::{
-        constants::API_KEY_REPLACE_STRING,
-        types::{Provider, RpcAccess, RpcAuth},
-    };
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Ord, PartialOrd)]
+pub enum SupportedRpcService {
+    EthMainnet(EthMainnetService),
+    EthSepolia(EthSepoliaService),
+    ArbitrumOne(L2MainnetService),
+    BaseMainnet(L2MainnetService),
+    OptimismMainnet(L2MainnetService),
+}
 
-    use super::{PROVIDERS, SERVICE_PROVIDER_MAP};
+impl SupportedRpcService {
+    // Order of providers matters!
+    // The threshold consensus strategy will consider the first `total` providers in the order
+    // they are specified (taking the default ones first, followed by the non default ones if necessary)
+    // if the providers are not explicitly specified by the caller.
+    pub const fn eth_mainnet() -> &'static [SupportedRpcService] {
+        &[
+            SupportedRpcService::EthMainnet(EthMainnetService::BlockPi),
+            SupportedRpcService::EthMainnet(EthMainnetService::Ankr),
+            SupportedRpcService::EthMainnet(EthMainnetService::PublicNode),
+            SupportedRpcService::EthMainnet(EthMainnetService::Llama),
+            SupportedRpcService::EthMainnet(EthMainnetService::Alchemy),
+            SupportedRpcService::EthMainnet(EthMainnetService::Cloudflare),
+        ]
+    }
 
-    #[test]
-    fn test_provider_id_sequence() {
-        for (i, provider) in PROVIDERS.iter().enumerate() {
-            assert_eq!(provider.provider_id, i as u64);
+    pub const fn eth_sepolia() -> &'static [SupportedRpcService] {
+        &[
+            SupportedRpcService::EthSepolia(EthSepoliaService::PublicNode),
+            SupportedRpcService::EthSepolia(EthSepoliaService::Ankr),
+            SupportedRpcService::EthSepolia(EthSepoliaService::BlockPi),
+            SupportedRpcService::EthSepolia(EthSepoliaService::Alchemy),
+            SupportedRpcService::EthSepolia(EthSepoliaService::Sepolia),
+        ]
+    }
+
+    pub const fn arbitrum_one() -> &'static [SupportedRpcService] {
+        &[
+            SupportedRpcService::ArbitrumOne(L2MainnetService::Llama),
+            SupportedRpcService::ArbitrumOne(L2MainnetService::BlockPi),
+            SupportedRpcService::ArbitrumOne(L2MainnetService::PublicNode),
+            SupportedRpcService::ArbitrumOne(L2MainnetService::Alchemy),
+            SupportedRpcService::ArbitrumOne(L2MainnetService::Ankr),
+        ]
+    }
+
+    pub const fn base_mainnet() -> &'static [SupportedRpcService] {
+        &[
+            SupportedRpcService::BaseMainnet(L2MainnetService::Llama),
+            SupportedRpcService::BaseMainnet(L2MainnetService::BlockPi),
+            SupportedRpcService::BaseMainnet(L2MainnetService::PublicNode),
+            SupportedRpcService::BaseMainnet(L2MainnetService::Alchemy),
+            SupportedRpcService::BaseMainnet(L2MainnetService::Ankr),
+        ]
+    }
+
+    pub const fn optimism_mainnet() -> &'static [SupportedRpcService] {
+        &[
+            SupportedRpcService::OptimismMainnet(L2MainnetService::Llama),
+            SupportedRpcService::OptimismMainnet(L2MainnetService::BlockPi),
+            SupportedRpcService::OptimismMainnet(L2MainnetService::PublicNode),
+            SupportedRpcService::OptimismMainnet(L2MainnetService::Alchemy),
+            SupportedRpcService::OptimismMainnet(L2MainnetService::Ankr),
+        ]
+    }
+}
+
+impl From<SupportedRpcService> for RpcService {
+    fn from(value: SupportedRpcService) -> Self {
+        match value {
+            SupportedRpcService::EthMainnet(service) => RpcService::EthMainnet(service),
+            SupportedRpcService::EthSepolia(service) => RpcService::EthSepolia(service),
+            SupportedRpcService::ArbitrumOne(service) => RpcService::ArbitrumOne(service),
+            SupportedRpcService::BaseMainnet(service) => RpcService::BaseMainnet(service),
+            SupportedRpcService::OptimismMainnet(service) => RpcService::OptimismMainnet(service),
         }
-    }
-
-    #[test]
-    fn test_rpc_provider_url_patterns() {
-        for provider in PROVIDERS {
-            fn assert_not_url_pattern(url: &str, provider: &Provider) {
-                assert!(
-                    !url.contains(API_KEY_REPLACE_STRING),
-                    "Unexpected API key in URL for provider: {}",
-                    provider.provider_id
-                )
-            }
-            fn assert_url_pattern(url: &str, provider: &Provider) {
-                assert!(
-                    url.contains(API_KEY_REPLACE_STRING),
-                    "Missing API key in URL pattern for provider: {}",
-                    provider.provider_id
-                )
-            }
-            match &provider.access {
-                RpcAccess::Authenticated { auth, public_url } => {
-                    match auth {
-                        RpcAuth::BearerToken { url } => assert_not_url_pattern(url, provider),
-                        RpcAuth::UrlParameter { url_pattern } => {
-                            assert_url_pattern(url_pattern, provider)
-                        }
-                    }
-                    if let Some(public_url) = public_url {
-                        assert_not_url_pattern(public_url, provider);
-                    }
-                }
-                RpcAccess::Unauthenticated { public_url } => {
-                    assert_not_url_pattern(public_url, provider);
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn test_no_duplicate_service_providers() {
-        SERVICE_PROVIDER_MAP.with(|map| {
-            assert_eq!(
-                map.len(),
-                map.keys().collect::<HashSet<_>>().len(),
-                "Duplicate service in mapping"
-            );
-            assert_eq!(
-                map.len(),
-                map.values().collect::<HashSet<_>>().len(),
-                "Duplicate provider in mapping"
-            );
-        })
-    }
-
-    #[test]
-    fn test_service_provider_coverage() {
-        SERVICE_PROVIDER_MAP.with(|map| {
-            let inverse_map: HashMap<_, _> = map.iter().map(|(k, v)| (v, k)).collect();
-            for provider in PROVIDERS {
-                assert!(
-                    inverse_map.contains_key(&provider.provider_id),
-                    "Missing service mapping for provider with ID: {}",
-                    provider.provider_id
-                );
-            }
-        })
     }
 }

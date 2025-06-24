@@ -241,7 +241,7 @@ fn get_providers() -> Vec<evm_rpc_types::Provider> {
                     }
                 }
             },
-            alias: provider.alias,
+            alias: provider.alias.map(evm_rpc_types::RpcService::from),
         }
     }
     PROVIDERS.iter().cloned().map(into_provider).collect()
@@ -250,7 +250,11 @@ fn get_providers() -> Vec<evm_rpc_types::Provider> {
 #[query(name = "getServiceProviderMap")]
 #[candid_method(query, rename = "getServiceProviderMap")]
 fn get_service_provider_map() -> Vec<(evm_rpc_types::RpcService, ProviderId)> {
-    SERVICE_PROVIDER_MAP.with(|map| map.iter().map(|(k, v)| (k.clone(), *v)).collect())
+    SERVICE_PROVIDER_MAP.with(|map| {
+        map.iter()
+            .map(|(k, v)| (evm_rpc_types::RpcService::from(*k), *v))
+            .collect()
+    })
 }
 
 #[query(name = "getNodesInSubnet")]

@@ -3,12 +3,12 @@ mod tests;
 
 use crate::constants::{API_KEY_MAX_SIZE, API_KEY_REPLACE_STRING, MESSAGE_FILTER_MAX_SIZE};
 use crate::memory::get_api_key;
+use crate::providers::SupportedRpcService;
 use crate::util::hostname_from_url;
 use crate::validate::validate_api_key;
 use candid::CandidType;
-use evm_rpc_types::{RpcApi, RpcError, ValidationError};
-use ic_cdk::api::call::RejectionCode;
-use ic_cdk::api::management_canister::http_request::HttpHeader;
+use evm_rpc_types::{LegacyRejectionCode, RpcApi, RpcError, ValidationError};
+use ic_management_canister_types::HttpHeader;
 use ic_stable_structures::storable::Bound;
 use ic_stable_structures::Storable;
 use regex::Regex;
@@ -137,16 +137,16 @@ impl MetricLabels for MetricHttpStatusCode {
     }
 }
 
-impl MetricLabels for RejectionCode {
+impl MetricLabels for LegacyRejectionCode {
     fn metric_labels(&self) -> Vec<(&str, &str)> {
         let code = match self {
-            RejectionCode::NoError => "NO_ERROR",
-            RejectionCode::SysFatal => "SYS_FATAL",
-            RejectionCode::SysTransient => "SYS_TRANSIENT",
-            RejectionCode::DestinationInvalid => "DESTINATION_INVALID",
-            RejectionCode::CanisterReject => "CANISTER_REJECT",
-            RejectionCode::CanisterError => "CANISTER_ERROR",
-            RejectionCode::Unknown => "UNKNOWN",
+            LegacyRejectionCode::NoError => "NO_ERROR",
+            LegacyRejectionCode::SysFatal => "SYS_FATAL",
+            LegacyRejectionCode::SysTransient => "SYS_TRANSIENT",
+            LegacyRejectionCode::DestinationInvalid => "DESTINATION_INVALID",
+            LegacyRejectionCode::CanisterReject => "CANISTER_REJECT",
+            LegacyRejectionCode::CanisterError => "CANISTER_ERROR",
+            LegacyRejectionCode::Unknown => "UNKNOWN",
         };
 
         vec![("code", code)]
@@ -162,11 +162,12 @@ pub struct Metrics {
     #[serde(rename = "cyclesCharged")]
     pub cycles_charged: HashMap<(MetricRpcMethod, MetricRpcHost), u128>,
     #[serde(rename = "errHttpOutcall")]
-    pub err_http_outcall: HashMap<(MetricRpcMethod, MetricRpcHost, RejectionCode), u64>,
+    pub err_http_outcall: HashMap<(MetricRpcMethod, MetricRpcHost, LegacyRejectionCode), u64>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RpcMethod {
+    EthCall,
     EthFeeHistory,
     EthGetLogs,
     EthGetBlockByNumber,
@@ -179,6 +180,7 @@ pub enum RpcMethod {
 impl RpcMethod {
     fn name(self) -> &'static str {
         match self {
+            RpcMethod::EthCall => "eth_call",
             RpcMethod::EthFeeHistory => "eth_feeHistory",
             RpcMethod::EthGetLogs => "eth_getLogs",
             RpcMethod::EthGetBlockByNumber => "eth_getBlockByNumber",
@@ -253,7 +255,7 @@ pub struct Provider {
     pub provider_id: ProviderId,
     pub chain_id: u64,
     pub access: RpcAccess,
-    pub alias: Option<evm_rpc_types::RpcService>,
+    pub alias: Option<SupportedRpcService>,
 }
 
 impl Provider {
