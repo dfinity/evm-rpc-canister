@@ -280,7 +280,7 @@ impl<K, V> TimedSizedMap<K, V> {
     }
 
     /// Insert a new element and returns evicted elements for **that** key.
-    /// 
+    ///
     /// # Examples
     ///
     /// ```rust
@@ -307,7 +307,7 @@ impl<K, V> TimedSizedMap<K, V> {
     ///     map.insert_evict(Timestamp::from_unix_epoch(Duration::from_secs(13)),"key1", "m"),
     ///     btreemap! { Timestamp::from_unix_epoch(Duration::from_secs(2)) => VecDeque::from(["b", "bb"]) }
     /// );
-    /// 
+    ///
     /// // Other keys are not impacted.
     /// assert_eq!(map.insert_evict(Timestamp::from_unix_epoch(Duration::from_secs(26)), "key2", "z"), BTreeMap::default());
     /// ```
@@ -328,11 +328,11 @@ impl<K, V> TimedSizedMap<K, V> {
     }
 
     /// Sort given keys according to some ordering derived from the values.
-    /// 
+    ///
     /// Note that the collection may be modified to allow, for example, evicting expired elements.
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// Sort keys by descending number of non-expired values.
     /// ```rust
     /// use std::collections::{BTreeMap, VecDeque};
@@ -388,9 +388,9 @@ impl<K, V> TimedSizedMap<K, V> {
     }
 
     /// Iterates over the elements in the map, sorted by keys.
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```rust
     ///
     /// use std::collections::{BTreeMap, VecDeque};
@@ -402,10 +402,10 @@ impl<K, V> TimedSizedMap<K, V> {
     /// assert_eq!(map.insert_evict(Timestamp::from_unix_epoch(Duration::from_secs(1)), "keyZ", "a"), BTreeMap::default());
     /// assert_eq!(map.insert_evict(Timestamp::from_unix_epoch(Duration::from_secs(1)), "keyZ", "aa"), BTreeMap::default());
     /// assert_eq!(map.insert_evict(Timestamp::from_unix_epoch(Duration::from_secs(2)), "keyZ", "b"), BTreeMap::default());
-    /// 
+    ///
     /// assert_eq!(map.insert_evict(Timestamp::from_unix_epoch(Duration::from_secs(3)), "keyA", "c"), BTreeMap::default());
     /// assert_eq!(map.insert_evict(Timestamp::from_unix_epoch(Duration::from_secs(3)), "keyA", "cc"), BTreeMap::default());
-    /// 
+    ///
     /// assert_eq!(
     ///     map.iter().collect::<Vec<_>>(),
     ///     vec![
