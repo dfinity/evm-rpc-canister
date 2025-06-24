@@ -204,15 +204,9 @@ impl<T> TimedSizedVec<T> {
 
     /// Returns the number of elements.
     ///
-    /// To avoid containing expired elements, use [`Self::evict_then_len`].
+    /// To avoid containing expired elements, call [`Self::evict_expired`] first to remove expired elements.
     pub fn len(&self) -> usize {
         self.size
-    }
-
-    /// Evicts expired elements and return the remaining number of (non-expired) elements.
-    pub fn evict_then_len(&mut self, now: Timestamp) -> usize {
-        self.evict_expired(now);
-        self.len()
     }
 
     /// Returns true if the vector contains no elements.
@@ -362,7 +356,14 @@ impl<K, V> TimedSizedMap<K, V> {
     ///     values: Option<&mut TimedSizedVec<V>>,
     ///     now: Timestamp,
     /// ) -> impl Ord {
-    ///     std::cmp::Reverse(values.map(|v| v.evict_then_len(now)).unwrap_or_default())
+    ///     std::cmp::Reverse(
+    ///         values
+    ///             .map(|v| {
+    ///                 v.evict_expired(now);
+    ///                 v.len()
+    ///             })
+    ///             .unwrap_or_default(),
+    ///     )
     /// }
     /// ```
     pub fn sort_keys_by<'a, ExtractSortKeyFn, SortKey, Q>(
