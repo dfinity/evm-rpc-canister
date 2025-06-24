@@ -1088,15 +1088,14 @@ fn eth_estimate_gas_should_succeed() {
     const INPUT_DATA: &str =
         "0x70a08231000000000000000000000000b25eA1D493B49a1DeD42aC5B1208cC618f9A9B80";
 
-    let [response_0, response_1, response_2] = json_rpc_sequential_id(
-        json!({"jsonrpc":"2.0","result":"0x5208","id":0}),
-    );
-    let expected_request = MockJsonRequestBody::builder("eth_estimateGas").with_params(
-        json!([{
+    const GAS_ESTIMATE: &str = "0x5b68";
+
+    let [response_0, response_1, response_2] =
+        json_rpc_sequential_id(json!({"jsonrpc":"2.0","result":GAS_ESTIMATE,"id":0}));
+    let expected_request = MockJsonRequestBody::builder("eth_estimateGas").with_params(json!([{
             "to": ADDRESS.to_lowercase(),
             "input": INPUT_DATA.to_lowercase(),
-        }, "latest"]),
-    );
+        }, "latest"]));
 
     for call_args in [
         evm_rpc_types::CallArgs {
@@ -1135,10 +1134,7 @@ fn eth_estimate_gas_should_succeed() {
                 .wait()
                 .expect_consistent()
                 .unwrap();
-            assert_eq!(
-                response,
-                Hex::from_str("0x5208").unwrap()
-            );
+            assert_eq!(response, Hex::from_str(GAS_ESTIMATE).unwrap());
         }
     }
 }
