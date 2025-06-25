@@ -42,8 +42,8 @@ mod decode_legacy_log_filter {
         fn should_decode_legacy_log_filter(log_filter in arb_log_filter()) {
             let legacy_filter = LogFilter::from(log_filter.clone());
             let legacy_bytes = legacy_filter.to_bytes();
-            let legacy_decoded = StorableLogFilter::from_bytes(legacy_bytes);
-            assert_eq!(legacy_decoded, log_filter);
+            let log_filter_from_legacy = StorableLogFilter::from_bytes(legacy_bytes);
+            assert_eq!(log_filter_from_legacy, log_filter);
         }
     }
 
