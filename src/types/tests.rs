@@ -31,7 +31,7 @@ mod encoding_decoding {
 
 mod decode_legacy_log_filter {
     use super::arb_log_filter;
-    use crate::{constants::MESSAGE_FILTER_MAX_SIZE, types::StorableLogFilter};
+    use crate::types::StorableLogFilter;
     use ic_stable_structures::{storable::Bound, Storable};
     use proptest::proptest;
     use serde::{Deserialize, Serialize};
@@ -88,7 +88,7 @@ mod decode_legacy_log_filter {
         }
 
         const BOUND: Bound = Bound::Bounded {
-            max_size: MESSAGE_FILTER_MAX_SIZE,
+            max_size: 1000,
             is_fixed_size: true,
         };
     }
