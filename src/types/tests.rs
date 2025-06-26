@@ -1,49 +1,122 @@
-use super::{LogFilter, OverrideProvider, RegexString, RegexSubstitution};
+use super::{OverrideProvider, StorableLogFilter};
+use canlog::{LogFilter, RegexString, RegexSubstitution};
 use ic_stable_structures::Storable;
-use proptest::prelude::{Just, Strategy};
-use proptest::{option, prop_oneof, proptest};
+use proptest::{
+    option,
+    prelude::{prop_oneof, proptest, Just, Strategy},
+};
 use std::fmt::Debug;
 
-proptest! {
-    #[test]
-    fn should_encode_decode_log_filter(value in arb_log_filter()) {
-        test_encoding_decoding_roundtrip(&value);
+mod encoding_decoding {
+    use super::*;
+
+    proptest! {
+        #[test]
+        fn should_encode_decode_log_filter(value in arb_log_filter()) {
+            test_encoding_decoding_roundtrip(&value);
+        }
+
+        #[test]
+        fn should_encode_decode_override_provider(value in arb_override_provider()) {
+            test_encoding_decoding_roundtrip(&value);
+        }
     }
 
-    #[test]
-    fn should_encode_decode_override_provider(value in arb_override_provider()) {
-        test_encoding_decoding_roundtrip(&value);
+    fn test_encoding_decoding_roundtrip<T: Storable + PartialEq + Debug>(value: &T) {
+        let bytes = value.to_bytes();
+        let decoded_value = T::from_bytes(bytes);
+        assert_eq!(value, &decoded_value);
     }
 }
 
-fn arb_regex() -> impl Strategy<Value = RegexString> {
-    ".*".prop_map(|r| RegexString::from(r.as_str()))
+mod decode_legacy_log_filter {
+    use super::arb_log_filter;
+    use crate::types::StorableLogFilter;
+    use ic_stable_structures::{storable::Bound, Storable};
+    use proptest::proptest;
+    use serde::{Deserialize, Serialize};
+    use std::{borrow::Cow, fmt::Debug};
+
+    proptest! {
+        #[test]
+        fn should_decode_legacy_log_filter(log_filter in arb_log_filter()) {
+            let legacy_filter = LogFilter::from(log_filter.clone());
+            let legacy_bytes = legacy_filter.to_bytes();
+            let log_filter_from_legacy = StorableLogFilter::from_bytes(legacy_bytes);
+            assert_eq!(log_filter_from_legacy, log_filter);
+        }
+    }
+
+    // This is the legacy implementation of the log filter. For backwards-compatibility, instances
+    // of this type stored in stable memory should be deserialized correctly.
+    #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+    pub enum LogFilter {
+        #[default]
+        ShowAll,
+        HideAll,
+        ShowPattern(RegexString),
+        HidePattern(RegexString),
+    }
+
+    impl From<StorableLogFilter> for LogFilter {
+        fn from(value: StorableLogFilter) -> Self {
+            match value.0 {
+                canlog::LogFilter::ShowAll => Self::ShowAll,
+                canlog::LogFilter::HideAll => Self::HideAll,
+                canlog::LogFilter::ShowPattern(canlog::RegexString(value)) => {
+                    Self::ShowPattern(RegexString(value))
+                }
+                canlog::LogFilter::HidePattern(canlog::RegexString(value)) => {
+                    Self::HidePattern(RegexString(value))
+                }
+            }
+        }
+    }
+
+    #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+    pub struct RegexString(String);
+
+    impl Storable for LogFilter {
+        fn to_bytes(&self) -> Cow<[u8]> {
+            serde_json::to_vec(self)
+                .expect("Error while serializing `LogFilter`")
+                .into()
+        }
+
+        fn from_bytes(bytes: Cow<[u8]>) -> Self {
+            serde_json::from_slice(&bytes).expect("Error while deserializing `LogFilter`")
+        }
+
+        const BOUND: Bound = Bound::Bounded {
+            max_size: 1000,
+            is_fixed_size: true,
+        };
+    }
+}
+
+fn arb_regex_string() -> impl Strategy<Value = RegexString> {
+    ".*".prop_map(RegexString)
 }
 
 fn arb_regex_substitution() -> impl Strategy<Value = RegexSubstitution> {
-    (arb_regex(), ".*").prop_map(|(pattern, replacement)| RegexSubstitution {
+    (arb_regex_string(), ".*").prop_map(|(pattern, replacement)| RegexSubstitution {
         pattern,
         replacement,
     })
 }
 
-fn arb_log_filter() -> impl Strategy<Value = LogFilter> {
+fn arb_log_filter() -> impl Strategy<Value = StorableLogFilter> {
     prop_oneof![
         Just(LogFilter::ShowAll),
         Just(LogFilter::HideAll),
-        arb_regex().prop_map(LogFilter::ShowPattern),
-        arb_regex().prop_map(LogFilter::HidePattern),
+        arb_regex_string().prop_map(LogFilter::ShowPattern),
+        arb_regex_string().prop_map(LogFilter::HidePattern),
     ]
+    .prop_map(StorableLogFilter)
 }
 
 fn arb_override_provider() -> impl Strategy<Value = OverrideProvider> {
     option::of(arb_regex_substitution()).prop_map(|override_url| OverrideProvider { override_url })
-}
-
-fn test_encoding_decoding_roundtrip<T: Storable + PartialEq + Debug>(value: &T) {
-    let bytes = value.to_bytes();
-    let decoded_value = T::from_bytes(bytes);
-    assert_eq!(value, &decoded_value);
 }
 
 mod override_provider {
