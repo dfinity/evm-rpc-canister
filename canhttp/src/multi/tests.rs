@@ -438,7 +438,7 @@ mod timed_size_vec {
 mod timed_sized_map {
     use crate::multi::cache::TimedSizedMap;
     use crate::multi::tests::timestamp;
-    use crate::multi::{TimedSizedVec, Timestamp};
+    use crate::multi::TimedSizedVec;
     use itertools::Itertools;
     use maplit::btreemap;
     use std::collections::{BTreeMap, VecDeque};
