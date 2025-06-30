@@ -460,11 +460,10 @@ mod timed_sized_map {
             map.insert_evict(timestamp(1), key.clone(), "ok");
         }
 
-        let now = timestamp(60); //no timestamp expired
         for subset in Keys::VARIANTS.iter().cloned().powerset() {
             assert_eq!(
                 map.sort_keys_by(subset.as_slice(), |values| {
-                    ascending_num_non_expired_elements(values, now)
+                    ascending_num_elements(values)
                 })
                 .cloned()
                 .collect::<Vec<_>>(),
@@ -577,10 +576,9 @@ mod timed_sized_map {
             ]
         );
         let map_before = map.clone();
-        let now = timestamp(60); //no timestamp expired
         assert_eq!(
             map.sort_keys_by(&[Keys::Key1, Keys::Key2, Keys::Key3], |values| {
-                ascending_num_non_expired_elements(values, now)
+                ascending_num_elements(values)
             })
             .collect::<Vec<_>>(),
             vec![&Keys::Key3, &Keys::Key1, &Keys::Key2]
@@ -588,22 +586,13 @@ mod timed_sized_map {
         assert_eq!(map_before, map);
 
         let now = timestamp(63); //timestamps 0,1,2 expired.
+        map.evict_expired(&[Keys::Key1, Keys::Key2, Keys::Key3], now);
         assert_eq!(
             map.sort_keys_by(&[Keys::Key1, Keys::Key2, Keys::Key3], |values| {
-                ascending_num_non_expired_elements(values, now)
+                ascending_num_elements(values)
             })
             .collect::<Vec<_>>(),
             vec![&Keys::Key1, &Keys::Key3, &Keys::Key2]
-        );
-        assert_eq!(
-            map.iter().collect::<Vec<_>>(),
-            vec![
-                (&Keys::Key1, &timestamp(3), &"ok"),
-                (&Keys::Key1, &timestamp(4), &"ok"),
-                (&Keys::Key1, &timestamp(5), &"ok"),
-                (&Keys::Key3, &timestamp(3), &"ok"),
-                (&Keys::Key3, &timestamp(4), &"ok"),
-            ]
         );
     }
 
@@ -614,18 +603,8 @@ mod timed_sized_map {
         Key3,
     }
 
-    fn ascending_num_non_expired_elements<V>(
-        values: Option<&mut TimedSizedVec<V>>,
-        now: Timestamp,
-    ) -> impl Ord {
-        std::cmp::Reverse(
-            values
-                .map(|v| {
-                    v.evict_expired(now);
-                    v.len()
-                })
-                .unwrap_or_default(),
-        )
+    fn ascending_num_elements<V>(values: Option<&TimedSizedVec<V>>) -> impl Ord {
+        std::cmp::Reverse(values.map(|v| v.len()).unwrap_or_default())
     }
 }
 

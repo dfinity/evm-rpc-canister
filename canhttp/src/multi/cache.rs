@@ -323,7 +323,7 @@ impl<K, V> TimedSizedMap<K, V> {
 
     /// Sort given keys according to some ordering derived from the values.
     ///
-    /// Note that the collection may be modified to allow, for example, evicting expired elements.
+    /// To avoid containing expired elements, call [`Self::evict_expired`] first to remove expired elements.
     ///
     /// # Examples
     ///
@@ -347,23 +347,13 @@ impl<K, V> TimedSizedMap<K, V> {
     ///
     /// assert_eq!(
     ///     map.sort_keys_by(&["key1", "key2", "key3"], |values| {
-    ///         ascending_num_non_expired_elements(values, now)
+    ///         ascending_num_elements(values)
     ///     }).collect::<Vec<_>>(),
-    ///     vec![&"key2", &"key1", &"key3"]
+    ///     vec![&"key1", &"key2", &"key3"]
     /// );
     ///
-    /// fn ascending_num_non_expired_elements<V>(
-    ///     values: Option<&mut TimedSizedVec<V>>,
-    ///     now: Timestamp,
-    /// ) -> impl Ord {
-    ///     std::cmp::Reverse(
-    ///         values
-    ///             .map(|v| {
-    ///                 v.evict_expired(now);
-    ///                 v.len()
-    ///             })
-    ///             .unwrap_or_default(),
-    ///     )
+    /// fn ascending_num_elements<V>(values: Option<&TimedSizedVec<V>>) -> impl Ord {
+    ///     std::cmp::Reverse(values.map(|v| v.len()).unwrap_or_default())
     /// }
     /// ```
     pub fn sort_keys_by<'a, ExtractSortKeyFn, SortKey, Q>(
@@ -374,12 +364,12 @@ impl<K, V> TimedSizedMap<K, V> {
     where
         K: Borrow<Q> + Ord,
         Q: Ord,
-        ExtractSortKeyFn: Fn(Option<&mut TimedSizedVec<V>>) -> SortKey,
+        ExtractSortKeyFn: Fn(Option<&TimedSizedVec<V>>) -> SortKey,
         SortKey: Ord,
     {
         let mut sorted_keys = Vec::with_capacity(keys.len());
         for key in keys {
-            let sort_key = extractor(self.store.get_mut(key));
+            let sort_key = extractor(self.store.get(key));
             sorted_keys.push((sort_key, key));
         }
         sorted_keys.sort_by(|(left_sort_key, _left_key), (right_sort_key, _right_key)| {
