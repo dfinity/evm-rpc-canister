@@ -440,7 +440,8 @@ mod timed_sized_map {
     use crate::multi::tests::timestamp;
     use crate::multi::{TimedSizedVec, Timestamp};
     use itertools::Itertools;
-    use std::collections::BTreeMap;
+    use maplit::btreemap;
+    use std::collections::{BTreeMap, VecDeque};
     use std::num::NonZeroUsize;
     use std::time::Duration;
     use strum::VariantArray;
@@ -470,6 +471,73 @@ mod timed_sized_map {
                 subset
             );
         }
+    }
+
+    #[test]
+    fn should_evict_expired() {
+        let mut map = TimedSizedMap::new(Duration::from_nanos(60), NonZeroUsize::new(5).unwrap());
+        for nanos in 0..3_u64 {
+            assert_eq!(
+                map.insert_evict(timestamp(nanos), Keys::Key3, "ok"),
+                BTreeMap::default()
+            );
+        }
+        for nanos in 3..5_u64 {
+            assert_eq!(
+                map.insert_evict(timestamp(nanos), Keys::Key1, "ok"),
+                BTreeMap::default()
+            );
+            assert_eq!(
+                map.insert_evict(timestamp(nanos), Keys::Key3, "ok"),
+                BTreeMap::default()
+            );
+        }
+        assert_eq!(
+            map.insert_evict(timestamp(5), Keys::Key1, "ok"),
+            BTreeMap::default()
+        );
+        assert_eq!(
+            map.iter().collect::<Vec<_>>(),
+            vec![
+                (&Keys::Key1, &timestamp(3), &"ok"),
+                (&Keys::Key1, &timestamp(4), &"ok"),
+                (&Keys::Key1, &timestamp(5), &"ok"),
+                (&Keys::Key3, &timestamp(0), &"ok"),
+                (&Keys::Key3, &timestamp(1), &"ok"),
+                (&Keys::Key3, &timestamp(2), &"ok"),
+                (&Keys::Key3, &timestamp(3), &"ok"),
+                (&Keys::Key3, &timestamp(4), &"ok"),
+            ]
+        );
+        let map_before = map.clone();
+        let now = timestamp(60); //no timestamp expired
+        assert_eq!(
+            map.evict_expired(&[Keys::Key1, Keys::Key2, Keys::Key3], now),
+            BTreeMap::default()
+        );
+        assert_eq!(map_before, map);
+
+        let now = timestamp(63); //timestamps 0,1,2 expired.
+        assert_eq!(
+            map.evict_expired(&[Keys::Key1, Keys::Key2, Keys::Key3], now),
+            btreemap! {
+               &Keys::Key3 => btreemap! {
+                    timestamp(0) => VecDeque::from(["ok"]),
+                    timestamp(1) => VecDeque::from(["ok"]),
+                    timestamp(2) => VecDeque::from(["ok"])
+                }
+            }
+        );
+        assert_eq!(
+            map.iter().collect::<Vec<_>>(),
+            vec![
+                (&Keys::Key1, &timestamp(3), &"ok"),
+                (&Keys::Key1, &timestamp(4), &"ok"),
+                (&Keys::Key1, &timestamp(5), &"ok"),
+                (&Keys::Key3, &timestamp(3), &"ok"),
+                (&Keys::Key3, &timestamp(4), &"ok"),
+            ]
+        );
     }
 
     #[test]

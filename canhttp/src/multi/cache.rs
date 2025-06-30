@@ -1,5 +1,5 @@
 use std::borrow::Borrow;
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::num::NonZeroUsize;
 use std::time::Duration;
 
@@ -386,6 +386,70 @@ impl<K, V> TimedSizedMap<K, V> {
             left_sort_key.cmp(right_sort_key)
         });
         sorted_keys.into_iter().map(|(_sort_key, key)| key)
+    }
+
+    /// Evict expired entries for the given keys.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use std::collections::{BTreeMap, VecDeque};
+    /// use std::num::NonZeroUsize;
+    /// use std::time::Duration;
+    /// use maplit::btreemap;
+    /// use canhttp::multi::{TimedSizedMap, TimedSizedVec, Timestamp};
+    ///
+    /// let mut map = TimedSizedMap::new(Duration::from_secs(10), NonZeroUsize::new(3).unwrap());
+    /// assert_eq!(map.insert_evict(Timestamp::from_unix_epoch(Duration::from_secs(1)), "key1", "a"), BTreeMap::default());
+    /// assert_eq!(map.insert_evict(Timestamp::from_unix_epoch(Duration::from_secs(1)), "key1", "aa"), BTreeMap::default());
+    /// assert_eq!(map.insert_evict(Timestamp::from_unix_epoch(Duration::from_secs(2)), "key1", "b"), BTreeMap::default());
+    ///
+    /// assert_eq!(map.insert_evict(Timestamp::from_unix_epoch(Duration::from_secs(3)), "key2", "c"), BTreeMap::default());
+    /// assert_eq!(map.insert_evict(Timestamp::from_unix_epoch(Duration::from_secs(3)), "key2", "cc"), BTreeMap::default());
+    ///
+    /// let now = Timestamp::from_unix_epoch(Duration::from_secs(12)); //elements "a" and "aa" expired.
+    ///
+    /// let expired = map.evict_expired(&["key1", "key2", "key3"], now);
+    ///
+    /// assert_eq!(
+    ///     expired,
+    ///     btreemap! {
+    ///         &"key1" => btreemap! {
+    ///                 Timestamp::from_unix_epoch(Duration::from_secs(1)) => VecDeque::from(["a", "aa"])
+    ///             }
+    ///     }
+    /// );
+    ///
+    /// assert_eq!(
+    ///     map.iter().collect::<Vec<_>>(),
+    ///     vec![
+    ///         (&"key1", &Timestamp::from_unix_epoch(Duration::from_secs(2)), &"b"),
+    ///         (&"key2", &Timestamp::from_unix_epoch(Duration::from_secs(3)), &"c"),
+    ///         (&"key2", &Timestamp::from_unix_epoch(Duration::from_secs(3)), &"cc"),
+    ///     ]
+    /// );
+    pub fn evict_expired<'a, Q>(
+        &mut self,
+        keys: &'a [Q],
+        now: Timestamp,
+    ) -> BTreeMap<&'a Q, BTreeMap<Timestamp, VecDeque<V>>>
+    where
+        K: Borrow<Q> + Ord,
+        Q: Ord,
+    {
+        let mut visited_keys = BTreeSet::new();
+        let mut expired = BTreeMap::default();
+        for key in keys {
+            if visited_keys.insert(key) {
+                if let Some(values) = self.store.get_mut(key) {
+                    let expired_values = values.evict_expired(now);
+                    if !expired_values.is_empty() {
+                        expired.insert(key, expired_values);
+                    }
+                }
+            }
+        }
+        expired
     }
 
     /// Iterates over the elements in the map, sorted by keys.
