@@ -315,7 +315,12 @@ impl EthRpcClient {
         let (requests, errors) = requests.into_inner();
         let (_client, mut results) = canhttp::multi::parallel_call(client, requests).await;
         results.add_errors(errors);
-        results.ok_results().keys().for_each(record_ok_result);
+        let now = Timestamp::from_nanos_since_unix_epoch(ic_cdk::api::time());
+        results
+            .ok_results()
+            .keys()
+            .filter_map(SupportedRpcService::new)
+            .for_each(|service| record_ok_result(service, now));
         assert_eq!(
             results.len(),
             providers.len(),
