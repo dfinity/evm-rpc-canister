@@ -120,13 +120,15 @@ fn arb_override_provider() -> impl Strategy<Value = OverrideProvider> {
 }
 
 mod override_provider {
+    use crate::memory::insert_api_key;
     use crate::providers::PROVIDERS;
-    use crate::types::{OverrideProvider, RegexSubstitution};
+    use crate::types::{ApiKey, OverrideProvider, RegexSubstitution};
     use evm_rpc_types::RpcApi;
     use ic_management_canister_types::HttpHeader;
 
     #[test]
     fn should_override_provider_with_localhost() {
+        setup_api_keys();
         let override_provider = override_to_localhost();
         for provider in PROVIDERS {
             let overriden_provider = override_provider.apply(provider.api());
@@ -142,6 +144,7 @@ mod override_provider {
 
     #[test]
     fn should_be_noop_when_empty() {
+        setup_api_keys();
         let no_override = OverrideProvider::default();
         for provider in PROVIDERS {
             let initial_api = provider.api();
@@ -152,6 +155,7 @@ mod override_provider {
 
     #[test]
     fn should_use_replacement_pattern() {
+        setup_api_keys();
         let identity_override = OverrideProvider {
             override_url: Some(RegexSubstitution {
                 pattern: "(?<url>.*)".into(),
@@ -160,13 +164,15 @@ mod override_provider {
         };
         for provider in PROVIDERS {
             let initial_api = provider.api();
-            let overriden_provider = identity_override.apply(initial_api.clone());
-            assert_eq!(overriden_provider, Ok(initial_api))
+            let overriden_provider = identity_override.apply(initial_api.clone()).unwrap();
+            assert_eq!(overriden_provider.headers, None);
+            assert_eq!(overriden_provider.url, initial_api.url)
         }
     }
 
     #[test]
     fn should_override_headers() {
+        setup_api_keys();
         let identity_override = OverrideProvider {
             override_url: Some(RegexSubstitution {
                 pattern: "(.*)".into(),
@@ -188,6 +194,15 @@ mod override_provider {
                     url: provider_with_headers.url,
                     headers: None
                 })
+            )
+        }
+    }
+
+    fn setup_api_keys() {
+        for provider in PROVIDERS {
+            insert_api_key(
+                provider.provider_id,
+                ApiKey::try_from("unit-test-key".to_string()).unwrap(),
             )
         }
     }
