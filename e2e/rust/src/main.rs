@@ -4,8 +4,8 @@ use candid::{candid_method, Principal};
 use ic_cdk_macros::update;
 
 use evm_rpc_types::{
-    Block, BlockTag, EthMainnetService, Hex32, MultiRpcResult, ProviderError, RpcError, RpcService,
-    RpcServices,
+    Block, BlockTag, ConsensusStrategy, EthMainnetService, Hex32, MultiRpcResult, ProviderError,
+    RpcConfig, RpcError, RpcResult, RpcService, RpcServices,
 };
 
 fn main() {}
@@ -82,7 +82,13 @@ pub async fn test() {
                 EthMainnetService::Llama,
                 EthMainnetService::PublicNode,
             ])),
-            (),
+            Some(RpcConfig {
+                response_consensus: Some(ConsensusStrategy::Threshold {
+                    total: None,
+                    min: 2,
+                }),
+                ..Default::default()
+            }),
             BlockTag::Number(19709434_u32.into()),
         ),
         10000000000,
@@ -103,8 +109,25 @@ pub async fn test() {
             Err(err) => ic_cdk::trap(&format!("error in `eth_getBlockByNumber`: {:?}", err)),
         },
         MultiRpcResult::Inconsistent(results) => ic_cdk::trap(&format!(
-            "inconsistent results in `eth_getBlockByNumber`: {:?}",
-            results
+            "inconsistent results in `eth_getBlockByNumber`: {}",
+            debug_inconsistent(&results)
         )),
     }
+}
+
+fn debug_inconsistent(results: &[(RpcService, RpcResult<Block>)]) -> String {
+    results
+        .iter()
+        .map(|(service, result)| {
+            let res_str = match result {
+                // A block contains too much information and in case of inconsistencies 
+                // not all results can be displayed, so we only display the block number
+                // assuming that responses with the same block number should be equal.
+                Ok(block) => format!("Ok({}, ...)", block.number),
+                Err(err) => format!("Err({err})"),
+            };
+            format!("{service:?}: {res_str}")
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
 }
