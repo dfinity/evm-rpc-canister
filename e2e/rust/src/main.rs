@@ -120,7 +120,7 @@ fn debug_inconsistent(results: &[(RpcService, RpcResult<Block>)]) -> String {
         .iter()
         .map(|(service, result)| {
             let res_str = match result {
-                // A block contains too much information and in case of inconsistencies 
+                // A block contains too much information and in case of inconsistencies
                 // not all results can be displayed, so we only display the block number
                 // assuming that responses with the same block number should be equal.
                 Ok(block) => format!("Ok({}, ...)", block.number),
