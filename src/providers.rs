@@ -56,7 +56,7 @@ pub const PROVIDERS: &[Provider] = &[
             auth: RpcAuth::UrlParameter {
                 url_pattern: "https://ethereum.blockpi.network/v1/rpc/{API_KEY}",
             },
-            public_url: Some("https://ethereum.blockpi.network/v1/rpc/public"),
+            public_url: Some("https://ethereum.public.blockpi.network/v1/rpc/public"),
         },
         alias: Some(SupportedRpcService::EthMainnet(EthMainnetService::BlockPi)),
     },
@@ -86,7 +86,7 @@ pub const PROVIDERS: &[Provider] = &[
             auth: RpcAuth::UrlParameter {
                 url_pattern: "https://ethereum-sepolia.blockpi.network/v1/rpc/{API_KEY}",
             },
-            public_url: Some("https://ethereum-sepolia.blockpi.network/v1/rpc/public"),
+            public_url: None,
         },
         alias: Some(SupportedRpcService::EthSepolia(EthSepoliaService::BlockPi)),
     },
@@ -151,7 +151,7 @@ pub const PROVIDERS: &[Provider] = &[
             auth: RpcAuth::UrlParameter {
                 url_pattern: "https://arbitrum.blockpi.network/v1/rpc/{API_KEY}",
             },
-            public_url: Some("https://arbitrum.blockpi.network/v1/rpc/public"),
+            public_url: Some("https://arbitrum.public.blockpi.network/v1/rpc/public"),
         },
         alias: Some(SupportedRpcService::ArbitrumOne(L2MainnetService::BlockPi)),
     },
@@ -194,7 +194,7 @@ pub const PROVIDERS: &[Provider] = &[
             auth: RpcAuth::UrlParameter {
                 url_pattern: "https://base.blockpi.network/v1/rpc/{API_KEY}",
             },
-            public_url: Some("https://base.blockpi.network/v1/rpc/public"),
+            public_url: Some("https://base.public.blockpi.network/v1/rpc/public"),
         },
         alias: Some(SupportedRpcService::BaseMainnet(L2MainnetService::BlockPi)),
     },
@@ -239,7 +239,7 @@ pub const PROVIDERS: &[Provider] = &[
             auth: RpcAuth::UrlParameter {
                 url_pattern: "https://optimism.blockpi.network/v1/rpc/{API_KEY}",
             },
-            public_url: Some("https://optimism.blockpi.network/v1/rpc/public"),
+            public_url: Some("https://optimism.public.blockpi.network/v1/rpc/public"),
         },
         alias: Some(SupportedRpcService::OptimismMainnet(
             L2MainnetService::BlockPi,
