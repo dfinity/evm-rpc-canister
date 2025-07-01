@@ -1,8 +1,11 @@
-use crate::types::{ApiKey, Metrics, OverrideProvider, ProviderId, StorableLogFilter};
+use crate::{
+    providers::SupportedRpcService,
+    types::{ApiKey, Metrics, OverrideProvider, ProviderId, StorableLogFilter},
+};
 use candid::Principal;
 use canhttp::http::json::Id;
-use canlog::LogFilter;
 use canhttp::multi::{TimedSizedMap, TimedSizedVec, Timestamp};
+use canlog::LogFilter;
 use evm_rpc_types::RpcService;
 use ic_stable_structures::memory_manager::VirtualMemory;
 use ic_stable_structures::{
@@ -145,19 +148,15 @@ pub fn rank_providers(
     now: Timestamp,
 ) -> Vec<SupportedRpcService> {
     UNSTABLE_RPC_SERVICE_OK_RESULTS_TIMESTAMPS.with_borrow_mut(|access| {
+        access.evict_expired(services, now);
         access
-            .sort_keys_by(services, |values| {
-                ascending_num_non_expired_elements(values, now)
-            })
+            .sort_keys_by(services, |values| ascending_num_elements(values))
             .copied()
             .collect()
     })
 }
-fn ascending_num_non_expired_elements<V>(
-    values: Option<&mut TimedSizedVec<V>>,
-    now: Timestamp,
-) -> impl Ord {
-    std::cmp::Reverse(values.map(|v| v.unexpired_len(now)).unwrap_or_default())
+fn ascending_num_elements<V>(values: Option<&TimedSizedVec<V>>) -> impl Ord {
+    std::cmp::Reverse(values.map(|v| v.len()).unwrap_or_default())
 }
 
 #[cfg(test)]
