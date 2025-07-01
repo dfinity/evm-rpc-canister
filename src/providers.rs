@@ -56,7 +56,7 @@ pub const PROVIDERS: &[Provider] = &[
             auth: RpcAuth::UrlParameter {
                 url_pattern: "https://ethereum.blockpi.network/v1/rpc/{API_KEY}",
             },
-            public_url: Some("https://ethereum.blockpi.network/v1/rpc/public"),
+            public_url: Some("https://ethereum.public.blockpi.network/v1/rpc/public"),
         },
         alias: Some(SupportedRpcService::EthMainnet(EthMainnetService::BlockPi)),
     },
@@ -86,7 +86,7 @@ pub const PROVIDERS: &[Provider] = &[
             auth: RpcAuth::UrlParameter {
                 url_pattern: "https://ethereum-sepolia.blockpi.network/v1/rpc/{API_KEY}",
             },
-            public_url: Some("https://ethereum-sepolia.blockpi.network/v1/rpc/public"),
+            public_url: None,
         },
         alias: Some(SupportedRpcService::EthSepolia(EthSepoliaService::BlockPi)),
     },
@@ -151,7 +151,7 @@ pub const PROVIDERS: &[Provider] = &[
             auth: RpcAuth::UrlParameter {
                 url_pattern: "https://arbitrum.blockpi.network/v1/rpc/{API_KEY}",
             },
-            public_url: Some("https://arbitrum.blockpi.network/v1/rpc/public"),
+            public_url: Some("https://arbitrum.public.blockpi.network/v1/rpc/public"),
         },
         alias: Some(SupportedRpcService::ArbitrumOne(L2MainnetService::BlockPi)),
     },
@@ -194,7 +194,7 @@ pub const PROVIDERS: &[Provider] = &[
             auth: RpcAuth::UrlParameter {
                 url_pattern: "https://base.blockpi.network/v1/rpc/{API_KEY}",
             },
-            public_url: Some("https://base.blockpi.network/v1/rpc/public"),
+            public_url: Some("https://base.public.blockpi.network/v1/rpc/public"),
         },
         alias: Some(SupportedRpcService::BaseMainnet(L2MainnetService::BlockPi)),
     },
@@ -239,7 +239,7 @@ pub const PROVIDERS: &[Provider] = &[
             auth: RpcAuth::UrlParameter {
                 url_pattern: "https://optimism.blockpi.network/v1/rpc/{API_KEY}",
             },
-            public_url: Some("https://optimism.blockpi.network/v1/rpc/public"),
+            public_url: Some("https://optimism.public.blockpi.network/v1/rpc/public"),
         },
         alias: Some(SupportedRpcService::OptimismMainnet(
             L2MainnetService::BlockPi,
@@ -370,21 +370,6 @@ pub enum SupportedRpcService {
 }
 
 impl SupportedRpcService {
-    pub fn new(service: &RpcService) -> Option<Self> {
-        match service {
-            RpcService::Provider(id) => find_provider(|provider| &provider.provider_id == id)
-                .and_then(|provider| provider.alias),
-            RpcService::Custom(_) => None,
-            RpcService::EthMainnet(service) => Some(SupportedRpcService::EthMainnet(*service)),
-            RpcService::EthSepolia(service) => Some(SupportedRpcService::EthSepolia(*service)),
-            RpcService::ArbitrumOne(service) => Some(SupportedRpcService::ArbitrumOne(*service)),
-            RpcService::BaseMainnet(service) => Some(SupportedRpcService::BaseMainnet(*service)),
-            RpcService::OptimismMainnet(service) => {
-                Some(SupportedRpcService::OptimismMainnet(*service))
-            }
-        }
-    }
-
     // Order of providers matters!
     // The threshold consensus strategy will consider the first `total` providers in the order
     // they are specified (taking the default ones first, followed by the non default ones if necessary)

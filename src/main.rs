@@ -1,9 +1,10 @@
 use candid::candid_method;
 use canhttp::multi::Timestamp;
 use canhttp::{CyclesChargingPolicy, CyclesCostEstimator};
+use canlog::{Log, Sort};
 use evm_rpc::candid_rpc::CandidRpcClient;
 use evm_rpc::http::{service_request_builder, ChargingPolicyWithCollateral};
-use evm_rpc::logs::INFO;
+use evm_rpc::logs::{Priority, INFO};
 use evm_rpc::memory::{
     get_num_subnet_nodes, insert_api_key, is_api_key_principal, is_demo_active, remove_api_key,
     set_api_key_principals, set_demo_active, set_log_filter, set_num_subnet_nodes,
@@ -11,7 +12,7 @@ use evm_rpc::memory::{
 };
 use evm_rpc::metrics::encode_metrics;
 use evm_rpc::providers::{find_provider, resolve_rpc_service, PROVIDERS, SERVICE_PROVIDER_MAP};
-use evm_rpc::types::{LogFilter, OverrideProvider, Provider, ProviderId, RpcAccess, RpcAuth};
+use evm_rpc::types::{OverrideProvider, Provider, ProviderId, RpcAccess, RpcAuth};
 use evm_rpc::{
     http::{json_rpc_request, json_rpc_request_arg, transform_http_request},
     memory::UNSTABLE_METRICS,
@@ -31,6 +32,7 @@ use ic_cdk::{
 };
 use ic_http_types::{HttpRequest, HttpResponse, HttpResponseBuilder};
 use ic_metrics_encoder::MetricsEncoder;
+use std::str::FromStr;
 use tower::Service;
 
 pub fn require_api_key_principal_or_controller() -> Result<(), String> {
@@ -311,7 +313,7 @@ fn post_upgrade(args: evm_rpc_types::InstallArgs) {
         set_api_key_principals(principals);
     }
     if let Some(filter) = args.log_filter {
-        set_log_filter(LogFilter::try_from(filter).expect("ERROR: Invalid log filter"));
+        set_log_filter(filter);
     }
     if let Some(override_provider) = args.override_provider {
         set_override_provider(
@@ -346,9 +348,6 @@ fn http_request(request: HttpRequest) -> HttpResponse {
             }
         }
         "/logs" => {
-            use evm_rpc::logs::{Log, Priority, Sort};
-            use std::str::FromStr;
-
             let max_skip_timestamp = match request.raw_query_param("time") {
                 Some(arg) => match u64::from_str(arg) {
                     Ok(value) => value,
@@ -361,7 +360,7 @@ fn http_request(request: HttpRequest) -> HttpResponse {
                 None => 0,
             };
 
-            let mut log: Log = Default::default();
+            let mut log: Log<Priority> = Default::default();
 
             match request.raw_query_param("priority").map(Priority::from_str) {
                 Some(Ok(priority)) => match priority {
@@ -369,7 +368,7 @@ fn http_request(request: HttpRequest) -> HttpResponse {
                     Priority::Debug => log.push_logs(Priority::Debug),
                     Priority::TraceHttp => log.push_logs(Priority::TraceHttp),
                 },
-                _ => {
+                Some(Err(_)) | None => {
                     log.push_logs(Priority::Info);
                     log.push_logs(Priority::Debug);
                     log.push_logs(Priority::TraceHttp);
@@ -380,18 +379,9 @@ fn http_request(request: HttpRequest) -> HttpResponse {
                 .retain(|entry| entry.timestamp >= max_skip_timestamp);
 
             fn ordering_from_query_params(sort: Option<&str>, max_skip_timestamp: u64) -> Sort {
-                match sort {
-                    Some(ord_str) => match Sort::from_str(ord_str) {
-                        Ok(order) => order,
-                        Err(_) => {
-                            if max_skip_timestamp == 0 {
-                                Sort::Ascending
-                            } else {
-                                Sort::Descending
-                            }
-                        }
-                    },
-                    None => {
+                match sort.map(Sort::from_str) {
+                    Some(Ok(order)) => order,
+                    Some(Err(_)) | None => {
                         if max_skip_timestamp == 0 {
                             Sort::Ascending
                         } else {

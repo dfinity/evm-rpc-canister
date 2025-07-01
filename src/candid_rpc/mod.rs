@@ -167,7 +167,7 @@ impl CandidRpcClient {
     ) -> MultiRpcResult<evm_rpc_types::Hex> {
         use crate::candid_rpc::cketh_conversion::{from_data, into_eth_call_params};
         process_result(
-            RpcMethod::EthFeeHistory,
+            RpcMethod::EthCall,
             self.client.eth_call(into_eth_call_params(args)).await,
         )
         .map(from_data)

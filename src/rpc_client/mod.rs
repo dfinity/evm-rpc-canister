@@ -73,24 +73,27 @@ impl Providers {
         now: Timestamp,
     ) -> Result<Self, ProviderError> {
         fn user_defined_providers(source: RpcServices) -> Option<Vec<RpcService>> {
+            fn map_services<T, F>(
+                services: impl Into<Option<Vec<T>>>,
+                f: F,
+            ) -> Option<Vec<RpcService>>
+            where
+                F: Fn(T) -> RpcService,
+            {
+                services.into().map(|s| s.into_iter().map(f).collect())
+            }
             match source {
-                RpcServices::Custom { services, .. } => {
-                    Some(services.into_iter().map(RpcService::Custom).collect())
-                }
-                RpcServices::EthMainnet(services) => {
-                    services.map(|s| s.into_iter().map(RpcService::EthMainnet).collect())
-                }
-                RpcServices::EthSepolia(services) => {
-                    services.map(|s| s.into_iter().map(RpcService::EthSepolia).collect())
-                }
+                RpcServices::Custom { services, .. } => map_services(services, RpcService::Custom),
+                RpcServices::EthMainnet(services) => map_services(services, RpcService::EthMainnet),
+                RpcServices::EthSepolia(services) => map_services(services, RpcService::EthSepolia),
                 RpcServices::ArbitrumOne(services) => {
-                    services.map(|s| s.into_iter().map(RpcService::ArbitrumOne).collect())
+                    map_services(services, RpcService::ArbitrumOne)
                 }
                 RpcServices::BaseMainnet(services) => {
-                    services.map(|s| s.into_iter().map(RpcService::BaseMainnet).collect())
+                    map_services(services, RpcService::BaseMainnet)
                 }
                 RpcServices::OptimismMainnet(services) => {
-                    services.map(|s| s.into_iter().map(RpcService::OptimismMainnet).collect())
+                    map_services(services, RpcService::OptimismMainnet)
                 }
             }
         }
