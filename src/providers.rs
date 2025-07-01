@@ -456,6 +456,7 @@ impl From<SupportedRpcService> for RpcService {
 }
 
 /// Record when a supported RPC service was used.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SupportedRpcServiceUsage(TimedSizedMap<SupportedRpcService, ()>);
 
 impl Default for SupportedRpcServiceUsage {
