@@ -6,7 +6,7 @@ use pocket_ic::common::rest::{
 use serde_json::Value;
 use std::collections::BTreeSet;
 use std::str::FromStr;
-use url::Url;
+use url::{Host, Url};
 
 pub struct MockOutcallBody(pub Vec<u8>);
 
@@ -40,6 +40,7 @@ impl MockOutcallBuilder {
         Self(MockOutcall {
             method: None,
             url: None,
+            host: None,
             request_headers: None,
             request_body: None,
             max_response_bytes: None,
@@ -66,6 +67,7 @@ impl MockOutcallBuilder {
         Self(MockOutcall {
             method: None,
             url: None,
+            host: None,
             request_headers: None,
             request_body: None,
             max_response_bytes: None,
@@ -83,6 +85,11 @@ impl MockOutcallBuilder {
 
     pub fn with_url(mut self, url: impl ToString) -> Self {
         self.0.url = Some(url.to_string());
+        self
+    }
+
+    pub fn with_host(mut self, host: &str) -> Self {
+        self.0.host = Some(Host::parse(host).expect("BUG: invalid host for a URL"));
         self
     }
 
@@ -132,6 +139,7 @@ impl From<MockOutcallBuilder> for MockOutcall {
 pub struct MockOutcall {
     pub method: Option<CanisterHttpMethod>,
     pub url: Option<String>,
+    pub host: Option<Host>,
     pub request_headers: Option<Vec<CanisterHttpHeader>>,
     pub request_body: Option<MockJsonRequestBody>,
     pub max_response_bytes: Option<u64>,
@@ -143,6 +151,7 @@ impl Default for MockOutcall {
         Self {
             method: None,
             url: None,
+            host: None,
             request_headers: None,
             request_body: None,
             max_response_bytes: None,
@@ -156,10 +165,16 @@ impl Default for MockOutcall {
 
 impl MockOutcall {
     pub fn assert_matches(&self, request: &CanisterHttpRequest) {
+        let req_url = Url::from_str(&request.url).expect("BUG: invalid URL");
         if let Some(ref url) = self.url {
             let mock_url = Url::from_str(url).unwrap();
-            let req_url = Url::from_str(&request.url).unwrap();
             assert_eq!(mock_url, req_url);
+        }
+        if let Some(ref host) = self.host {
+            assert_eq!(
+                host,
+                &req_url.host().expect("BUG: missing host in URL").to_owned()
+            );
         }
         if let Some(ref method) = self.method {
             assert_eq!(method, &request.http_method);

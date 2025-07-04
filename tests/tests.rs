@@ -2459,6 +2459,100 @@ fn should_log_request() {
     assert!(logs[1].message.contains("response for request with id `0`. Response with status 200 OK: JsonRpcResponse { jsonrpc: V2, id: Number(0), result: Ok(FeeHistory"));
 }
 
+#[test]
+fn should_change_default_provider_when_one_keep_failing() {
+    let [response_0, _response_1, response_2] =
+        json_rpc_sequential_id(json!({"jsonrpc":"2.0","id":0,"result":"0x1"}));
+    let setup = EvmRpcSetup::new().mock_api_keys();
+    let response = setup
+        .eth_get_transaction_count(
+            RpcServices::EthMainnet(None),
+            Some(RpcConfig {
+                response_consensus: Some(ConsensusStrategy::Threshold {
+                    total: Some(3),
+                    min: 2,
+                }),
+                ..Default::default()
+            }),
+            evm_rpc_types::GetTransactionCountArgs {
+                address: "0xdAC17F958D2ee523a2206206994597C13D831ec7"
+                    .parse()
+                    .unwrap(),
+                block: evm_rpc_types::BlockTag::Latest,
+            },
+        )
+        .mock_http_once(MockOutcallBuilder::new(200, response_0.clone()).with_host("rpc.ankr.com"))
+        .mock_http_once(MockOutcallBuilder::new(500, "error").with_host("ethereum.blockpi.network"))
+        .mock_http_once(
+            MockOutcallBuilder::new(200, response_2.clone())
+                .with_host("ethereum-rpc.publicnode.com"),
+        )
+        .wait()
+        .expect_consistent()
+        .unwrap();
+    assert_eq!(response, 1_u8.into());
+
+    let [response_3, response_4] =
+        json_rpc_sequential_id(json!({"jsonrpc":"2.0","id":3,"result":"0x1"}));
+    let response = setup
+        .eth_get_transaction_count(
+            RpcServices::EthMainnet(Some(vec![
+                EthMainnetService::Ankr,
+                EthMainnetService::Alchemy,
+            ])),
+            Some(RpcConfig {
+                response_consensus: Some(ConsensusStrategy::Equality),
+                ..Default::default()
+            }),
+            evm_rpc_types::GetTransactionCountArgs {
+                address: "0xdAC17F958D2ee523a2206206994597C13D831ec7"
+                    .parse()
+                    .unwrap(),
+                block: evm_rpc_types::BlockTag::Latest,
+            },
+        )
+        .mock_http_once(
+            MockOutcallBuilder::new(200, response_3.clone()).with_host("eth-mainnet.g.alchemy.com"),
+        )
+        .mock_http_once(MockOutcallBuilder::new(200, response_4.clone()).with_host("rpc.ankr.com"))
+        .wait()
+        .expect_consistent()
+        .unwrap();
+    assert_eq!(response, 1_u8.into());
+
+    let [response_5, response_6, response_7] =
+        json_rpc_sequential_id(json!({"jsonrpc":"2.0","id":5,"result":"0x1"}));
+    let response = setup
+        .eth_get_transaction_count(
+            RpcServices::EthMainnet(None),
+            Some(RpcConfig {
+                response_consensus: Some(ConsensusStrategy::Threshold {
+                    total: Some(3),
+                    min: 2,
+                }),
+                ..Default::default()
+            }),
+            evm_rpc_types::GetTransactionCountArgs {
+                address: "0xdAC17F958D2ee523a2206206994597C13D831ec7"
+                    .parse()
+                    .unwrap(),
+                block: evm_rpc_types::BlockTag::Latest,
+            },
+        )
+        .mock_http_once(
+            MockOutcallBuilder::new(200, response_5.clone()).with_host("eth-mainnet.g.alchemy.com"),
+        )
+        .mock_http_once(MockOutcallBuilder::new(200, response_6.clone()).with_host("rpc.ankr.com"))
+        .mock_http_once(
+            MockOutcallBuilder::new(200, response_7.clone())
+                .with_host("ethereum-rpc.publicnode.com"),
+        )
+        .wait()
+        .expect_consistent()
+        .unwrap();
+    assert_eq!(response, 1_u8.into());
+}
+
 pub fn multi_logs_for_single_transaction(num_logs: usize) -> serde_json::Value {
     let mut logs = Vec::with_capacity(num_logs);
     for log_index in 0..num_logs {

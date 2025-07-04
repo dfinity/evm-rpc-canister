@@ -1,9 +1,10 @@
 use crate::http::http_client;
-use crate::memory::get_override_provider;
+use crate::memory::{get_override_provider, rank_providers, record_ok_result};
 use crate::providers::{resolve_rpc_service, SupportedRpcService};
 use crate::rpc_client::eth_rpc::{HttpResponsePayload, ResponseSizeEstimate, HEADER_SIZE_LIMIT};
 use crate::rpc_client::numeric::TransactionCount;
 use crate::types::MetricRpcMethod;
+use canhttp::multi::Timestamp;
 use canhttp::{
     http::json::JsonRpcRequest,
     multi::{MultiResults, Reduce, ReduceWithEquality, ReduceWithThreshold},
@@ -66,7 +67,11 @@ pub struct Providers {
 impl Providers {
     const DEFAULT_NUM_PROVIDERS_FOR_EQUALITY: usize = 3;
 
-    pub fn new(source: RpcServices, strategy: ConsensusStrategy) -> Result<Self, ProviderError> {
+    pub fn new(
+        source: RpcServices,
+        strategy: ConsensusStrategy,
+        now: Timestamp,
+    ) -> Result<Self, ProviderError> {
         fn user_defined_providers(source: RpcServices) -> Option<Vec<RpcService>> {
             fn map_services<T, F>(
                 services: impl Into<Option<Vec<T>>>,
@@ -120,7 +125,7 @@ impl Providers {
 
         let (chain, supported_providers) = supported_providers(&source);
         let user_input = user_defined_providers(source);
-        let providers = choose_providers(user_input, supported_providers, strategy)?;
+        let providers = choose_providers(user_input, supported_providers, strategy, now)?;
 
         if providers.is_empty() {
             return Err(ProviderError::ProviderNotFound);
@@ -137,14 +142,14 @@ fn choose_providers(
     user_input: Option<Vec<RpcService>>,
     supported_providers: &[SupportedRpcService],
     strategy: ConsensusStrategy,
+    now: Timestamp,
 ) -> Result<BTreeSet<RpcService>, ProviderError> {
     match strategy {
         ConsensusStrategy::Equality => Ok(user_input
             .unwrap_or_else(|| {
-                supported_providers
-                    .iter()
+                rank_providers(supported_providers, now)
+                    .into_iter()
                     .take(Providers::DEFAULT_NUM_PROVIDERS_FOR_EQUALITY)
-                    .copied()
                     .map(RpcService::from)
                     .collect()
             })
@@ -180,10 +185,9 @@ fn choose_providers(
                             total, all_providers_len
                         )));
                     }
-                    let providers: BTreeSet<_> = supported_providers
-                        .iter()
+                    let providers: BTreeSet<_> = rank_providers(supported_providers, now)
+                        .into_iter()
                         .take(total as usize)
-                        .copied()
                         .map(RpcService::from)
                         .collect();
                     assert_eq!(providers.len(), total as usize, "BUG: duplicate providers");
@@ -220,11 +224,15 @@ pub struct EthRpcClient {
 }
 
 impl EthRpcClient {
-    pub fn new(source: RpcServices, config: Option<RpcConfig>) -> Result<Self, ProviderError> {
+    pub fn new(
+        source: RpcServices,
+        config: Option<RpcConfig>,
+        now: Timestamp,
+    ) -> Result<Self, ProviderError> {
         let config = config.unwrap_or_default();
         let strategy = config.response_consensus.clone().unwrap_or_default();
         Ok(Self {
-            providers: Providers::new(source, strategy)?,
+            providers: Providers::new(source, strategy, now)?,
             config,
         })
     }
@@ -307,6 +315,12 @@ impl EthRpcClient {
         let (requests, errors) = requests.into_inner();
         let (_client, mut results) = canhttp::multi::parallel_call(client, requests).await;
         results.add_errors(errors);
+        let now = Timestamp::from_nanos_since_unix_epoch(ic_cdk::api::time());
+        results
+            .ok_results()
+            .keys()
+            .filter_map(SupportedRpcService::new)
+            .for_each(|service| record_ok_result(service, now));
         assert_eq!(
             results.len(),
             providers.len(),

@@ -225,6 +225,9 @@ impl<T> TimedSizedVec<T> {
 pub struct Timestamp(Duration);
 
 impl Timestamp {
+    /// The Unix epoch.
+    pub const UNIX_EPOCH: Timestamp = Timestamp::from_nanos_since_unix_epoch(0);
+
     /// Create a new [`Timestamp`] from a number of nanoseconds since the Unix epoch.
     pub const fn from_nanos_since_unix_epoch(nanos: u64) -> Self {
         Timestamp::from_unix_epoch(Duration::from_nanos(nanos))
