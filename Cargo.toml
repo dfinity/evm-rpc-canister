@@ -19,7 +19,7 @@ inherits = "release"
 [dependencies]
 candid = { workspace = true }
 canlog = { workspace = true }
-canhttp = { path = "canhttp", features = ["json", "multi"] }
+canhttp = { version = "0.2.0", features = ["json", "multi"] }
 derive_more = { workspace = true }
 ethnum = { workspace = true }
 evm_rpc_types = { path = "evm_rpc_types" }
