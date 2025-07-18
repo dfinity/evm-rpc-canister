@@ -18,7 +18,9 @@ inherits = "release"
 
 [dependencies]
 candid = { workspace = true }
-canhttp = { path = "canhttp", features = ["json", "multi"] }
+canlog = { workspace = true }
+canhttp = { version = "0.2.0", features = ["json", "multi"] }
+derive_more = { workspace = true }
 ethnum = { workspace = true }
 evm_rpc_types = { path = "evm_rpc_types" }
 getrandom = { workspace = true }
@@ -61,8 +63,10 @@ rand = "0.8"
 [workspace.dependencies]
 assert_matches = "1.5.0"
 candid = { version = "0.10.13" }
+canlog = { version = "0.1.1", features = ["derive"] }
 candid_parser = { version = "0.1.4" }
 ciborium = "0.2.2"
+derive_more = { version = "2.0.1", features = ["from", "into"] }
 ethnum = { version = "1.5.0", features = ["serde"] }
 futures = "0.3.31"
 futures-channel = "0.3.31"
@@ -99,4 +103,4 @@ thiserror = "2.0.12"
 url = "2.5"
 
 [workspace]
-members = ["canhttp", "e2e/rust", "evm_rpc_types"]
+members = ["e2e/rust", "evm_rpc_types"]

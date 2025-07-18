@@ -1,11 +1,6 @@
 #[cfg(test)]
 mod tests;
 
-use evm_rpc_types::{
-    EthMainnetService, EthSepoliaService, L2MainnetService, ProviderError, RpcApi, RpcService,
-};
-use std::collections::BTreeMap;
-
 use crate::{
     constants::{
         ARBITRUM_ONE_CHAIN_ID, BASE_MAINNET_CHAIN_ID, ETH_MAINNET_CHAIN_ID, ETH_SEPOLIA_CHAIN_ID,
@@ -13,6 +8,13 @@ use crate::{
     },
     types::{Provider, ProviderId, ResolvedRpcService, RpcAccess, RpcAuth},
 };
+use canhttp::multi::{TimedSizedMap, TimedSizedVec, Timestamp};
+use evm_rpc_types::{
+    EthMainnetService, EthSepoliaService, L2MainnetService, ProviderError, RpcApi, RpcService,
+};
+use std::collections::BTreeMap;
+use std::num::NonZeroUsize;
+use std::time::Duration;
 
 pub const PROVIDERS: &[Provider] = &[
     Provider {
@@ -56,7 +58,7 @@ pub const PROVIDERS: &[Provider] = &[
             auth: RpcAuth::UrlParameter {
                 url_pattern: "https://ethereum.blockpi.network/v1/rpc/{API_KEY}",
             },
-            public_url: Some("https://ethereum.blockpi.network/v1/rpc/public"),
+            public_url: Some("https://ethereum.public.blockpi.network/v1/rpc/public"),
         },
         alias: Some(SupportedRpcService::EthMainnet(EthMainnetService::BlockPi)),
     },
@@ -86,7 +88,7 @@ pub const PROVIDERS: &[Provider] = &[
             auth: RpcAuth::UrlParameter {
                 url_pattern: "https://ethereum-sepolia.blockpi.network/v1/rpc/{API_KEY}",
             },
-            public_url: Some("https://ethereum-sepolia.blockpi.network/v1/rpc/public"),
+            public_url: None,
         },
         alias: Some(SupportedRpcService::EthSepolia(EthSepoliaService::BlockPi)),
     },
@@ -151,7 +153,7 @@ pub const PROVIDERS: &[Provider] = &[
             auth: RpcAuth::UrlParameter {
                 url_pattern: "https://arbitrum.blockpi.network/v1/rpc/{API_KEY}",
             },
-            public_url: Some("https://arbitrum.blockpi.network/v1/rpc/public"),
+            public_url: Some("https://arbitrum.public.blockpi.network/v1/rpc/public"),
         },
         alias: Some(SupportedRpcService::ArbitrumOne(L2MainnetService::BlockPi)),
     },
@@ -194,7 +196,7 @@ pub const PROVIDERS: &[Provider] = &[
             auth: RpcAuth::UrlParameter {
                 url_pattern: "https://base.blockpi.network/v1/rpc/{API_KEY}",
             },
-            public_url: Some("https://base.blockpi.network/v1/rpc/public"),
+            public_url: Some("https://base.public.blockpi.network/v1/rpc/public"),
         },
         alias: Some(SupportedRpcService::BaseMainnet(L2MainnetService::BlockPi)),
     },
@@ -239,7 +241,7 @@ pub const PROVIDERS: &[Provider] = &[
             auth: RpcAuth::UrlParameter {
                 url_pattern: "https://optimism.blockpi.network/v1/rpc/{API_KEY}",
             },
-            public_url: Some("https://optimism.blockpi.network/v1/rpc/public"),
+            public_url: Some("https://optimism.public.blockpi.network/v1/rpc/public"),
         },
         alias: Some(SupportedRpcService::OptimismMainnet(
             L2MainnetService::BlockPi,
@@ -370,6 +372,21 @@ pub enum SupportedRpcService {
 }
 
 impl SupportedRpcService {
+    pub fn new(service: &RpcService) -> Option<Self> {
+        match service {
+            RpcService::Provider(id) => find_provider(|provider| &provider.provider_id == id)
+                .and_then(|provider| provider.alias),
+            RpcService::Custom(_) => None,
+            RpcService::EthMainnet(service) => Some(SupportedRpcService::EthMainnet(*service)),
+            RpcService::EthSepolia(service) => Some(SupportedRpcService::EthSepolia(*service)),
+            RpcService::ArbitrumOne(service) => Some(SupportedRpcService::ArbitrumOne(*service)),
+            RpcService::BaseMainnet(service) => Some(SupportedRpcService::BaseMainnet(*service)),
+            RpcService::OptimismMainnet(service) => {
+                Some(SupportedRpcService::OptimismMainnet(*service))
+            }
+        }
+    }
+
     // Order of providers matters!
     // The threshold consensus strategy will consider the first `total` providers in the order
     // they are specified (taking the default ones first, followed by the non default ones if necessary)
@@ -435,5 +452,44 @@ impl From<SupportedRpcService> for RpcService {
             SupportedRpcService::BaseMainnet(service) => RpcService::BaseMainnet(service),
             SupportedRpcService::OptimismMainnet(service) => RpcService::OptimismMainnet(service),
         }
+    }
+}
+
+/// Record when a supported RPC service was used.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SupportedRpcServiceUsage(TimedSizedMap<SupportedRpcService, ()>);
+
+impl Default for SupportedRpcServiceUsage {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SupportedRpcServiceUsage {
+    pub fn new() -> SupportedRpcServiceUsage {
+        Self(TimedSizedMap::new(
+            Duration::from_secs(20 * 60),
+            NonZeroUsize::new(500).unwrap(),
+        ))
+    }
+
+    pub fn record_evict(&mut self, service: SupportedRpcService, now: Timestamp) {
+        self.0.insert_evict(now, service, ());
+    }
+
+    pub fn rank_ascending_evict(
+        &mut self,
+        services: &[SupportedRpcService],
+        now: Timestamp,
+    ) -> Vec<SupportedRpcService> {
+        fn ascending_num_elements<V>(values: Option<&TimedSizedVec<V>>) -> impl Ord {
+            std::cmp::Reverse(values.map(|v| v.len()).unwrap_or_default())
+        }
+
+        self.0.evict_expired(services, now);
+        self.0
+            .sort_keys_by(services, ascending_num_elements)
+            .copied()
+            .collect()
     }
 }

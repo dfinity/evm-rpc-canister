@@ -12,6 +12,7 @@ documentation = "https://docs.rs/evm_rpc_types"
 
 [dependencies]
 candid = { workspace = true }
+canlog = { workspace = true }
 hex = { workspace = true }
 ic-error-types = { workspace = true }
 ic-management-canister-types = { workspace = true }

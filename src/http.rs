@@ -1,5 +1,5 @@
 use crate::constants::COLLATERAL_CYCLES_PER_NODE;
-use crate::logs::{INFO, TRACE_HTTP};
+use crate::logs::Priority;
 use crate::memory::{get_num_subnet_nodes, is_demo_active, next_request_id};
 use crate::{
     add_metric_entry,
@@ -25,12 +25,12 @@ use canhttp::{
     ConvertServiceBuilder, CyclesAccounting, CyclesAccountingError, CyclesChargingPolicy,
     HttpsOutcallError, IcError, MaxResponseBytesRequestExtension, TransformContextRequestExtension,
 };
+use canlog::log;
 use evm_rpc_types::{
     HttpOutcallError, LegacyRejectionCode, ProviderError, RpcError, RpcResult, ValidationError,
 };
 use http::header::CONTENT_TYPE;
 use http::HeaderValue;
-use ic_canister_log::log;
 use ic_cdk::api::management_canister::http_request::{
     CanisterHttpRequestArgument as IcHttpRequest, HttpResponse as IcHttpResponse, TransformArgs,
     TransformContext,
@@ -116,7 +116,7 @@ where
                         (req_data.method.clone(), req_data.host.clone()),
                         1
                     );
-                    log!(TRACE_HTTP, "JSON-RPC request with id `{}` to {}: {:?}",
+                    log!(Priority::TraceHttp, "JSON-RPC request with id `{}` to {}: {:?}",
                         req_data.request_id,
                         req_data.host.0,
                         req.body()
@@ -126,7 +126,7 @@ where
                 .on_response(|req_data: MetricData, response: &HttpJsonRpcResponse<O>| {
                     observe_response(req_data.method, req_data.host, response.status().as_u16());
                     log!(
-                        TRACE_HTTP,
+                        Priority::TraceHttp,
                         "Got response for request with id `{}`. Response with status {}: {:?}",
                         req_data.request_id,
                         response.status(),
@@ -151,7 +151,7 @@ where
                                 response.status().as_u16(),
                             );
                             log!(
-                                TRACE_HTTP,
+                                Priority::TraceHttp,
                                 "Unsuccessful HTTP response for request with id `{}`. Response with status {}: {}",
                                 req_data.request_id,
                                 response.status(),
@@ -167,7 +167,7 @@ where
                         ) => {
                             observe_response(req_data.method, req_data.host, *status);
                             log!(
-                                TRACE_HTTP,
+                                Priority::TraceHttp,
                                 "Invalid JSON RPC response for request with id `{}`: {}",
                                 req_data.request_id,
                                 error
@@ -176,14 +176,14 @@ where
                         HttpClientError::InvalidJsonResponseId(ConsistentResponseIdFilterError::InconsistentId { status, request_id: _, response_id: _ }) => {
                             observe_response(req_data.method, req_data.host, *status);
                             log!(
-                                TRACE_HTTP,
+                                Priority::TraceHttp,
                                 "Invalid JSON RPC response for request with id `{}`: {}",
                                 req_data.request_id,
                                 error
                             );
                         }
                         HttpClientError::NotHandledError(e) => {
-                            log!(INFO, "BUG: Unexpected error: {}", e);
+                            log!(Priority::Info, "BUG: Unexpected error: {}", e);
                         }
                         HttpClientError::CyclesAccountingError(_) => {}
                     },
