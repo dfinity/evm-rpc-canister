@@ -66,6 +66,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b34d609dfbaf33d6889b2b7106d3ca345eacad44200913df5ba02bfd31d2ba9"
 
 [[package]]
+name = "async-trait"
+version = "0.1.88"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e539d3fca749fcee5236ab05e93a52867dd549cc157c8cb7f99595f3cedffdb5"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.101",
+]
+
+[[package]]
 name = "atomic-waker"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -958,6 +969,14 @@ dependencies = [
 [[package]]
 name = "evm_rpc_client"
 version = "1.4.0"
+dependencies = [
+ "async-trait",
+ "candid",
+ "evm_rpc_types",
+ "ic-cdk",
+ "ic-error-types",
+ "serde",
+]
 
 [[package]]
 name = "evm_rpc_types"

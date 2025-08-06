@@ -62,6 +62,7 @@ rand = "0.8"
 
 [workspace.dependencies]
 assert_matches = "1.5.0"
+async-trait = "0.1.88"
 candid = { version = "0.10.13" }
 canlog = { version = "0.1.1", features = ["derive"] }
 candid_parser = { version = "0.1.4" }
