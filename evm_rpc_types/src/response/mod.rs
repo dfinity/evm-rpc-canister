@@ -68,6 +68,27 @@ pub struct LogEntry {
     pub removed: bool,
 }
 
+#[cfg(feature = "alloy")]
+impl TryFrom<LogEntry> for alloy_rpc_types::Log {
+    type Error = String;
+
+    fn try_from(entry: LogEntry) -> Result<Self, Self::Error> {
+        Ok(Self {
+            inner: alloy_primitives::Log {
+                address: entry.address,
+                data: alloy_primitives::LogData::new(entry.topics, entry.data).ok_or()?,
+            },
+            block_hash: entry.block_hash,
+            block_number: entry.block_number,
+            block_timestamp: entry.block_timestamp,
+            transaction_hash: entry.transaction_hash,
+            transaction_index: entry.transaction_index,
+            log_index: entry.log_index,
+            removed: entry.removed,
+        })
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, CandidType)]
 pub struct TransactionReceipt {
     /// The hash of the block containing the transaction.

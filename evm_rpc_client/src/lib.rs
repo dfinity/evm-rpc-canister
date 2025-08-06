@@ -1,3 +1,8 @@
+//! TODO XC-412: Add documentation and examples
+
+mod request;
+
+use crate::request::Request;
 use async_trait::async_trait;
 use candid::utils::ArgumentEncoder;
 use candid::{CandidType, Principal};
@@ -193,6 +198,42 @@ impl<R: Runtime> EvmRpcClient<R> {
             )
             .await
             .unwrap()
+    }
+
+    async fn execute_request<Config, Params, CandidOutput, Output>(
+        &self,
+        request: Request<Config, Params, CandidOutput, Output>,
+    ) -> Output
+    where
+        Config: CandidType + Send,
+        Params: CandidType + Send,
+        CandidOutput: Into<Output> + CandidType + DeserializeOwned,
+    {
+        let rpc_method = request.endpoint.rpc_method();
+        self.try_execute_request(request)
+            .await
+            .unwrap_or_else(|e| panic!("Client error: failed to call `{}`: {e:?}", rpc_method))
+    }
+
+    async fn try_execute_request<Config, Params, CandidOutput, Output>(
+        &self,
+        request: Request<Config, Params, CandidOutput, Output>,
+    ) -> Result<Output, (RejectCode, String)>
+    where
+        Config: CandidType + Send,
+        Params: CandidType + Send,
+        CandidOutput: Into<Output> + CandidType + DeserializeOwned,
+    {
+        self.config
+            .runtime
+            .update_call::<(RpcServices, Option<Config>, Params), CandidOutput>(
+                self.config.evm_rpc_canister,
+                request.endpoint.rpc_method(),
+                (request.rpc_services, request.rpc_config, request.params),
+                request.cycles,
+            )
+            .await
+            .map(Into::into)
     }
 }
 
