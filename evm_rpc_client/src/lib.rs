@@ -2,13 +2,14 @@
 
 mod request;
 
-use crate::request::Request;
+use crate::request::{Request, RequestBuilder};
 use async_trait::async_trait;
 use candid::utils::ArgumentEncoder;
 use candid::{CandidType, Principal};
-use evm_rpc_types::{ConsensusStrategy, RpcConfig, RpcServices};
+use evm_rpc_types::{ConsensusStrategy, GetLogsArgs, RpcConfig, RpcServices};
 use ic_cdk::api::call::RejectionCode as IcCdkRejectionCode;
 use ic_error_types::RejectCode;
+pub use request::{GetLogsRequest, GetLogsRequestBuilder};
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
 
@@ -162,6 +163,18 @@ impl<R> ClientBuilder<R> {
         EvmRpcClient {
             config: Arc::new(self.config),
         }
+    }
+}
+
+impl<R> EvmRpcClient<R> {
+    /// Call `get_ethLogs` on the EVM RPC canister.
+    /// TODO XC-412: Add docs and examples
+    pub fn get_logs(&self, params: impl Into<GetLogsArgs>) -> GetLogsRequestBuilder<R> {
+        RequestBuilder::new(
+            self.clone(),
+            GetLogsRequest::new(params.into()),
+            10_000_000_000,
+        )
     }
 }
 

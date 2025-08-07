@@ -1,13 +1,36 @@
 use crate::{EvmRpcClient, Runtime};
 use candid::CandidType;
 use evm_rpc_types::{
-    BlockTag, GetLogsArgs, GetLogsRpcConfig, Hex20, Hex32, MultiRpcResult, RpcConfig, RpcResult,
-    RpcServices,
+    BlockTag, GetLogsArgs, GetLogsRpcConfig, Hex20, Hex32, MultiRpcResult, RpcConfig, RpcServices,
 };
 use ic_error_types::RejectCode;
 use serde::de::DeserializeOwned;
 use std::fmt::{Debug, Formatter};
 use strum::EnumIter;
+
+#[derive(Debug, Clone)]
+pub struct GetLogsRequest(GetLogsArgs);
+
+impl GetLogsRequest {
+    pub fn new(params: GetLogsArgs) -> Self {
+        Self(params)
+    }
+}
+
+impl EvmRpcRequest for GetLogsRequest {
+    type Config = GetLogsRpcConfig;
+    type Params = GetLogsArgs;
+    type CandidOutput = MultiRpcResult<Vec<evm_rpc_types::LogEntry>>;
+    type Output = MultiRpcResult<Vec<alloy_rpc_types::Log>>;
+
+    fn endpoint(&self) -> EvmRpcEndpoint {
+        EvmRpcEndpoint::GetLogs
+    }
+
+    fn params(self) -> Self::Params {
+        self.0
+    }
+}
 
 pub type GetLogsRequestBuilder<R> = RequestBuilder<
     R,
@@ -138,22 +161,6 @@ impl<Runtime, Config, Params, CandidOutput, Output>
             _output_marker: Default::default(),
         };
         RequestBuilder::<Runtime, Config, Params, CandidOutput, Output> { client, request }
-    }
-
-    /// Query the cycles cost for that request
-    pub fn request_cost(self) -> RequestCostBuilder<Runtime, Config, Params> {
-        RequestCostBuilder {
-            client: self.client,
-            request: RequestCost {
-                endpoint: self.request.endpoint,
-                rpc_services: self.request.rpc_services,
-                rpc_config: self.request.rpc_config,
-                params: self.request.params,
-                cycles: 0,
-                _candid_marker: Default::default(),
-                _output_marker: Default::default(),
-            },
-        }
     }
 
     /// Change the amount of cycles to send for that request.
@@ -322,30 +329,5 @@ impl<Config, Params, CandidOutput, Output> Request<Config, Params, CandidOutput,
     #[inline]
     pub fn params_mut(&mut self) -> &mut Params {
         &mut self.params
-    }
-}
-
-pub type RequestCost<Config, Params> = Request<Config, Params, RpcResult<u128>, RpcResult<u128>>;
-
-#[must_use = "RequestCostBuilder does nothing until you 'send' it"]
-pub struct RequestCostBuilder<Runtime, Config, Params> {
-    client: EvmRpcClient<Runtime>,
-    request: RequestCost<Config, Params>,
-}
-
-impl<R: Runtime, Config, Params> RequestCostBuilder<R, Config, Params> {
-    /// Constructs the [`Request`] and send it using the [`EvmRpcClient`].
-    pub async fn send(self) -> RpcResult<u128>
-    where
-        Config: CandidType + Send,
-        Params: CandidType + Send,
-    {
-        self.client.execute_cycles_cost_request(self.request).await
-    }
-}
-
-fn set_default<T>(default_value: Option<T>, value: &mut Option<T>) {
-    if default_value.is_some() && value.is_none() {
-        *value = Some(default_value.unwrap())
     }
 }
