@@ -40,16 +40,21 @@ impl<T> MultiRpcResult<T> {
 
     /// Maps a [`MultiRpcResult`] containing values of type `T` to a [`MultiRpcResult`] containing
     /// values of type `R` by a fallible map.
-    pub fn and_then<R, F>(self, f: F) -> MultiRpcResult<R>
-    where
-        F: FnMut(T) -> RpcResult<R> + Clone,
-    {
+    pub fn and_then<R>(self, f: impl FnMut(T) -> RpcResult<R>) -> MultiRpcResult<R> {
         match self {
             MultiRpcResult::Consistent(result) => MultiRpcResult::Consistent(result.and_then(f)),
             MultiRpcResult::Inconsistent(results) => MultiRpcResult::Inconsistent(
                 results
                     .into_iter()
-                    .map(|(source, result)| (source, result.and_then(f.clone())))
+                    .map(|(service, result)| {
+                        (
+                            service,
+                            match result {
+                                Ok(ok) => f(ok),
+                                Err(err) => Err(err),
+                            },
+                        )
+                    })
                     .collect(),
             ),
         }
