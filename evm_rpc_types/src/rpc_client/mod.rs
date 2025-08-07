@@ -196,7 +196,7 @@ impl L2MainnetService {
 
 #[derive(Clone, PartialEq, Eq, Ord, PartialOrd, Hash, Serialize, Deserialize, CandidType)]
 pub enum RpcService {
-    Provider(ProviderId),
+    Provider(u64),
     Custom(RpcApi),
     EthMainnet(EthMainnetService),
     EthSepolia(EthSepoliaService),
@@ -219,12 +219,10 @@ impl Debug for RpcService {
     }
 }
 
-pub type ProviderId = u64;
-
 #[derive(Debug, Clone, PartialEq, Eq, CandidType, Deserialize, Serialize)]
 pub struct Provider {
     #[serde(rename = "providerId")]
-    pub provider_id: ProviderId,
+    pub provider_id: u64,
     #[serde(rename = "chainId")]
     pub chain_id: u64,
     pub access: RpcAccess,
