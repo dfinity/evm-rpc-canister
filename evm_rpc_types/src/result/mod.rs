@@ -207,6 +207,10 @@ impl From<RejectCode> for LegacyRejectionCode {
 #[cfg(feature = "alloy")]
 impl From<MultiRpcResult<Vec<LogEntry>>> for MultiRpcResult<Vec<alloy_rpc_types::Log>> {
     fn from(result: MultiRpcResult<Vec<LogEntry>>) -> Self {
-        result.map(|logs| logs.into_iter().map(alloy_rpc_types::Log::from).collect())
+        result.and_then(|logs| {
+            logs.into_iter()
+                .map(alloy_rpc_types::Log::try_from)
+                .collect()
+        })
     }
 }

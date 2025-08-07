@@ -80,7 +80,7 @@ impl TryFrom<LogEntry> for alloy_rpc_types::Log {
                     entry
                         .topics
                         .into_iter()
-                        .map(|topic| alloy_primitives::B256::from(topic))
+                        .map(alloy_primitives::B256::from)
                         .collect(),
                     alloy_primitives::Bytes::from(entry.data),
                 )
