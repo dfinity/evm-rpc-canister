@@ -9,7 +9,7 @@ use candid::{CandidType, Principal};
 use evm_rpc_types::{ConsensusStrategy, GetLogsArgs, RpcConfig, RpcServices};
 use ic_cdk::api::call::RejectionCode as IcCdkRejectionCode;
 use ic_error_types::RejectCode;
-pub use request::{GetLogsRequest, GetLogsRequestBuilder};
+use request::{GetLogsRequest, GetLogsRequestBuilder};
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
 
