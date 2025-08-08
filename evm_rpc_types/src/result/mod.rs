@@ -40,7 +40,7 @@ impl<T> MultiRpcResult<T> {
 
     /// Maps a [`MultiRpcResult`] containing values of type `T` to a [`MultiRpcResult`] containing
     /// values of type `R` by a fallible map.
-    pub fn and_then<R>(self, f: impl FnMut(T) -> RpcResult<R>) -> MultiRpcResult<R> {
+    pub fn and_then<R>(self, mut f: impl FnMut(T) -> RpcResult<R>) -> MultiRpcResult<R> {
         match self {
             MultiRpcResult::Consistent(result) => MultiRpcResult::Consistent(result.and_then(f)),
             MultiRpcResult::Inconsistent(results) => MultiRpcResult::Inconsistent(
