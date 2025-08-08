@@ -34,9 +34,9 @@ impl Clone for PocketIcRuntime<'_> {
     fn clone(&self) -> Self {
         Self {
             env: self.env,
-            caller: self.caller.clone(),
+            caller: self.caller,
             mocks: Mutex::new(self.mocks.lock().unwrap().clone()),
-            controller: self.controller.clone(),
+            controller: self.controller,
         }
     }
 }

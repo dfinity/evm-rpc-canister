@@ -35,7 +35,7 @@ impl MockOutcallQueue {
     pub fn push(&mut self, outcall: impl Into<MockOutcall>, repeat: MockOutcallRepeat) {
         self.0.push_back(match repeat {
             MockOutcallRepeat::Once => Box::new(std::iter::once(outcall.into())),
-            MockOutcallRepeat::Times(n) => Box::new(std::iter::repeat(outcall.into()).take(n)),
+            MockOutcallRepeat::Times(n) => Box::new(std::iter::repeat_n(outcall.into(), n)),
             MockOutcallRepeat::Forever => Box::new(std::iter::repeat(outcall.into())),
         })
     }
