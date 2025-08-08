@@ -1,15 +1,20 @@
 //! TODO XC-412: Add documentation and examples
 
 mod request;
+mod runtime;
 
 use crate::request::{Request, RequestBuilder};
-use async_trait::async_trait;
-use candid::utils::ArgumentEncoder;
 use candid::{CandidType, Principal};
 use evm_rpc_types::{ConsensusStrategy, GetLogsArgs, RpcConfig, RpcServices};
 use ic_cdk::api::call::RejectionCode as IcCdkRejectionCode;
 use ic_error_types::RejectCode;
 use request::{GetLogsRequest, GetLogsRequestBuilder};
+#[cfg(feature = "pocket-ic")]
+pub use runtime::{
+    forever, once, MockOutcall, MockOutcallBody, MockOutcallBuilder, MockOutcallQueue,
+    MockOutcallRepeat, PocketIcRuntime, RepeatExt,
+};
+pub use runtime::{IcRuntime, Runtime};
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
 
@@ -22,36 +27,6 @@ use std::sync::Arc;
 /// assert_eq!(EVM_RPC_CANISTER, Principal::from_text("7hfb6-caaaa-aaaar-qadga-cai").unwrap())
 /// ```
 pub const EVM_RPC_CANISTER: Principal = Principal::from_slice(&[0, 0, 0, 0, 2, 48, 0, 204, 1, 1]);
-
-/// Abstract the canister runtime so that the client code can be reused:
-/// * in production using `ic_cdk`,
-/// * in unit tests by mocking this trait,
-/// * in integration tests by implementing this trait for `PocketIc`.
-#[async_trait]
-pub trait Runtime {
-    /// Defines how asynchronous inter-canister update calls are made.
-    async fn update_call<In, Out>(
-        &self,
-        id: Principal,
-        method: &str,
-        args: In,
-        cycles: u128,
-    ) -> Result<Out, (RejectCode, String)>
-    where
-        In: ArgumentEncoder + Send,
-        Out: CandidType + DeserializeOwned;
-
-    /// Defines how asynchronous inter-canister query calls are made.
-    async fn query_call<In, Out>(
-        &self,
-        id: Principal,
-        method: &str,
-        args: In,
-    ) -> Result<Out, (RejectCode, String)>
-    where
-        In: ArgumentEncoder + Send,
-        Out: CandidType + DeserializeOwned;
-}
 
 /// Client to interact with the EVM RPC canister.
 #[derive(Debug)]
@@ -247,46 +222,6 @@ impl<R: Runtime> EvmRpcClient<R> {
             )
             .await
             .map(Into::into)
-    }
-}
-
-/// Runtime when interacting with a canister running on the Internet Computer.
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub struct IcRuntime;
-
-#[async_trait]
-impl Runtime for IcRuntime {
-    async fn update_call<In, Out>(
-        &self,
-        id: Principal,
-        method: &str,
-        args: In,
-        cycles: u128,
-    ) -> Result<Out, (RejectCode, String)>
-    where
-        In: ArgumentEncoder + Send,
-        Out: CandidType + DeserializeOwned,
-    {
-        ic_cdk::api::call::call_with_payment128(id, method, args, cycles)
-            .await
-            .map(|(res,)| res)
-            .map_err(|(code, message)| (convert_reject_code(code), message))
-    }
-
-    async fn query_call<In, Out>(
-        &self,
-        id: Principal,
-        method: &str,
-        args: In,
-    ) -> Result<Out, (RejectCode, String)>
-    where
-        In: ArgumentEncoder + Send,
-        Out: CandidType + DeserializeOwned,
-    {
-        ic_cdk::api::call::call(id, method, args)
-            .await
-            .map(|(res,)| res)
-            .map_err(|(code, message)| (convert_reject_code(code), message))
     }
 }
 
