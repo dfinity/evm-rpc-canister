@@ -1,6 +1,7 @@
 mod mock;
 
 use crate::mock::MockJsonRequestBody;
+use alloy_primitives::{address, b256, bytes};
 use assert_matches::assert_matches;
 use candid::{CandidType, Decode, Encode, Nat, Principal};
 use canlog::{Log, LogEntry};
@@ -10,6 +11,9 @@ use evm_rpc::{
     constants::{CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE},
     providers::PROVIDERS,
     types::{Metrics, ProviderId, RpcAccess, RpcMethod},
+};
+use evm_rpc_client::{
+    ClientBuilder, EvmRpcClient, MockOutcallQueue, MockOutcallRepeat, PocketIcRuntime,
 };
 use evm_rpc_types::{
     BlockTag, ConsensusStrategy, EthMainnetService, EthSepoliaService, GetLogsRpcConfig, Hex,
@@ -29,10 +33,10 @@ use pocket_ic::common::rest::{
     CanisterHttpMethod, CanisterHttpReject, CanisterHttpResponse, MockCanisterHttpResponse,
     RawMessageId,
 };
-use pocket_ic::{ErrorCode, PocketIc, PocketIcBuilder, RejectResponse};
+use pocket_ic::{nonblocking, ErrorCode, PocketIc, PocketIcBuilder, RejectResponse};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::json;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::{marker::PhantomData, mem, str::FromStr, time::Duration};
 
 const DEFAULT_CALLER_TEST_ID: Principal = Principal::from_slice(&[0x9d, 0xf7, 0x01]);
@@ -74,6 +78,149 @@ fn evm_rpc_wasm() -> Vec<u8> {
 
 fn assert_reply(result: Result<Vec<u8>, RejectResponse>) -> Vec<u8> {
     result.unwrap_or_else(|e| panic!("Expected a successful reply, got error {e}"))
+}
+
+#[derive(Clone)]
+pub struct EvmRpcNonblockingSetup {
+    pub env: Arc<nonblocking::PocketIc>,
+    pub caller: Principal,
+    pub controller: Principal,
+    pub canister_id: CanisterId,
+}
+
+impl EvmRpcNonblockingSetup {
+    pub async fn new() -> Self {
+        Self::with_args(InstallArgs {
+            demo: Some(true),
+            ..Default::default()
+        })
+        .await
+    }
+
+    pub async fn with_args(args: InstallArgs) -> Self {
+        // The `with_fiduciary_subnet` setup below requires that `nodes_in_subnet`
+        // setting (part of InstallArgs) to be set appropriately. Otherwise
+        // http outcall will fail due to insufficient cycles, even when `demo` is
+        // enabled (which is the default above).
+        //
+        // As of writing, the default value of `nodes_in_subnet` is 34, which is
+        // also the node count in fiduciary subnet.
+        let pocket_ic = PocketIcBuilder::new()
+            .with_fiduciary_subnet()
+            .build_async()
+            .await;
+        let env = Arc::new(pocket_ic);
+
+        let controller = DEFAULT_CONTROLLER_TEST_ID;
+        let canister_id = env
+            .create_canister_with_settings(
+                None,
+                Some(CanisterSettings {
+                    controllers: Some(vec![controller]),
+                    ..CanisterSettings::default()
+                }),
+            )
+            .await;
+        env.add_cycles(canister_id, INITIAL_CYCLES).await;
+        env.install_canister(
+            canister_id,
+            evm_rpc_wasm(),
+            Encode!(&args).unwrap(),
+            Some(controller),
+        )
+        .await;
+
+        let caller = DEFAULT_CALLER_TEST_ID;
+
+        Self {
+            env,
+            caller,
+            controller,
+            canister_id,
+        }
+    }
+
+    pub async fn upgrade_canister(&self, args: InstallArgs) {
+        for _ in 0..100 {
+            self.env.tick().await;
+            // Avoid `CanisterInstallCodeRateLimited` error
+            self.env.advance_time(Duration::from_secs(600)).await;
+            self.env.tick().await;
+            match self
+                .env
+                .upgrade_canister(
+                    self.canister_id,
+                    evm_rpc_wasm(),
+                    Encode!(&args).unwrap(),
+                    Some(self.controller),
+                )
+                .await
+            {
+                Ok(_) => return,
+                Err(e) if e.error_code == ErrorCode::CanisterInstallCodeRateLimited => continue,
+                Err(e) => panic!("Error while upgrading canister: {e:?}"),
+            }
+        }
+        panic!("Failed to upgrade canister after many trials!")
+    }
+
+    /// Shorthand for deriving an `EvmRpcSetup` with the caller as the canister controller.
+    pub fn as_controller(mut self) -> Self {
+        self.caller = self.controller;
+        self
+    }
+
+    /// Shorthand for deriving an `EvmRpcSetup` with an arbitrary caller.
+    pub fn as_caller<T: Into<Principal>>(mut self, id: T) -> Self {
+        self.caller = id.into();
+        self
+    }
+
+    pub fn client(&self) -> ClientBuilder<PocketIcRuntime> {
+        EvmRpcClient::builder(self.new_pocket_ic_runtime(), self.canister_id)
+    }
+
+    fn new_pocket_ic_runtime(&self) -> PocketIcRuntime {
+        PocketIcRuntime {
+            env: &self.env,
+            caller: self.caller,
+            mocks: Mutex::<MockOutcallQueue>::default(),
+            controller: self.controller,
+        }
+    }
+
+    pub async fn update_api_keys(&self, api_keys: &[(ProviderId, Option<String>)]) {
+        self.env
+            .update_call(
+                self.canister_id,
+                self.controller,
+                "updateApiKeys",
+                Encode!(&api_keys).expect("Failed to encode arguments."),
+            )
+            .await
+            .expect("BUG: Failed to call updateApiKeys");
+    }
+
+    pub async fn mock_api_keys(self) -> Self {
+        self.clone()
+            .as_controller()
+            .update_api_keys(
+                &PROVIDERS
+                    .iter()
+                    .filter_map(|provider| {
+                        Some((
+                            provider.provider_id,
+                            match provider.access {
+                                RpcAccess::Authenticated { .. } => Some(MOCK_API_KEY.to_string()),
+                                RpcAccess::Unauthenticated { .. } => None?,
+                            },
+                        ))
+                    })
+                    .collect::<Vec<_>>(),
+            )
+            .await;
+        self
+    }
 }
 
 #[derive(Clone)]
@@ -665,63 +812,74 @@ fn should_decode_transaction_receipt() {
     );
 }
 
-#[test]
-fn eth_get_logs_should_succeed() {
+#[tokio::test]
+async fn eth_get_logs_should_succeed() {
     fn mock_responses() -> [serde_json::Value; 3] {
-        json_rpc_sequential_id(
-            json!({"id":0,"jsonrpc":"2.0","result":[{"address":"0xdac17f958d2ee523a2206206994597c13d831ec7","topics":["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef","0x000000000000000000000000a9d1e08c7793af67e9d92fe308d5697fb81d3e43","0x00000000000000000000000078cccfb3d517cd4ed6d045e263e134712288ace2"],"data":"0x000000000000000000000000000000000000000000000000000000003b9c6433","blockNumber":"0x11dc77e","transactionHash":"0xf3ed91a03ddf964281ac7a24351573efd535b80fc460a5c2ad2b9d23153ec678","transactionIndex":"0x65","blockHash":"0xd5c72ad752b2f0144a878594faf8bd9f570f2f72af8e7f0940d3545a6388f629","logIndex":"0xe8","removed":false}]}),
-        )
+        json_rpc_sequential_id(json!({
+            "id" : 0,
+            "jsonrpc" : "2.0",
+            "result" : [
+                {
+                    "address" : "0xdac17f958d2ee523a2206206994597c13d831ec7",
+                    "topics" : [
+                        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                        "0x000000000000000000000000a9d1e08c7793af67e9d92fe308d5697fb81d3e43",
+                        "0x00000000000000000000000078cccfb3d517cd4ed6d045e263e134712288ace2"
+                    ],
+                    "data" : "0x000000000000000000000000000000000000000000000000000000003b9c6433",
+                    "blockNumber" : "0x11dc77e",
+                    "transactionHash" : "0xf3ed91a03ddf964281ac7a24351573efd535b80fc460a5c2ad2b9d23153ec678",
+                    "transactionIndex" : "0x65",
+                    "blockHash" : "0xd5c72ad752b2f0144a878594faf8bd9f570f2f72af8e7f0940d3545a6388f629",
+                    "logIndex" : "0xe8",
+                    "removed" : false
+                }
+            ]
+        }))
     }
 
-    fn expected_logs() -> Vec<evm_rpc_types::LogEntry> {
-        vec![evm_rpc_types::LogEntry {
-            address: "0xdac17f958d2ee523a2206206994597c13d831ec7"
-                .parse()
-                .unwrap(),
-            topics: vec![
-                "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
-                "0x000000000000000000000000a9d1e08c7793af67e9d92fe308d5697fb81d3e43",
-                "0x00000000000000000000000078cccfb3d517cd4ed6d045e263e134712288ace2",
-            ]
-            .into_iter()
-            .map(|hex| hex.parse().unwrap())
-            .collect(),
-            data: "0x000000000000000000000000000000000000000000000000000000003b9c6433"
-                .parse()
-                .unwrap(),
+    fn expected_logs() -> Vec<alloy_rpc_types::Log> {
+        vec![alloy_rpc_types::Log {
+            inner: alloy_primitives::Log::new(
+                address!("0xdac17f958d2ee523a2206206994597c13d831ec7"),
+                vec![
+                    b256!("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"),
+                    b256!("0x000000000000000000000000a9d1e08c7793af67e9d92fe308d5697fb81d3e43"),
+                    b256!("0x00000000000000000000000078cccfb3d517cd4ed6d045e263e134712288ace2"),
+                ],
+                bytes!("0x000000000000000000000000000000000000000000000000000000003b9c6433"),
+            )
+            .unwrap(),
             block_number: Some(0x11dc77e_u32.into()),
-            transaction_hash: Some(
+            transaction_hash: Some(b256!(
                 "0xf3ed91a03ddf964281ac7a24351573efd535b80fc460a5c2ad2b9d23153ec678"
-                    .parse()
-                    .unwrap(),
-            ),
+            )),
             transaction_index: Some(0x65_u32.into()),
-            block_hash: Some(
+            block_hash: Some(b256!(
                 "0xd5c72ad752b2f0144a878594faf8bd9f570f2f72af8e7f0940d3545a6388f629"
-                    .parse()
-                    .unwrap(),
-            ),
+            )),
             log_index: Some(0xe8_u32.into()),
             removed: false,
+            block_timestamp: None,
         }]
     }
 
-    let setup = EvmRpcSetup::new().mock_api_keys();
+    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
     let mut offset = 0_u64;
     for source in RPC_SERVICES {
         for (config, from_block, to_block) in [
             // default block range
             (
-                None,
+                GetLogsRpcConfig::default(),
                 Some(BlockTag::Number(0_u8.into())),
                 Some(BlockTag::Number(500_u16.into())),
             ),
             // large block range
             (
-                Some(GetLogsRpcConfig {
+                GetLogsRpcConfig {
                     max_block_range: Some(1_000),
                     ..Default::default()
-                }),
+                },
                 Some(BlockTag::Number(0_u8.into())),
                 Some(BlockTag::Number(501_u16.into())),
             ),
@@ -729,23 +887,26 @@ fn eth_get_logs_should_succeed() {
             let mut responses: [serde_json::Value; 3] = mock_responses();
             add_offset_json_rpc_id(responses.as_mut_slice(), offset);
 
-            let response = setup
-                .eth_get_logs(
-                    source.clone(),
-                    config,
-                    evm_rpc_types::GetLogsArgs {
-                        addresses: vec!["0xdAC17F958D2ee523a2206206994597C13D831ec7"
-                            .parse()
-                            .unwrap()],
-                        from_block,
-                        to_block,
-                        topics: None,
-                    },
+            let client = setup
+                .client()
+                .with_rpc_sources(source.clone())
+                .mock(
+                    evm_rpc_client::MockOutcallBuilder::new(200, responses.clone()),
+                    MockOutcallRepeat::Once,
                 )
-                .mock_http_once(MockOutcallBuilder::new(200, responses[0].clone()))
-                .mock_http_once(MockOutcallBuilder::new(200, responses[1].clone()))
-                .mock_http_once(MockOutcallBuilder::new(200, responses[2].clone()))
-                .wait()
+                .build();
+            let response = client
+                .get_logs(evm_rpc_types::GetLogsArgs {
+                    addresses: vec!["0xdAC17F958D2ee523a2206206994597C13D831ec7"
+                        .parse()
+                        .unwrap()],
+                    from_block,
+                    to_block,
+                    topics: None,
+                })
+                .with_rpc_config(config)
+                .send()
+                .await
                 .expect_consistent()
                 .unwrap();
             offset += 3;

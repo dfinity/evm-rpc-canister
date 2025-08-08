@@ -1494,6 +1494,8 @@ dependencies = [
 name = "evm_rpc"
 version = "2.4.0"
 dependencies = [
+ "alloy-primitives",
+ "alloy-rpc-types",
  "assert_matches",
  "candid",
  "candid_parser",
@@ -1502,6 +1504,7 @@ dependencies = [
  "derive_more 2.0.1",
  "ethers-core",
  "ethnum",
+ "evm_rpc_client",
  "evm_rpc_types",
  "getrandom 0.2.16",
  "hex",
@@ -1528,6 +1531,7 @@ dependencies = [
  "sha2",
  "thiserror 2.0.12",
  "thousands",
+ "tokio",
  "tower",
  "tower-http",
  "url",
@@ -1541,11 +1545,15 @@ dependencies = [
  "alloy-rpc-types",
  "async-trait",
  "candid",
+ "canhttp",
  "evm_rpc_types",
  "ic-cdk",
  "ic-error-types",
+ "pocket-ic",
  "serde",
+ "serde_json",
  "strum 0.27.1",
+ "url",
 ]
 
 [[package]]
