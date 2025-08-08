@@ -37,6 +37,16 @@ impl From<GetLogsRpcConfig> for RpcConfig {
     }
 }
 
+impl From<RpcConfig> for GetLogsRpcConfig {
+    fn from(config: RpcConfig) -> Self {
+        Self {
+            response_size_estimate: config.response_size_estimate,
+            response_consensus: config.response_consensus,
+            max_block_range: None,
+        }
+    }
+}
+
 impl GetLogsRpcConfig {
     pub fn max_block_range_or_default(&self) -> u32 {
         const DEFAULT_ETH_GET_LOGS_MAX_BLOCK_RANGE: u32 = 500;

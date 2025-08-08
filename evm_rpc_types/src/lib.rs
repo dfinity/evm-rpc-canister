@@ -47,6 +47,15 @@ impl Debug for Nat256 {
     }
 }
 
+impl TryFrom<Nat256> for u64 {
+    type Error = RpcError;
+
+    fn try_from(value: Nat256) -> Result<Self, Self::Error> {
+        u64::try_from(value.0 .0)
+            .map_err(|e| RpcError::ValidationError(ValidationError::Custom(format!("{:?}", e))))
+    }
+}
+
 impl Nat256 {
     pub const ZERO: Nat256 = Nat256(Nat(BigUint::ZERO));
 
@@ -202,6 +211,27 @@ impl_hex_string!(Hex20([u8; 20]));
 impl_hex_string!(Hex32([u8; 32]));
 impl_hex_string!(Hex256([u8; 256]));
 impl_hex_string!(Hex(Vec<u8>));
+
+#[cfg(feature = "alloy")]
+impl From<Hex20> for alloy_primitives::Address {
+    fn from(value: Hex20) -> Self {
+        Self::from(value.0)
+    }
+}
+
+#[cfg(feature = "alloy")]
+impl From<Hex32> for alloy_primitives::B256 {
+    fn from(value: Hex32) -> Self {
+        Self::from(value.0)
+    }
+}
+
+#[cfg(feature = "alloy")]
+impl From<Hex> for alloy_primitives::Bytes {
+    fn from(value: Hex) -> Self {
+        Self::from_iter(value.0)
+    }
+}
 
 impl Hex20 {
     pub fn as_array(&self) -> &[u8; 20] {

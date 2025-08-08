@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests;
 
-use crate::RpcService;
+use crate::{LogEntry, RpcService};
 use candid::{CandidType, Deserialize};
 use ic_error_types::RejectCode;
 use std::fmt::Debug;
@@ -16,6 +16,8 @@ pub enum MultiRpcResult<T> {
 }
 
 impl<T> MultiRpcResult<T> {
+    /// Maps a [`MultiRpcResult`] containing values of type `T` to a [`MultiRpcResult`] containing
+    /// values of type `R` by an infallible map.
     pub fn map<R>(self, mut f: impl FnMut(T) -> R) -> MultiRpcResult<R> {
         match self {
             MultiRpcResult::Consistent(result) => MultiRpcResult::Consistent(result.map(f)),
@@ -27,6 +29,28 @@ impl<T> MultiRpcResult<T> {
                             service,
                             match result {
                                 Ok(ok) => Ok(f(ok)),
+                                Err(err) => Err(err),
+                            },
+                        )
+                    })
+                    .collect(),
+            ),
+        }
+    }
+
+    /// Maps a [`MultiRpcResult`] containing values of type `T` to a [`MultiRpcResult`] containing
+    /// values of type `R` by a fallible map.
+    pub fn and_then<R>(self, mut f: impl FnMut(T) -> RpcResult<R>) -> MultiRpcResult<R> {
+        match self {
+            MultiRpcResult::Consistent(result) => MultiRpcResult::Consistent(result.and_then(f)),
+            MultiRpcResult::Inconsistent(results) => MultiRpcResult::Inconsistent(
+                results
+                    .into_iter()
+                    .map(|(service, result)| {
+                        (
+                            service,
+                            match result {
+                                Ok(ok) => f(ok),
                                 Err(err) => Err(err),
                             },
                         )
@@ -182,5 +206,16 @@ impl From<RejectCode> for LegacyRejectionCode {
             RejectCode::CanisterError => Self::CanisterError,
             RejectCode::SysUnknown => Self::Unknown,
         }
+    }
+}
+
+#[cfg(feature = "alloy")]
+impl From<MultiRpcResult<Vec<LogEntry>>> for MultiRpcResult<Vec<alloy_rpc_types::Log>> {
+    fn from(result: MultiRpcResult<Vec<LogEntry>>) -> Self {
+        result.and_then(|logs| {
+            logs.into_iter()
+                .map(alloy_rpc_types::Log::try_from)
+                .collect()
+        })
     }
 }
