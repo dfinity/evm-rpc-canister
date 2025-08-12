@@ -14,7 +14,7 @@ env:
   RUSTFLAGS: "-Dwarnings"
 
 jobs:
-  cargo-clippy:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -23,6 +23,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - run: rustup component add clippy
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
 
       - name: Cargo clippy
         # We run clippy twice (once without tests), so that it accurately reports dead code in the non-test configuration.
@@ -127,6 +130,3 @@ jobs:
 
       - name: Run local examples with Foundry
         run: scripts/examples evm_rpc_local 'Number = 0'
-
-      - name: Check formatting
-        run: cargo fmt --all -- --check
