@@ -339,14 +339,14 @@ dependencies = [
 
 [[package]]
 name = "canlog"
-version = "0.1.1"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a49cd58324d235ecc1ef9e47d018c10dfe8b60d62ab001f2f2cfcef1505a081"
+checksum = "bd21b4c7140d033fe006495a65ec5ae24d79219eca550a74e0ba140ff9aa71dc"
 dependencies = [
  "candid",
  "canlog_derive",
  "ic-canister-log",
- "ic-cdk",
+ "ic0 1.0.0",
  "regex",
  "serde",
  "serde_json",
@@ -1339,7 +1339,7 @@ dependencies = [
  "candid",
  "ic-cdk-executor",
  "ic-cdk-macros",
- "ic0",
+ "ic0 0.23.0",
  "serde",
  "serde_bytes",
 ]
@@ -1507,6 +1507,12 @@ name = "ic0"
 version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8de254dd67bbd58073e23dc1c8553ba12fa1dc610a19de94ad2bbcd0460c067f"
+
+[[package]]
+name = "ic0"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8877193e1921b5fd16accb0305eb46016868cd1935b05c05eca0ec007b943272"
 
 [[package]]
 name = "ic_principal"
