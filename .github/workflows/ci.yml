@@ -35,6 +35,13 @@ jobs:
           cargo clippy -- -D clippy::all -D warnings -A clippy::manual_range_contains
           cargo clippy --tests --benches -- -D clippy::all -D warnings -A clippy::manual_range_contains
 
+      - name: Check dependencies
+        # evm_rpc_types is used in the [monorepo](https://github.com/dfinity/ic)
+        # and some crates there already have a dependency on the ic-cdk. To avoid any conflicting versions of the ic-cdk,
+        # we ensure that there is no transitive dependency on ic-cdk in evm_rpc_types
+        run: |
+          ! cargo tree -p evm_rpc_types --invert ic-cdk --locked
+
   cargo-doc:
     runs-on: ubuntu-latest
     steps:
