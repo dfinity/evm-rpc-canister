@@ -5,9 +5,11 @@ use pocket_ic::common::rest::{
     CanisterHttpRequest, CanisterHttpResponse,
 };
 use serde_json::Value;
-use std::collections::{BTreeSet, VecDeque};
-use std::iter;
-use std::str::FromStr;
+use std::{
+    collections::{BTreeSet, VecDeque},
+    iter,
+    str::FromStr,
+};
 use url::{Host, Url};
 
 #[derive(Clone, Default)]
@@ -35,9 +37,9 @@ impl Clone for Box<dyn CloneableMockOutcallIterator> {
 impl MockOutcallQueue {
     pub fn push(&mut self, outcall: impl Into<MockOutcall>, repeat: MockOutcallRepeat) {
         self.0.push_back(match repeat {
-            MockOutcallRepeat::Once => Box::new(std::iter::once(outcall.into())),
-            MockOutcallRepeat::Times(n) => Box::new(std::iter::repeat_n(outcall.into(), n)),
-            MockOutcallRepeat::Forever => Box::new(std::iter::repeat(outcall.into())),
+            MockOutcallRepeat::Once => Box::new(iter::once(outcall.into())),
+            MockOutcallRepeat::Times(n) => Box::new(iter::repeat_n(outcall.into(), n)),
+            MockOutcallRepeat::Forever => Box::new(iter::repeat(outcall.into())),
         })
     }
 }
@@ -143,7 +145,7 @@ impl MockOutcallBuilder {
     }
 
     pub fn new_success(bodies: impl IntoIterator<Item = impl Into<MockOutcallBody>>) -> Self {
-        MockOutcallBuilder::new(iter::zip(iter::repeat(16), bodies))
+        MockOutcallBuilder::new(iter::zip(iter::repeat(200), bodies))
     }
 
     pub fn new_error(code: RejectionCode, num_providers: usize, message: impl ToString) -> Self {

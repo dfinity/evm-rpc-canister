@@ -14,6 +14,7 @@ use pocket_ic::common::rest::{
 use pocket_ic::nonblocking::PocketIc;
 use pocket_ic::RejectResponse;
 use serde::de::DeserializeOwned;
+use std::iter;
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -88,36 +89,28 @@ impl Runtime for PocketIcRuntime<'_> {
 
 impl PocketIcRuntime<'_> {
     async fn execute_mock(&self) {
-        let maybe_mock = {
+        if let Some(mock) = {
             let mut mocks = self.mocks.lock().unwrap();
             mocks.next()
-        };
-        if let Some(mock) = maybe_mock {
-            if !self.try_mock_http_inner(mock).await {
+        } {
+            let mut responses = mock.responses.clone().into_iter();
+            let requests = tick_until_http_request(self.env).await;
+
+            for (request, response) in iter::zip(requests, responses.by_ref()) {
+                mock.assert_matches(&request);
+                let mock_response = MockCanisterHttpResponse {
+                    subnet_id: request.subnet_id,
+                    request_id: request.request_id,
+                    response: check_response_size(&request, response),
+                    additional_responses: vec![],
+                };
+                self.env.mock_canister_http_response(mock_response).await;
+            }
+
+            if responses.next().is_some() {
                 panic!("no pending HTTP request")
             }
         }
-    }
-
-    async fn try_mock_http_inner(&self, mock: MockOutcall) -> bool {
-        let http_requests = tick_until_http_request(self.env).await;
-        let request = match http_requests.first() {
-            Some(request) => request,
-            None => return false,
-        };
-        mock.assert_matches(request);
-
-        for response in mock.responses.clone() {
-            let mock_response = MockCanisterHttpResponse {
-                subnet_id: request.subnet_id,
-                request_id: request.request_id,
-                response: check_response_size(request, response),
-                additional_responses: vec![],
-            };
-            self.env.mock_canister_http_response(mock_response).await;
-        }
-
-        true
     }
 }
 

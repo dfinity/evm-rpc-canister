@@ -849,15 +849,15 @@ async fn eth_get_logs_should_succeed() {
                 bytes!("0x000000000000000000000000000000000000000000000000000000003b9c6433"),
             )
             .unwrap(),
-            block_number: Some(0x11dc77e_u32.into()),
+            block_number: Some(0x11dc77e_u64),
             transaction_hash: Some(b256!(
                 "0xf3ed91a03ddf964281ac7a24351573efd535b80fc460a5c2ad2b9d23153ec678"
             )),
-            transaction_index: Some(0x65_u32.into()),
+            transaction_index: Some(0x65_u64),
             block_hash: Some(b256!(
                 "0xd5c72ad752b2f0144a878594faf8bd9f570f2f72af8e7f0940d3545a6388f629"
             )),
-            log_index: Some(0xe8_u32.into()),
+            log_index: Some(0xe8_u64),
             removed: false,
             block_timestamp: None,
         }]
