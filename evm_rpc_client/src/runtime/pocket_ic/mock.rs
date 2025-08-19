@@ -6,6 +6,7 @@ use pocket_ic::common::rest::{
 };
 use serde_json::Value;
 use std::collections::{BTreeSet, VecDeque};
+use std::iter;
 use std::str::FromStr;
 use url::{Host, Url};
 
@@ -120,7 +121,7 @@ impl From<Vec<u8>> for MockOutcallBody {
 pub struct MockOutcallBuilder(MockOutcall);
 
 impl MockOutcallBuilder {
-    pub fn new(status: u16, bodies: impl IntoIterator<Item = impl Into<MockOutcallBody>>) -> Self {
+    pub fn new(responses: impl IntoIterator<Item = (u16, impl Into<MockOutcallBody>)>) -> Self {
         Self(MockOutcall {
             method: None,
             url: None,
@@ -128,9 +129,9 @@ impl MockOutcallBuilder {
             request_headers: None,
             request_body: None,
             max_response_bytes: None,
-            responses: bodies
+            responses: responses
                 .into_iter()
-                .map(|body| {
+                .map(|(status, body)| {
                     CanisterHttpResponse::CanisterHttpReply(CanisterHttpReply {
                         status,
                         headers: vec![],
@@ -139,6 +140,10 @@ impl MockOutcallBuilder {
                 })
                 .collect(),
         })
+    }
+
+    pub fn new_success(bodies: impl IntoIterator<Item = impl Into<MockOutcallBody>>) -> Self {
+        MockOutcallBuilder::new(iter::zip(iter::repeat(16), bodies))
     }
 
     pub fn new_error(code: RejectionCode, num_providers: usize, message: impl ToString) -> Self {

@@ -2,6 +2,7 @@ mod mock;
 
 use crate::mock::MockJsonRequestBody;
 use alloy_primitives::{address, b256, bytes};
+use alloy_rpc_types::BlockNumberOrTag;
 use assert_matches::assert_matches;
 use candid::{CandidType, Decode, Encode, Nat, Principal};
 use canlog::{Log, LogEntry};
@@ -12,9 +13,7 @@ use evm_rpc::{
     providers::PROVIDERS,
     types::{Metrics, ProviderId, RpcAccess, RpcMethod},
 };
-use evm_rpc_client::{
-    ClientBuilder, EvmRpcClient, MockOutcallQueue, MockOutcallRepeat, PocketIcRuntime,
-};
+use evm_rpc_client::{once, ClientBuilder, EvmRpcClient, MockOutcallQueue, PocketIcRuntime};
 use evm_rpc_types::{
     BlockTag, ConsensusStrategy, EthMainnetService, EthSepoliaService, GetLogsRpcConfig, Hex,
     Hex20, Hex32, HttpOutcallError, InstallArgs, JsonRpcError, LegacyRejectionCode, MultiRpcResult,
@@ -871,8 +870,8 @@ async fn eth_get_logs_should_succeed() {
             // default block range
             (
                 GetLogsRpcConfig::default(),
-                Some(BlockTag::Number(0_u8.into())),
-                Some(BlockTag::Number(500_u16.into())),
+                BlockNumberOrTag::Number(0_u8.into()),
+                BlockNumberOrTag::Number(500_u16.into()),
             ),
             // large block range
             (
@@ -880,8 +879,8 @@ async fn eth_get_logs_should_succeed() {
                     max_block_range: Some(1_000),
                     ..Default::default()
                 },
-                Some(BlockTag::Number(0_u8.into())),
-                Some(BlockTag::Number(501_u16.into())),
+                BlockNumberOrTag::Number(0_u8.into()),
+                BlockNumberOrTag::Number(501_u16.into()),
             ),
         ] {
             let mut responses: [serde_json::Value; 3] = mock_responses();
@@ -891,19 +890,14 @@ async fn eth_get_logs_should_succeed() {
                 .client()
                 .with_rpc_sources(source.clone())
                 .mock(
-                    evm_rpc_client::MockOutcallBuilder::new(200, responses.clone()),
-                    MockOutcallRepeat::Once,
+                    evm_rpc_client::MockOutcallBuilder::new_success(responses.clone()),
+                    once(),
                 )
                 .build();
             let response = client
-                .get_logs(evm_rpc_types::GetLogsArgs {
-                    addresses: vec!["0xdAC17F958D2ee523a2206206994597C13D831ec7"
-                        .parse()
-                        .unwrap()],
-                    from_block,
-                    to_block,
-                    topics: None,
-                })
+                .get_logs(vec![address!("0xdac17f958d2ee523a2206206994597c13d831ec7")])
+                .with_from_block(from_block)
+                .with_to_block(to_block)
                 .with_rpc_config(config)
                 .send()
                 .await

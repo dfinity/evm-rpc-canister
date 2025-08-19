@@ -23,9 +23,9 @@ const MAX_TICKS: usize = 10;
 pub struct PocketIcRuntime<'a> {
     pub env: &'a PocketIc,
     pub caller: Principal,
-    // This field is in a `RefCell` so we can use interior mutability to pop the next element from
+    // This field is in a `Mutex` so we can use interior mutability to pop the next element from
     // the queue (i.e., perform a mutable operation) within the `Runtime::update_call` method which
-    // takes an immutable reference of `self`.
+    // takes an immutable reference to `self`.
     pub mocks: Mutex<MockOutcallQueue>,
     pub controller: Principal,
 }

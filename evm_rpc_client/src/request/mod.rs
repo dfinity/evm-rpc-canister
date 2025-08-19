@@ -42,26 +42,31 @@ pub type GetLogsRequestBuilder<R> = RequestBuilder<
 
 impl<R> GetLogsRequestBuilder<R> {
     /// Change the `from_block` parameter for an `eth_getLogs` request.
-    pub fn with_from_block(mut self, from_block: BlockTag) -> Self {
-        self.request.params.from_block = Some(from_block);
+    pub fn with_from_block(mut self, from_block: impl Into<BlockTag>) -> Self {
+        self.request.params.from_block = Some(from_block.into());
         self
     }
 
     /// Change the `to_block` parameter for an `eth_getLogs` request.
-    pub fn with_to_block(mut self, to_block: BlockTag) -> Self {
-        self.request.params.to_block = Some(to_block);
+    pub fn with_to_block(mut self, to_block: impl Into<BlockTag>) -> Self {
+        self.request.params.to_block = Some(to_block.into());
         self
     }
 
     /// Change the `addresses` parameter for an `eth_getLogs` request.
-    pub fn with_addresses(mut self, addresses: Vec<Hex20>) -> Self {
-        self.request.params.addresses = addresses;
+    pub fn with_addresses(mut self, addresses: Vec<impl Into<Hex20>>) -> Self {
+        self.request.params.addresses = addresses.into_iter().map(Into::into).collect();
         self
     }
 
     /// Change the `topics` parameter for an `eth_getLogs` request.
-    pub fn with_topics(mut self, topics: Vec<Vec<Hex32>>) -> Self {
-        self.request.params.topics = Some(topics);
+    pub fn with_topics(mut self, topics: Vec<Vec<impl Into<Hex32>>>) -> Self {
+        self.request.params.topics = Some(
+            topics
+                .into_iter()
+                .map(|array| array.into_iter().map(Into::into).collect())
+                .collect(),
+        );
         self
     }
 }
