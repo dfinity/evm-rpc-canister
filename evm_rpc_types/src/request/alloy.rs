@@ -29,8 +29,8 @@ impl TryFrom<BlockTag> for alloy_rpc_types::BlockNumberOrTag {
     }
 }
 
-impl<T: IntoIterator<Item = Hex20>> From<Vec<T>> for GetLogsArgs {
-    fn from(addresses: Vec<T>) -> Self {
+impl<T: IntoIterator<Item = S>, S: Into<Hex20>> From<T> for GetLogsArgs {
+    fn from(addresses: T) -> Self {
         Self {
             from_block: None,
             to_block: None,

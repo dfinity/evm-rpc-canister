@@ -31,26 +31,65 @@
 //! actually send *more* cycles than required, since *unused cycles will be refunded*.
 //!
 //! ```rust
-//! use alloy_primitives::address;
+//! # // TODO XC-412: Use simpler example e.g. `eth_getBalance`
+//! use alloy_primitives::{address, b256, bytes};
 //! use evm_rpc_client::EvmRpcClient;
 //!
+//! # use evm_rpc_types::{Hex, Hex20, Hex32, MultiRpcResult};
+//! # use std::str::FromStr;
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! # use evm_rpc_types::{GetLogsArgs, MultiRpcResult, RpcError};
 //! let client = EvmRpcClient::builder_for_ic()
-//! #   // TODO XC-412: Return meaningful response
-//! #   .with_default_stub_response(MultiRpcResult::Consistent::<Vec<evm_rpc_types::LogEntry>>(Ok(vec![])))
+//! #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(vec![
+//! #       evm_rpc_types::LogEntry {
+//! #           address: Hex20::from_str("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48").unwrap(),
+//! #           topics: vec![
+//! #               Hex32::from_str("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef").unwrap(),
+//! #               Hex32::from_str("0x000000000000000000000000000000000004444c5dc75cb358380d2e3de08a90").unwrap(),
+//! #               Hex32::from_str("0x0000000000000000000000000000000aa232009084bd71a5797d089aa4edfad4").unwrap(),
+//! #           ],
+//! #           data: Hex::from_str("0x00000000000000000000000000000000000000000000000000000000cd566ae8").unwrap(),
+//! #           block_number: Some(0x161bd70_u64.into()),
+//! #           transaction_hash: Some(Hex32::from_str("0xfe5bc88d0818b66a67b0619b1b4d81bfe38029e3799c7f0eb86b33ca7dc4c811").unwrap()),
+//! #           transaction_index: Some(0x0_u64.into()),
+//! #           block_hash: Some(Hex32::from_str("0x0bbd9b12140e674cdd55e63539a25df8280a70cee3676c94d8e05fa5f868a914").unwrap()),
+//! #           log_index: Some(0x0_u64.into()),
+//! #           removed: false,
+//! #       }
+//! #   ])))
 //!     .build();
 //!
 //! let request = client.get_logs(vec![address!("0xdac17f958d2ee523a2206206994597c13d831ec7")]);
 //!
-//! let logs = request
+//! let result = request
 //!     .with_cycles(10_000_000_000)
 //!     .send()
 //!     .await
 //!     .expect_consistent();
 //!
-//! assert_eq!(logs, Ok(vec![]));
+//! assert!(result.is_ok());
+//! assert_eq!(result.unwrap().first(), Some(
+//!     &alloy_rpc_types::Log {
+//!         inner: alloy_primitives::Log {
+//!             address: address!("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
+//!             data: alloy_primitives::LogData::new(
+//!                 vec![
+//!                     b256!("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"),
+//!                     b256!("0x000000000000000000000000000000000004444c5dc75cb358380d2e3de08a90"),
+//!                     b256!("0x0000000000000000000000000000000aa232009084bd71a5797d089aa4edfad4"),
+//!                 ],
+//!                 bytes!("0x00000000000000000000000000000000000000000000000000000000cd566ae8"),
+//!             ).unwrap(),
+//!         },
+//!         block_hash: Some(b256!("0x0bbd9b12140e674cdd55e63539a25df8280a70cee3676c94d8e05fa5f868a914")),
+//!         block_number: Some(0x161bd70_u64),
+//!         block_timestamp: None,
+//!         transaction_hash: Some(b256!("0xfe5bc88d0818b66a67b0619b1b4d81bfe38029e3799c7f0eb86b33ca7dc4c811")),
+//!         transaction_index: Some(0x0_u64),
+//!         log_index: Some(0x0_u64),
+//!         removed: false,
+//!     },
+//! ));
 //! # Ok(())
 //! # }
 //! ```
@@ -65,16 +104,33 @@
 //! your application requires a higher threshold and more robustness with a 3-out-of-5 :
 //!
 //! ```rust
-//! use alloy_primitives::address;
+//! # // TODO XC-412: Use simpler example e.g. `eth_getBalance`
+//! use alloy_primitives::{address, b256, bytes};
 //! use evm_rpc_client::EvmRpcClient;
 //! use evm_rpc_types::{ConsensusStrategy, GetLogsRpcConfig , RpcServices};
 //!
+//! # use evm_rpc_types::{Hex, Hex20, Hex32, MultiRpcResult};
+//! # use std::str::FromStr;
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! use evm_rpc_types::{GetLogsArgs, MultiRpcResult};
 //! let client = EvmRpcClient::builder_for_ic()
-//! #   // TODO XC-412: Return meaningful response
-//! #   .with_default_stub_response(MultiRpcResult::<Vec<evm_rpc_types::LogEntry>>::Consistent(Ok(vec![])))
+//! #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(vec![
+//! #       evm_rpc_types::LogEntry {
+//! #           address: Hex20::from_str("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48").unwrap(),
+//! #           topics: vec![
+//! #               Hex32::from_str("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef").unwrap(),
+//! #               Hex32::from_str("0x000000000000000000000000000000000004444c5dc75cb358380d2e3de08a90").unwrap(),
+//! #               Hex32::from_str("0x0000000000000000000000000000000aa232009084bd71a5797d089aa4edfad4").unwrap(),
+//! #           ],
+//! #           data: Hex::from_str("0x00000000000000000000000000000000000000000000000000000000cd566ae8").unwrap(),
+//! #           block_number: Some(0x161bd70_u64.into()),
+//! #           transaction_hash: Some(Hex32::from_str("0xfe5bc88d0818b66a67b0619b1b4d81bfe38029e3799c7f0eb86b33ca7dc4c811").unwrap()),
+//! #           transaction_index: Some(0x0_u64.into()),
+//! #           block_hash: Some(Hex32::from_str("0x0bbd9b12140e674cdd55e63539a25df8280a70cee3676c94d8e05fa5f868a914").unwrap()),
+//! #           log_index: Some(0x0_u64.into()),
+//! #           removed: false,
+//! #       }
+//! #   ])))
 //!     .with_rpc_sources(RpcServices::EthMainnet(None))
 //!     .with_consensus_strategy(ConsensusStrategy::Threshold {
 //!         total: Some(3),
@@ -82,7 +138,7 @@
 //!     })
 //!     .build();
 //!
-//! let logs = client
+//! let result = client
 //!     .get_logs(vec![address!("0xdac17f958d2ee523a2206206994597c13d831ec7")])
 //!     .with_rpc_config(GetLogsRpcConfig {
 //!         response_consensus: Some(ConsensusStrategy::Threshold {
@@ -95,7 +151,29 @@
 //!     .await
 //!     .expect_consistent();
 //!
-//! assert_eq!(logs, Ok(vec![]));
+//! assert!(result.is_ok());
+//! assert_eq!(result.unwrap().first(), Some(
+//!     &alloy_rpc_types::Log {
+//!         inner: alloy_primitives::Log {
+//!             address: address!("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
+//!             data: alloy_primitives::LogData::new(
+//!                 vec![
+//!                     b256!("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"),
+//!                     b256!("0x000000000000000000000000000000000004444c5dc75cb358380d2e3de08a90"),
+//!                     b256!("0x0000000000000000000000000000000aa232009084bd71a5797d089aa4edfad4"),
+//!                 ],
+//!                 bytes!("0x00000000000000000000000000000000000000000000000000000000cd566ae8"),
+//!             ).unwrap(),
+//!         },
+//!         block_hash: Some(b256!("0x0bbd9b12140e674cdd55e63539a25df8280a70cee3676c94d8e05fa5f868a914")),
+//!         block_number: Some(0x161bd70_u64),
+//!         block_timestamp: None,
+//!         transaction_hash: Some(b256!("0xfe5bc88d0818b66a67b0619b1b4d81bfe38029e3799c7f0eb86b33ca7dc4c811")),
+//!         transaction_index: Some(0x0_u64),
+//!         log_index: Some(0x0_u64),
+//!         removed: false,
+//!     },
+//! ));
 //! # Ok(())
 //! # }
 //! ```
@@ -265,26 +343,64 @@ impl<R> EvmRpcClient<R> {
     /// # Examples
     ///
     /// ```rust
-    /// use alloy_primitives::address;
+    /// use alloy_primitives::{address, b256, bytes};
     /// use evm_rpc_client::EvmRpcClient;
     ///
+    /// # use evm_rpc_types::{Hex, Hex20, Hex32, MultiRpcResult};
+    /// # use std::str::FromStr;
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # use evm_rpc_types::MultiRpcResult;
     /// let client = EvmRpcClient::builder_for_ic()
-    /// #   // TODO XC-412: Return meaningful response
-    /// #   .with_default_stub_response(MultiRpcResult::Consistent::<Vec<evm_rpc_types::LogEntry>>(Ok(vec![])))
+    /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(vec![
+    /// #       evm_rpc_types::LogEntry {
+    /// #           address: Hex20::from_str("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48").unwrap(),
+    /// #           topics: vec![
+    /// #               Hex32::from_str("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef").unwrap(),
+    /// #               Hex32::from_str("0x000000000000000000000000000000000004444c5dc75cb358380d2e3de08a90").unwrap(),
+    /// #               Hex32::from_str("0x0000000000000000000000000000000aa232009084bd71a5797d089aa4edfad4").unwrap(),
+    /// #           ],
+    /// #           data: Hex::from_str("0x00000000000000000000000000000000000000000000000000000000cd566ae8").unwrap(),
+    /// #           block_number: Some(0x161bd70_u64.into()),
+    /// #           transaction_hash: Some(Hex32::from_str("0xfe5bc88d0818b66a67b0619b1b4d81bfe38029e3799c7f0eb86b33ca7dc4c811").unwrap()),
+    /// #           transaction_index: Some(0x0_u64.into()),
+    /// #           block_hash: Some(Hex32::from_str("0x0bbd9b12140e674cdd55e63539a25df8280a70cee3676c94d8e05fa5f868a914").unwrap()),
+    /// #           log_index: Some(0x0_u64.into()),
+    /// #           removed: false,
+    /// #       }
+    /// #   ])))
     ///     .build();
     ///
     /// let request = client.get_logs(vec![address!("0xdac17f958d2ee523a2206206994597c13d831ec7")]);
     ///
-    /// let logs = request
+    /// let result = request
     ///     .with_cycles(10_000_000_000)
     ///     .send()
     ///     .await
     ///     .expect_consistent();
     ///
-    /// assert_eq!(logs, Ok(vec![]));
+    /// assert!(result.is_ok());
+    /// assert_eq!(result.unwrap().first(), Some(
+    ///     &alloy_rpc_types::Log {
+    ///         inner: alloy_primitives::Log {
+    ///             address: address!("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
+    ///             data: alloy_primitives::LogData::new(
+    ///                 vec![
+    ///                     b256!("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"),
+    ///                     b256!("0x000000000000000000000000000000000004444c5dc75cb358380d2e3de08a90"),
+    ///                     b256!("0x0000000000000000000000000000000aa232009084bd71a5797d089aa4edfad4"),
+    ///                 ],
+    ///                 bytes!("0x00000000000000000000000000000000000000000000000000000000cd566ae8"),
+    ///             ).unwrap(),
+    ///         },
+    ///         block_hash: Some(b256!("0x0bbd9b12140e674cdd55e63539a25df8280a70cee3676c94d8e05fa5f868a914")),
+    ///         block_number: Some(0x161bd70_u64),
+    ///         block_timestamp: None,
+    ///         transaction_hash: Some(b256!("0xfe5bc88d0818b66a67b0619b1b4d81bfe38029e3799c7f0eb86b33ca7dc4c811")),
+    ///         transaction_index: Some(0x0_u64),
+    ///         log_index: Some(0x0_u64),
+    ///         removed: false,
+    ///     },
+    /// ));
     /// # Ok(())
     /// # }
     /// ```

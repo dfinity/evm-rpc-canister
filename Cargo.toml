@@ -50,7 +50,7 @@ zeroize = { version = "1.8", features = ["zeroize_derive"] }
 regex = "1.11"
 
 [dev-dependencies]
-assert_matches = "1.5"
+assert_matches = { workspace = true }
 candid_parser = { workspace = true }
 ic-crypto-test-utils-reproducible-rng = { git = "https://github.com/dfinity/ic", rev = "release-2024-09-26_01-31-base" }
 ic-management-canister-types = { workspace = true }
