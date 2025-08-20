@@ -1,5 +1,7 @@
 #[cfg(test)]
 mod tests;
+#[cfg(feature = "alloy")]
+mod alloy;
 
 use crate::{LogEntry, RpcService};
 use candid::{CandidType, Deserialize};
@@ -206,16 +208,5 @@ impl From<RejectCode> for LegacyRejectionCode {
             RejectCode::CanisterError => Self::CanisterError,
             RejectCode::SysUnknown => Self::Unknown,
         }
-    }
-}
-
-#[cfg(feature = "alloy")]
-impl From<MultiRpcResult<Vec<LogEntry>>> for MultiRpcResult<Vec<alloy_rpc_types::Log>> {
-    fn from(result: MultiRpcResult<Vec<LogEntry>>) -> Self {
-        result.and_then(|logs| {
-            logs.into_iter()
-                .map(alloy_rpc_types::Log::try_from)
-                .collect()
-        })
     }
 }
