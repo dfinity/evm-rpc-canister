@@ -1,4 +1,8 @@
-//! TODO XC-412: Add documentation and examples
+//! TODO XC-412: Add top-level documentation
+//! TODO XC-412: Add examples (needs dummy runtime)
+
+#![forbid(unsafe_code)]
+#![forbid(missing_docs)]
 
 mod request;
 
