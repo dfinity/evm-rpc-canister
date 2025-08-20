@@ -31,6 +31,7 @@
 //! actually send *more* cycles than required, since *unused cycles will be refunded*.
 //!
 //! ```rust
+//! use alloy_primitives::address;
 //! use evm_rpc_client::EvmRpcClient;
 //!
 //! # #[tokio::main]
@@ -41,13 +42,7 @@
 //! #   .with_default_stub_response(MultiRpcResult::Consistent::<Vec<evm_rpc_types::LogEntry>>(Ok(vec![])))
 //!     .build();
 //!
-//! // TODO XC-412: Fetch with meaningful parameters
-//! let request = client.get_logs(GetLogsArgs {
-//!     from_block: None,
-//!     to_block: None,
-//!     addresses: vec![],
-//!     topics: None,
-//! });
+//! let request = client.get_logs(vec![address!("0xdac17f958d2ee523a2206206994597c13d831ec7")]);
 //!
 //! let logs = request
 //!     .with_cycles(10_000_000_000)
@@ -70,12 +65,13 @@
 //! your application requires a higher threshold and more robustness with a 3-out-of-5 :
 //!
 //! ```rust
+//! use alloy_primitives::address;
 //! use evm_rpc_client::EvmRpcClient;
 //! use evm_rpc_types::{ConsensusStrategy, GetLogsRpcConfig , RpcServices};
 //!
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! # use evm_rpc_types::{GetLogsArgs, MultiRpcResult};
+//! use evm_rpc_types::{GetLogsArgs, MultiRpcResult};
 //! let client = EvmRpcClient::builder_for_ic()
 //! #   // TODO XC-412: Return meaningful response
 //! #   .with_default_stub_response(MultiRpcResult::<Vec<evm_rpc_types::LogEntry>>::Consistent(Ok(vec![])))
@@ -87,13 +83,7 @@
 //!     .build();
 //!
 //! let logs = client
-//!     // TODO XC-412: Fetch with meaningful parameters
-//! .get_logs(GetLogsArgs {
-//!     from_block: None,
-//!     to_block: None,
-//!     addresses: vec![],
-//!     topics: None,
-//! })
+//!     .get_logs(vec![address!("0xdac17f958d2ee523a2206206994597c13d831ec7")])
 //!     .with_rpc_config(GetLogsRpcConfig {
 //!         response_consensus: Some(ConsensusStrategy::Threshold {
 //!             total: Some(5),
@@ -275,23 +265,18 @@ impl<R> EvmRpcClient<R> {
     /// # Examples
     ///
     /// ```rust
+    /// use alloy_primitives::address;
     /// use evm_rpc_client::EvmRpcClient;
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # use evm_rpc_types::{GetLogsArgs, MultiRpcResult, RpcError};
+    /// # use evm_rpc_types::MultiRpcResult;
     /// let client = EvmRpcClient::builder_for_ic()
     /// #   // TODO XC-412: Return meaningful response
     /// #   .with_default_stub_response(MultiRpcResult::Consistent::<Vec<evm_rpc_types::LogEntry>>(Ok(vec![])))
     ///     .build();
     ///
-    /// // TODO XC-412: Fetch with meaningful parameters
-    /// let request = client.get_logs(GetLogsArgs {
-    ///     from_block: None,
-    ///     to_block: None,
-    ///     addresses: vec![],
-    ///     topics: None,
-    /// });
+    /// let request = client.get_logs(vec![address!("0xdac17f958d2ee523a2206206994597c13d831ec7")]);
     ///
     /// let logs = request
     ///     .with_cycles(10_000_000_000)
