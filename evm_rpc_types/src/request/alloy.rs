@@ -39,3 +39,5 @@ impl<T: IntoIterator<Item = S>, S: Into<Hex20>> From<T> for GetLogsArgs {
         }
     }
 }
+
+// TODO XC-412: impl From<alloy_rpc_types::Filter> for GetLogsArgs
