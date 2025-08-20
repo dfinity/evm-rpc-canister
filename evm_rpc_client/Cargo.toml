@@ -7,7 +7,7 @@ readme = "README.md"
 authors = ["DFINITY Foundation"]
 edition = "2021"
 include = ["src", "Cargo.toml", "CHANGELOG.md", "LICENSE", "README.md"]
-repository = "https://github.com/dfinity/evm-rpc-client"
+repository = "https://github.com/dfinity/evm-rpc-canister"
 documentation = "https://docs.rs/evm_rpc_client"
 
 [dependencies]
