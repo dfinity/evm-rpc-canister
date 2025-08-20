@@ -21,3 +21,4 @@ serde = { workspace = true }
 strum = { workspace = true }
 
 [dev-dependencies]
+tokio = { workspace = true, features = ["full"] }
