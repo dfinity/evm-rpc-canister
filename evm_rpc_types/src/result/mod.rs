@@ -21,7 +21,7 @@ pub enum MultiRpcResult<T> {
 impl<T> MultiRpcResult<T> {
     /// Maps a [`MultiRpcResult`] containing values of type `T` to a [`MultiRpcResult`] containing
     /// values of type `R` by an infallible map.
-    pub fn map<R>(self, mut f: impl FnMut(T) -> R) -> MultiRpcResult<R> {
+    pub fn map<R: PartialEq + Clone>(self, mut f: impl FnMut(T) -> R) -> MultiRpcResult<R> {
         match self {
             MultiRpcResult::Consistent(result) => MultiRpcResult::Consistent(result.map(f)),
             MultiRpcResult::Inconsistent(results) => MultiRpcResult::Inconsistent(
@@ -43,7 +43,10 @@ impl<T> MultiRpcResult<T> {
 
     /// Maps a [`MultiRpcResult`] containing values of type `T` to a [`MultiRpcResult`] containing
     /// values of type `R` by a fallible map.
-    pub fn and_then<R>(self, mut f: impl FnMut(T) -> RpcResult<R>) -> MultiRpcResult<R> {
+    pub fn and_then<R: PartialEq + Clone>(
+        self,
+        mut f: impl FnMut(T) -> RpcResult<R>,
+    ) -> MultiRpcResult<R> {
         match self {
             MultiRpcResult::Consistent(result) => MultiRpcResult::Consistent(result.and_then(f)),
             MultiRpcResult::Inconsistent(results) => MultiRpcResult::Inconsistent(
@@ -60,6 +63,25 @@ impl<T> MultiRpcResult<T> {
                     })
                     .collect(),
             ),
+        }
+    }
+}
+
+impl<T: PartialEq + Clone> MultiRpcResult<T> {
+    /// Collapses an [`Inconsistent`](MultiRpcResult::Inconsistent) into
+    /// [`Consistent`](MultiRpcResult::Consistent) if all results match.
+    /// Otherwise, returns the value unchanged.
+    pub fn collapse(self) -> MultiRpcResult<T> {
+        match self {
+            MultiRpcResult::Consistent(r) => MultiRpcResult::Consistent(r),
+            MultiRpcResult::Inconsistent(v) => {
+                if let Some((_, first)) = v.first() {
+                    if v.iter().all(|(_, result)| result == first) {
+                        return MultiRpcResult::Consistent(first.clone());
+                    }
+                }
+                MultiRpcResult::Inconsistent(v)
+            }
         }
     }
 }

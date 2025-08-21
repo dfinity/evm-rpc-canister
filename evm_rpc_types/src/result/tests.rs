@@ -57,4 +57,163 @@ fn test_multi_rpc_result_map() {
             )
         ])
     );
+    assert_eq!(
+        MultiRpcResult::Inconsistent(vec![
+            (RpcService::EthMainnet(EthMainnetService::Ankr), Ok(2)),
+            (RpcService::EthMainnet(EthMainnetService::Llama), Ok(3))
+        ])
+        .map(|n| n / 2),
+        MultiRpcResult::Inconsistent(vec![
+            (RpcService::EthMainnet(EthMainnetService::Ankr), Ok(1)),
+            (RpcService::EthMainnet(EthMainnetService::Llama), Ok(1)),
+        ])
+    );
+}
+
+#[test]
+fn test_multi_rpc_result_and_then() {
+    let err = RpcError::ProviderError(ProviderError::ProviderNotFound);
+    assert_eq!(
+        MultiRpcResult::Consistent(Ok(5)).and_then(|n| Ok(n + 1)),
+        MultiRpcResult::Consistent(Ok(6))
+    );
+    assert_eq!(
+        MultiRpcResult::Consistent(Err(err.clone())).and_then(|()| unreachable!()),
+        MultiRpcResult::Consistent::<()>(Err(err.clone()))
+    );
+    assert_eq!(
+        MultiRpcResult::Inconsistent(vec![(
+            RpcService::EthMainnet(EthMainnetService::Ankr),
+            Ok(5)
+        )])
+        .and_then(|n| Ok(n + 1)),
+        MultiRpcResult::Inconsistent(vec![(
+            RpcService::EthMainnet(EthMainnetService::Ankr),
+            Ok(6)
+        )])
+    );
+    assert_eq!(
+        MultiRpcResult::Inconsistent(vec![
+            (RpcService::EthMainnet(EthMainnetService::Ankr), Ok(5)),
+            (
+                RpcService::EthMainnet(EthMainnetService::Cloudflare),
+                Ok(10)
+            )
+        ])
+        .and_then(|n| Ok(n + 1)),
+        MultiRpcResult::Inconsistent(vec![
+            (RpcService::EthMainnet(EthMainnetService::Ankr), Ok(6)),
+            (
+                RpcService::EthMainnet(EthMainnetService::Cloudflare),
+                Ok(11)
+            )
+        ])
+    );
+    assert_eq!(
+        MultiRpcResult::Inconsistent(vec![
+            (RpcService::EthMainnet(EthMainnetService::Ankr), Ok(5)),
+            (
+                RpcService::EthMainnet(EthMainnetService::PublicNode),
+                Err(err.clone())
+            )
+        ])
+        .and_then(|n| Ok(n + 1)),
+        MultiRpcResult::Inconsistent(vec![
+            (RpcService::EthMainnet(EthMainnetService::Ankr), Ok(6)),
+            (
+                RpcService::EthMainnet(EthMainnetService::PublicNode),
+                Err(err.clone())
+            )
+        ])
+    );
+    assert_eq!(
+        MultiRpcResult::Inconsistent(vec![
+            (RpcService::EthMainnet(EthMainnetService::Ankr), Ok(1)),
+            (RpcService::EthMainnet(EthMainnetService::Llama), Ok(2))
+        ])
+        .and_then(|n| if n % 2 == 0 { Ok(n) } else { Err(err.clone()) }),
+        MultiRpcResult::Inconsistent(vec![
+            (
+                RpcService::EthMainnet(EthMainnetService::Ankr),
+                Err(err.clone())
+            ),
+            (RpcService::EthMainnet(EthMainnetService::Llama), Ok(2)),
+        ])
+    );
+    assert_eq!(
+        MultiRpcResult::Inconsistent(vec![
+            (RpcService::EthMainnet(EthMainnetService::Ankr), Ok(1)),
+            (RpcService::EthMainnet(EthMainnetService::Llama), Ok(3))
+        ])
+        .and_then(|n| if n % 2 == 0 { Ok(n) } else { Err(err.clone()) }),
+        MultiRpcResult::Inconsistent(vec![
+            (
+                RpcService::EthMainnet(EthMainnetService::Ankr),
+                Err(err.clone())
+            ),
+            (
+                RpcService::EthMainnet(EthMainnetService::Llama),
+                Err(err.clone())
+            )
+        ])
+    );
+}
+
+#[test]
+fn test_multi_rpc_result_collapse() {
+    let err = RpcError::ProviderError(ProviderError::ProviderNotFound);
+    assert_eq!(
+        MultiRpcResult::Consistent(Ok(5)).collapse(),
+        MultiRpcResult::Consistent(Ok(5))
+    );
+    assert_eq!(
+        MultiRpcResult::Inconsistent(vec![
+            (RpcService::EthMainnet(EthMainnetService::Ankr), Ok(2)),
+            (RpcService::EthMainnet(EthMainnetService::Llama), Ok(3))
+        ])
+        .collapse(),
+        MultiRpcResult::Inconsistent(vec![
+            (RpcService::EthMainnet(EthMainnetService::Ankr), Ok(2)),
+            (RpcService::EthMainnet(EthMainnetService::Llama), Ok(3))
+        ])
+    );
+    assert_eq!(
+        MultiRpcResult::Inconsistent(vec![
+            (
+                RpcService::EthMainnet(EthMainnetService::Ankr),
+                Err(err.clone())
+            ),
+            (RpcService::EthMainnet(EthMainnetService::Llama), Ok(2))
+        ])
+        .collapse(),
+        MultiRpcResult::Inconsistent(vec![
+            (
+                RpcService::EthMainnet(EthMainnetService::Ankr),
+                Err(err.clone())
+            ),
+            (RpcService::EthMainnet(EthMainnetService::Llama), Ok(2))
+        ])
+    );
+    assert_eq!(
+        MultiRpcResult::Inconsistent(vec![
+            (RpcService::EthMainnet(EthMainnetService::Ankr), Ok(2)),
+            (RpcService::EthMainnet(EthMainnetService::Llama), Ok(2))
+        ])
+        .collapse(),
+        MultiRpcResult::Consistent(Ok(2))
+    );
+    assert_eq!(
+        MultiRpcResult::Inconsistent::<()>(vec![
+            (
+                RpcService::EthMainnet(EthMainnetService::Ankr),
+                Err(err.clone())
+            ),
+            (
+                RpcService::EthMainnet(EthMainnetService::Llama),
+                Err(err.clone())
+            )
+        ])
+        .collapse(),
+        MultiRpcResult::Consistent::<()>(Err(err.clone()))
+    );
 }
