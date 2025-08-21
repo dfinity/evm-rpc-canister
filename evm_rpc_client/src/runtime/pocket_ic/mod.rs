@@ -33,7 +33,7 @@ pub struct PocketIcRuntime<'a> {
     /// This field is in a [`Mutex`] so we can use interior mutability to pop the next element from
     /// the queue (i.e., perform a mutable operation) within the [`Runtime::update_call`] method which
     /// takes an immutable reference to `self`. Furthermore, this has to be thread-safe to be used
-    /// in multithreaded [`tokio`] tests.
+    /// in multithreaded tests.
     pub mocks: Mutex<MockOutcallQueue>,
     /// Default controller [`Principal`] when making inter-canister calls.
     pub controller: Principal,
