@@ -80,10 +80,13 @@ pub trait RepeatExt {
     fn times(self) -> MockOutcallRepeat;
 }
 
-impl RepeatExt for usize {
+impl<T> RepeatExt for T
+where
+    T: Into<usize>,
+{
     fn times(self) -> MockOutcallRepeat {
         assert!(self > 1, "Repeat count must be greater than 1");
-        MockOutcallRepeat::Times(self)
+        MockOutcallRepeat::Times(self.into())
     }
 }
 

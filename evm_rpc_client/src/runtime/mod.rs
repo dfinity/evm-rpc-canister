@@ -1,5 +1,4 @@
 #[cfg(feature = "pocket-ic")]
-#[allow(missing_docs)]
 mod pocket_ic;
 
 use async_trait::async_trait;

@@ -1,3 +1,4 @@
+#[allow(missing_docs)]
 mod mock;
 
 use crate::{ClientBuilder, Runtime};
@@ -21,13 +22,20 @@ use std::time::Duration;
 const DEFAULT_MAX_RESPONSE_BYTES: u64 = 2_000_000;
 const MAX_TICKS: usize = 10;
 
+/// Runtime used in tests with PocketIC.
 pub struct PocketIcRuntime<'a> {
+    /// Main entry point for interacting with PocketIC.
     pub env: &'a PocketIc,
+    /// Default caller [`Principal`] when making inter-canister calls.
     pub caller: Principal,
-    // This field is in a `Mutex` so we can use interior mutability to pop the next element from
-    // the queue (i.e., perform a mutable operation) within the `Runtime::update_call` method which
-    // takes an immutable reference to `self`.
+    /// Queue that holds the mocked HTTP outcall requests and responses.
+    ///
+    /// This field is in a [`Mutex`] so we can use interior mutability to pop the next element from
+    /// the queue (i.e., perform a mutable operation) within the [`Runtime::update_call`] method which
+    /// takes an immutable reference to `self`. Furthermore, this has to be thread-safe to be used
+    /// in multithreaded [`tokio`] tests.
     pub mocks: Mutex<MockOutcallQueue>,
+    /// Default controller [`Principal`] when making inter-canister calls.
     pub controller: Principal,
 }
 
@@ -180,6 +188,7 @@ async fn tick_until_http_request(env: &PocketIc) -> Vec<CanisterHttpRequest> {
 }
 
 impl ClientBuilder<PocketIcRuntime<'_>> {
+    /// Add a mocked outcall to the queue.
     pub fn mock(self, outcall: impl Into<MockOutcall>, repeat: MockOutcallRepeat) -> Self {
         self.with_runtime(|r| {
             r.mocks.lock().unwrap().push(outcall, repeat);

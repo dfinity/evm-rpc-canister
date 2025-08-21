@@ -179,7 +179,7 @@
 //! ```
 
 #![forbid(unsafe_code)]
-#![forbid(missing_docs)]
+#![deny(missing_docs)]
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod fixtures;
@@ -200,6 +200,7 @@ pub use runtime::{
 pub use runtime::{IcRuntime, Runtime};
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
+use ic_cdk::api::management_canister::main::CanisterId;
 
 /// The principal identifying the productive EVM RPC canister under NNS control.
 ///
@@ -215,6 +216,13 @@ pub const EVM_RPC_CANISTER: Principal = Principal::from_slice(&[0, 0, 0, 0, 2, 4
 #[derive(Debug)]
 pub struct EvmRpcClient<R> {
     config: Arc<ClientConfig<R>>,
+}
+
+impl<R> EvmRpcClient<R> {
+    /// Creates a [`ClientBuilder`] to configure a [`EvmRpcClient`].
+    pub fn builder(runtime: R, evm_rpc_canister: Principal) -> ClientBuilder<R> {
+        ClientBuilder::new(runtime, evm_rpc_canister)
+    }
 }
 
 impl<R> Clone for EvmRpcClient<R> {
