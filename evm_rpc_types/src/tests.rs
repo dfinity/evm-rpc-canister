@@ -1,8 +1,15 @@
+use crate::{Hex, Hex20, Hex256, Hex32, HexByte, Nat256};
+use candid::{CandidType, Decode, Encode, Nat};
+use num_bigint::BigUint;
+use proptest::{
+    prelude::{any, Strategy, TestCaseError},
+    prop_assert, prop_assert_eq, proptest,
+};
+use serde::de::DeserializeOwned;
+use std::{ops::RangeInclusive, str::FromStr};
+
 mod nat256 {
-    use crate::Nat256;
-    use candid::{Decode, Encode, Nat};
-    use num_bigint::BigUint;
-    use proptest::{arbitrary::any, prelude::Strategy, proptest};
+    use super::*;
 
     proptest! {
         #[test]
@@ -68,13 +75,7 @@ mod nat256 {
 }
 
 mod hex_string {
-    use crate::{Hex, Hex20, Hex256, Hex32, HexByte};
-    use candid::{CandidType, Decode, Encode};
-    use proptest::prelude::{Strategy, TestCaseError};
-    use proptest::{prop_assert, prop_assert_eq, proptest};
-    use serde::de::DeserializeOwned;
-    use std::ops::RangeInclusive;
-    use std::str::FromStr;
+    use super::*;
 
     proptest! {
         #[test]
@@ -179,12 +180,37 @@ mod hex_string {
         );
         Ok(())
     }
+}
 
-    fn arb_var_len_hex_string(
-        num_bytes_range: RangeInclusive<usize>,
-    ) -> impl Strategy<Value = String> {
-        num_bytes_range.prop_flat_map(|num_bytes| {
-            proptest::string::string_regex(&format!("0x[0-9a-fA-F]{{{}}}", 2 * num_bytes)).unwrap()
-        })
+#[cfg(feature = "alloy")]
+mod alloy_conversion_tests {
+    use super::*;
+    use alloy_primitives::{Address, Bytes, B256};
+
+    proptest! {
+        #[test]
+        fn should_convert_to_and_from_alloy(hex20 in arb_hex20(), hex32 in arb_hex32(), hex in arb_hex()) {
+            prop_assert_eq!(hex20.clone(), Hex20::from(Address::from(hex20)));
+            prop_assert_eq!(hex32.clone(), Hex32::from(B256::from(hex32)));
+            prop_assert_eq!(hex.clone(), Hex::from(Bytes::from(hex)));
+        }
     }
+
+    fn arb_hex20() -> impl Strategy<Value = Hex20> {
+        arb_var_len_hex_string(20..=20_usize).prop_map(|s| Hex20::from_str(s.as_str()).unwrap())
+    }
+
+    fn arb_hex32() -> impl Strategy<Value = Hex32> {
+        arb_var_len_hex_string(32..=32_usize).prop_map(|s| Hex32::from_str(s.as_str()).unwrap())
+    }
+
+    fn arb_hex() -> impl Strategy<Value = Hex> {
+        arb_var_len_hex_string(0..=100_usize).prop_map(|s| Hex::from_str(s.as_str()).unwrap())
+    }
+}
+
+fn arb_var_len_hex_string(num_bytes_range: RangeInclusive<usize>) -> impl Strategy<Value = String> {
+    num_bytes_range.prop_flat_map(|num_bytes| {
+        proptest::string::string_regex(&format!("0x[0-9a-fA-F]{{{}}}", 2 * num_bytes)).unwrap()
+    })
 }

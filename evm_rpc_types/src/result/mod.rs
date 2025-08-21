@@ -1,9 +1,10 @@
 #[cfg(test)]
 mod tests;
+
 #[cfg(feature = "alloy")]
 mod alloy;
 
-use crate::{LogEntry, RpcService};
+use crate::RpcService;
 use candid::{CandidType, Deserialize};
 use ic_error_types::RejectCode;
 use std::fmt::Debug;

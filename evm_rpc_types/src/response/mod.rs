@@ -1,7 +1,7 @@
 #[cfg(feature = "alloy")]
 mod alloy;
 
-use crate::{Hex, Hex20, Hex256, Hex32, HexByte, Nat256, RpcError, ValidationError};
+use crate::{Hex, Hex20, Hex256, Hex32, HexByte, Nat256};
 use candid::CandidType;
 use serde::{Deserialize, Serialize};
 
