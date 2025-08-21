@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2025-08-12
+
+### Added
+
+- Method `as_array()` on `Hex20`, `Hex32` and `Hex256` to return an immutable reference to the underlying array ([#432](https://github.com/dfinity/evm-rpc-canister/pull/432)).
+
+### Changed
+
+- The error variant `HttpOutcallError::IcError` now uses a local copy of `ic_cdk::api::call::RejectionCode`, renamed to `LegacyRejectionCode`. This was made to remove `ic-cdk` as a dependency. ([#428](https://github.com/dfinity/evm-rpc-canister/pull/428)).
+
+### Removed
+
+- Removed the types `RegexString` and `RegexSubstitution` to use the ones from the `canlog` crate ([#437](https://github.com/dfinity/evm-rpc-canister/pull/437)).
+
 ## [1.4.0] - 2025-06-04
 
 ### Added

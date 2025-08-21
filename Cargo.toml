@@ -66,7 +66,7 @@ alloy-rpc-types = "1.0.23"
 assert_matches = "1.5.0"
 async-trait = "0.1.88"
 candid = { version = "0.10.13" }
-canlog = { version = "0.1.1", features = ["derive"] }
+canlog = { version = "0.2.0", features = ["derive"] }
 candid_parser = { version = "0.1.4" }
 ciborium = "0.2.2"
 derive_more = { version = "2.0.1", features = ["from", "into"] }
