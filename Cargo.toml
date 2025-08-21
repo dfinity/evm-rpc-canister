@@ -52,7 +52,7 @@ regex = "1.11"
 [dev-dependencies]
 alloy-primitives = { workspace = true }
 alloy-rpc-types = { workspace = true }
-assert_matches = "1.5"
+assert_matches = { workspace = true }
 candid_parser = { workspace = true }
 evm_rpc_client = { path = "evm_rpc_client", features = ["pocket-ic"] }
 ic-crypto-test-utils-reproducible-rng = { git = "https://github.com/dfinity/ic", rev = "release-2024-09-26_01-31-base" }
@@ -71,7 +71,7 @@ assert_matches = "1.5.0"
 async-trait = "0.1.88"
 candid = { version = "0.10.13" }
 canhttp = { version = "0.2.0", features = ["json", "multi"] }
-canlog = { version = "0.1.1", features = ["derive"] }
+canlog = { version = "0.2.0", features = ["derive"] }
 candid_parser = { version = "0.1.4" }
 ciborium = "0.2.2"
 derive_more = { version = "2.0.1", features = ["from", "into"] }

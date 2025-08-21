@@ -1,5 +1,188 @@
-//! TODO XC-412: Add documentation and examples
+//! Client to interact with the EVM RPC canister
+//!
+//! # Examples
+//!
+//! ## Configuring the client
+//!
+//! By default, any RPC endpoint supported by the EVM RPC canister will call 3 providers and require
+//! equality between their results. It is possible to customize the client so that another strategy,
+//! such as 2-out-of-3 in the example below, is used for all following calls.
+//!
+//! ```rust
+//! use evm_rpc_client::EvmRpcClient;
+//! use evm_rpc_types::{ConsensusStrategy, RpcConfig, RpcServices};
+//!
+//! let client = EvmRpcClient::builder_for_ic()
+//!     .with_rpc_sources(RpcServices::EthMainnet(None))
+//!     .with_consensus_strategy(ConsensusStrategy::Threshold {
+//!         total: Some(3),
+//!         min: 2,
+//!     })
+//!     .build();
+//! ```
+//!
+//! ## Specifying the amount of cycles to send
+//!
+//! Every call made to the EVM RPC canister that triggers HTTPs outcalls (e.g., `eth_getLogs`)
+//! needs to attach some cycles to pay for the call.
+//! By default, the client will attach some amount of cycles that should be sufficient for most cases.
+//!
+//! If this is not the case, the amount of cycles to be sent can be overridden. It's advisable to
+//! actually send *more* cycles than required, since *unused cycles will be refunded*.
+//!
+//! ```rust
+//! # // TODO XC-412: Use simpler example e.g. `eth_getBalance`
+//! use alloy_primitives::{address, b256, bytes};
+//! use evm_rpc_client::EvmRpcClient;
+//!
+//! # use evm_rpc_types::{Hex, Hex20, Hex32, MultiRpcResult};
+//! # use std::str::FromStr;
+//! # #[tokio::main]
+//! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let client = EvmRpcClient::builder_for_ic()
+//! #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(vec![
+//! #       evm_rpc_types::LogEntry {
+//! #           address: Hex20::from_str("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48").unwrap(),
+//! #           topics: vec![
+//! #               Hex32::from_str("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef").unwrap(),
+//! #               Hex32::from_str("0x000000000000000000000000000000000004444c5dc75cb358380d2e3de08a90").unwrap(),
+//! #               Hex32::from_str("0x0000000000000000000000000000000aa232009084bd71a5797d089aa4edfad4").unwrap(),
+//! #           ],
+//! #           data: Hex::from_str("0x00000000000000000000000000000000000000000000000000000000cd566ae8").unwrap(),
+//! #           block_number: Some(0x161bd70_u64.into()),
+//! #           transaction_hash: Some(Hex32::from_str("0xfe5bc88d0818b66a67b0619b1b4d81bfe38029e3799c7f0eb86b33ca7dc4c811").unwrap()),
+//! #           transaction_index: Some(0x0_u64.into()),
+//! #           block_hash: Some(Hex32::from_str("0x0bbd9b12140e674cdd55e63539a25df8280a70cee3676c94d8e05fa5f868a914").unwrap()),
+//! #           log_index: Some(0x0_u64.into()),
+//! #           removed: false,
+//! #       }
+//! #   ])))
+//!     .build();
+//!
+//! let request = client.get_logs(vec![address!("0xdac17f958d2ee523a2206206994597c13d831ec7")]);
+//!
+//! let result = request
+//!     .with_cycles(10_000_000_000)
+//!     .send()
+//!     .await
+//!     .expect_consistent();
+//!
+//! assert!(result.is_ok());
+//! assert_eq!(result.unwrap().first(), Some(
+//!     &alloy_rpc_types::Log {
+//!         inner: alloy_primitives::Log {
+//!             address: address!("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
+//!             data: alloy_primitives::LogData::new(
+//!                 vec![
+//!                     b256!("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"),
+//!                     b256!("0x000000000000000000000000000000000004444c5dc75cb358380d2e3de08a90"),
+//!                     b256!("0x0000000000000000000000000000000aa232009084bd71a5797d089aa4edfad4"),
+//!                 ],
+//!                 bytes!("0x00000000000000000000000000000000000000000000000000000000cd566ae8"),
+//!             ).unwrap(),
+//!         },
+//!         block_hash: Some(b256!("0x0bbd9b12140e674cdd55e63539a25df8280a70cee3676c94d8e05fa5f868a914")),
+//!         block_number: Some(0x161bd70_u64),
+//!         block_timestamp: None,
+//!         transaction_hash: Some(b256!("0xfe5bc88d0818b66a67b0619b1b4d81bfe38029e3799c7f0eb86b33ca7dc4c811")),
+//!         transaction_index: Some(0x0_u64),
+//!         log_index: Some(0x0_u64),
+//!         removed: false,
+//!     },
+//! ));
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ## Overriding client configuration for a specific call
+//!
+//! Besides changing the amount of cycles for a particular call as described above,
+//! it is sometimes desirable to have a custom configuration for a specific
+//! call that is different from the one used by the client for all the other calls.
+//!
+//! For example, maybe for most calls, a 2 out-of 3 strategy is good enough, but for `eth_getSlot`
+//! your application requires a higher threshold and more robustness with a 3-out-of-5 :
+//!
+//! ```rust
+//! # // TODO XC-412: Use simpler example e.g. `eth_getBalance`
+//! use alloy_primitives::{address, b256, bytes};
+//! use evm_rpc_client::EvmRpcClient;
+//! use evm_rpc_types::{ConsensusStrategy, GetLogsRpcConfig , RpcServices};
+//!
+//! # use evm_rpc_types::{Hex, Hex20, Hex32, MultiRpcResult};
+//! # use std::str::FromStr;
+//! # #[tokio::main]
+//! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let client = EvmRpcClient::builder_for_ic()
+//! #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(vec![
+//! #       evm_rpc_types::LogEntry {
+//! #           address: Hex20::from_str("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48").unwrap(),
+//! #           topics: vec![
+//! #               Hex32::from_str("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef").unwrap(),
+//! #               Hex32::from_str("0x000000000000000000000000000000000004444c5dc75cb358380d2e3de08a90").unwrap(),
+//! #               Hex32::from_str("0x0000000000000000000000000000000aa232009084bd71a5797d089aa4edfad4").unwrap(),
+//! #           ],
+//! #           data: Hex::from_str("0x00000000000000000000000000000000000000000000000000000000cd566ae8").unwrap(),
+//! #           block_number: Some(0x161bd70_u64.into()),
+//! #           transaction_hash: Some(Hex32::from_str("0xfe5bc88d0818b66a67b0619b1b4d81bfe38029e3799c7f0eb86b33ca7dc4c811").unwrap()),
+//! #           transaction_index: Some(0x0_u64.into()),
+//! #           block_hash: Some(Hex32::from_str("0x0bbd9b12140e674cdd55e63539a25df8280a70cee3676c94d8e05fa5f868a914").unwrap()),
+//! #           log_index: Some(0x0_u64.into()),
+//! #           removed: false,
+//! #       }
+//! #   ])))
+//!     .with_rpc_sources(RpcServices::EthMainnet(None))
+//!     .with_consensus_strategy(ConsensusStrategy::Threshold {
+//!         total: Some(3),
+//!         min: 2,
+//!     })
+//!     .build();
+//!
+//! let result = client
+//!     .get_logs(vec![address!("0xdac17f958d2ee523a2206206994597c13d831ec7")])
+//!     .with_rpc_config(GetLogsRpcConfig {
+//!         response_consensus: Some(ConsensusStrategy::Threshold {
+//!             total: Some(5),
+//!             min: 3,
+//!         }),
+//!         ..Default::default()
+//!     })
+//!     .send()
+//!     .await
+//!     .expect_consistent();
+//!
+//! assert!(result.is_ok());
+//! assert_eq!(result.unwrap().first(), Some(
+//!     &alloy_rpc_types::Log {
+//!         inner: alloy_primitives::Log {
+//!             address: address!("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
+//!             data: alloy_primitives::LogData::new(
+//!                 vec![
+//!                     b256!("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"),
+//!                     b256!("0x000000000000000000000000000000000004444c5dc75cb358380d2e3de08a90"),
+//!                     b256!("0x0000000000000000000000000000000aa232009084bd71a5797d089aa4edfad4"),
+//!                 ],
+//!                 bytes!("0x00000000000000000000000000000000000000000000000000000000cd566ae8"),
+//!             ).unwrap(),
+//!         },
+//!         block_hash: Some(b256!("0x0bbd9b12140e674cdd55e63539a25df8280a70cee3676c94d8e05fa5f868a914")),
+//!         block_number: Some(0x161bd70_u64),
+//!         block_timestamp: None,
+//!         transaction_hash: Some(b256!("0xfe5bc88d0818b66a67b0619b1b4d81bfe38029e3799c7f0eb86b33ca7dc4c811")),
+//!         transaction_index: Some(0x0_u64),
+//!         log_index: Some(0x0_u64),
+//!         removed: false,
+//!     },
+//! ));
+//! # Ok(())
+//! # }
+//! ```
 
+#![forbid(unsafe_code)]
+#![forbid(missing_docs)]
+
+#[cfg(not(target_arch = "wasm32"))]
+pub mod fixtures;
 mod request;
 mod runtime;
 
@@ -39,18 +222,6 @@ impl<R> Clone for EvmRpcClient<R> {
         Self {
             config: self.config.clone(),
         }
-    }
-}
-
-impl<R> EvmRpcClient<R> {
-    /// Creates a [`ClientBuilder`] to configure a [`EvmRpcClient`].
-    pub fn builder(runtime: R, evm_rpc_canister: Principal) -> ClientBuilder<R> {
-        ClientBuilder::new(runtime, evm_rpc_canister)
-    }
-
-    /// Returns a reference to the client's runtime.
-    pub fn runtime(&self) -> &R {
-        &self.config.runtime
     }
 }
 
@@ -142,8 +313,72 @@ impl<R> ClientBuilder<R> {
 }
 
 impl<R> EvmRpcClient<R> {
-    /// Call `get_ethLogs` on the EVM RPC canister.
-    /// TODO XC-412: Add docs and examples
+    /// Call `eth_getLogs` on the EVM RPC canister.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use alloy_primitives::{address, b256, bytes};
+    /// use evm_rpc_client::EvmRpcClient;
+    ///
+    /// # use evm_rpc_types::{Hex, Hex20, Hex32, MultiRpcResult};
+    /// # use std::str::FromStr;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = EvmRpcClient::builder_for_ic()
+    /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(vec![
+    /// #       evm_rpc_types::LogEntry {
+    /// #           address: Hex20::from_str("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48").unwrap(),
+    /// #           topics: vec![
+    /// #               Hex32::from_str("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef").unwrap(),
+    /// #               Hex32::from_str("0x000000000000000000000000000000000004444c5dc75cb358380d2e3de08a90").unwrap(),
+    /// #               Hex32::from_str("0x0000000000000000000000000000000aa232009084bd71a5797d089aa4edfad4").unwrap(),
+    /// #           ],
+    /// #           data: Hex::from_str("0x00000000000000000000000000000000000000000000000000000000cd566ae8").unwrap(),
+    /// #           block_number: Some(0x161bd70_u64.into()),
+    /// #           transaction_hash: Some(Hex32::from_str("0xfe5bc88d0818b66a67b0619b1b4d81bfe38029e3799c7f0eb86b33ca7dc4c811").unwrap()),
+    /// #           transaction_index: Some(0x0_u64.into()),
+    /// #           block_hash: Some(Hex32::from_str("0x0bbd9b12140e674cdd55e63539a25df8280a70cee3676c94d8e05fa5f868a914").unwrap()),
+    /// #           log_index: Some(0x0_u64.into()),
+    /// #           removed: false,
+    /// #       }
+    /// #   ])))
+    ///     .build();
+    ///
+    /// let request = client.get_logs(vec![address!("0xdac17f958d2ee523a2206206994597c13d831ec7")]);
+    ///
+    /// let result = request
+    ///     .with_cycles(10_000_000_000)
+    ///     .send()
+    ///     .await
+    ///     .expect_consistent();
+    ///
+    /// assert!(result.is_ok());
+    /// assert_eq!(result.unwrap().first(), Some(
+    ///     &alloy_rpc_types::Log {
+    ///         inner: alloy_primitives::Log {
+    ///             address: address!("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
+    ///             data: alloy_primitives::LogData::new(
+    ///                 vec![
+    ///                     b256!("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"),
+    ///                     b256!("0x000000000000000000000000000000000004444c5dc75cb358380d2e3de08a90"),
+    ///                     b256!("0x0000000000000000000000000000000aa232009084bd71a5797d089aa4edfad4"),
+    ///                 ],
+    ///                 bytes!("0x00000000000000000000000000000000000000000000000000000000cd566ae8"),
+    ///             ).unwrap(),
+    ///         },
+    ///         block_hash: Some(b256!("0x0bbd9b12140e674cdd55e63539a25df8280a70cee3676c94d8e05fa5f868a914")),
+    ///         block_number: Some(0x161bd70_u64),
+    ///         block_timestamp: None,
+    ///         transaction_hash: Some(b256!("0xfe5bc88d0818b66a67b0619b1b4d81bfe38029e3799c7f0eb86b33ca7dc4c811")),
+    ///         transaction_index: Some(0x0_u64),
+    ///         log_index: Some(0x0_u64),
+    ///         removed: false,
+    ///     },
+    /// ));
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn get_logs(&self, params: impl Into<GetLogsArgs>) -> GetLogsRequestBuilder<R> {
         RequestBuilder::new(
             self.clone(),
@@ -154,40 +389,6 @@ impl<R> EvmRpcClient<R> {
 }
 
 impl<R: Runtime> EvmRpcClient<R> {
-    /// Call `getProviders` on the EVM RPC canister.
-    pub async fn get_providers(&self) -> Vec<evm_rpc_types::Provider> {
-        self.config
-            .runtime
-            .query_call(self.config.evm_rpc_canister, "getProviders", ())
-            .await
-            .unwrap()
-    }
-
-    /// Call `getServiceProviderMap` on the EVM RPC canister.
-    // TODO XC-412: Create type alias in `evm_rpc_types` for `ProviderId` i.e. `u64`
-    pub async fn get_service_provider_map(&self) -> Vec<(evm_rpc_types::RpcService, u64)> {
-        self.config
-            .runtime
-            .query_call(self.config.evm_rpc_canister, "getServiceProviderMap", ())
-            .await
-            .unwrap()
-    }
-
-    /// Call `updateApiKeys` on the EVM RPC canister.
-    // TODO XC-412: Create type alias in `evm_rpc_types` for `ProviderId` i.e. `u64`
-    pub async fn update_api_keys(&self, api_keys: &[(u64, Option<String>)]) {
-        self.config
-            .runtime
-            .update_call(
-                self.config.evm_rpc_canister,
-                "updateApiKeys",
-                (api_keys.to_vec(),),
-                0,
-            )
-            .await
-            .unwrap()
-    }
-
     async fn execute_request<Config, Params, CandidOutput, Output>(
         &self,
         request: Request<Config, Params, CandidOutput, Output>,
@@ -235,7 +436,8 @@ fn convert_reject_code(code: IcCdkRejectionCode) -> RejectCode {
         IcCdkRejectionCode::Unknown => {
             // This can only happen if there is a new error code on ICP that the CDK is not aware of.
             // We map it to SysFatal since none of the other error codes apply.
-            // In particular, note that RejectCode::SysUnknown is only applicable to inter-canister calls that used ic0.call_with_best_effort_response.
+            // In particular, note that RejectCode::SysUnknown is only applicable to inter-canister
+            // calls that used ic0.call_with_best_effort_response.
             RejectCode::SysFatal
         }
         IcCdkRejectionCode::NoError => {

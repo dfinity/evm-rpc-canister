@@ -1,4 +1,7 @@
-use crate::{Hex, Hex20, Hex32, HexByte, Nat256, RpcError};
+#[cfg(feature = "alloy")]
+mod alloy;
+
+use crate::{Hex, Hex20, Hex32, HexByte, Nat256};
 use candid::CandidType;
 use serde::Deserialize;
 
@@ -11,37 +14,6 @@ pub enum BlockTag {
     Earliest,
     Pending,
     Number(Nat256),
-}
-
-#[cfg(feature = "alloy")]
-impl From<alloy_rpc_types::BlockNumberOrTag> for BlockTag {
-    fn from(tag: alloy_rpc_types::BlockNumberOrTag) -> Self {
-        use alloy_rpc_types::BlockNumberOrTag;
-        match tag {
-            BlockNumberOrTag::Latest => Self::Latest,
-            BlockNumberOrTag::Finalized => Self::Finalized,
-            BlockNumberOrTag::Safe => Self::Safe,
-            BlockNumberOrTag::Earliest => Self::Earliest,
-            BlockNumberOrTag::Pending => Self::Pending,
-            BlockNumberOrTag::Number(n) => Self::Number(n.into()),
-        }
-    }
-}
-
-#[cfg(feature = "alloy")]
-impl TryFrom<BlockTag> for alloy_rpc_types::BlockNumberOrTag {
-    type Error = RpcError;
-
-    fn try_from(tag: BlockTag) -> Result<Self, Self::Error> {
-        Ok(match tag {
-            BlockTag::Latest => Self::Latest,
-            BlockTag::Finalized => Self::Finalized,
-            BlockTag::Safe => Self::Safe,
-            BlockTag::Earliest => Self::Earliest,
-            BlockTag::Pending => Self::Pending,
-            BlockTag::Number(n) => Self::Number(u64::try_from(n)?),
-        })
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, CandidType, Deserialize)]
@@ -81,18 +53,6 @@ pub struct GetLogsArgs {
     /// Topics are order-dependent.
     /// Each topic can also be an array of DATA with "or" options.
     pub topics: Option<Vec<Vec<Hex32>>>,
-}
-
-#[cfg(feature = "alloy")]
-impl From<Vec<alloy_primitives::Address>> for GetLogsArgs {
-    fn from(addresses: Vec<alloy_primitives::Address>) -> Self {
-        Self {
-            from_block: None,
-            to_block: None,
-            addresses: addresses.into_iter().map(Hex20::from).collect(),
-            topics: None,
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, CandidType, Deserialize)]

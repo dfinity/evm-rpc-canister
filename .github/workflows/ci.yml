@@ -14,7 +14,7 @@ env:
   RUSTFLAGS: "-Dwarnings"
 
 jobs:
-  cargo-clippy:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -24,6 +24,9 @@ jobs:
 
       - run: rustup component add clippy
 
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
       - name: Cargo clippy
         # We run clippy twice (once without tests), so that it accurately reports dead code in the non-test configuration.
         # `manual_range_contains` is disabled because a >= x && a < y reads more clearly than (x..y).contains(a) and
@@ -31,6 +34,13 @@ jobs:
         run: |
           cargo clippy -- -D clippy::all -D warnings -A clippy::manual_range_contains
           cargo clippy --tests --benches -- -D clippy::all -D warnings -A clippy::manual_range_contains
+
+      - name: Check dependencies
+        # evm_rpc_types is used in the [monorepo](https://github.com/dfinity/ic)
+        # and some crates there already have a dependency on the ic-cdk. To avoid any conflicting versions of the ic-cdk,
+        # we ensure that there is no transitive dependency on ic-cdk in evm_rpc_types
+        run: |
+          ! cargo tree -p evm_rpc_types --invert ic-cdk --locked
 
   cargo-doc:
     runs-on: ubuntu-latest
@@ -127,6 +137,3 @@ jobs:
 
       - name: Run local examples with Foundry
         run: scripts/examples evm_rpc_local 'Number = 0'
-
-      - name: Check formatting
-        run: cargo fmt --all -- --check

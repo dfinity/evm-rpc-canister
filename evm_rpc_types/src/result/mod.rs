@@ -1,7 +1,10 @@
 #[cfg(test)]
 mod tests;
 
-use crate::{LogEntry, RpcService};
+#[cfg(feature = "alloy")]
+mod alloy;
+
+use crate::RpcService;
 use candid::{CandidType, Deserialize};
 use ic_error_types::RejectCode;
 use std::fmt::Debug;
@@ -18,7 +21,7 @@ pub enum MultiRpcResult<T> {
 impl<T> MultiRpcResult<T> {
     /// Maps a [`MultiRpcResult`] containing values of type `T` to a [`MultiRpcResult`] containing
     /// values of type `R` by an infallible map.
-    pub fn map<R>(self, mut f: impl FnMut(T) -> R) -> MultiRpcResult<R> {
+    pub fn map<R: PartialEq + Clone>(self, mut f: impl FnMut(T) -> R) -> MultiRpcResult<R> {
         match self {
             MultiRpcResult::Consistent(result) => MultiRpcResult::Consistent(result.map(f)),
             MultiRpcResult::Inconsistent(results) => MultiRpcResult::Inconsistent(
@@ -40,7 +43,10 @@ impl<T> MultiRpcResult<T> {
 
     /// Maps a [`MultiRpcResult`] containing values of type `T` to a [`MultiRpcResult`] containing
     /// values of type `R` by a fallible map.
-    pub fn and_then<R>(self, mut f: impl FnMut(T) -> RpcResult<R>) -> MultiRpcResult<R> {
+    pub fn and_then<R: PartialEq + Clone>(
+        self,
+        mut f: impl FnMut(T) -> RpcResult<R>,
+    ) -> MultiRpcResult<R> {
         match self {
             MultiRpcResult::Consistent(result) => MultiRpcResult::Consistent(result.and_then(f)),
             MultiRpcResult::Inconsistent(results) => MultiRpcResult::Inconsistent(
@@ -57,6 +63,25 @@ impl<T> MultiRpcResult<T> {
                     })
                     .collect(),
             ),
+        }
+    }
+}
+
+impl<T: PartialEq + Clone> MultiRpcResult<T> {
+    /// Collapses an [`Inconsistent`](MultiRpcResult::Inconsistent) into
+    /// [`Consistent`](MultiRpcResult::Consistent) if all results match.
+    /// Otherwise, returns the value unchanged.
+    pub fn collapse(self) -> MultiRpcResult<T> {
+        match self {
+            MultiRpcResult::Consistent(r) => MultiRpcResult::Consistent(r),
+            MultiRpcResult::Inconsistent(v) => {
+                if let Some((_, first)) = v.first() {
+                    if v.iter().all(|(_, result)| result == first) {
+                        return MultiRpcResult::Consistent(first.clone());
+                    }
+                }
+                MultiRpcResult::Inconsistent(v)
+            }
         }
     }
 }
@@ -206,16 +231,5 @@ impl From<RejectCode> for LegacyRejectionCode {
             RejectCode::CanisterError => Self::CanisterError,
             RejectCode::SysUnknown => Self::Unknown,
         }
-    }
-}
-
-#[cfg(feature = "alloy")]
-impl From<MultiRpcResult<Vec<LogEntry>>> for MultiRpcResult<Vec<alloy_rpc_types::Log>> {
-    fn from(result: MultiRpcResult<Vec<LogEntry>>) -> Self {
-        result.and_then(|logs| {
-            logs.into_iter()
-                .map(alloy_rpc_types::Log::try_from)
-                .collect()
-        })
     }
 }
