@@ -1,6 +1,8 @@
 use crate::{EvmRpcClient, Runtime};
 use candid::CandidType;
-use evm_rpc_types::{BlockTag, GetLogsArgs, GetLogsRpcConfig, Hex20, Hex32, MultiRpcResult, RpcConfig, RpcServices};
+use evm_rpc_types::{
+    BlockTag, GetLogsArgs, GetLogsRpcConfig, Hex20, Hex32, MultiRpcResult, RpcConfig, RpcServices,
+};
 use ic_error_types::RejectCode;
 use serde::de::DeserializeOwned;
 use std::fmt::{Debug, Formatter};
