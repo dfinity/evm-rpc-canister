@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod test;
+
 #[cfg(feature = "alloy")]
 mod alloy;
 
