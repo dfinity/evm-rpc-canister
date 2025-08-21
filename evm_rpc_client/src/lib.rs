@@ -200,7 +200,6 @@ pub use runtime::{
 pub use runtime::{IcRuntime, Runtime};
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
-use ic_cdk::api::management_canister::main::CanisterId;
 
 /// The principal identifying the productive EVM RPC canister under NNS control.
 ///
