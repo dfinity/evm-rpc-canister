@@ -5,6 +5,7 @@ use crate::RpcService;
 use candid::{CandidType, Deserialize};
 use ic_error_types::RejectCode;
 use std::fmt::Debug;
+use std::mem;
 use thiserror::Error;
 
 pub type RpcResult<T> = Result<T, RpcError>;
@@ -18,7 +19,7 @@ pub enum MultiRpcResult<T> {
 impl<T> MultiRpcResult<T> {
     /// Maps a [`MultiRpcResult`] containing values of type `T` to a [`MultiRpcResult`] containing
     /// values of type `R` by an infallible map.
-    pub fn map<R: PartialEq + Clone>(self, mut f: impl FnMut(T) -> R) -> MultiRpcResult<R> {
+    pub fn map<R: PartialEq>(self, mut f: impl FnMut(T) -> R) -> MultiRpcResult<R> {
         match self {
             MultiRpcResult::Consistent(result) => MultiRpcResult::Consistent(result.map(f)),
             MultiRpcResult::Inconsistent(results) => MultiRpcResult::Inconsistent(
@@ -40,17 +41,17 @@ impl<T> MultiRpcResult<T> {
     }
 }
 
-impl<T: PartialEq + Clone> MultiRpcResult<T> {
+impl<T: PartialEq> MultiRpcResult<T> {
     /// Collapses an [`Inconsistent`](MultiRpcResult::Inconsistent) into
     /// [`Consistent`](MultiRpcResult::Consistent) if all results match.
     /// Otherwise, returns the value unchanged.
     pub fn collapse(self) -> MultiRpcResult<T> {
         match self {
             MultiRpcResult::Consistent(r) => MultiRpcResult::Consistent(r),
-            MultiRpcResult::Inconsistent(v) => {
-                if let Some((_, first)) = v.first() {
+            MultiRpcResult::Inconsistent(mut v) => {
+                if let Some((_, first)) = v.first_mut() {
                     if v.iter().all(|(_, result)| result == first) {
-                        return MultiRpcResult::Consistent(first.clone());
+                        return MultiRpcResult::Consistent(mem::take(first));
                     }
                 }
                 MultiRpcResult::Inconsistent(v)
