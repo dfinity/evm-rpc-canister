@@ -5,7 +5,6 @@ use crate::RpcService;
 use candid::{CandidType, Deserialize};
 use ic_error_types::RejectCode;
 use std::fmt::Debug;
-use std::mem;
 use thiserror::Error;
 
 pub type RpcResult<T> = Result<T, RpcError>;
@@ -48,10 +47,11 @@ impl<T: PartialEq> MultiRpcResult<T> {
     pub fn collapse(self) -> MultiRpcResult<T> {
         match self {
             MultiRpcResult::Consistent(r) => MultiRpcResult::Consistent(r),
-            MultiRpcResult::Inconsistent(mut v) => {
-                if let Some((_, first)) = v.first_mut() {
+            MultiRpcResult::Inconsistent(v) => {
+                if let Some((_, first)) = v.first() {
                     if v.iter().all(|(_, result)| result == first) {
-                        return MultiRpcResult::Consistent(mem::take(first));
+                        let (_, value) = v.into_iter().next().unwrap();
+                        return MultiRpcResult::Consistent(value);
                     }
                 }
                 MultiRpcResult::Inconsistent(v)
