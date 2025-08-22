@@ -188,6 +188,7 @@ async fn tick_until_http_request(env: &PocketIc) -> Vec<CanisterHttpRequest> {
 }
 
 impl ClientBuilder<PocketIcRuntime<'_>> {
+    /// Add a mock outcall to the queue.
     pub fn mock(self, outcall: impl Into<MockOutcall>, repeat: MockOutcallRepeat) -> Self {
         self.with_runtime(|r| {
             r.mocks.lock().unwrap().push(outcall, repeat);
@@ -195,9 +196,18 @@ impl ClientBuilder<PocketIcRuntime<'_>> {
         })
     }
 
-    pub fn mock_sequence(mut self, outcalls: impl IntoIterator<Item = impl Into<MockOutcall>>) -> Self {
+    /// Add a mock outcall to the queue, executed once.
+    pub fn mock_once(self, outcall: impl Into<MockOutcall>) -> Self {
+        self.mock(outcall.into(), once())
+    }
+
+    /// Add a seuqence of mock outcalls to the queue, each executed once.
+    pub fn mock_sequence(
+        mut self,
+        outcalls: impl IntoIterator<Item = impl Into<MockOutcall>>,
+    ) -> Self {
         for outcall in outcalls.into_iter() {
-            self = self.mock(outcall, once());
+            self = self.mock_once(outcall);
         }
         self
     }
