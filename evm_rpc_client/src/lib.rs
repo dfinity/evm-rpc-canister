@@ -255,6 +255,14 @@ pub struct ClientBuilder<R> {
     config: ClientConfig<R>,
 }
 
+impl<R: Clone> Clone for ClientBuilder<R> {
+    fn clone(&self) -> Self {
+        ClientBuilder {
+            config: self.config.clone(),
+        }
+    }
+}
+
 impl<R> ClientBuilder<R> {
     fn new(runtime: R, evm_rpc_canister: Principal) -> Self {
         Self {

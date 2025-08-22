@@ -1,4 +1,4 @@
-use canhttp::http::json::JsonRpcRequest;
+use canhttp::http::json::{Id, JsonRpcRequest};
 use ic_cdk::api::call::RejectionCode;
 use pocket_ic::common::rest::{
     CanisterHttpHeader, CanisterHttpMethod, CanisterHttpReject, CanisterHttpReply,
@@ -205,6 +205,11 @@ impl MockOutcallBuilder {
 
     pub fn with_max_response_bytes(mut self, max_response_bytes: u64) -> Self {
         self.0.max_response_bytes = Some(max_response_bytes);
+        self
+    }
+
+    pub fn with_request_id(mut self, id: Id) -> Self {
+        self.0.request_body = self.0.request_body.map(|body| body.with_id(id));
         self
     }
 

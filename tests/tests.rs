@@ -5,6 +5,7 @@ use alloy_primitives::{address, b256, bytes};
 use alloy_rpc_types::BlockNumberOrTag;
 use assert_matches::assert_matches;
 use candid::{CandidType, Decode, Encode, Nat, Principal};
+use canhttp::http::json::Id;
 use canlog::{Log, LogEntry};
 use evm_rpc::constants::DEFAULT_MAX_RESPONSE_BYTES;
 use evm_rpc::logs::Priority;
@@ -36,7 +37,7 @@ use pocket_ic::{nonblocking, ErrorCode, PocketIc, PocketIcBuilder, RejectRespons
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::json;
 use std::sync::{Arc, Mutex};
-use std::{marker::PhantomData, mem, str::FromStr, time::Duration};
+use std::{marker::PhantomData, str::FromStr, time::Duration};
 
 const DEFAULT_CALLER_TEST_ID: Principal = Principal::from_slice(&[0x9d, 0xf7, 0x01]);
 const DEFAULT_CONTROLLER_TEST_ID: Principal = Principal::from_slice(&[0x9d, 0xf7, 0x02]);
@@ -910,9 +911,9 @@ async fn eth_get_logs_should_succeed() {
     }
 }
 
-#[test]
-fn eth_get_logs_should_fail_when_block_range_too_large() {
-    let setup = EvmRpcSetup::new().mock_api_keys();
+#[tokio::test]
+async fn eth_get_logs_should_fail_when_block_range_too_large() {
+    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
     let error_msg_regex =
         regex::Regex::new("Requested [0-9_]+ blocks; limited to [0-9_]+").unwrap();
 
@@ -920,34 +921,29 @@ fn eth_get_logs_should_fail_when_block_range_too_large() {
         for (config, from_block, to_block) in [
             // default block range
             (
-                None,
-                Some(BlockTag::Number(0_u8.into())),
-                Some(BlockTag::Number(501_u16.into())),
+                GetLogsRpcConfig::default(),
+                BlockTag::Number(0_u8.into()),
+                BlockTag::Number(501_u16.into()),
             ),
             // large block range
             (
-                Some(GetLogsRpcConfig {
+                GetLogsRpcConfig {
                     max_block_range: Some(1_000),
                     ..Default::default()
-                }),
-                Some(BlockTag::Number(0_u8.into())),
-                Some(BlockTag::Number(1001_u16.into())),
+                },
+                BlockTag::Number(0_u8.into()),
+                BlockTag::Number(1001_u16.into()),
             ),
         ] {
-            let response = setup
-                .eth_get_logs(
-                    source.clone(),
-                    config,
-                    evm_rpc_types::GetLogsArgs {
-                        addresses: vec!["0xdAC17F958D2ee523a2206206994597C13D831ec7"
-                            .parse()
-                            .unwrap()],
-                        from_block,
-                        to_block,
-                        topics: None,
-                    },
-                )
-                .wait()
+            let client = setup.client().with_rpc_sources(source.clone()).build();
+
+            let response = client
+                .get_logs(vec![address!("0xdAC17F958D2ee523a2206206994597C13D831ec7")])
+                .with_from_block(from_block)
+                .with_to_block(to_block)
+                .with_rpc_config(config)
+                .send()
+                .await
                 .expect_consistent()
                 .unwrap_err();
 
@@ -1991,32 +1987,26 @@ fn candid_rpc_should_recognize_rate_limit() {
     );
 }
 
-#[test]
-fn should_use_custom_response_size_estimate() {
-    let setup = EvmRpcSetup::new().mock_api_keys();
+#[tokio::test]
+async fn should_use_custom_response_size_estimate() {
+    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
     let max_response_bytes = 1234;
     let expected_response = r#"{"id":0,"jsonrpc":"2.0","result":[{"address":"0xdac17f958d2ee523a2206206994597c13d831ec7","topics":["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef","0x000000000000000000000000a9d1e08c7793af67e9d92fe308d5697fb81d3e43","0x00000000000000000000000078cccfb3d517cd4ed6d045e263e134712288ace2"],"data":"0x000000000000000000000000000000000000000000000000000000003b9c6433","blockNumber":"0x11dc77e","transactionHash":"0xf3ed91a03ddf964281ac7a24351573efd535b80fc460a5c2ad2b9d23153ec678","transactionIndex":"0x65","blockHash":"0xd5c72ad752b2f0144a878594faf8bd9f570f2f72af8e7f0940d3545a6388f629","logIndex":"0xe8","removed":false}]}"#;
-    let response = setup
-        .eth_get_logs(
-            RpcServices::EthMainnet(Some(vec![EthMainnetService::Cloudflare])),
-            Some(evm_rpc_types::GetLogsRpcConfig {
-                response_size_estimate: Some(max_response_bytes),
-                ..Default::default()
-            }),
-            evm_rpc_types::GetLogsArgs {
-                addresses: vec!["0xdAC17F958D2ee523a2206206994597C13D831ec7"
-                    .parse()
-                    .unwrap()],
-                from_block: None,
-                to_block: None,
-                topics: None,
-            },
+    let client = setup
+        .client()
+        .mock(
+            evm_rpc_client::MockOutcallBuilder::new_success(expected_response),
+            once(),
         )
-        .mock_http_once(
-            MockOutcallBuilder::new(200, expected_response)
-                .with_max_response_bytes(max_response_bytes),
-        )
-        .wait()
+        .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
+            EthMainnetService::Cloudflare,
+        ])))
+        .with_response_size_estimate(max_response_bytes)
+        .build();
+    let response = client
+        .get_logs(vec![address!("0xdAC17F958D2ee523a2206206994597C13D831ec7")])
+        .send()
+        .await
         .expect_consistent();
     assert_matches!(response, Ok(_));
 }
@@ -2402,43 +2392,37 @@ fn should_retrieve_logs() {
         .contains("Updating API keys"));
 }
 
-#[test]
-fn should_retry_when_response_too_large() {
-    let setup = EvmRpcSetup::new().mock_api_keys();
+#[tokio::test]
+async fn should_retry_when_response_too_large() {
+    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+
+    let rpc_services = RpcServices::EthMainnet(Some(vec![EthMainnetService::Cloudflare]));
+
     // around 600 bytes per log
     // we need at least 3334 logs to reach the 2MB limit
-    let large_amount_of_logs: [serde_json::Value; 12] =
-        json_rpc_sequential_id(multi_logs_for_single_transaction(3_500));
-    let mut mocks = MockOutcallBuilder::new_array(200, large_amount_of_logs);
-    let response = setup
-        .eth_get_logs(
-            RpcServices::EthMainnet(Some(vec![EthMainnetService::Cloudflare])),
-            Some(evm_rpc_types::GetLogsRpcConfig {
-                response_size_estimate: Some(1),
-                ..Default::default()
-            }),
-            evm_rpc_types::GetLogsArgs {
-                addresses: vec!["0xdAC17F958D2ee523a2206206994597C13D831ec7"
-                    .parse()
-                    .unwrap()],
-                from_block: None,
-                to_block: None,
-                topics: None,
-            },
-        )
-        .mock_http_once(mem::take(&mut mocks[0]).with_max_response_bytes(1))
-        .mock_http_once(mem::take(&mut mocks[1]).with_max_response_bytes(1024 << 1))
-        .mock_http_once(mem::take(&mut mocks[2]).with_max_response_bytes(1024 << 2))
-        .mock_http_once(mem::take(&mut mocks[3]).with_max_response_bytes(1024 << 3))
-        .mock_http_once(mem::take(&mut mocks[4]).with_max_response_bytes(1024 << 4))
-        .mock_http_once(mem::take(&mut mocks[5]).with_max_response_bytes(1024 << 5))
-        .mock_http_once(mem::take(&mut mocks[6]).with_max_response_bytes(1024 << 6))
-        .mock_http_once(mem::take(&mut mocks[7]).with_max_response_bytes(1024 << 7))
-        .mock_http_once(mem::take(&mut mocks[8]).with_max_response_bytes(1024 << 8))
-        .mock_http_once(mem::take(&mut mocks[9]).with_max_response_bytes(1024 << 9))
-        .mock_http_once(mem::take(&mut mocks[10]).with_max_response_bytes(1024 << 10))
-        .mock_http_once(mem::take(&mut mocks[11]).with_max_response_bytes(2_000_000))
-        .wait()
+    let mocks = std::iter::once(1_u64)
+        .chain((1..=10).map(|i| 1024_u64 << i))
+        .chain(2_000_000)
+        .enumerate()
+        .map(|(id, max_response_bytes)| {
+            evm_rpc_client::MockOutcallBuilder::new_success(multi_logs_for_single_transaction(
+                3_500,
+            ))
+            .with_max_response_bytes(max_response_bytes)
+            .with_request_id(Id::Number(id))
+        });
+
+    let client = setup
+        .client()
+        .with_rpc_sources(rpc_services.clone())
+        .with_response_size_estimate(1)
+        .mock_sequence(mocks)
+        .build();
+
+    let response = client
+        .get_logs(vec![address!("0xdAC17F958D2ee523a2206206994597C13D831ec7")])
+        .send()
+        .await
         .expect_consistent();
 
     assert_matches!(
@@ -2447,38 +2431,28 @@ fn should_retry_when_response_too_large() {
         if code == LegacyRejectionCode::SysFatal && message.contains("body exceeds size limit")
     );
 
-    let mut large_amount_of_logs: [serde_json::Value; 11] =
-        json_rpc_sequential_id(multi_logs_for_single_transaction(1_000));
-    add_offset_json_rpc_id(large_amount_of_logs.as_mut_slice(), 12);
-    let mut mocks = MockOutcallBuilder::new_array(200, large_amount_of_logs);
-    let response = setup
-        .eth_get_logs(
-            RpcServices::EthMainnet(Some(vec![EthMainnetService::Cloudflare])),
-            Some(evm_rpc_types::GetLogsRpcConfig {
-                response_size_estimate: Some(1),
-                ..Default::default()
-            }),
-            evm_rpc_types::GetLogsArgs {
-                addresses: vec!["0xdAC17F958D2ee523a2206206994597C13D831ec7"
-                    .parse()
-                    .unwrap()],
-                from_block: None,
-                to_block: None,
-                topics: None,
-            },
-        )
-        .mock_http_once(mem::take(&mut mocks[0]).with_max_response_bytes(1))
-        .mock_http_once(mem::take(&mut mocks[1]).with_max_response_bytes(1024 << 1))
-        .mock_http_once(mem::take(&mut mocks[2]).with_max_response_bytes(1024 << 2))
-        .mock_http_once(mem::take(&mut mocks[3]).with_max_response_bytes(1024 << 3))
-        .mock_http_once(mem::take(&mut mocks[4]).with_max_response_bytes(1024 << 4))
-        .mock_http_once(mem::take(&mut mocks[5]).with_max_response_bytes(1024 << 5))
-        .mock_http_once(mem::take(&mut mocks[6]).with_max_response_bytes(1024 << 6))
-        .mock_http_once(mem::take(&mut mocks[7]).with_max_response_bytes(1024 << 7))
-        .mock_http_once(mem::take(&mut mocks[8]).with_max_response_bytes(1024 << 8))
-        .mock_http_once(mem::take(&mut mocks[9]).with_max_response_bytes(1024 << 9))
-        .mock_http_once(mem::take(&mut mocks[10]).with_max_response_bytes(1024 << 10))
-        .wait()
+    let mocks = std::iter::once(1_u64)
+        .chain((1..=10).map(|i| 1024_u64 << i))
+        .enumerate()
+        .map(|(id, max_response_bytes)| {
+            evm_rpc_client::MockOutcallBuilder::new_success(multi_logs_for_single_transaction(
+                1_000,
+            ))
+            .with_max_response_bytes(max_response_bytes)
+            .with_request_id(Id::Number(id + 12))
+        });
+
+    let client = setup
+        .client()
+        .with_rpc_sources(rpc_services.clone())
+        .with_response_size_estimate(1)
+        .mock_sequence(mocks)
+        .build();
+
+    let response = client
+        .get_logs(vec!["0xdAC17F958D2ee523a2206206994597C13D831ec7"])
+        .send()
+        .await
         .expect_consistent();
 
     assert_matches!(
