@@ -59,15 +59,13 @@
 //! #   ])))
 //!     .build();
 //!
-//! let request = client.get_logs(vec![address!("0xdac17f958d2ee523a2206206994597c13d831ec7")]);
-//!
-//! let result = request
+//! let result = client
+//!     .get_logs(vec![address!("0xdac17f958d2ee523a2206206994597c13d831ec7")])
 //!     .with_cycles(10_000_000_000)
 //!     .send()
 //!     .await
 //!     .expect_consistent();
 //!
-//! assert!(result.is_ok());
 //! assert_eq!(result.unwrap().first(), Some(
 //!     &alloy_rpc_types::Log {
 //!         inner: alloy_primitives::Log {
@@ -100,7 +98,7 @@
 //! it is sometimes desirable to have a custom configuration for a specific
 //! call that is different from the one used by the client for all the other calls.
 //!
-//! For example, maybe for most calls, a 2 out-of 3 strategy is good enough, but for `eth_getSlot`
+//! For example, maybe for most calls, a 2 out-of 3 strategy is good enough, but for `eth_getLogs`
 //! your application requires a higher threshold and more robustness with a 3-out-of-5 :
 //!
 //! ```rust
@@ -151,7 +149,6 @@
 //!     .await
 //!     .expect_consistent();
 //!
-//! assert!(result.is_ok());
 //! assert_eq!(result.unwrap().first(), Some(
 //!     &alloy_rpc_types::Log {
 //!         inner: alloy_primitives::Log {
@@ -258,7 +255,7 @@ impl EvmRpcClient<IcRuntime> {
     }
 }
 
-/// Client to interact with the EVM RPC canister.
+/// Configuration for the EVM RPC canister client.
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct ClientConfig<R> {
     runtime: R,
@@ -370,15 +367,13 @@ impl<R> EvmRpcClient<R> {
     /// #   ])))
     ///     .build();
     ///
-    /// let request = client.get_logs(vec![address!("0xdac17f958d2ee523a2206206994597c13d831ec7")]);
-    ///
-    /// let result = request
+    /// let result = client
+    ///     .get_logs(vec![address!("0xdac17f958d2ee523a2206206994597c13d831ec7")])
     ///     .with_cycles(10_000_000_000)
     ///     .send()
     ///     .await
     ///     .expect_consistent();
     ///
-    /// assert!(result.is_ok());
     /// assert_eq!(result.unwrap().first(), Some(
     ///     &alloy_rpc_types::Log {
     ///         inner: alloy_primitives::Log {
