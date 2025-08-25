@@ -86,15 +86,15 @@ fn test_multi_rpc_result_and_then() {
         MultiRpcResult::Consistent::<()>(Err(err.clone()))
     );
     assert_eq!(
-        MultiRpcResult::Inconsistent(vec![(
-            RpcService::EthMainnet(EthMainnetService::Ankr),
-            Ok(5)
-        )])
+        MultiRpcResult::Inconsistent(vec![
+            (RpcService::EthMainnet(EthMainnetService::Ankr), Ok(5)),
+            (RpcService::EthMainnet(EthMainnetService::Ankr), Ok(6))
+        ])
         .and_then(|n| Ok(n + 1)),
-        MultiRpcResult::Inconsistent(vec![(
-            RpcService::EthMainnet(EthMainnetService::Ankr),
-            Ok(6)
-        )])
+        MultiRpcResult::Inconsistent(vec![
+            (RpcService::EthMainnet(EthMainnetService::Ankr), Ok(6)),
+            (RpcService::EthMainnet(EthMainnetService::Ankr), Ok(7))
+        ])
     );
     assert_eq!(
         MultiRpcResult::Inconsistent(vec![
@@ -150,16 +150,15 @@ fn test_multi_rpc_result_and_then() {
             (RpcService::EthMainnet(EthMainnetService::Llama), Ok(3))
         ])
         .and_then(|n| if n % 2 == 0 { Ok(n) } else { Err(err.clone()) }),
+        MultiRpcResult::Consistent(Err(err.clone()))
+    );
+    assert_eq!(
         MultiRpcResult::Inconsistent(vec![
-            (
-                RpcService::EthMainnet(EthMainnetService::Ankr),
-                Err(err.clone())
-            ),
-            (
-                RpcService::EthMainnet(EthMainnetService::Llama),
-                Err(err.clone())
-            )
+            (RpcService::EthMainnet(EthMainnetService::Ankr), Ok(2)),
+            (RpcService::EthMainnet(EthMainnetService::Llama), Ok(3))
         ])
+        .and_then(|n| Ok(n / 2)),
+        MultiRpcResult::Consistent(Ok(1))
     );
 }
 

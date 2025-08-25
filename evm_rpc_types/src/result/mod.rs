@@ -60,7 +60,8 @@ impl<T> MultiRpcResult<T> {
                         )
                     })
                     .collect(),
-            ),
+            )
+            .collapse(),
         }
     }
 }
