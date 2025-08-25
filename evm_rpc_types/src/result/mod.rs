@@ -44,7 +44,7 @@ impl<T: PartialEq> MultiRpcResult<T> {
     /// Collapses an [`Inconsistent`](MultiRpcResult::Inconsistent) into
     /// [`Consistent`](MultiRpcResult::Consistent) if all results match.
     /// Otherwise, returns the value unchanged.
-    pub fn collapse(self) -> MultiRpcResult<T> {
+    fn collapse(self) -> MultiRpcResult<T> {
         match self {
             MultiRpcResult::Consistent(r) => MultiRpcResult::Consistent(r),
             MultiRpcResult::Inconsistent(v) => {
