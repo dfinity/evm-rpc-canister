@@ -16,7 +16,10 @@ mod alloy_conversion_tests {
     proptest! {
         #[test]
         fn should_convert_from_alloy(entry in arb_log_entry()) {
-            // Convert a number serialized as a hexadecimal string into an array of u32 digits
+            // Convert a number serialized as a hexadecimal string into an array of u32 digits.
+            // This is needed to compare a serialized `alloy_rpc_types::Log` with an
+            // `evm_rpc_types::LogEntry` since `transactionIndex`, `logIndex` and `blockNumber` get
+            // serialized as hex strings by alloy but as integers in `evm_rpc_types`.
             fn hex_to_u32_digits(serialized: &mut Value, field: &str) {
                 if let Some(Value::String(hex)) = serialized.get(field) {
                     let hex = hex.strip_prefix("0x").unwrap_or(hex);
