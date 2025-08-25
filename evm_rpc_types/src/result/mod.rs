@@ -1,6 +1,9 @@
 #[cfg(test)]
 mod tests;
 
+#[cfg(feature = "alloy")]
+mod alloy;
+
 use crate::RpcService;
 use candid::{CandidType, Deserialize};
 use ic_error_types::RejectCode;
@@ -29,6 +32,29 @@ impl<T> MultiRpcResult<T> {
                             service,
                             match result {
                                 Ok(ok) => Ok(f(ok)),
+                                Err(err) => Err(err),
+                            },
+                        )
+                    })
+                    .collect(),
+            )
+            .collapse(),
+        }
+    }
+
+    /// Maps a [`MultiRpcResult`] containing values of type `T` to a [`MultiRpcResult`] containing
+    /// values of type `R` by a fallible map.
+    pub fn and_then<R: PartialEq>(self, mut f: impl FnMut(T) -> RpcResult<R>) -> MultiRpcResult<R> {
+        match self {
+            MultiRpcResult::Consistent(result) => MultiRpcResult::Consistent(result.and_then(f)),
+            MultiRpcResult::Inconsistent(results) => MultiRpcResult::Inconsistent(
+                results
+                    .into_iter()
+                    .map(|(service, result)| {
+                        (
+                            service,
+                            match result {
+                                Ok(ok) => f(ok),
                                 Err(err) => Err(err),
                             },
                         )

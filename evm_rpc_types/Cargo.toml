@@ -11,6 +11,8 @@ repository = "https://github.com/dfinity/evm-rpc-canister"
 documentation = "https://docs.rs/evm_rpc_types"
 
 [dependencies]
+alloy-primitives = { workspace = true, optional = true }
+alloy-rpc-types = { workspace = true, optional = true }
 candid = { workspace = true }
 canlog = { workspace = true }
 hex = { workspace = true }
@@ -24,3 +26,8 @@ url = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
+serde_json = { workspace = true }
+
+[features]
+default = ["alloy"]
+alloy = ["dep:alloy-primitives", "dep:alloy-rpc-types"]

@@ -1,6 +1,8 @@
 #[cfg(test)]
 mod tests;
 
+#[cfg(feature = "alloy")]
+mod alloy;
 mod lifecycle;
 mod request;
 mod response;
@@ -45,6 +47,15 @@ impl Display for Nat256 {
 impl Debug for Nat256 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0 .0)
+    }
+}
+
+impl TryFrom<Nat256> for u64 {
+    type Error = RpcError;
+
+    fn try_from(value: Nat256) -> Result<Self, Self::Error> {
+        u64::try_from(value.0 .0)
+            .map_err(|e| RpcError::ValidationError(ValidationError::Custom(format!("{:?}", e))))
     }
 }
 
