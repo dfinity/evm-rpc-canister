@@ -88,7 +88,7 @@ fn test_multi_rpc_result_map() {
                 )))
             )
         ])
-            .and_then(|()| unreachable!()),
+        .and_then(|()| unreachable!()),
         MultiRpcResult::Consistent::<()>(Err(RpcError::ValidationError(ValidationError::Custom(
             "error message".into()
         ))))
