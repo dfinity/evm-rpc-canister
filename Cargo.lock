@@ -28,9 +28,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-consensus"
-version = "1.0.25"
+version = "1.0.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35f021a55afd68ff2364ccfddaa364fc9a38a72200cdc74fcfb8dc3231d38f2c"
+checksum = "88bf8bac84bad62b19c047ceb71af26052155b924800d1f2eb7da99022799878"
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
@@ -103,9 +103,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-eips"
-version = "1.0.25"
+version = "1.0.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7473a19f02b25f8e1e8c69d35f02c07245694d11bd91bfe00e9190ac106b3838"
+checksum = "ccab489a99806d6586118b4712506e56c2888cdf4798f29b401511bc3af13475"
 dependencies = [
  "alloy-eip2124",
  "alloy-eip2930",
@@ -135,9 +135,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-network-primitives"
-version = "1.0.25"
+version = "1.0.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d540d962ddbc3e95153bafe56ccefeb16dfbffa52c5f7bdd66cd29ec8f52259"
+checksum = "5d090a0ca79509160da70edddf7f7144a1eab1f45c2c9bf53695b6971b6ff890"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -249,9 +249,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-serde"
-version = "1.0.25"
+version = "1.0.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30be84f45d4f687b00efaba1e6290cbf53ccc8f6b8fbb54e4c2f9d2a0474ce95"
+checksum = "93cb27da33b618fe729ab6b053275e754fbb31782caa83dfd11219d7e2e8ebf1"
 dependencies = [
  "alloy-primitives",
  "serde",
@@ -346,9 +346,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-tx-macros"
-version = "1.0.25"
+version = "1.0.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72e29436068f836727d4e7c819ae6bf6f9c9e19a32e96fc23e814709a277f23a"
+checksum = "20401796a1205414da724f63cc4e7713d674576ee923469f07c29ccc6d382ba2"
 dependencies = [
  "alloy-primitives",
  "darling",
@@ -1493,6 +1493,7 @@ dependencies = [
 name = "evm_rpc"
 version = "2.4.0"
 dependencies = [
+ "alloy-consensus",
  "alloy-primitives",
  "alloy-rpc-types",
  "assert_matches",
@@ -1541,6 +1542,7 @@ dependencies = [
 name = "evm_rpc_client"
 version = "1.4.0"
 dependencies = [
+ "alloy-consensus",
  "alloy-primitives",
  "alloy-rpc-types",
  "async-trait",
@@ -1562,6 +1564,7 @@ dependencies = [
 name = "evm_rpc_types"
 version = "2.0.0"
 dependencies = [
+ "alloy-consensus",
  "alloy-primitives",
  "alloy-rpc-types",
  "candid",

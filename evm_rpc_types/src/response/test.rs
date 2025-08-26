@@ -15,7 +15,7 @@ mod alloy_conversion_tests {
 
     proptest! {
         #[test]
-        fn should_convert_from_alloy(entry in arb_log_entry()) {
+        fn should_convert_log_to_alloy(entry in arb_log_entry()) {
             // Convert a number serialized as a hexadecimal string into an array of u32 digits.
             // This is needed to compare a serialized `alloy_rpc_types::Log` with an
             // `evm_rpc_types::LogEntry` since `transactionIndex`, `logIndex` and `blockNumber` get
@@ -37,6 +37,11 @@ mod alloy_conversion_tests {
 
             assert_eq!(serialized, alloy_serialized);
         }
+    }
+
+    #[test]
+    fn should_convert_block_to_alloy() {
+        todo!()
     }
 
     fn arb_log_entry() -> impl Strategy<Value = LogEntry> {

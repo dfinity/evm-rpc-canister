@@ -180,6 +180,17 @@ impl MockOutcallBuilder {
         self
     }
 
+    pub fn with_sequential_response_ids(mut self, first_id: u64) -> Self{
+        for (i, response) in self.0.responses.iter_mut().enumerate() {
+            if let CanisterHttpResponse::CanisterHttpReply(reply) = response {
+                let mut body: Value = serde_json::from_slice(&reply.body).expect("Invalid response body");
+                *body.get_mut("id").expect("Missing request ID") = Value::Number((first_id + i as u64).into());
+                reply.body = serde_json::to_vec(&body).expect("Invalid response body");
+            }
+        }
+        self
+    }
+
     pub fn build(self) -> MockOutcall {
         self.0
     }

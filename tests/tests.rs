@@ -1,8 +1,8 @@
 mod mock;
 
 use crate::mock::MockJsonRequestBody;
-use alloy_primitives::{address, b256, bytes};
-use alloy_rpc_types::BlockNumberOrTag;
+use alloy_primitives::{address, b256, bloom, bytes};
+use alloy_rpc_types::{BlockNumberOrTag, BlockTransactions};
 use assert_matches::assert_matches;
 use candid::{CandidType, Decode, Encode, Nat, Principal};
 use canlog::{Log, LogEntry};
@@ -804,29 +804,27 @@ fn should_decode_transaction_receipt() {
 
 #[tokio::test]
 async fn eth_get_logs_should_succeed() {
-    fn mock_responses() -> [serde_json::Value; 3] {
-        json_rpc_sequential_id(json!({
-            "id" : 0,
-            "jsonrpc" : "2.0",
-            "result" : [
-                {
-                    "address" : "0xdac17f958d2ee523a2206206994597c13d831ec7",
-                    "topics" : [
-                        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
-                        "0x000000000000000000000000a9d1e08c7793af67e9d92fe308d5697fb81d3e43",
-                        "0x00000000000000000000000078cccfb3d517cd4ed6d045e263e134712288ace2"
-                    ],
-                    "data" : "0x000000000000000000000000000000000000000000000000000000003b9c6433",
-                    "blockNumber" : "0x11dc77e",
-                    "transactionHash" : "0xf3ed91a03ddf964281ac7a24351573efd535b80fc460a5c2ad2b9d23153ec678",
-                    "transactionIndex" : "0x65",
-                    "blockHash" : "0xd5c72ad752b2f0144a878594faf8bd9f570f2f72af8e7f0940d3545a6388f629",
-                    "logIndex" : "0xe8",
-                    "removed" : false
-                }
-            ]
-        }))
-    }
+    let response = json!({
+        "id" : 0,
+        "jsonrpc" : "2.0",
+        "result" : [
+            {
+                "address" : "0xdac17f958d2ee523a2206206994597c13d831ec7",
+                "topics" : [
+                    "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                    "0x000000000000000000000000a9d1e08c7793af67e9d92fe308d5697fb81d3e43",
+                    "0x00000000000000000000000078cccfb3d517cd4ed6d045e263e134712288ace2"
+                ],
+                "data" : "0x000000000000000000000000000000000000000000000000000000003b9c6433",
+                "blockNumber" : "0x11dc77e",
+                "transactionHash" : "0xf3ed91a03ddf964281ac7a24351573efd535b80fc460a5c2ad2b9d23153ec678",
+                "transactionIndex" : "0x65",
+                "blockHash" : "0xd5c72ad752b2f0144a878594faf8bd9f570f2f72af8e7f0940d3545a6388f629",
+                "logIndex" : "0xe8",
+                "removed" : false
+            }
+        ]
+    });
 
     fn expected_logs() -> Vec<alloy_rpc_types::Log> {
         vec![alloy_rpc_types::Log {
@@ -874,15 +872,16 @@ async fn eth_get_logs_should_succeed() {
                 BlockNumberOrTag::Number(501_u16.into()),
             ),
         ] {
-            let mut responses: [serde_json::Value; 3] = mock_responses();
-            add_offset_json_rpc_id(responses.as_mut_slice(), offset);
-
             let response = setup
                 .client()
                 .with_rpc_sources(source.clone())
-                .mock_once(evm_rpc_client::MockOutcallBuilder::new_success(
-                    responses.clone(),
-                ))
+                .mock_once(
+                    evm_rpc_client::MockOutcallBuilder::new_success(iter::repeat_n(
+                        response.clone(),
+                        3,
+                    ))
+                    .with_sequential_response_ids(offset),
+                )
                 .build()
                 .get_logs(vec![address!("0xdac17f958d2ee523a2206206994597c13d831ec7")])
                 .with_from_block(from_block)
@@ -892,6 +891,7 @@ async fn eth_get_logs_should_succeed() {
                 .await
                 .expect_consistent()
                 .unwrap();
+
             offset += 3;
 
             assert_eq!(response, expected_logs());
@@ -943,47 +943,90 @@ async fn eth_get_logs_should_fail_when_block_range_too_large() {
     }
 }
 
-#[test]
-fn eth_get_block_by_number_should_succeed() {
-    let [response_0, response_1, response_2] = json_rpc_sequential_id(
-        json!({"jsonrpc":"2.0","result":{"baseFeePerGas":"0xd7232aa34","difficulty":"0x0","extraData":"0x546974616e2028746974616e6275696c6465722e78797a29","gasLimit":"0x1c9c380","gasUsed":"0xa768c4","hash":"0xc3674be7b9d95580d7f23c03d32e946f2b453679ee6505e3a778f003c5a3cfae","logsBloom":"0x3e6b8420e1a13038902c24d6c2a9720a7ad4860cdc870cd5c0490011e43631134f608935bd83171247407da2c15d85014f9984608c03684c74aad48b20bc24022134cdca5f2e9d2dee3b502a8ccd39eff8040b1d96601c460e119c408c620b44fa14053013220847045556ea70484e67ec012c322830cf56ef75e09bd0db28a00f238adfa587c9f80d7e30d3aba2863e63a5cad78954555966b1055a4936643366a0bb0b1bac68d0e6267fc5bf8304d404b0c69041125219aa70562e6a5a6362331a414a96d0716990a10161b87dd9568046a742d4280014975e232b6001a0360970e569d54404b27807d7a44c949ac507879d9d41ec8842122da6772101bc8b","miner":"0x388c818ca8b9251b393131c08a736a67ccb19297","mixHash":"0x516a58424d4883a3614da00a9c6f18cd5cd54335a08388229a993a8ecf05042f","nonce":"0x0000000000000000","number":"0x11db01d","parentHash":"0x43325027f6adf9befb223f8ae80db057daddcd7b48e41f60cd94bfa8877181ae","receiptsRoot":"0x66934c3fd9c547036fe0e56ad01bc43c84b170be7c4030a86805ddcdab149929","sha3Uncles":"0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347","size":"0xcd35","stateRoot":"0x13552447dd62f11ad885f21a583c4fa34144efe923c7e35fb018d6710f06b2b6","timestamp":"0x656f96f3","totalDifficulty":"0xc70d815d562d3cfa955","withdrawalsRoot":"0xecae44b2c53871003c5cc75285995764034c9b5978a904229d36c1280b141d48"},"id":0}),
-    );
+#[tokio::test]
+async fn eth_get_block_by_number_should_succeed() {
+    let response = json!({
+        "jsonrpc": "2.0",
+        "result": {
+            "baseFeePerGas": "0xd7232aa34",
+            "difficulty": "0x0",
+            "extraData": "0x546974616e2028746974616e6275696c6465722e78797a29",
+            "gasLimit": "0x1c9c380",
+            "gasUsed": "0xa768c4",
+            "hash": "0xc3674be7b9d95580d7f23c03d32e946f2b453679ee6505e3a778f003c5a3cfae",
+            "logsBloom": "0x3e6b8420e1a13038902c24d6c2a9720a7ad4860cdc870cd5c0490011e43631134f608935bd83171247407da2c15d85014f9984608c03684c74aad48b20bc24022134cdca5f2e9d2dee3b502a8ccd39eff8040b1d96601c460e119c408c620b44fa14053013220847045556ea70484e67ec012c322830cf56ef75e09bd0db28a00f238adfa587c9f80d7e30d3aba2863e63a5cad78954555966b1055a4936643366a0bb0b1bac68d0e6267fc5bf8304d404b0c69041125219aa70562e6a5a6362331a414a96d0716990a10161b87dd9568046a742d4280014975e232b6001a0360970e569d54404b27807d7a44c949ac507879d9d41ec8842122da6772101bc8b",
+            "miner": "0x388c818ca8b9251b393131c08a736a67ccb19297",
+            "mixHash": "0x516a58424d4883a3614da00a9c6f18cd5cd54335a08388229a993a8ecf05042f",
+            "nonce": "0x0000000000000000",
+            "number": "0x11db01d",
+            "parentHash": "0x43325027f6adf9befb223f8ae80db057daddcd7b48e41f60cd94bfa8877181ae",
+            "receiptsRoot": "0x66934c3fd9c547036fe0e56ad01bc43c84b170be7c4030a86805ddcdab149929",
+            "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+            "size": "0xcd35",
+            "stateRoot": "0x13552447dd62f11ad885f21a583c4fa34144efe923c7e35fb018d6710f06b2b6",
+            "timestamp": "0x656f96f3",
+            "withdrawalsRoot": "0xecae44b2c53871003c5cc75285995764034c9b5978a904229d36c1280b141d48",
+            "transactionsRoot": "0x93a1ad3d067009259b508cc95fde63b5efd7e9d8b55754314c173fdde8c0826a",
+        },
+        "id": 0
+    });
+
+    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let mut offset = 0;
+
     for source in RPC_SERVICES {
-        let setup = EvmRpcSetup::new().mock_api_keys();
         let response = setup
-            .eth_get_block_by_number(source.clone(), None, evm_rpc_types::BlockTag::Latest)
-            .mock_http_once(MockOutcallBuilder::new(200, response_0.clone()))
-            .mock_http_once(MockOutcallBuilder::new(200, response_1.clone()))
-            .mock_http_once(MockOutcallBuilder::new(200, response_2.clone()))
-            .wait()
+            .client()
+            .with_rpc_sources(source.clone())
+            .mock_once(
+                evm_rpc_client::MockOutcallBuilder::new_success(iter::repeat_n(
+                    response.clone(),
+                    3,
+                ))
+                .with_sequential_response_ids(offset),
+            )
+            .build()
+            .get_block_by_number(BlockNumberOrTag::Latest)
+            .send()
+            .await
             .expect_consistent()
             .unwrap();
-        assert_eq!(
-            response,
-            evm_rpc_types::Block {
-                base_fee_per_gas: Some(57_750_497_844_u64.into()),
-                difficulty: Some(Nat256::ZERO),
-                extra_data: "0x546974616e2028746974616e6275696c6465722e78797a29".parse().unwrap(),
-                gas_limit: 0x1c9c380_u32.into(),
-                gas_used: 0xa768c4_u32.into(),
-                hash: "0xc3674be7b9d95580d7f23c03d32e946f2b453679ee6505e3a778f003c5a3cfae".parse().unwrap(),
-                logs_bloom: "0x3e6b8420e1a13038902c24d6c2a9720a7ad4860cdc870cd5c0490011e43631134f608935bd83171247407da2c15d85014f9984608c03684c74aad48b20bc24022134cdca5f2e9d2dee3b502a8ccd39eff8040b1d96601c460e119c408c620b44fa14053013220847045556ea70484e67ec012c322830cf56ef75e09bd0db28a00f238adfa587c9f80d7e30d3aba2863e63a5cad78954555966b1055a4936643366a0bb0b1bac68d0e6267fc5bf8304d404b0c69041125219aa70562e6a5a6362331a414a96d0716990a10161b87dd9568046a742d4280014975e232b6001a0360970e569d54404b27807d7a44c949ac507879d9d41ec8842122da6772101bc8b".parse().unwrap(),
-                miner: "0x388c818ca8b9251b393131c08a736a67ccb19297".parse().unwrap(),
-                mix_hash: "0x516a58424d4883a3614da00a9c6f18cd5cd54335a08388229a993a8ecf05042f".parse().unwrap(),
-                nonce: Nat256::ZERO,
-                number: 18_722_845_u32.into(),
-                parent_hash: "0x43325027f6adf9befb223f8ae80db057daddcd7b48e41f60cd94bfa8877181ae".parse().unwrap(),
-                receipts_root: "0x66934c3fd9c547036fe0e56ad01bc43c84b170be7c4030a86805ddcdab149929".parse().unwrap(),
-                sha3_uncles: "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347".parse().unwrap(),
-                size: 0xcd35_u32.into(),
-                state_root: "0x13552447dd62f11ad885f21a583c4fa34144efe923c7e35fb018d6710f06b2b6".parse().unwrap(),
-                timestamp: 0x656f96f3_u32.into(),
+
+        assert_eq!(response, alloy_rpc_types::Block {
+            header: alloy_rpc_types::Header {
+                hash: b256!("0xc3674be7b9d95580d7f23c03d32e946f2b453679ee6505e3a778f003c5a3cfae"),
+                inner: alloy_consensus::Header {
+                    parent_hash: b256!("0x43325027f6adf9befb223f8ae80db057daddcd7b48e41f60cd94bfa8877181ae"),
+                    ommers_hash: b256!("0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"),
+                    beneficiary: address!("0x388c818ca8b9251b393131c08a736a67ccb19297"),
+                    state_root: b256!("0x13552447dd62f11ad885f21a583c4fa34144efe923c7e35fb018d6710f06b2b6"),
+                    transactions_root: b256!("0x93a1ad3d067009259b508cc95fde63b5efd7e9d8b55754314c173fdde8c0826a"),
+                    receipts_root: b256!("0x66934c3fd9c547036fe0e56ad01bc43c84b170be7c4030a86805ddcdab149929"),
+                    logs_bloom: bloom!("0x3e6b8420e1a13038902c24d6c2a9720a7ad4860cdc870cd5c0490011e43631134f608935bd83171247407da2c15d85014f9984608c03684c74aad48b20bc24022134cdca5f2e9d2dee3b502a8ccd39eff8040b1d96601c460e119c408c620b44fa14053013220847045556ea70484e67ec012c322830cf56ef75e09bd0db28a00f238adfa587c9f80d7e30d3aba2863e63a5cad78954555966b1055a4936643366a0bb0b1bac68d0e6267fc5bf8304d404b0c69041125219aa70562e6a5a6362331a414a96d0716990a10161b87dd9568046a742d4280014975e232b6001a0360970e569d54404b27807d7a44c949ac507879d9d41ec8842122da6772101bc8b"),
+                    difficulty: alloy_primitives::U256::ZERO,
+                    number: 18_722_845_u64,
+                    gas_limit: 0x1c9c380_u64,
+                    gas_used: 0xa768c4_u64,
+                    timestamp: 0x656f96f3_u64,
+                    extra_data: bytes!("0x546974616e2028746974616e6275696c6465722e78797a29"),
+                    mix_hash: b256!("0x516a58424d4883a3614da00a9c6f18cd5cd54335a08388229a993a8ecf05042f"),
+                    nonce: alloy_primitives::B64::ZERO,
+                    base_fee_per_gas: Some(57_750_497_844_u64),
+                    withdrawals_root: None,
+                    blob_gas_used: None,
+                    excess_blob_gas: None,
+                    parent_beacon_block_root: None,
+                    requests_hash: None,
+                },
                 total_difficulty: None,
-                transactions: vec![],
-                transactions_root: None,
-                uncles: vec![],
-            }
-        );
+                size: Some(alloy_primitives::U256::from(0xcd35_u64)),
+            },
+            uncles: vec![],
+            transactions: BlockTransactions::Hashes(vec![]),
+            withdrawals: None,
+        });
+
+        offset += 3;
     }
 }
 
