@@ -191,7 +191,7 @@ impl From<MockOutcallBuilder> for MockOutcall {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct MockOutcall {
     pub method: Option<CanisterHttpMethod>,
     pub url: Option<String>,
@@ -200,27 +200,6 @@ pub struct MockOutcall {
     pub request_body: Option<JsonRpcRequest<Value>>,
     pub max_response_bytes: Option<u64>,
     pub responses: Vec<CanisterHttpResponse>,
-}
-
-impl Debug for MockOutcall {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("MockOutcall")
-            .field("method", &self.method)
-            .field("url", &self.url)
-            .field("host", &self.host)
-            .field("request_headers", &self.request_headers)
-            .field("request_body", &self.request_body)
-            .field("max_response_bytes", &self.max_response_bytes)
-            .field(
-                "responses",
-                &self
-                    .responses
-                    .iter()
-                    .map(|_| "<skipped>")
-                    .collect::<Vec<_>>(),
-            )
-            .finish()
-    }
 }
 
 impl MockOutcall {
