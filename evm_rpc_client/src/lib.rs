@@ -194,8 +194,8 @@ use ic_error_types::RejectCode;
 use request::{GetLogsRequest, GetLogsRequestBuilder};
 #[cfg(feature = "pocket-ic")]
 pub use runtime::{
-    forever, once, MockOutcall, MockOutcallBody, MockOutcallBuilder, MockOutcallQueue,
-    MockOutcallRepeat, PocketIcRuntime, RepeatExt,
+    forever, once, times, MockOutcall, MockOutcallBody, MockOutcallBuilder, MockOutcallQueue,
+    MockOutcallRepeat, PocketIcRuntime,
 };
 pub use runtime::{IcRuntime, Runtime};
 use serde::de::DeserializeOwned;

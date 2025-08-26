@@ -5,7 +5,6 @@ use alloy_primitives::{address, b256, bytes};
 use alloy_rpc_types::BlockNumberOrTag;
 use assert_matches::assert_matches;
 use candid::{CandidType, Decode, Encode, Nat, Principal};
-use canhttp::http::json::Id;
 use canlog::{Log, LogEntry};
 use evm_rpc::constants::DEFAULT_MAX_RESPONSE_BYTES;
 use evm_rpc::logs::Priority;
@@ -37,7 +36,7 @@ use pocket_ic::{nonblocking, ErrorCode, PocketIc, PocketIcBuilder, RejectRespons
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::json;
 use std::sync::{Arc, Mutex};
-use std::{marker::PhantomData, str::FromStr, time::Duration};
+use std::{iter, marker::PhantomData, str::FromStr, time::Duration};
 
 const DEFAULT_CALLER_TEST_ID: Principal = Principal::from_slice(&[0x9d, 0xf7, 0x01]);
 const DEFAULT_CONTROLLER_TEST_ID: Principal = Principal::from_slice(&[0x9d, 0xf7, 0x02]);
@@ -878,14 +877,13 @@ async fn eth_get_logs_should_succeed() {
             let mut responses: [serde_json::Value; 3] = mock_responses();
             add_offset_json_rpc_id(responses.as_mut_slice(), offset);
 
-            let client = setup
+            let response = setup
                 .client()
                 .with_rpc_sources(source.clone())
                 .mock_once(evm_rpc_client::MockOutcallBuilder::new_success(
                     responses.clone(),
                 ))
-                .build();
-            let response = client
+                .build()
                 .get_logs(vec![address!("0xdac17f958d2ee523a2206206994597c13d831ec7")])
                 .with_from_block(from_block)
                 .with_to_block(to_block)
@@ -2389,26 +2387,24 @@ async fn should_retry_when_response_too_large() {
 
     // around 600 bytes per log
     // we need at least 3334 logs to reach the 2MB limit
-    let mocks = std::iter::once(1_u64)
+    let response_bodies = json_rpc_sequential_id::<12>(multi_logs_for_single_transaction(3_500));
+    let max_response_bytes = iter::once(1_u64)
         .chain((1..=10).map(|i| 1024_u64 << i))
-        .chain(std::iter::once(2_000_000_u64))
-        .enumerate()
-        .map(|(id, max_response_bytes)| {
-            evm_rpc_client::MockOutcallBuilder::new_success([multi_logs_for_single_transaction(
-                3_500,
-            )])
-            .with_max_response_bytes(max_response_bytes)
-            .with_request_id(Id::from(id as u64))
-        });
+        .chain(iter::once(2_000_000_u64));
 
-    let client = setup
+    let mocks = iter::zip(response_bodies, max_response_bytes).map(
+        |(response_body, max_response_bytes)| {
+            evm_rpc_client::MockOutcallBuilder::new_success([response_body])
+                .with_max_response_bytes(max_response_bytes)
+        },
+    );
+
+    let response = setup
         .client()
         .with_rpc_sources(rpc_services.clone())
         .with_response_size_estimate(1)
         .mock_sequence(mocks)
-        .build();
-
-    let response = client
+        .build()
         .get_logs(vec![address!("0xdAC17F958D2ee523a2206206994597C13D831ec7")])
         .send()
         .await
@@ -2420,25 +2416,22 @@ async fn should_retry_when_response_too_large() {
         if code == LegacyRejectionCode::SysFatal && message.contains("body exceeds size limit")
     );
 
-    let mocks = std::iter::once(1_u64)
-        .chain((1..=10).map(|i| 1024_u64 << i))
-        .enumerate()
-        .map(|(id, max_response_bytes)| {
-            evm_rpc_client::MockOutcallBuilder::new_success([multi_logs_for_single_transaction(
-                1_000,
-            )])
-            .with_max_response_bytes(max_response_bytes)
-            .with_request_id(Id::from(id as u64 + 12))
-        });
+    let mut response_bodies = json_rpc_sequential_id::<11>(multi_logs_for_single_transaction(1_000));
+    add_offset_json_rpc_id(response_bodies.as_mut_slice(), 12);
+    let max_response_bytes = iter::once(1_u64).chain((1..=10).map(|i| 1024_u64 << i));
+    let mocks = iter::zip(max_response_bytes, response_bodies).map(
+        |(max_response_bytes, response_body)| {
+            evm_rpc_client::MockOutcallBuilder::new_success([response_body])
+                .with_max_response_bytes(max_response_bytes)
+        },
+    );
 
-    let client = setup
+    let response = setup
         .client()
         .with_rpc_sources(rpc_services.clone())
         .with_response_size_estimate(1)
         .mock_sequence(mocks)
-        .build();
-
-    let response = client
+        .build()
         .get_logs(vec![address!("0xdAC17F958D2ee523a2206206994597C13D831ec7")])
         .send()
         .await

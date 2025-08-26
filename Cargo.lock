@@ -1546,6 +1546,7 @@ dependencies = [
  "async-trait",
  "candid",
  "canhttp",
+ "dyn-clone",
  "evm_rpc_types",
  "ic-cdk",
  "ic-error-types",

@@ -6,8 +6,8 @@ use async_trait::async_trait;
 use candid::{decode_args, utils::ArgumentEncoder, CandidType, Principal};
 use ic_error_types::RejectCode;
 pub use mock::{
-    forever, once, MockOutcall, MockOutcallBody, MockOutcallBuilder, MockOutcallQueue,
-    MockOutcallRepeat, RepeatExt,
+    forever, once, times, MockOutcall, MockOutcallBody, MockOutcallBuilder, MockOutcallQueue,
+    MockOutcallRepeat,
 };
 use pocket_ic::common::rest::{
     CanisterHttpReject, CanisterHttpRequest, CanisterHttpResponse, MockCanisterHttpResponse,
@@ -69,7 +69,7 @@ impl Runtime for PocketIcRuntime<'_> {
             .submit_call(id, self.caller, method, encode_args(args))
             .await
             .unwrap();
-        self.execute_mock().await;
+        self.execute_mocks().await;
         self.env
             .await_call(message_id)
             .await
@@ -96,27 +96,38 @@ impl Runtime for PocketIcRuntime<'_> {
 }
 
 impl PocketIcRuntime<'_> {
-    async fn execute_mock(&self) {
-        if let Some(mock) = {
-            let mut mocks = self.mocks.lock().unwrap();
-            mocks.next()
-        } {
-            let mut responses = mock.responses.clone().into_iter();
-            let requests = tick_until_http_request(self.env).await;
-
-            for (request, response) in iter::zip(requests, responses.by_ref()) {
-                mock.assert_matches(&request);
-                let mock_response = MockCanisterHttpResponse {
-                    subnet_id: request.subnet_id,
-                    request_id: request.request_id,
-                    response: check_response_size(&request, response),
-                    additional_responses: vec![],
-                };
-                self.env.mock_canister_http_response(mock_response).await;
+    // Loops, polling for pending canister HTTP requests and answering them with queued mocks.
+    // Each batch of requests consumes one mock, with requests validated and responded to via
+    // `PocketIc::mock_canister_http_response`. Panics if a mock has leftover responses.
+    async fn execute_mocks(&self) {
+        loop {
+            let pending_requests = tick_until_http_requests(self.env).await;
+            if pending_requests.is_empty() {
+                return;
             }
 
-            if responses.next().is_some() {
-                panic!("no pending HTTP request")
+            if let Some(mock) = {
+                let mut mocks = self.mocks.lock().unwrap();
+                mocks.next()
+            } {
+                let mut mocked_responses = mock.responses.clone().into_iter();
+
+                for (request, response) in iter::zip(pending_requests, mocked_responses.by_ref()) {
+                    mock.assert_matches(&request);
+                    let mock_response = MockCanisterHttpResponse {
+                        subnet_id: request.subnet_id,
+                        request_id: request.request_id,
+                        response: check_response_size(&request, response),
+                        additional_responses: vec![],
+                    };
+                    self.env
+                        .mock_canister_http_response(mock_response)
+                        .await;
+                }
+
+                if mocked_responses.next().is_some() {
+                    panic!("Some mocked responses were not consumed")
+                }
             }
         }
     }
@@ -174,7 +185,7 @@ where
     })
 }
 
-async fn tick_until_http_request(env: &PocketIc) -> Vec<CanisterHttpRequest> {
+async fn tick_until_http_requests(env: &PocketIc) -> Vec<CanisterHttpRequest> {
     let mut requests = Vec::new();
     for _ in 0..MAX_TICKS {
         requests = env.get_canister_http().await;
@@ -201,7 +212,7 @@ impl ClientBuilder<PocketIcRuntime<'_>> {
         self.mock(outcall.into(), once())
     }
 
-    /// Add a seuqence of mock outcalls to the queue, each executed once.
+    /// Add a sequence of mock outcalls to the queue, each executed once.
     pub fn mock_sequence(
         mut self,
         outcalls: impl IntoIterator<Item = impl Into<MockOutcall>>,

@@ -7,8 +7,8 @@ use candid::{CandidType, Principal};
 use ic_error_types::RejectCode;
 #[cfg(feature = "pocket-ic")]
 pub use pocket_ic::{
-    forever, once, MockOutcall, MockOutcallBody, MockOutcallBuilder, MockOutcallQueue,
-    MockOutcallRepeat, PocketIcRuntime, RepeatExt,
+    forever, once, times, MockOutcall, MockOutcallBody, MockOutcallBuilder, MockOutcallQueue,
+    MockOutcallRepeat, PocketIcRuntime,
 };
 use serde::de::DeserializeOwned;
 

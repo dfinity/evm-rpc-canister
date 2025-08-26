@@ -1,38 +1,26 @@
-use canhttp::http::json::{Id, JsonRpcRequest};
+use canhttp::http::json::JsonRpcRequest;
+use dyn_clone::DynClone;
 use ic_cdk::api::call::RejectionCode;
 use pocket_ic::common::rest::{
     CanisterHttpHeader, CanisterHttpMethod, CanisterHttpReject, CanisterHttpReply,
     CanisterHttpRequest, CanisterHttpResponse,
 };
 use serde_json::Value;
+use std::fmt::Debug;
 use std::{
     collections::{BTreeSet, VecDeque},
-    iter,
+    fmt, iter,
     str::FromStr,
 };
 use url::{Host, Url};
 
 #[derive(Clone, Default)]
-pub struct MockOutcallQueue(VecDeque<Box<dyn CloneableMockOutcallIterator>>);
+pub struct MockOutcallQueue(VecDeque<Box<dyn MockOutcallIterator>>);
 
-trait CloneableMockOutcallIterator: Iterator<Item = MockOutcall> + Send {
-    fn clone_box(&self) -> Box<dyn CloneableMockOutcallIterator>;
-}
+trait MockOutcallIterator: Iterator<Item = MockOutcall> + Send + DynClone {}
+dyn_clone::clone_trait_object!(MockOutcallIterator);
 
-impl<T> CloneableMockOutcallIterator for T
-where
-    T: Iterator<Item = MockOutcall> + Clone + Send + 'static,
-{
-    fn clone_box(&self) -> Box<dyn CloneableMockOutcallIterator> {
-        Box::new(self.clone())
-    }
-}
-
-impl Clone for Box<dyn CloneableMockOutcallIterator> {
-    fn clone(&self) -> Box<dyn CloneableMockOutcallIterator> {
-        self.clone_box()
-    }
-}
+impl<T> MockOutcallIterator for T where T: Iterator<Item = MockOutcall> + Clone + Send + 'static {}
 
 impl MockOutcallQueue {
     pub fn push(&mut self, outcall: impl Into<MockOutcall>, repeat: MockOutcallRepeat) {
@@ -72,19 +60,12 @@ pub fn once() -> MockOutcallRepeat {
     MockOutcallRepeat::Once
 }
 
+pub fn times(n: usize) -> MockOutcallRepeat {
+    MockOutcallRepeat::Times(n)
+}
+
 pub fn forever() -> MockOutcallRepeat {
     MockOutcallRepeat::Forever
-}
-
-pub trait RepeatExt {
-    fn times(self) -> MockOutcallRepeat;
-}
-
-impl RepeatExt for usize {
-    fn times(self) -> MockOutcallRepeat {
-        assert!(self > 1, "Repeat count must be greater than 1");
-        MockOutcallRepeat::Times(self)
-    }
 }
 
 pub struct MockOutcallBody(pub Vec<u8>);
@@ -123,7 +104,7 @@ impl From<Vec<u8>> for MockOutcallBody {
 pub struct MockOutcallBuilder(MockOutcall);
 
 impl MockOutcallBuilder {
-    pub fn new(responses: impl IntoIterator<Item = (u16, impl Into<MockOutcallBody>)>) -> Self {
+    pub fn new(responses: impl IntoIterator<Item = CanisterHttpResponse>) -> Self {
         Self(MockOutcall {
             method: None,
             url: None,
@@ -131,39 +112,34 @@ impl MockOutcallBuilder {
             request_headers: None,
             request_body: None,
             max_response_bytes: None,
-            responses: responses
-                .into_iter()
-                .map(|(status, body)| {
-                    CanisterHttpResponse::CanisterHttpReply(CanisterHttpReply {
-                        status,
-                        headers: vec![],
-                        body: body.into().0,
-                    })
-                })
-                .collect(),
+            responses: responses.into_iter().map(Into::into).collect(),
         })
     }
 
     pub fn new_success(bodies: impl IntoIterator<Item = impl Into<MockOutcallBody>>) -> Self {
-        MockOutcallBuilder::new(iter::zip(iter::repeat(200), bodies))
+        MockOutcallBuilder::new(
+            bodies
+                .into_iter()
+                .map(|body| {
+                    CanisterHttpResponse::CanisterHttpReply(CanisterHttpReply {
+                        status: 200,
+                        headers: vec![],
+                        body: body.into().0,
+                    })
+                }),
+        )
     }
 
-    pub fn new_error(code: RejectionCode, num_providers: usize, message: impl ToString) -> Self {
-        Self(MockOutcall {
-            method: None,
-            url: None,
-            host: None,
-            request_headers: None,
-            request_body: None,
-            max_response_bytes: None,
-            responses: vec![
-                CanisterHttpResponse::CanisterHttpReject(CanisterHttpReject {
+    pub fn new_reject(code: RejectionCode, num_providers: usize, message: impl ToString) -> Self {
+        MockOutcallBuilder::new(vec![
+            CanisterHttpResponse::CanisterHttpReject(
+                CanisterHttpReject {
                     reject_code: code as u64,
                     message: message.to_string(),
-                });
-                num_providers
-            ],
-        })
+                }
+            );
+            num_providers
+        ])
     }
 
     pub fn with_method(mut self, method: CanisterHttpMethod) -> Self {
@@ -208,11 +184,6 @@ impl MockOutcallBuilder {
         self
     }
 
-    pub fn with_request_id(mut self, id: Id) -> Self {
-        self.0.request_body = self.0.request_body.map(|body| body.with_id(id));
-        self
-    }
-
     pub fn build(self) -> MockOutcall {
         self.0
     }
@@ -224,7 +195,7 @@ impl From<MockOutcallBuilder> for MockOutcall {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct MockOutcall {
     pub method: Option<CanisterHttpMethod>,
     pub url: Option<String>,
@@ -233,6 +204,27 @@ pub struct MockOutcall {
     pub request_body: Option<JsonRpcRequest<Value>>,
     pub max_response_bytes: Option<u64>,
     pub responses: Vec<CanisterHttpResponse>,
+}
+
+impl Debug for MockOutcall {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("MockOutcall")
+            .field("method", &self.method)
+            .field("url", &self.url)
+            .field("host", &self.host)
+            .field("request_headers", &self.request_headers)
+            .field("request_body", &self.request_body)
+            .field("max_response_bytes", &self.max_response_bytes)
+            .field(
+                "responses",
+                &self
+                    .responses
+                    .iter()
+                    .map(|_| "<skipped>")
+                    .collect::<Vec<_>>(),
+            )
+            .finish()
+    }
 }
 
 impl MockOutcall {

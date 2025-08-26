@@ -16,6 +16,7 @@ alloy-rpc-types = { workspace = true }
 async-trait = { workspace = true }
 candid = { workspace = true }
 canhttp = { workspace = true, optional = true }
+dyn-clone = { workspace = true }
 evm_rpc_types = { path = "../evm_rpc_types", features = ["alloy"] }
 ic-cdk = { workspace = true }
 ic-error-types = { workspace = true }
