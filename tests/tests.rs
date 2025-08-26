@@ -2416,7 +2416,8 @@ async fn should_retry_when_response_too_large() {
         if code == LegacyRejectionCode::SysFatal && message.contains("body exceeds size limit")
     );
 
-    let mut response_bodies = json_rpc_sequential_id::<11>(multi_logs_for_single_transaction(1_000));
+    let mut response_bodies =
+        json_rpc_sequential_id::<11>(multi_logs_for_single_transaction(1_000));
     add_offset_json_rpc_id(response_bodies.as_mut_slice(), 12);
     let max_response_bytes = iter::once(1_u64).chain((1..=10).map(|i| 1024_u64 << i));
     let mocks = iter::zip(max_response_bytes, response_bodies).map(

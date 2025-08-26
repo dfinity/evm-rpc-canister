@@ -59,9 +59,8 @@
 //! #   ])))
 //!     .build();
 //!
-//! let request = client.get_logs(vec![address!("0xdac17f958d2ee523a2206206994597c13d831ec7")]);
-//!
-//! let result = request
+//! let result = client
+//!     .get_logs(vec![address!("0xdac17f958d2ee523a2206206994597c13d831ec7")])
 //!     .with_cycles(10_000_000_000)
 //!     .send()
 //!     .await
@@ -100,7 +99,7 @@
 //! it is sometimes desirable to have a custom configuration for a specific
 //! call that is different from the one used by the client for all the other calls.
 //!
-//! For example, maybe for most calls, a 2 out-of 3 strategy is good enough, but for `eth_getSlot`
+//! For example, maybe for most calls, a 2 out-of 3 strategy is good enough, but for `eth_getLogs`
 //! your application requires a higher threshold and more robustness with a 3-out-of-5 :
 //!
 //! ```rust
@@ -189,7 +188,6 @@ mod runtime;
 use crate::request::{Request, RequestBuilder};
 use candid::{CandidType, Principal};
 use evm_rpc_types::{ConsensusStrategy, GetLogsArgs, RpcConfig, RpcServices};
-use ic_cdk::api::call::RejectionCode as IcCdkRejectionCode;
 use ic_error_types::RejectCode;
 use request::{GetLogsRequest, GetLogsRequestBuilder};
 #[cfg(feature = "pocket-ic")]
@@ -240,7 +238,7 @@ impl EvmRpcClient<IcRuntime> {
     }
 }
 
-/// Client to interact with the EVM RPC canister.
+/// Configuration for the EVM RPC canister client.
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct ClientConfig<R> {
     runtime: R,
@@ -360,9 +358,8 @@ impl<R> EvmRpcClient<R> {
     /// #   ])))
     ///     .build();
     ///
-    /// let request = client.get_logs(vec![address!("0xdac17f958d2ee523a2206206994597c13d831ec7")]);
-    ///
-    /// let result = request
+    /// let result = client
+    ///     .get_logs(vec![address!("0xdac17f958d2ee523a2206206994597c13d831ec7")])
     ///     .with_cycles(10_000_000_000)
     ///     .send()
     ///     .await
@@ -438,25 +435,5 @@ impl<R: Runtime> EvmRpcClient<R> {
             )
             .await
             .map(Into::into)
-    }
-}
-
-fn convert_reject_code(code: IcCdkRejectionCode) -> RejectCode {
-    match code {
-        IcCdkRejectionCode::SysFatal => RejectCode::SysFatal,
-        IcCdkRejectionCode::SysTransient => RejectCode::SysTransient,
-        IcCdkRejectionCode::DestinationInvalid => RejectCode::DestinationInvalid,
-        IcCdkRejectionCode::CanisterReject => RejectCode::CanisterReject,
-        IcCdkRejectionCode::CanisterError => RejectCode::CanisterError,
-        IcCdkRejectionCode::Unknown => {
-            // This can only happen if there is a new error code on ICP that the CDK is not aware of.
-            // We map it to SysFatal since none of the other error codes apply.
-            // In particular, note that RejectCode::SysUnknown is only applicable to inter-canister
-            // calls that used ic0.call_with_best_effort_response.
-            RejectCode::SysFatal
-        }
-        IcCdkRejectionCode::NoError => {
-            unreachable!("inter-canister calls should never produce a RejectionCode::NoError error")
-        }
     }
 }

@@ -112,22 +112,18 @@ impl MockOutcallBuilder {
             request_headers: None,
             request_body: None,
             max_response_bytes: None,
-            responses: responses.into_iter().map(Into::into).collect(),
+            responses: responses.into_iter().collect(),
         })
     }
 
     pub fn new_success(bodies: impl IntoIterator<Item = impl Into<MockOutcallBody>>) -> Self {
-        MockOutcallBuilder::new(
-            bodies
-                .into_iter()
-                .map(|body| {
-                    CanisterHttpResponse::CanisterHttpReply(CanisterHttpReply {
-                        status: 200,
-                        headers: vec![],
-                        body: body.into().0,
-                    })
-                }),
-        )
+        MockOutcallBuilder::new(bodies.into_iter().map(|body| {
+            CanisterHttpResponse::CanisterHttpReply(CanisterHttpReply {
+                status: 200,
+                headers: vec![],
+                body: body.into().0,
+            })
+        }))
     }
 
     pub fn new_reject(code: RejectionCode, num_providers: usize, message: impl ToString) -> Self {

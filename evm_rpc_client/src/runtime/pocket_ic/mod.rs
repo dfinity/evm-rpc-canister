@@ -120,9 +120,7 @@ impl PocketIcRuntime<'_> {
                         response: check_response_size(&request, response),
                         additional_responses: vec![],
                     };
-                    self.env
-                        .mock_canister_http_response(mock_response)
-                        .await;
+                    self.env.mock_canister_http_response(mock_response).await;
                 }
 
                 if mocked_responses.next().is_some() {
