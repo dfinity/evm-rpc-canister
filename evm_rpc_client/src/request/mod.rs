@@ -8,7 +8,6 @@ use serde::de::DeserializeOwned;
 use std::fmt::{Debug, Formatter};
 use strum::EnumIter;
 
-
 #[derive(Debug, Clone)]
 pub struct GetBlockByNumberRequest(BlockTag);
 
