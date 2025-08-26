@@ -9,7 +9,7 @@ use serde_json::Value;
 use std::fmt::Debug;
 use std::{
     collections::{BTreeSet, VecDeque},
-    fmt, iter,
+    iter,
     str::FromStr,
 };
 use url::{Host, Url};
