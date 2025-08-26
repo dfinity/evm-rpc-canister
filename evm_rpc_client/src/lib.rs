@@ -66,7 +66,6 @@
 //!     .await
 //!     .expect_consistent();
 //!
-//! assert!(result.is_ok());
 //! assert_eq!(result.unwrap().first(), Some(
 //!     &alloy_rpc_types::Log {
 //!         inner: alloy_primitives::Log {
@@ -150,7 +149,6 @@
 //!     .await
 //!     .expect_consistent();
 //!
-//! assert!(result.is_ok());
 //! assert_eq!(result.unwrap().first(), Some(
 //!     &alloy_rpc_types::Log {
 //!         inner: alloy_primitives::Log {
@@ -365,7 +363,6 @@ impl<R> EvmRpcClient<R> {
     ///     .await
     ///     .expect_consistent();
     ///
-    /// assert!(result.is_ok());
     /// assert_eq!(result.unwrap().first(), Some(
     ///     &alloy_rpc_types::Log {
     ///         inner: alloy_primitives::Log {
