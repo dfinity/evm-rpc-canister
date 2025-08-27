@@ -108,7 +108,7 @@ impl TryFrom<Block> for alloy_rpc_types::Block {
 fn u64_try_from_nat256(value: Nat256, field_name: &str) -> Result<u64, RpcError> {
     u64::try_from(Nat::from(value).0).map_err(|err| {
         RpcError::ValidationError(ValidationError::Custom(format!(
-            "Failed to convert block field `{}` to u64: {:?}",
+            "Failed to convert field `{}` to u64: {:?}",
             field_name, err
         )))
     })
