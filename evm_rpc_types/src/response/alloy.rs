@@ -1,5 +1,6 @@
-use crate::{Block, LogEntry, RpcError, ValidationError};
+use crate::{Block, LogEntry, Nat256, RpcError, ValidationError};
 use alloy_rpc_types::BlockTransactions;
+use candid::Nat;
 
 impl TryFrom<LogEntry> for alloy_rpc_types::Log {
     type Error = RpcError;
@@ -21,11 +22,20 @@ impl TryFrom<LogEntry> for alloy_rpc_types::Log {
                 )))?,
             },
             block_hash: entry.block_hash.map(alloy_primitives::BlockHash::from),
-            block_number: entry.block_number.map(u64::try_from).transpose()?,
+            block_number: entry
+                .block_number
+                .map(|value| u64_try_from_nat256(value, "block_number"))
+                .transpose()?,
             block_timestamp: None,
             transaction_hash: entry.transaction_hash.map(alloy_primitives::TxHash::from),
-            transaction_index: entry.transaction_index.map(u64::try_from).transpose()?,
-            log_index: entry.log_index.map(u64::try_from).transpose()?,
+            transaction_index: entry
+                .transaction_index
+                .map(|value| u64_try_from_nat256(value, "transaction_index"))
+                .transpose()?,
+            log_index: entry
+                .log_index
+                .map(|value| u64_try_from_nat256(value, "log_index"))
+                .transpose()?,
             removed: entry.removed,
         })
     }
@@ -52,21 +62,22 @@ impl TryFrom<Block> for alloy_rpc_types::Block {
                     ),
                     receipts_root: alloy_primitives::B256::from(value.receipts_root),
                     logs_bloom: alloy_primitives::Bloom::from(value.logs_bloom),
-                    difficulty: alloy_primitives::U256::from(u64::try_from(
-                        value.difficulty.ok_or(RpcError::ValidationError(
-                            ValidationError::Custom(
-                                "Block does not have a difficulty field".to_string(),
-                            ),
-                        ))?,
-                    )?),
-                    number: alloy_primitives::BlockNumber::from(u64::try_from(value.number)?),
-                    gas_limit: alloy_primitives::BlockNumber::from(u64::try_from(value.gas_limit)?),
-                    gas_used: alloy_primitives::BlockNumber::from(u64::try_from(value.gas_used)?),
-                    timestamp: alloy_primitives::BlockNumber::from(u64::try_from(value.timestamp)?),
+                    difficulty: value.difficulty.ok_or(
+                        RpcError::ValidationError(ValidationError::Custom(
+                            "Block does not have a difficulty field".to_string(),
+                        )),
+                    )?.into(),
+                    number: u64_try_from_nat256(value.number, "number")?.into(),
+                    gas_limit: u64_try_from_nat256(value.gas_limit, "gas_limit")?,
+                    gas_used: u64_try_from_nat256(value.gas_used, "gas_used")?,
+                    timestamp: u64_try_from_nat256(value.timestamp, "timestamp")?,
                     extra_data: alloy_primitives::Bytes::from(value.extra_data),
                     mix_hash: alloy_primitives::B256::from(value.mix_hash),
                     nonce: alloy_primitives::B64::try_from(value.nonce)?,
-                    base_fee_per_gas: value.base_fee_per_gas.map(u64::try_from).transpose()?,
+                    base_fee_per_gas: value
+                        .base_fee_per_gas
+                        .map(|value| u64_try_from_nat256(value, "base_fee_per_gas"))
+                        .transpose()?,
                     withdrawals_root: None,
                     blob_gas_used: None,
                     excess_blob_gas: None,
@@ -91,4 +102,13 @@ impl TryFrom<Block> for alloy_rpc_types::Block {
             withdrawals: None,
         })
     }
+}
+
+fn u64_try_from_nat256(value: Nat256, field_name: &str) -> Result<u64, RpcError> {
+    u64::try_from(Nat::from(value).0).map_err(|err| {
+        RpcError::ValidationError(ValidationError::Custom(format!(
+            "Failed to convert block field `{}` to u64: {:?}",
+            field_name, err
+        )))
+    })
 }
