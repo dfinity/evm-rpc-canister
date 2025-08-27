@@ -68,7 +68,7 @@ impl TryFrom<Block> for alloy_rpc_types::Block {
                             "Block does not have a difficulty field".to_string(),
                         )))?
                         .into(),
-                    number: u64_try_from_nat256(value.number, "number")?.into(),
+                    number: u64_try_from_nat256(value.number, "number")?,
                     gas_limit: u64_try_from_nat256(value.gas_limit, "gas_limit")?,
                     gas_used: u64_try_from_nat256(value.gas_used, "gas_used")?,
                     timestamp: u64_try_from_nat256(value.timestamp, "timestamp")?,
