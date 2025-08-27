@@ -1,12 +1,65 @@
 use crate::{EvmRpcClient, Runtime};
 use candid::CandidType;
 use evm_rpc_types::{
-    BlockTag, GetLogsArgs, GetLogsRpcConfig, Hex20, Hex32, MultiRpcResult, RpcConfig, RpcServices,
+    BlockTag, FeeHistoryArgs, GetLogsArgs, GetLogsRpcConfig, Hex20, Hex32, MultiRpcResult, Nat256,
+    RpcConfig, RpcServices,
 };
 use ic_error_types::RejectCode;
 use serde::de::DeserializeOwned;
 use std::fmt::{Debug, Formatter};
 use strum::EnumIter;
+
+#[derive(Debug, Clone)]
+pub struct FeeHistoryRequest(FeeHistoryArgs);
+
+impl FeeHistoryRequest {
+    pub fn new(params: FeeHistoryArgs) -> Self {
+        Self(params)
+    }
+}
+
+impl EvmRpcRequest for FeeHistoryRequest {
+    type Config = RpcConfig;
+    type Params = FeeHistoryArgs;
+    type CandidOutput = MultiRpcResult<evm_rpc_types::FeeHistory>;
+    type Output = MultiRpcResult<alloy_rpc_types::FeeHistory>;
+
+    fn endpoint(&self) -> EvmRpcEndpoint {
+        EvmRpcEndpoint::FeeHistory
+    }
+
+    fn params(self) -> Self::Params {
+        self.0
+    }
+}
+
+pub type FeeHistoryRequestBuilder<R> = RequestBuilder<
+    R,
+    RpcConfig,
+    FeeHistoryArgs,
+    MultiRpcResult<evm_rpc_types::FeeHistory>,
+    MultiRpcResult<alloy_rpc_types::FeeHistory>,
+>;
+
+impl<R> FeeHistoryRequestBuilder<R> {
+    /// Change the `block_count` parameter for an `eth_feeHistory` request.
+    pub fn with_block_count(mut self, block_count: impl Into<Nat256>) -> Self {
+        self.request.params.block_count = block_count.into();
+        self
+    }
+
+    /// Change the `newest_block` parameter for an `eth_feeHistory` request.
+    pub fn with_newest_block(mut self, newest_block: impl Into<BlockTag>) -> Self {
+        self.request.params.newest_block = newest_block.into();
+        self
+    }
+
+    /// Change the `reward_percentiles` parameter for an `eth_feeHistory` request.
+    pub fn with_reward_percentiles(mut self, reward_percentiles: impl Into<Vec<u8>>) -> Self {
+        self.request.params.reward_percentiles = Some(reward_percentiles.into());
+        self
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct GetBlockByNumberRequest(BlockTag);
@@ -124,6 +177,8 @@ pub trait EvmRpcRequest {
 /// Endpoint on the EVM RPC canister triggering a call to EVM providers.
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, EnumIter)]
 pub enum EvmRpcEndpoint {
+    /// `eth_feeHistory` endpoint.
+    FeeHistory,
     /// `eth_getBlockByNumber` endpoint.
     GetBlockByNumber,
     /// `eth_getLogs` endpoint.
@@ -134,6 +189,7 @@ impl EvmRpcEndpoint {
     /// Method name on the EVM RPC canister
     pub fn rpc_method(&self) -> &'static str {
         match &self {
+            Self::FeeHistory => "eth_feeHistory",
             Self::GetBlockByNumber => "eth_getBlockByNumber",
             Self::GetLogs => "eth_getLogs",
         }

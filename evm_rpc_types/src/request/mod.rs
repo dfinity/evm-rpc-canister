@@ -36,6 +36,20 @@ pub struct FeeHistoryArgs {
     pub reward_percentiles: Option<Vec<u8>>,
 }
 
+impl<T, U> From<(T, U)> for FeeHistoryArgs
+where
+    T: Into<Nat256>,
+    U: Into<BlockTag>,
+{
+    fn from((block_count, newest_block): (T, U)) -> Self {
+        Self {
+            block_count: block_count.into(),
+            newest_block: newest_block.into(),
+            reward_percentiles: None,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, CandidType, Deserialize)]
 pub struct GetLogsArgs {
     /// Integer block number, or "latest" for the last mined block or "pending", "earliest" for not yet mined transactions.

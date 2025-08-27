@@ -220,6 +220,32 @@ impl EvmRpcNonblockingSetup {
             .await;
         self
     }
+
+    pub async fn http_get_logs(&self, priority: &str) -> Vec<LogEntry<Priority>> {
+        let request = HttpRequest {
+            method: "".to_string(),
+            url: format!("/logs?priority={priority}"),
+            headers: vec![],
+            body: serde_bytes::ByteBuf::new(),
+        };
+        let response = Decode!(
+            &assert_reply(
+                self.env
+                    .query_call(
+                        self.canister_id,
+                        Principal::anonymous(),
+                        "http_request",
+                        Encode!(&request).unwrap()
+                    )
+                    .await
+            ),
+            HttpResponse
+        )
+        .unwrap();
+        serde_json::from_slice::<Log<Priority>>(&response.body)
+            .expect("failed to parse EVM_RPC minter log")
+            .entries
+    }
 }
 
 #[derive(Clone)]
@@ -380,18 +406,6 @@ impl EvmRpcSetup {
         )
     }
 
-    pub fn eth_get_block_by_number(
-        &self,
-        source: RpcServices,
-        config: Option<evm_rpc_types::RpcConfig>,
-        block: evm_rpc_types::BlockTag,
-    ) -> CallFlow<MultiRpcResult<evm_rpc_types::Block>> {
-        self.call_update(
-            "eth_getBlockByNumber",
-            Encode!(&source, &config, &block).unwrap(),
-        )
-    }
-
     pub fn eth_get_transaction_receipt(
         &self,
         source: RpcServices,
@@ -414,15 +428,6 @@ impl EvmRpcSetup {
             "eth_getTransactionCount",
             Encode!(&source, &config, &args).unwrap(),
         )
-    }
-
-    pub fn eth_fee_history(
-        &self,
-        source: RpcServices,
-        config: Option<evm_rpc_types::RpcConfig>,
-        args: evm_rpc_types::FeeHistoryArgs,
-    ) -> CallFlow<MultiRpcResult<Option<evm_rpc_types::FeeHistory>>> {
-        self.call_update("eth_feeHistory", Encode!(&source, &config, &args).unwrap())
     }
 
     pub fn eth_send_raw_transaction(
@@ -1260,41 +1265,54 @@ fn eth_get_transaction_count_should_succeed() {
     }
 }
 
-#[test]
-fn eth_fee_history_should_succeed() {
-    let [response_0, response_1, response_2] = json_rpc_sequential_id(
-        json!({"id":0,"jsonrpc":"2.0","result":{"oldestBlock":"0x11e57f5","baseFeePerGas":["0x9cf6c61b9","0x97d853982","0x9ba55a0b0","0x9543bf98d"],"reward":[["0x0123"]]}}),
-    );
+#[tokio::test]
+async fn eth_fee_history_should_succeed() {
+    let response = json!({
+        "id" : 0,
+        "jsonrpc" : "2.0",
+        "result" : {
+            "oldestBlock" : "0x11e57f5",
+            "baseFeePerGas" : ["0x9cf6c61b9","0x97d853982","0x9ba55a0b0","0x9543bf98d"],
+            "reward": [ [ "0x0123" ] ]
+        }
+    });
+
+    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let mut offset = 0_u64;
 
     for source in RPC_SERVICES {
-        let setup = EvmRpcSetup::new().mock_api_keys();
         let response = setup
-            .eth_fee_history(
-                source.clone(),
-                None,
-                evm_rpc_types::FeeHistoryArgs {
-                    block_count: 3_u8.into(),
-                    newest_block: evm_rpc_types::BlockTag::Latest,
-                    reward_percentiles: None,
-                },
+            .client()
+            .with_rpc_sources(source.clone())
+            .mock_once(
+                evm_rpc_client::MockOutcallBuilder::new_success(iter::repeat_n(
+                    response.clone(),
+                    3,
+                ))
+                .with_sequential_response_ids(offset),
             )
-            .mock_http_once(MockOutcallBuilder::new(200, response_0.clone()))
-            .mock_http_once(MockOutcallBuilder::new(200, response_1.clone()))
-            .mock_http_once(MockOutcallBuilder::new(200, response_2.clone()))
-            .wait()
+            .build()
+            .fee_history((3_u64, BlockNumberOrTag::Latest))
+            .send()
+            .await
             .expect_consistent()
             .unwrap();
+        offset += 3;
         assert_eq!(
             response,
-            Some(evm_rpc_types::FeeHistory {
-                oldest_block: Nat256::from(0x11e57f5_u64),
-                base_fee_per_gas: vec![0x9cf6c61b9_u64, 0x97d853982, 0x9ba55a0b0, 0x9543bf98d]
-                    .into_iter()
-                    .map(Nat256::from)
-                    .collect(),
+            alloy_rpc_types::FeeHistory {
+                oldest_block: 0x11e57f5_u64,
+                base_fee_per_gas: vec![
+                    0x9cf6c61b9_u128,
+                    0x97d853982_u128,
+                    0x9ba55a0b0_u128,
+                    0x9543bf98d_u128
+                ],
                 gas_used_ratio: vec![],
-                reward: vec![vec![Nat256::from(0x0123_u32)]],
-            })
+                reward: Some(vec![vec![0x0123_u128]]),
+                base_fee_per_blob_gas: vec![],
+                blob_gas_used_ratio: vec![],
+            }
         );
     }
 }
@@ -2617,41 +2635,44 @@ fn should_fail_when_response_id_inconsistent_with_request_id() {
     );
 }
 
-#[test]
-fn should_log_request() {
-    let [response_0] = json_rpc_sequential_id(
-        json!({"id":0,"jsonrpc":"2.0","result":{"oldestBlock":"0x11e57f5","baseFeePerGas":["0x9cf6c61b9","0x97d853982","0x9ba55a0b0","0x9543bf98d"],"reward":[["0x0123"]]}}),
-    );
+#[tokio::test]
+async fn should_log_request() {
+    let response = json!({
+        "id" : 0,
+        "jsonrpc" : "2.0",
+        "result": {
+            "oldestBlock" : "0x11e57f5",
+            "baseFeePerGas" : ["0x9cf6c61b9","0x97d853982","0x9ba55a0b0","0x9543bf98d"],
+            "reward":[["0x0123"]]
+        }
+    });
 
-    let setup = EvmRpcSetup::new().mock_api_keys();
+    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
     let response = setup
-        .eth_fee_history(
-            RpcServices::EthMainnet(Some(vec![EthMainnetService::Alchemy])),
-            None,
-            evm_rpc_types::FeeHistoryArgs {
-                block_count: 3_u8.into(),
-                newest_block: evm_rpc_types::BlockTag::Latest,
-                reward_percentiles: None,
-            },
-        )
-        .mock_http_once(MockOutcallBuilder::new(200, response_0))
-        .wait()
+        .client()
+        .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
+            EthMainnetService::Alchemy,
+        ])))
+        .mock_once(evm_rpc_client::MockOutcallBuilder::new_success([response]))
+        .build()
+        .fee_history((3_u64, BlockNumberOrTag::Latest))
+        .send()
+        .await
         .expect_consistent()
         .unwrap();
     assert_eq!(
         response,
-        Some(evm_rpc_types::FeeHistory {
-            oldest_block: Nat256::from(0x11e57f5_u64),
-            base_fee_per_gas: vec![0x9cf6c61b9_u64, 0x97d853982, 0x9ba55a0b0, 0x9543bf98d]
-                .into_iter()
-                .map(Nat256::from)
-                .collect(),
+        alloy_rpc_types::FeeHistory {
+            oldest_block: 0x11e57f5_u64,
+            base_fee_per_gas: vec![0x9cf6c61b9_u128, 0x97d853982, 0x9ba55a0b0, 0x9543bf98d],
             gas_used_ratio: vec![],
-            reward: vec![vec![Nat256::from(0x0123_u32)]],
-        })
+            reward: Some(vec![vec![0x0123_u128]]),
+            base_fee_per_blob_gas: vec![],
+            blob_gas_used_ratio: vec![],
+        }
     );
 
-    let logs = setup.http_get_logs("TRACE_HTTP");
+    let logs = setup.http_get_logs("TRACE_HTTP").await;
     assert_eq!(logs.len(), 2, "Unexpected amount of logs {logs:?}");
     assert!(logs[0].message.contains("JSON-RPC request with id `0` to eth-mainnet.g.alchemy.com: JsonRpcRequest { jsonrpc: V2, method: \"eth_feeHistory\""));
     assert!(logs[1].message.contains("response for request with id `0`. Response with status 200 OK: JsonRpcResponse { jsonrpc: V2, id: Number(0), result: Ok(FeeHistory"));
