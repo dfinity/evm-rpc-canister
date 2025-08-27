@@ -1,4 +1,4 @@
-use crate::{Block, LogEntry, MultiRpcResult};
+use crate::{Block, FeeHistory, LogEntry, MultiRpcResult};
 
 impl From<MultiRpcResult<Vec<LogEntry>>> for MultiRpcResult<Vec<alloy_rpc_types::Log>> {
     fn from(result: MultiRpcResult<Vec<LogEntry>>) -> Self {
@@ -13,5 +13,11 @@ impl From<MultiRpcResult<Vec<LogEntry>>> for MultiRpcResult<Vec<alloy_rpc_types:
 impl From<MultiRpcResult<Block>> for MultiRpcResult<alloy_rpc_types::Block> {
     fn from(result: MultiRpcResult<Block>) -> Self {
         result.and_then(alloy_rpc_types::Block::try_from)
+    }
+}
+
+impl From<MultiRpcResult<FeeHistory>> for MultiRpcResult<alloy_rpc_types::FeeHistory> {
+    fn from(result: MultiRpcResult<FeeHistory>) -> Self {
+        result.and_then(alloy_rpc_types::FeeHistory::try_from)
     }
 }
