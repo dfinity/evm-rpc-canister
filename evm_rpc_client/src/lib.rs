@@ -183,7 +183,10 @@ pub mod fixtures;
 mod request;
 mod runtime;
 
-use crate::request::{FeeHistoryRequest, FeeHistoryRequestBuilder, GetBlockByNumberRequest, GetBlockByNumberRequestBuilder, Request, RequestBuilder};
+use crate::request::{
+    FeeHistoryRequest, FeeHistoryRequestBuilder, GetBlockByNumberRequest,
+    GetBlockByNumberRequestBuilder, Request, RequestBuilder,
+};
 use candid::{CandidType, Principal};
 use evm_rpc_types::{
     BlockTag, ConsensusStrategy, FeeHistoryArgs, GetLogsArgs, RpcConfig, RpcServices,
@@ -457,7 +460,11 @@ impl<R> EvmRpcClient<R> {
     /// # }
     /// ```
     pub fn fee_history(&self, params: impl Into<FeeHistoryArgs>) -> FeeHistoryRequestBuilder<R> {
-        RequestBuilder::new(self.clone(), FeeHistoryRequest::new(params.into()), 10_000_000_000)
+        RequestBuilder::new(
+            self.clone(),
+            FeeHistoryRequest::new(params.into()),
+            10_000_000_000,
+        )
     }
 
     /// Call `eth_getLogs` on the EVM RPC canister.
