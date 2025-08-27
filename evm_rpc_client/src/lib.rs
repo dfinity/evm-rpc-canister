@@ -410,9 +410,9 @@ impl<R> EvmRpcClient<R> {
     /// #       oldest_block: 0x1627fb8_u64.into(),
     /// #       base_fee_per_gas: vec![
     /// #           0x2e9d4aab_u128.into(),
-    /// #           0x2fcec030.into(),
-    /// #           0x2ea50b1a.into(),
-    /// #           0x2e0a7fbd.into(),
+    /// #           0x2fcec030_u128.into(),
+    /// #           0x2ea50b1a_u128.into(),
+    /// #           0x2e0a7fbd_u128.into(),
     /// #       ],
     /// #       gas_used_ratio: vec![
     /// #           0.6023888561516908_f64,
@@ -420,9 +420,9 @@ impl<R> EvmRpcClient<R> {
     /// #           0.44823085535879276,
     /// #       ],
     /// #       reward: vec![
-    /// #           vec![0xe4e1c0_u128.into(), 0x05f5e100.into(), 0x59682f00.into()],
-    /// #           vec![0x011170_u128.into(), 0x05d628d0.into(), 0x77359400.into()],
-    /// #           vec![0x0222e0_u128.into(), 0x3b9aca00.into(), 0x77359400.into()],
+    /// #           vec![0xe4e1c0_u128.into(), 0x05f5e100_u128.into(), 0x59682f00_u128.into()],
+    /// #           vec![0x011170_u128.into(), 0x05d628d0_u128.into(), 0x77359400_u128.into()],
+    /// #           vec![0x0222e0_u128.into(), 0x3b9aca00_u128.into(), 0x77359400_u128.into()],
     /// #       ],
     /// #   })))
     ///     .build();
