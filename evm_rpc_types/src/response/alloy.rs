@@ -62,11 +62,12 @@ impl TryFrom<Block> for alloy_rpc_types::Block {
                     ),
                     receipts_root: alloy_primitives::B256::from(value.receipts_root),
                     logs_bloom: alloy_primitives::Bloom::from(value.logs_bloom),
-                    difficulty: value.difficulty.ok_or(
-                        RpcError::ValidationError(ValidationError::Custom(
+                    difficulty: value
+                        .difficulty
+                        .ok_or(RpcError::ValidationError(ValidationError::Custom(
                             "Block does not have a difficulty field".to_string(),
-                        )),
-                    )?.into(),
+                        )))?
+                        .into(),
                     number: u64_try_from_nat256(value.number, "number")?.into(),
                     gas_limit: u64_try_from_nat256(value.gas_limit, "gas_limit")?,
                     gas_used: u64_try_from_nat256(value.gas_used, "gas_used")?,
