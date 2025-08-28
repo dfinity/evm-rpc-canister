@@ -1,6 +1,8 @@
 mod mock;
+mod pocket_ic_runtime;
 
 use crate::mock::MockJsonRequestBody;
+use crate::pocket_ic_runtime::{MockClientBuilder, MockOutcallQueue, PocketIcRuntime};
 use alloy_primitives::{address, b256, bytes};
 use alloy_rpc_types::BlockNumberOrTag;
 use assert_matches::assert_matches;
@@ -13,7 +15,7 @@ use evm_rpc::{
     providers::PROVIDERS,
     types::{Metrics, ProviderId, RpcAccess, RpcMethod},
 };
-use evm_rpc_client::{ClientBuilder, EvmRpcClient, MockOutcallQueue, PocketIcRuntime};
+use evm_rpc_client::{ClientBuilder, EvmRpcClient};
 use evm_rpc_types::{
     BlockTag, ConsensusStrategy, EthMainnetService, EthSepoliaService, GetLogsRpcConfig, Hex,
     Hex20, Hex32, HttpOutcallError, InstallArgs, JsonRpcError, LegacyRejectionCode, MultiRpcResult,
@@ -880,7 +882,7 @@ async fn eth_get_logs_should_succeed() {
             let response = setup
                 .client()
                 .with_rpc_sources(source.clone())
-                .mock_once(evm_rpc_client::MockOutcallBuilder::new_success(
+                .mock_once(pocket_ic_runtime::MockOutcallBuilder::new_success(
                     responses.clone(),
                 ))
                 .build()
@@ -1982,7 +1984,7 @@ async fn should_use_custom_response_size_estimate() {
     let expected_response = r#"{"id":0,"jsonrpc":"2.0","result":[{"address":"0xdac17f958d2ee523a2206206994597c13d831ec7","topics":["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef","0x000000000000000000000000a9d1e08c7793af67e9d92fe308d5697fb81d3e43","0x00000000000000000000000078cccfb3d517cd4ed6d045e263e134712288ace2"],"data":"0x000000000000000000000000000000000000000000000000000000003b9c6433","blockNumber":"0x11dc77e","transactionHash":"0xf3ed91a03ddf964281ac7a24351573efd535b80fc460a5c2ad2b9d23153ec678","transactionIndex":"0x65","blockHash":"0xd5c72ad752b2f0144a878594faf8bd9f570f2f72af8e7f0940d3545a6388f629","logIndex":"0xe8","removed":false}]}"#;
     let client = setup
         .client()
-        .mock_once(evm_rpc_client::MockOutcallBuilder::new_success([
+        .mock_once(pocket_ic_runtime::MockOutcallBuilder::new_success([
             expected_response,
         ]))
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
@@ -2394,7 +2396,7 @@ async fn should_retry_when_response_too_large() {
 
     let mocks = iter::zip(response_bodies, max_response_bytes).map(
         |(response_body, max_response_bytes)| {
-            evm_rpc_client::MockOutcallBuilder::new_success([response_body])
+            pocket_ic_runtime::MockOutcallBuilder::new_success([response_body])
                 .with_max_response_bytes(max_response_bytes)
         },
     );
@@ -2422,7 +2424,7 @@ async fn should_retry_when_response_too_large() {
     let max_response_bytes = iter::once(1_u64).chain((1..=10).map(|i| 1024_u64 << i));
     let mocks = iter::zip(max_response_bytes, response_bodies).map(
         |(max_response_bytes, response_body)| {
-            evm_rpc_client::MockOutcallBuilder::new_success([response_body])
+            pocket_ic_runtime::MockOutcallBuilder::new_success([response_body])
                 .with_max_response_bytes(max_response_bytes)
         },
     );

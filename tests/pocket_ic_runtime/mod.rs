@@ -1,14 +1,11 @@
-#[allow(missing_docs)]
 mod mock;
 
-use crate::{ClientBuilder, Runtime};
+use crate::ClientBuilder;
 use async_trait::async_trait;
 use candid::{decode_args, utils::ArgumentEncoder, CandidType, Principal};
+use evm_rpc_client::Runtime;
 use ic_error_types::RejectCode;
-pub use mock::{
-    forever, once, times, MockOutcall, MockOutcallBody, MockOutcallBuilder, MockOutcallQueue,
-    MockOutcallRepeat,
-};
+pub use mock::{once, MockOutcall, MockOutcallBuilder, MockOutcallQueue, MockOutcallRepeat};
 use pocket_ic::common::rest::{
     CanisterHttpReject, CanisterHttpRequest, CanisterHttpResponse, MockCanisterHttpResponse,
 };
@@ -196,28 +193,29 @@ async fn tick_until_http_requests(env: &PocketIc) -> Vec<CanisterHttpRequest> {
     requests
 }
 
-impl ClientBuilder<PocketIcRuntime<'_>> {
+pub trait MockClientBuilder<T>: Sized {
     /// Add a mock outcall to the queue.
-    pub fn mock(self, outcall: impl Into<MockOutcall>, repeat: MockOutcallRepeat) -> Self {
-        self.with_runtime(|r| {
-            r.mocks.lock().unwrap().push(outcall, repeat);
-            r
-        })
-    }
+    fn mock(self, outcall: impl Into<MockOutcall>, repeat: MockOutcallRepeat) -> Self;
 
     /// Add a mock outcall to the queue, executed once.
-    pub fn mock_once(self, outcall: impl Into<MockOutcall>) -> Self {
+    fn mock_once(self, outcall: impl Into<MockOutcall>) -> Self {
         self.mock(outcall.into(), once())
     }
 
     /// Add a sequence of mock outcalls to the queue, each executed once.
-    pub fn mock_sequence(
-        mut self,
-        outcalls: impl IntoIterator<Item = impl Into<MockOutcall>>,
-    ) -> Self {
+    fn mock_sequence(mut self, outcalls: impl IntoIterator<Item = impl Into<MockOutcall>>) -> Self {
         for outcall in outcalls.into_iter() {
             self = self.mock_once(outcall);
         }
         self
+    }
+}
+
+impl MockClientBuilder<ClientBuilder<PocketIcRuntime<'_>>> for ClientBuilder<PocketIcRuntime<'_>> {
+    fn mock(self, outcall: impl Into<MockOutcall>, repeat: MockOutcallRepeat) -> Self {
+        self.with_runtime(|r| {
+            r.mocks.lock().unwrap().push(outcall, repeat);
+            r
+        })
     }
 }

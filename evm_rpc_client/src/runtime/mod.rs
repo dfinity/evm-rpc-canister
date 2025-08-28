@@ -1,16 +1,8 @@
-#[cfg(feature = "pocket-ic")]
-mod pocket_ic;
-
 use async_trait::async_trait;
 use candid::utils::ArgumentEncoder;
 use candid::{CandidType, Principal};
 use ic_cdk::api::call::RejectionCode as IcCdkRejectionCode;
 use ic_error_types::RejectCode;
-#[cfg(feature = "pocket-ic")]
-pub use pocket_ic::{
-    forever, once, times, MockOutcall, MockOutcallBody, MockOutcallBuilder, MockOutcallQueue,
-    MockOutcallRepeat, PocketIcRuntime,
-};
 use serde::de::DeserializeOwned;
 
 /// Abstract the canister runtime so that the client code can be reused:

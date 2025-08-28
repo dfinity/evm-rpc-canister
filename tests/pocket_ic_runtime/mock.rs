@@ -60,14 +60,6 @@ pub fn once() -> MockOutcallRepeat {
     MockOutcallRepeat::Once
 }
 
-pub fn times(n: usize) -> MockOutcallRepeat {
-    MockOutcallRepeat::Times(n)
-}
-
-pub fn forever() -> MockOutcallRepeat {
-    MockOutcallRepeat::Forever
-}
-
 pub struct MockOutcallBody(pub Vec<u8>);
 
 impl From<&Value> for MockOutcallBody {
