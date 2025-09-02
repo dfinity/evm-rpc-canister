@@ -1,8 +1,9 @@
 mod mock;
-mod pocket_ic_runtime;
+mod mock_runtime;
 
 use crate::mock::MockJsonRequestBody;
-use crate::pocket_ic_runtime::{MockClientBuilder, MockOutcallQueue, PocketIcRuntime};
+use crate::mock_runtime::mock::{JsonRpcRequestMatcher, MockHttpOutcalls, MockHttpOutcallsBuilder};
+use crate::mock_runtime::{MockClientBuilder, MockHttpRuntime};
 use alloy_primitives::{address, b256, bytes};
 use alloy_rpc_types::BlockNumberOrTag;
 use assert_matches::assert_matches;
@@ -177,15 +178,15 @@ impl EvmRpcNonblockingSetup {
         self
     }
 
-    pub fn client(&self) -> ClientBuilder<PocketIcRuntime> {
-        EvmRpcClient::builder(self.new_pocket_ic_runtime(), self.canister_id)
+    pub fn client(&self) -> ClientBuilder<MockHttpRuntime> {
+        EvmRpcClient::builder(self.new_mock_http_runtime(), self.canister_id)
     }
 
-    fn new_pocket_ic_runtime(&self) -> PocketIcRuntime {
-        PocketIcRuntime {
-            env: &self.env,
+    fn new_mock_http_runtime(&self) -> MockHttpRuntime {
+        MockHttpRuntime {
+            env: self.env.clone(),
             caller: self.caller,
-            mocks: Mutex::<MockOutcallQueue>::default(),
+            mocks: Mutex::<MockHttpOutcalls>::default(),
             controller: self.controller,
         }
     }
@@ -879,12 +880,42 @@ async fn eth_get_logs_should_succeed() {
             let mut responses: [serde_json::Value; 3] = mock_responses();
             add_offset_json_rpc_id(responses.as_mut_slice(), offset);
 
+            let mocks = MockHttpOutcallsBuilder::new()
+                .given(
+                    JsonRpcRequestMatcher::with_method("eth_getLogs")
+                        .with_id(0 + offset)
+                        .with_params(json!([{
+                                "address" : ["0xdac17f958d2ee523a2206206994597c13d831ec7"],
+                                "fromBlock" : from_block,
+                                "toBlock" : to_block,
+                        }])),
+                )
+                .respond_with_success(&responses[0])
+                .given(
+                    JsonRpcRequestMatcher::with_method("eth_getLogs")
+                        .with_id(1 + offset)
+                        .with_params(json!([{
+                                "address" : ["0xdac17f958d2ee523a2206206994597c13d831ec7"],
+                                "fromBlock" : from_block,
+                                "toBlock" : to_block,
+                        }])),
+                )
+                .respond_with_success(&responses[1])
+                .given(
+                    JsonRpcRequestMatcher::with_method("eth_getLogs")
+                        .with_id(2 + offset)
+                        .with_params(json!([{
+                                "address" : ["0xdac17f958d2ee523a2206206994597c13d831ec7"],
+                                "fromBlock" : from_block,
+                                "toBlock" : to_block,
+                        }])),
+                )
+                .respond_with_success(&responses[2]);
+
             let response = setup
                 .client()
                 .with_rpc_sources(source.clone())
-                .mock_once(pocket_ic_runtime::MockOutcallBuilder::new_success(
-                    responses.clone(),
-                ))
+                .with_http_mocks(mocks)
                 .build()
                 .get_logs(vec![address!("0xdac17f958d2ee523a2206206994597c13d831ec7")])
                 .with_from_block(from_block)
@@ -1982,11 +2013,23 @@ async fn should_use_custom_response_size_estimate() {
     let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
     let max_response_bytes = 1234;
     let expected_response = r#"{"id":0,"jsonrpc":"2.0","result":[{"address":"0xdac17f958d2ee523a2206206994597c13d831ec7","topics":["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef","0x000000000000000000000000a9d1e08c7793af67e9d92fe308d5697fb81d3e43","0x00000000000000000000000078cccfb3d517cd4ed6d045e263e134712288ace2"],"data":"0x000000000000000000000000000000000000000000000000000000003b9c6433","blockNumber":"0x11dc77e","transactionHash":"0xf3ed91a03ddf964281ac7a24351573efd535b80fc460a5c2ad2b9d23153ec678","transactionIndex":"0x65","blockHash":"0xd5c72ad752b2f0144a878594faf8bd9f570f2f72af8e7f0940d3545a6388f629","logIndex":"0xe8","removed":false}]}"#;
+
+    let mocks = MockHttpOutcallsBuilder::new()
+        .given(
+            JsonRpcRequestMatcher::with_method("eth_getLogs")
+                .with_id(0_u64)
+                .with_params(json!([{
+                    "address" : ["0xdac17f958d2ee523a2206206994597c13d831ec7"],
+                    "fromBlock": "latest",
+                    "toBlock": "latest",
+                }]))
+                .with_max_response_bytes(max_response_bytes),
+        )
+        .respond_with_success(&serde_json::from_str(expected_response).unwrap());
+
     let client = setup
         .client()
-        .mock_once(pocket_ic_runtime::MockOutcallBuilder::new_success([
-            expected_response,
-        ]))
+        .with_http_mocks(mocks)
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
             EthMainnetService::Cloudflare,
         ])))
@@ -2394,18 +2437,29 @@ async fn should_retry_when_response_too_large() {
         .chain((1..=10).map(|i| 1024_u64 << i))
         .chain(iter::once(2_000_000_u64));
 
-    let mocks = iter::zip(response_bodies, max_response_bytes).map(
-        |(response_body, max_response_bytes)| {
-            pocket_ic_runtime::MockOutcallBuilder::new_success([response_body])
-                .with_max_response_bytes(max_response_bytes)
-        },
-    );
+    let mut mocks = MockHttpOutcallsBuilder::new();
+    for (id, (response_body, max_response_bytes)) in
+        iter::zip(response_bodies, max_response_bytes).enumerate()
+    {
+        mocks = mocks
+            .given(
+                JsonRpcRequestMatcher::with_method("eth_getLogs")
+                    .with_id(id as u64)
+                    .with_params(json!([{
+                        "address" : ["0xdac17f958d2ee523a2206206994597c13d831ec7"],
+                        "fromBlock": "latest",
+                        "toBlock": "latest",
+                    }]))
+                    .with_max_response_bytes(max_response_bytes),
+            )
+            .respond_with_success(&response_body);
+    }
 
     let response = setup
         .client()
         .with_rpc_sources(rpc_services.clone())
         .with_response_size_estimate(1)
-        .mock_sequence(mocks)
+        .with_http_mocks(mocks)
         .build()
         .get_logs(vec![address!("0xdAC17F958D2ee523a2206206994597C13D831ec7")])
         .send()
@@ -2422,18 +2476,30 @@ async fn should_retry_when_response_too_large() {
         json_rpc_sequential_id::<11>(multi_logs_for_single_transaction(1_000));
     add_offset_json_rpc_id(response_bodies.as_mut_slice(), 12);
     let max_response_bytes = iter::once(1_u64).chain((1..=10).map(|i| 1024_u64 << i));
-    let mocks = iter::zip(max_response_bytes, response_bodies).map(
-        |(max_response_bytes, response_body)| {
-            pocket_ic_runtime::MockOutcallBuilder::new_success([response_body])
-                .with_max_response_bytes(max_response_bytes)
-        },
-    );
+
+    let mut mocks = MockHttpOutcallsBuilder::new();
+    for (id, (response_body, max_response_bytes)) in
+        iter::zip(response_bodies, max_response_bytes).enumerate()
+    {
+        mocks = mocks
+            .given(
+                JsonRpcRequestMatcher::with_method("eth_getLogs")
+                    .with_id(id as u64 + 12)
+                    .with_params(json!([{
+                        "address" : ["0xdac17f958d2ee523a2206206994597c13d831ec7"],
+                        "fromBlock": "latest",
+                        "toBlock": "latest",
+                    }]))
+                    .with_max_response_bytes(max_response_bytes),
+            )
+            .respond_with_success(&response_body);
+    }
 
     let response = setup
         .client()
         .with_rpc_sources(rpc_services.clone())
         .with_response_size_estimate(1)
-        .mock_sequence(mocks)
+        .with_http_mocks(mocks)
         .build()
         .get_logs(vec![address!("0xdAC17F958D2ee523a2206206994597C13D831ec7")])
         .send()

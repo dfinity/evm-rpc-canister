@@ -1,45 +1,36 @@
-mod mock;
+pub mod mock;
 
-use crate::ClientBuilder;
+use crate::mock_runtime::mock::MockHttpOutcalls;
+use crate::MAX_TICKS;
 use async_trait::async_trait;
 use candid::{decode_args, utils::ArgumentEncoder, CandidType, Principal};
-use evm_rpc_client::Runtime;
+use evm_rpc::constants::DEFAULT_MAX_RESPONSE_BYTES;
+use evm_rpc_client::{ClientBuilder, Runtime};
 use ic_error_types::RejectCode;
-pub use mock::{once, MockOutcall, MockOutcallBuilder, MockOutcallQueue, MockOutcallRepeat};
-use pocket_ic::common::rest::{
-    CanisterHttpReject, CanisterHttpRequest, CanisterHttpResponse, MockCanisterHttpResponse,
+use pocket_ic::{
+    common::rest::{
+        CanisterHttpReject, CanisterHttpRequest, CanisterHttpResponse, MockCanisterHttpResponse,
+    },
+    nonblocking::PocketIc,
+    RejectResponse,
 };
-use pocket_ic::nonblocking::PocketIc;
-use pocket_ic::RejectResponse;
 use serde::de::DeserializeOwned;
-use std::iter;
-use std::sync::Mutex;
-use std::time::Duration;
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
-const DEFAULT_MAX_RESPONSE_BYTES: u64 = 2_000_000;
-const MAX_TICKS: usize = 10;
-
-/// Runtime used in tests with PocketIC.
-pub struct PocketIcRuntime<'a> {
-    /// Main entry point for interacting with PocketIC.
-    pub env: &'a PocketIc,
-    /// Default caller [`Principal`] when making inter-canister calls.
+pub struct MockHttpRuntime {
+    pub env: Arc<PocketIc>,
     pub caller: Principal,
-    /// Queue that holds the mocked HTTP outcall requests and responses.
-    ///
-    /// This field is in a [`Mutex`] so we can use interior mutability to pop the next element from
-    /// the queue (i.e., perform a mutable operation) within the [`Runtime::update_call`] method which
-    /// takes an immutable reference to `self`. Furthermore, this has to be thread-safe to be used
-    /// in multithreaded tests.
-    pub mocks: Mutex<MockOutcallQueue>,
-    /// Default controller [`Principal`] when making inter-canister calls.
+    pub mocks: Mutex<MockHttpOutcalls>,
     pub controller: Principal,
 }
 
-impl Clone for PocketIcRuntime<'_> {
+impl Clone for MockHttpRuntime {
     fn clone(&self) -> Self {
         Self {
-            env: self.env,
+            env: self.env.clone(),
             caller: self.caller,
             mocks: Mutex::new(self.mocks.lock().unwrap().clone()),
             controller: self.controller,
@@ -48,7 +39,7 @@ impl Clone for PocketIcRuntime<'_> {
 }
 
 #[async_trait]
-impl Runtime for PocketIcRuntime<'_> {
+impl Runtime for MockHttpRuntime {
     async fn update_call<In, Out>(
         &self,
         id: Principal,
@@ -92,13 +83,17 @@ impl Runtime for PocketIcRuntime<'_> {
     }
 }
 
-impl PocketIcRuntime<'_> {
+impl MockHttpRuntime {
+    fn with_mocks(&mut self, mocks: MockHttpOutcalls) {
+        *self.mocks.lock().unwrap() = mocks;
+    }
+
     // Loops, polling for pending canister HTTP requests and answering them with queued mocks.
     // Each batch of requests consumes one mock, with requests validated and responded to via
     // `PocketIc::mock_canister_http_response`. Panics if a mock has leftover responses.
     async fn execute_mocks(&self) {
         loop {
-            let pending_requests = tick_until_http_requests(self.env).await;
+            let pending_requests = tick_until_http_requests(self.env.as_ref()).await;
             if pending_requests.is_empty() {
                 return;
             }
@@ -107,21 +102,15 @@ impl PocketIcRuntime<'_> {
                 let mut mocks = self.mocks.lock().unwrap();
                 mocks.next()
             } {
-                let mut mocked_responses = mock.responses.clone().into_iter();
-
-                for (request, response) in iter::zip(pending_requests, mocked_responses.by_ref()) {
-                    mock.assert_matches(&request);
+                if let Some(request) = pending_requests.first() {
+                    mock.request.assert_matches(&request);
                     let mock_response = MockCanisterHttpResponse {
                         subnet_id: request.subnet_id,
                         request_id: request.request_id,
-                        response: check_response_size(&request, response),
+                        response: check_response_size(&request, mock.response),
                         additional_responses: vec![],
                     };
                     self.env.mock_canister_http_response(mock_response).await;
-                }
-
-                if mocked_responses.next().is_some() {
-                    panic!("Some mocked responses were not consumed")
                 }
             }
         }
@@ -194,27 +183,13 @@ async fn tick_until_http_requests(env: &PocketIc) -> Vec<CanisterHttpRequest> {
 }
 
 pub trait MockClientBuilder<T>: Sized {
-    /// Add a mock outcall to the queue.
-    fn mock(self, outcall: impl Into<MockOutcall>, repeat: MockOutcallRepeat) -> Self;
-
-    /// Add a mock outcall to the queue, executed once.
-    fn mock_once(self, outcall: impl Into<MockOutcall>) -> Self {
-        self.mock(outcall.into(), once())
-    }
-
-    /// Add a sequence of mock outcalls to the queue, each executed once.
-    fn mock_sequence(mut self, outcalls: impl IntoIterator<Item = impl Into<MockOutcall>>) -> Self {
-        for outcall in outcalls.into_iter() {
-            self = self.mock_once(outcall);
-        }
-        self
-    }
+    fn with_http_mocks(self, outcalls: impl Into<MockHttpOutcalls>) -> Self;
 }
 
-impl MockClientBuilder<ClientBuilder<PocketIcRuntime<'_>>> for ClientBuilder<PocketIcRuntime<'_>> {
-    fn mock(self, outcall: impl Into<MockOutcall>, repeat: MockOutcallRepeat) -> Self {
-        self.with_runtime(|r| {
-            r.mocks.lock().unwrap().push(outcall, repeat);
+impl MockClientBuilder<ClientBuilder<MockHttpRuntime>> for ClientBuilder<MockHttpRuntime> {
+    fn with_http_mocks(self, outcalls: impl Into<MockHttpOutcalls>) -> Self {
+        self.with_runtime(|mut r| {
+            r.with_mocks(outcalls.into());
             r
         })
     }
