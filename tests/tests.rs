@@ -1,9 +1,16 @@
 mod mock;
 mod mock_runtime;
 
-use crate::mock::MockJsonRequestBody;
-use crate::mock_runtime::mock::{JsonRpcRequestMatcher, MockHttpOutcalls, MockHttpOutcallsBuilder};
-use crate::mock_runtime::{MockClientBuilder, MockHttpRuntime};
+use crate::{
+    mock::MockJsonRequestBody,
+    mock_runtime::{
+        mock::{
+            json::{JsonRpcRequestMatcher, JsonRpcResponse},
+            MockHttpOutcalls, MockHttpOutcallsBuilder,
+        },
+        MockClientBuilder, MockHttpRuntime,
+    },
+};
 use alloy_primitives::{address, b256, bytes};
 use alloy_rpc_types::BlockNumberOrTag;
 use assert_matches::assert_matches;
@@ -23,11 +30,9 @@ use evm_rpc_types::{
     Nat256, Provider, ProviderError, RpcApi, RpcConfig, RpcError, RpcResult, RpcService,
     RpcServices, ValidationError,
 };
-use ic_cdk::api::call::RejectionCode;
-use ic_cdk::api::management_canister::main::CanisterId;
+use ic_cdk::api::{call::RejectionCode, management_canister::main::CanisterId};
 use ic_http_types::{HttpRequest, HttpResponse};
-use ic_management_canister_types::CanisterSettings;
-use ic_management_canister_types::HttpHeader;
+use ic_management_canister_types::{CanisterSettings, HttpHeader};
 use ic_test_utilities_load_wasm::load_wasm;
 use maplit::hashmap;
 use mock::{MockOutcall, MockOutcallBuilder};
@@ -38,8 +43,13 @@ use pocket_ic::common::rest::{
 use pocket_ic::{nonblocking, ErrorCode, PocketIc, PocketIcBuilder, RejectResponse};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::json;
-use std::sync::{Arc, Mutex};
-use std::{iter, marker::PhantomData, str::FromStr, time::Duration};
+use std::{
+    iter,
+    marker::PhantomData,
+    str::FromStr,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 const DEFAULT_CALLER_TEST_ID: Principal = Principal::from_slice(&[0x9d, 0xf7, 0x01]);
 const DEFAULT_CONTROLLER_TEST_ID: Principal = Principal::from_slice(&[0x9d, 0xf7, 0x02]);
@@ -890,7 +900,7 @@ async fn eth_get_logs_should_succeed() {
                                 "toBlock" : to_block,
                         }])),
                 )
-                .respond_with_success(&responses[0])
+                .respond_with(JsonRpcResponse::from(&responses[0]))
                 .given(
                     JsonRpcRequestMatcher::with_method("eth_getLogs")
                         .with_id(1 + offset)
@@ -900,7 +910,7 @@ async fn eth_get_logs_should_succeed() {
                                 "toBlock" : to_block,
                         }])),
                 )
-                .respond_with_success(&responses[1])
+                .respond_with(JsonRpcResponse::from(&responses[1]))
                 .given(
                     JsonRpcRequestMatcher::with_method("eth_getLogs")
                         .with_id(2 + offset)
@@ -910,7 +920,7 @@ async fn eth_get_logs_should_succeed() {
                                 "toBlock" : to_block,
                         }])),
                 )
-                .respond_with_success(&responses[2]);
+                .respond_with(JsonRpcResponse::from(&responses[2]));
 
             let response = setup
                 .client()
@@ -2025,7 +2035,7 @@ async fn should_use_custom_response_size_estimate() {
                 }]))
                 .with_max_response_bytes(max_response_bytes),
         )
-        .respond_with_success(&serde_json::from_str(expected_response).unwrap());
+        .respond_with(JsonRpcResponse::from(expected_response));
 
     let client = setup
         .client()
@@ -2452,7 +2462,7 @@ async fn should_retry_when_response_too_large() {
                     }]))
                     .with_max_response_bytes(max_response_bytes),
             )
-            .respond_with_success(&response_body);
+            .respond_with(JsonRpcResponse::from(response_body));
     }
 
     let response = setup
@@ -2492,7 +2502,7 @@ async fn should_retry_when_response_too_large() {
                     }]))
                     .with_max_response_bytes(max_response_bytes),
             )
-            .respond_with_success(&response_body);
+            .respond_with(JsonRpcResponse::from(response_body));
     }
 
     let response = setup

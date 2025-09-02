@@ -1,95 +1,12 @@
+use crate::mock_runtime::mock::CanisterHttpRequestMatcher;
 use canhttp::http::json::{Id, JsonRpcRequest};
-use dyn_clone::DynClone;
 use pocket_ic::common::rest::{
-    CanisterHttpHeader, CanisterHttpMethod, CanisterHttpReply, CanisterHttpRequest,
-    CanisterHttpResponse,
+    CanisterHttpHeader, CanisterHttpMethod, CanisterHttpReject, CanisterHttpReply,
+    CanisterHttpRequest, CanisterHttpResponse,
 };
 use serde_json::Value;
-use std::collections::{BTreeSet, VecDeque};
-use std::fmt::Debug;
-use std::str::FromStr;
+use std::{collections::BTreeSet, str::FromStr};
 use url::{Host, Url};
-
-#[derive(Clone, Debug, Default)]
-pub struct MockHttpOutcalls(VecDeque<MockHttpOutcall>);
-
-impl MockHttpOutcalls {
-    pub fn push(&mut self, mock: MockHttpOutcall) {
-        self.0.push_back(mock);
-    }
-}
-
-impl Iterator for MockHttpOutcalls {
-    type Item = MockHttpOutcall;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.pop_front()
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct MockHttpOutcall {
-    pub request: Box<dyn CanisterHttpRequestMatcher>,
-    pub response: CanisterHttpResponse,
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct MockHttpOutcallsBuilder(MockHttpOutcalls);
-
-impl MockHttpOutcallsBuilder {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn given(
-        self,
-        request: impl CanisterHttpRequestMatcher + 'static,
-    ) -> MockJsonRpcOutcallBuilder {
-        MockJsonRpcOutcallBuilder::new(self, Box::new(request))
-    }
-
-    pub fn build(self) -> MockHttpOutcalls {
-        self.0
-    }
-}
-
-impl From<MockHttpOutcallsBuilder> for MockHttpOutcalls {
-    fn from(builder: MockHttpOutcallsBuilder) -> Self {
-        builder.build()
-    }
-}
-
-pub struct MockJsonRpcOutcallBuilder(MockHttpOutcallsBuilder, Box<dyn CanisterHttpRequestMatcher>);
-
-impl MockJsonRpcOutcallBuilder {
-    pub fn new(
-        parent: MockHttpOutcallsBuilder,
-        request: Box<dyn CanisterHttpRequestMatcher>,
-    ) -> Self {
-        Self(parent, request)
-    }
-
-    pub fn respond_with(mut self, response: CanisterHttpResponse) -> MockHttpOutcallsBuilder {
-        self.0 .0.push(MockHttpOutcall {
-            request: self.1,
-            response,
-        });
-        self.0
-    }
-
-    pub fn respond_with_success(self, body: &Value) -> MockHttpOutcallsBuilder {
-        self.respond_with(CanisterHttpResponse::CanisterHttpReply(CanisterHttpReply {
-            status: 200,
-            headers: vec![],
-            body: serde_json::to_vec(&body).unwrap(),
-        }))
-    }
-}
-
-pub trait CanisterHttpRequestMatcher: Send + DynClone + Debug {
-    fn assert_matches(&self, request: &CanisterHttpRequest);
-}
-dyn_clone::clone_trait_object!(CanisterHttpRequestMatcher);
 
 #[derive(Clone, Debug)]
 pub struct JsonRpcRequestMatcher {
@@ -187,6 +104,69 @@ impl CanisterHttpRequestMatcher for JsonRpcRequestMatcher {
         assert_eq!(self.request_body(), actual_body);
         if let Some(max_response_bytes) = self.max_response_bytes {
             assert_eq!(Some(max_response_bytes), request.max_response_bytes);
+        }
+    }
+}
+
+pub enum JsonRpcResponse {
+    CanisterHttpReply {
+        status: u16,
+        headers: Vec<CanisterHttpHeader>,
+        body: Value,
+    },
+    CanisterHttpReject {
+        reject_code: u64,
+        message: String,
+    },
+}
+
+impl From<Value> for JsonRpcResponse {
+    fn from(body: Value) -> Self {
+        Self::CanisterHttpReply {
+            status: 200,
+            headers: vec![],
+            body,
+        }
+    }
+}
+
+impl From<&Value> for JsonRpcResponse {
+    fn from(body: &Value) -> Self {
+        Self::from(body.clone())
+    }
+}
+
+impl From<String> for JsonRpcResponse {
+    fn from(body: String) -> Self {
+        Self::from(Value::from_str(&body).expect("BUG: invalid JSON-RPC response"))
+    }
+}
+
+impl From<&str> for JsonRpcResponse {
+    fn from(body: &str) -> Self {
+        Self::from(body.to_string())
+    }
+}
+
+impl From<JsonRpcResponse> for CanisterHttpResponse {
+    fn from(response: JsonRpcResponse) -> Self {
+        match response {
+            JsonRpcResponse::CanisterHttpReply {
+                status,
+                headers,
+                body,
+            } => CanisterHttpResponse::CanisterHttpReply(CanisterHttpReply {
+                status,
+                headers,
+                body: serde_json::to_vec(&body).unwrap(),
+            }),
+            JsonRpcResponse::CanisterHttpReject {
+                reject_code,
+                message,
+            } => CanisterHttpResponse::CanisterHttpReject(CanisterHttpReject {
+                reject_code,
+                message,
+            }),
         }
     }
 }
