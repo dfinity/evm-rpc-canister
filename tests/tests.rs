@@ -883,7 +883,7 @@ async fn eth_get_logs_should_succeed() {
             let mocks = MockHttpOutcallsBuilder::new()
                 .given(
                     JsonRpcRequestMatcher::with_method("eth_getLogs")
-                        .with_id(0 + offset)
+                        .with_id(offset)
                         .with_params(json!([{
                                 "address" : ["0xdac17f958d2ee523a2206206994597c13d831ec7"],
                                 "fromBlock" : from_block,

@@ -103,11 +103,11 @@ impl MockHttpRuntime {
                 mocks.next()
             } {
                 if let Some(request) = pending_requests.first() {
-                    mock.request.assert_matches(&request);
+                    mock.request.assert_matches(request);
                     let mock_response = MockCanisterHttpResponse {
                         subnet_id: request.subnet_id,
                         request_id: request.request_id,
-                        response: check_response_size(&request, mock.response),
+                        response: check_response_size(request, mock.response),
                         additional_responses: vec![],
                     };
                     self.env.mock_canister_http_response(mock_response).await;
