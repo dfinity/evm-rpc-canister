@@ -176,18 +176,6 @@ impl EvmRpcNonblockingSetup {
         panic!("Failed to upgrade canister after many trials!")
     }
 
-    /// Shorthand for deriving an `EvmRpcSetup` with the caller as the canister controller.
-    pub fn as_controller(mut self) -> Self {
-        self.caller = self.controller;
-        self
-    }
-
-    /// Shorthand for deriving an `EvmRpcSetup` with an arbitrary caller.
-    pub fn as_caller<T: Into<Principal>>(mut self, id: T) -> Self {
-        self.caller = id.into();
-        self
-    }
-
     pub fn client(&self) -> ClientBuilder<MockHttpRuntime> {
         EvmRpcClient::builder(self.new_mock_http_runtime(), self.canister_id)
     }
@@ -215,7 +203,6 @@ impl EvmRpcNonblockingSetup {
 
     pub async fn mock_api_keys(self) -> Self {
         self.clone()
-            .as_controller()
             .update_api_keys(
                 &PROVIDERS
                     .iter()
