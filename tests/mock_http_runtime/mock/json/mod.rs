@@ -13,7 +13,7 @@ pub struct JsonRpcRequestMatcher {
     pub method: String,
     pub id: Option<Id>,
     pub params: Option<Value>,
-    pub url: Option<String>,
+    pub url: Option<Url>,
     pub host: Option<Host>,
     pub request_headers: Option<Vec<CanisterHttpHeader>>,
     pub max_response_bytes: Option<u64>,
@@ -64,21 +64,23 @@ impl JsonRpcRequestMatcher {
 }
 
 impl CanisterHttpRequestMatcher for JsonRpcRequestMatcher {
-    fn assert_matches(&self, request: &CanisterHttpRequest) {
+    fn matches(&self, request: &CanisterHttpRequest) -> bool {
         let req_url = Url::from_str(&request.url).expect("BUG: invalid URL");
-        if let Some(ref url) = self.url {
-            let mock_url = Url::from_str(url).unwrap();
-            assert_eq!(mock_url, req_url);
+        if let Some(ref mock_url) = self.url {
+            if mock_url.as_str() != req_url.as_str() {
+                return false;
+            }
         }
         if let Some(ref host) = self.host {
-            assert_eq!(
-                host,
-                &req_url.host().expect("BUG: missing host in URL").to_owned()
-            );
+            match req_url.host() {
+                Some(ref req_host) if req_host == host => {}
+                _ => return false,
+            }
         }
-        assert_eq!(CanisterHttpMethod::POST, request.http_method);
+        if CanisterHttpMethod::POST != request.http_method {
+            return false;
+        }
         if let Some(ref headers) = self.request_headers {
-            // Header names are case-insensitive
             fn lower_case_header_name(
                 CanisterHttpHeader { name, value }: &CanisterHttpHeader,
             ) -> CanisterHttpHeader {
@@ -87,24 +89,23 @@ impl CanisterHttpRequestMatcher for JsonRpcRequestMatcher {
                     value: value.clone(),
                 }
             }
-            assert_eq!(
-                headers
-                    .iter()
-                    .map(lower_case_header_name)
-                    .collect::<BTreeSet<_>>(),
-                request
-                    .headers
-                    .iter()
-                    .map(lower_case_header_name)
-                    .collect::<BTreeSet<_>>()
-            );
+            let expected: BTreeSet<_> = headers.iter().map(lower_case_header_name).collect();
+            let actual: BTreeSet<_> = request.headers.iter().map(lower_case_header_name).collect();
+            if expected != actual {
+                return false;
+            }
         }
         let actual_body: JsonRpcRequest<Value> =
             serde_json::from_slice(&request.body).expect("BUG: failed to parse JSON request body");
-        assert_eq!(self.request_body(), actual_body);
-        if let Some(max_response_bytes) = self.max_response_bytes {
-            assert_eq!(Some(max_response_bytes), request.max_response_bytes);
+        if self.request_body() != actual_body {
+            return false;
         }
+        if let Some(max_response_bytes) = self.max_response_bytes {
+            if Some(max_response_bytes) != request.max_response_bytes {
+                return false;
+            }
+        }
+        true
     }
 }
 

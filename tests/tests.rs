@@ -793,7 +793,7 @@ async fn eth_get_logs_should_succeed() {
 
 #[tokio::test]
 async fn eth_get_logs_should_fail_when_block_range_too_large() {
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let mut setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
     let error_msg_regex =
         regex::Regex::new("Requested [0-9_]+ blocks; limited to [0-9_]+").unwrap();
 
@@ -1885,7 +1885,7 @@ async fn should_use_custom_response_size_estimate() {
         )
         .respond_with(JsonRpcResponse::from(expected_response));
 
-    let setup = EvmRpcNonblockingSetup::new()
+    let mut setup = EvmRpcNonblockingSetup::new()
         .await
         .mock_api_keys()
         .await

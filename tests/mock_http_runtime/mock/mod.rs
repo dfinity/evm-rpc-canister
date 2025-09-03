@@ -1,23 +1,48 @@
 use dyn_clone::DynClone;
 use pocket_ic::common::rest::{CanisterHttpRequest, CanisterHttpResponse};
-use std::{collections::VecDeque, fmt::Debug};
+use std::fmt::Debug;
 
 pub mod json;
 
 #[derive(Clone, Debug, Default)]
-pub struct MockHttpOutcalls(VecDeque<MockHttpOutcall>);
+pub struct MockHttpOutcalls(Vec<MockHttpOutcall>);
 
 impl MockHttpOutcalls {
     pub fn push(&mut self, mock: MockHttpOutcall) {
-        self.0.push_back(mock);
+        self.0.push(mock);
+    }
+
+    pub fn pop_matching(&mut self, request: &CanisterHttpRequest) -> Option<MockHttpOutcall> {
+        let matching_positions = self
+            .0
+            .iter()
+            .enumerate()
+            .filter_map(|(i, mock)| {
+                if mock.request.matches(request) {
+                    Some(i)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+
+        match matching_positions.len() {
+            0 => None,
+            1 => Some(self.0.remove(matching_positions[0])),
+            _ => panic!("Multiple mocks match the request: {:?}", request),
+        }
     }
 }
 
-impl Iterator for MockHttpOutcalls {
-    type Item = MockHttpOutcall;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.pop_front()
+impl Drop for MockHttpOutcalls {
+    fn drop(&mut self) {
+        if !self.0.is_empty() {
+            panic!(
+                "MockHttpOutcalls dropped but {} mocks were not consumed: {:?}",
+                self.0.len(),
+                self.0
+            );
+        }
     }
 }
 
@@ -77,6 +102,6 @@ impl MockHttpOutcallBuilder {
 }
 
 pub trait CanisterHttpRequestMatcher: Send + DynClone + Debug {
-    fn assert_matches(&self, request: &CanisterHttpRequest);
+    fn matches(&self, request: &CanisterHttpRequest) -> bool;
 }
 dyn_clone::clone_trait_object!(CanisterHttpRequestMatcher);

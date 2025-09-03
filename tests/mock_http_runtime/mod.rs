@@ -82,30 +82,29 @@ impl Runtime for MockHttpRuntime {
 }
 
 impl MockHttpRuntime {
-    // Loops, polling for pending canister HTTP requests and answering them with queued mocks.
-    // Each batch of requests consumes one mock, with requests validated and responded to via
-    // `PocketIc::mock_canister_http_response`. Panics if a mock has leftover responses.
     async fn execute_mocks(&self) {
         loop {
             let pending_requests = tick_until_http_requests(self.env.as_ref()).await;
-            if pending_requests.is_empty() {
-                return;
-            }
-
-            if let Some(mock) = {
-                let mut mocks = self.mocks.lock().unwrap();
-                mocks.next()
-            } {
-                if let Some(request) = pending_requests.first() {
-                    mock.request.assert_matches(request);
-                    let mock_response = MockCanisterHttpResponse {
-                        subnet_id: request.subnet_id,
-                        request_id: request.request_id,
-                        response: check_response_size(request, mock.response),
-                        additional_responses: vec![],
-                    };
-                    self.env.mock_canister_http_response(mock_response).await;
+            if let Some(request) = pending_requests.first() {
+                match {
+                    let mut mocks = self.mocks.lock().unwrap();
+                    mocks.pop_matching(request)
+                } {
+                    Some(mock) => {
+                        let mock_response = MockCanisterHttpResponse {
+                            subnet_id: request.subnet_id,
+                            request_id: request.request_id,
+                            response: check_response_size(request, mock.response),
+                            additional_responses: vec![],
+                        };
+                        self.env.mock_canister_http_response(mock_response).await;
+                    }
+                    None => {
+                        panic!("No mocks matching the request: {:?}", request);
+                    }
                 }
+            } else {
+                return;
             }
         }
     }

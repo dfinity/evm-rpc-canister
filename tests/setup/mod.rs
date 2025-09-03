@@ -9,6 +9,7 @@ use evm_rpc_types::InstallArgs;
 use ic_cdk::api::management_canister::main::CanisterId;
 use ic_management_canister_types::CanisterSettings;
 use pocket_ic::{nonblocking, PocketIcBuilder};
+use std::mem;
 use std::sync::{Arc, Mutex};
 
 #[derive(Clone)]
@@ -80,15 +81,15 @@ impl EvmRpcNonblockingSetup {
         }
     }
 
-    pub fn client(&self) -> ClientBuilder<MockHttpRuntime> {
+    pub fn client(&mut self) -> ClientBuilder<MockHttpRuntime> {
         EvmRpcClient::builder(self.new_mock_http_runtime(), self.canister_id)
     }
 
-    fn new_mock_http_runtime(&self) -> MockHttpRuntime {
+    fn new_mock_http_runtime(&mut self) -> MockHttpRuntime {
         MockHttpRuntime {
             env: self.env.clone(),
             caller: self.caller,
-            mocks: Mutex::new(self.mocks.clone()),
+            mocks: Mutex::new(mem::take(&mut self.mocks)),
         }
     }
 
