@@ -21,6 +21,7 @@ impl Iterator for MockHttpOutcalls {
 }
 
 #[derive(Debug)]
+#[must_use]
 pub struct MockHttpOutcall {
     pub request: Box<dyn CanisterHttpRequestMatcher>,
     pub response: CanisterHttpResponse,
@@ -37,8 +38,11 @@ impl MockHttpOutcallsBuilder {
     pub fn given(
         self,
         request: impl CanisterHttpRequestMatcher + 'static,
-    ) -> MockJsonRpcOutcallBuilder {
-        MockJsonRpcOutcallBuilder::new(self, Box::new(request))
+    ) -> MockHttpOutcallBuilder {
+        MockHttpOutcallBuilder {
+            parent: self,
+            request: Box::new(request),
+        }
     }
 
     pub fn build(self) -> MockHttpOutcalls {
@@ -52,25 +56,22 @@ impl From<MockHttpOutcallsBuilder> for MockHttpOutcalls {
     }
 }
 
-pub struct MockJsonRpcOutcallBuilder(MockHttpOutcallsBuilder, Box<dyn CanisterHttpRequestMatcher>);
+#[must_use]
+struct MockHttpOutcallBuilder {
+    parent: MockHttpOutcallsBuilder,
+    request: Box<dyn CanisterHttpRequestMatcher>,
+}
 
-impl MockJsonRpcOutcallBuilder {
-    pub fn new(
-        parent: MockHttpOutcallsBuilder,
-        request: Box<dyn CanisterHttpRequestMatcher>,
-    ) -> Self {
-        Self(parent, request)
-    }
-
+impl MockHttpOutcallBuilder {
     pub fn respond_with(
         mut self,
         response: impl Into<CanisterHttpResponse>,
     ) -> MockHttpOutcallsBuilder {
-        self.0 .0.push(MockHttpOutcall {
-            request: self.1,
+        self.parent.0.push(MockHttpOutcall {
+            request: self.request,
             response: response.into(),
         });
-        self.0
+        self.parent
     }
 }
 
