@@ -26,6 +26,16 @@ pub struct MockHttpRuntime {
     pub mocks: Mutex<MockHttpOutcalls>,
 }
 
+impl Clone for MockHttpRuntime {
+    fn clone(&self) -> Self {
+        Self {
+            env: self.env.clone(),
+            caller: self.caller,
+            mocks: Mutex::new(self.mocks.lock().unwrap().clone()),
+        }
+    }
+}
+
 #[async_trait]
 impl Runtime for MockHttpRuntime {
     async fn update_call<In, Out>(
