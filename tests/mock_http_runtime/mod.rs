@@ -86,10 +86,11 @@ impl MockHttpRuntime {
         loop {
             let pending_requests = tick_until_http_requests(self.env.as_ref()).await;
             if let Some(request) = pending_requests.first() {
-                match {
+                let maybe_mock = {
                     let mut mocks = self.mocks.lock().unwrap();
                     mocks.pop_matching(request)
-                } {
+                };
+                match maybe_mock {
                     Some(mock) => {
                         let mock_response = MockCanisterHttpResponse {
                             subnet_id: request.subnet_id,
