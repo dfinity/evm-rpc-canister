@@ -1,12 +1,12 @@
 pub mod mock;
 
-use crate::mock_runtime::mock::MockHttpOutcalls;
 use crate::MAX_TICKS;
 use async_trait::async_trait;
 use candid::{decode_args, utils::ArgumentEncoder, CandidType, Principal};
 use evm_rpc::constants::DEFAULT_MAX_RESPONSE_BYTES;
 use evm_rpc_client::{ClientBuilder, Runtime};
 use ic_error_types::RejectCode;
+use mock::MockHttpOutcalls;
 use pocket_ic::{
     common::rest::{
         CanisterHttpReject, CanisterHttpRequest, CanisterHttpResponse, MockCanisterHttpResponse,
@@ -24,7 +24,6 @@ pub struct MockHttpRuntime {
     pub env: Arc<PocketIc>,
     pub caller: Principal,
     pub mocks: Mutex<MockHttpOutcalls>,
-    pub controller: Principal,
 }
 
 impl Clone for MockHttpRuntime {
@@ -33,7 +32,6 @@ impl Clone for MockHttpRuntime {
             env: self.env.clone(),
             caller: self.caller,
             mocks: Mutex::new(self.mocks.lock().unwrap().clone()),
-            controller: self.controller,
         }
     }
 }

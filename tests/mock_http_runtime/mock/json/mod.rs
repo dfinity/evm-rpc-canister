@@ -1,4 +1,4 @@
-use crate::mock_runtime::mock::CanisterHttpRequestMatcher;
+use crate::mock_http_runtime::mock::CanisterHttpRequestMatcher;
 use canhttp::http::json::{Id, JsonRpcRequest};
 use pocket_ic::common::rest::{
     CanisterHttpHeader, CanisterHttpMethod, CanisterHttpReject, CanisterHttpReply,

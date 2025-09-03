@@ -1,15 +1,17 @@
 mod mock;
-mod mock_runtime;
+mod mock_http_runtime;
+mod setup;
 
 use crate::{
     mock::MockJsonRequestBody,
-    mock_runtime::{
+    mock_http_runtime::{
         mock::{
             json::{JsonRpcRequestMatcher, JsonRpcResponse},
-            MockHttpOutcalls, MockHttpOutcallsBuilder,
+            MockHttpOutcallsBuilder,
         },
-        MockClientBuilder, MockHttpRuntime,
+        MockClientBuilder,
     },
+    setup::EvmRpcNonblockingSetup,
 };
 use alloy_primitives::{address, b256, bytes};
 use alloy_rpc_types::BlockNumberOrTag;
@@ -23,7 +25,6 @@ use evm_rpc::{
     providers::PROVIDERS,
     types::{Metrics, ProviderId, RpcAccess, RpcMethod},
 };
-use evm_rpc_client::{ClientBuilder, EvmRpcClient};
 use evm_rpc_types::{
     BlockTag, ConsensusStrategy, EthMainnetService, EthSepoliaService, GetLogsRpcConfig, Hex,
     Hex20, Hex32, HttpOutcallError, InstallArgs, JsonRpcError, LegacyRejectionCode, MultiRpcResult,
@@ -40,16 +41,10 @@ use pocket_ic::common::rest::{
     CanisterHttpMethod, CanisterHttpReject, CanisterHttpResponse, MockCanisterHttpResponse,
     RawMessageId,
 };
-use pocket_ic::{nonblocking, ErrorCode, PocketIc, PocketIcBuilder, RejectResponse};
+use pocket_ic::{ErrorCode, PocketIc, PocketIcBuilder, RejectResponse};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::json;
-use std::{
-    iter,
-    marker::PhantomData,
-    str::FromStr,
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use std::{iter, marker::PhantomData, str::FromStr, sync::Arc, time::Duration};
 
 const DEFAULT_CALLER_TEST_ID: Principal = Principal::from_slice(&[0x9d, 0xf7, 0x01]);
 const DEFAULT_CONTROLLER_TEST_ID: Principal = Principal::from_slice(&[0x9d, 0xf7, 0x02]);
@@ -90,136 +85,6 @@ fn evm_rpc_wasm() -> Vec<u8> {
 
 fn assert_reply(result: Result<Vec<u8>, RejectResponse>) -> Vec<u8> {
     result.unwrap_or_else(|e| panic!("Expected a successful reply, got error {e}"))
-}
-
-#[derive(Clone)]
-pub struct EvmRpcNonblockingSetup {
-    pub env: Arc<nonblocking::PocketIc>,
-    pub caller: Principal,
-    pub controller: Principal,
-    pub canister_id: CanisterId,
-}
-
-impl EvmRpcNonblockingSetup {
-    pub async fn new() -> Self {
-        Self::with_args(InstallArgs {
-            demo: Some(true),
-            ..Default::default()
-        })
-        .await
-    }
-
-    pub async fn with_args(args: InstallArgs) -> Self {
-        // The `with_fiduciary_subnet` setup below requires that `nodes_in_subnet`
-        // setting (part of InstallArgs) to be set appropriately. Otherwise
-        // http outcall will fail due to insufficient cycles, even when `demo` is
-        // enabled (which is the default above).
-        //
-        // As of writing, the default value of `nodes_in_subnet` is 34, which is
-        // also the node count in fiduciary subnet.
-        let pocket_ic = PocketIcBuilder::new()
-            .with_fiduciary_subnet()
-            .build_async()
-            .await;
-        let env = Arc::new(pocket_ic);
-
-        let controller = DEFAULT_CONTROLLER_TEST_ID;
-        let canister_id = env
-            .create_canister_with_settings(
-                None,
-                Some(CanisterSettings {
-                    controllers: Some(vec![controller]),
-                    ..CanisterSettings::default()
-                }),
-            )
-            .await;
-        env.add_cycles(canister_id, INITIAL_CYCLES).await;
-        env.install_canister(
-            canister_id,
-            evm_rpc_wasm(),
-            Encode!(&args).unwrap(),
-            Some(controller),
-        )
-        .await;
-
-        let caller = DEFAULT_CALLER_TEST_ID;
-
-        Self {
-            env,
-            caller,
-            controller,
-            canister_id,
-        }
-    }
-
-    pub async fn upgrade_canister(&self, args: InstallArgs) {
-        for _ in 0..100 {
-            self.env.tick().await;
-            // Avoid `CanisterInstallCodeRateLimited` error
-            self.env.advance_time(Duration::from_secs(600)).await;
-            self.env.tick().await;
-            match self
-                .env
-                .upgrade_canister(
-                    self.canister_id,
-                    evm_rpc_wasm(),
-                    Encode!(&args).unwrap(),
-                    Some(self.controller),
-                )
-                .await
-            {
-                Ok(_) => return,
-                Err(e) if e.error_code == ErrorCode::CanisterInstallCodeRateLimited => continue,
-                Err(e) => panic!("Error while upgrading canister: {e:?}"),
-            }
-        }
-        panic!("Failed to upgrade canister after many trials!")
-    }
-
-    pub fn client(&self) -> ClientBuilder<MockHttpRuntime> {
-        EvmRpcClient::builder(self.new_mock_http_runtime(), self.canister_id)
-    }
-
-    fn new_mock_http_runtime(&self) -> MockHttpRuntime {
-        MockHttpRuntime {
-            env: self.env.clone(),
-            caller: self.caller,
-            mocks: Mutex::<MockHttpOutcalls>::default(),
-            controller: self.controller,
-        }
-    }
-
-    pub async fn update_api_keys(&self, api_keys: &[(ProviderId, Option<String>)]) {
-        self.env
-            .update_call(
-                self.canister_id,
-                self.controller,
-                "updateApiKeys",
-                Encode!(&api_keys).expect("Failed to encode arguments."),
-            )
-            .await
-            .expect("BUG: Failed to call updateApiKeys");
-    }
-
-    pub async fn mock_api_keys(self) -> Self {
-        self.clone()
-            .update_api_keys(
-                &PROVIDERS
-                    .iter()
-                    .filter_map(|provider| {
-                        Some((
-                            provider.provider_id,
-                            match provider.access {
-                                RpcAccess::Authenticated { .. } => Some(MOCK_API_KEY.to_string()),
-                                RpcAccess::Unauthenticated { .. } => None?,
-                            },
-                        ))
-                    })
-                    .collect::<Vec<_>>(),
-            )
-            .await;
-        self
-    }
 }
 
 #[derive(Clone)]
