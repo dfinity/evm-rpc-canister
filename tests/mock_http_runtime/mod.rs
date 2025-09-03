@@ -4,7 +4,7 @@ use crate::MAX_TICKS;
 use async_trait::async_trait;
 use candid::{decode_args, utils::ArgumentEncoder, CandidType, Principal};
 use evm_rpc::constants::DEFAULT_MAX_RESPONSE_BYTES;
-use evm_rpc_client::{ClientBuilder, Runtime};
+use evm_rpc_client::Runtime;
 use ic_error_types::RejectCode;
 use mock::MockHttpOutcalls;
 use pocket_ic::{
@@ -82,10 +82,6 @@ impl Runtime for MockHttpRuntime {
 }
 
 impl MockHttpRuntime {
-    fn with_mocks(&mut self, mocks: MockHttpOutcalls) {
-        *self.mocks.lock().unwrap() = mocks;
-    }
-
     // Loops, polling for pending canister HTTP requests and answering them with queued mocks.
     // Each batch of requests consumes one mock, with requests validated and responded to via
     // `PocketIc::mock_canister_http_response`. Panics if a mock has leftover responses.
@@ -178,17 +174,4 @@ async fn tick_until_http_requests(env: &PocketIc) -> Vec<CanisterHttpRequest> {
         env.advance_time(Duration::from_nanos(1)).await;
     }
     requests
-}
-
-pub trait MockClientBuilder<T>: Sized {
-    fn with_http_mocks(self, outcalls: impl Into<MockHttpOutcalls>) -> Self;
-}
-
-impl MockClientBuilder<ClientBuilder<MockHttpRuntime>> for ClientBuilder<MockHttpRuntime> {
-    fn with_http_mocks(self, outcalls: impl Into<MockHttpOutcalls>) -> Self {
-        self.with_runtime(|mut r| {
-            r.with_mocks(outcalls.into());
-            r
-        })
-    }
 }

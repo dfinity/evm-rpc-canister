@@ -17,7 +17,7 @@ pub struct EvmRpcNonblockingSetup {
     pub caller: Principal,
     pub controller: Principal,
     pub canister_id: CanisterId,
-    pub mocks: Mutex<MockHttpOutcalls>,
+    pub mocks: MockHttpOutcalls,
 }
 
 impl EvmRpcNonblockingSetup {
@@ -69,7 +69,14 @@ impl EvmRpcNonblockingSetup {
             caller,
             controller,
             canister_id,
-            mocks,
+            mocks: MockHttpOutcalls::default(),
+        }
+    }
+
+    pub fn with_http_mocks(self, mocks: impl Into<MockHttpOutcalls>) -> Self {
+        Self {
+            mocks: mocks.into(),
+            ..self
         }
     }
 
@@ -81,7 +88,7 @@ impl EvmRpcNonblockingSetup {
         MockHttpRuntime {
             env: self.env.clone(),
             caller: self.caller,
-            mocks: self.mocks.clone(),
+            mocks: Mutex::new(self.mocks.clone()),
         }
     }
 
@@ -98,21 +105,22 @@ impl EvmRpcNonblockingSetup {
     }
 
     pub async fn mock_api_keys(self) -> Self {
-        self.clone().update_api_keys(
-            &PROVIDERS
-                .iter()
-                .filter_map(|provider| {
-                    Some((
-                        provider.provider_id,
-                        match provider.access {
-                            RpcAccess::Authenticated { .. } => Some(MOCK_API_KEY.to_string()),
-                            RpcAccess::Unauthenticated { .. } => None?,
-                        },
-                    ))
-                })
-                .collect::<Vec<_>>(),
-        )
-        .await;
+        self.clone()
+            .update_api_keys(
+                &PROVIDERS
+                    .iter()
+                    .filter_map(|provider| {
+                        Some((
+                            provider.provider_id,
+                            match provider.access {
+                                RpcAccess::Authenticated { .. } => Some(MOCK_API_KEY.to_string()),
+                                RpcAccess::Unauthenticated { .. } => None?,
+                            },
+                        ))
+                    })
+                    .collect::<Vec<_>>(),
+            )
+            .await;
         self
     }
 }

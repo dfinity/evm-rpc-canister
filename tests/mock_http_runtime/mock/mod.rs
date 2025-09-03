@@ -58,7 +58,7 @@ impl From<MockHttpOutcallsBuilder> for MockHttpOutcalls {
 }
 
 #[must_use]
-struct MockHttpOutcallBuilder {
+pub struct MockHttpOutcallBuilder {
     parent: MockHttpOutcallsBuilder,
     request: Box<dyn CanisterHttpRequestMatcher>,
 }
