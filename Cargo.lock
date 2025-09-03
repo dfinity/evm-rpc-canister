@@ -1502,7 +1502,6 @@ dependencies = [
  "canhttp",
  "canlog",
  "derive_more 2.0.1",
- "dyn-clone",
  "ethers-core",
  "ethnum",
  "evm_rpc_client",
@@ -1549,7 +1548,6 @@ dependencies = [
  "async-trait",
  "candid",
  "canhttp",
- "dyn-clone",
  "evm_rpc_types",
  "ic-cdk",
  "ic-error-types",
@@ -1558,7 +1556,6 @@ dependencies = [
  "serde_json",
  "strum 0.27.2",
  "tokio",
- "url",
 ]
 
 [[package]]

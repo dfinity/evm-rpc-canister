@@ -16,7 +16,6 @@ alloy-rpc-types = { workspace = true }
 async-trait = { workspace = true }
 candid = { workspace = true }
 canhttp = { workspace = true, optional = true }
-dyn-clone = { workspace = true }
 evm_rpc_types = { path = "../evm_rpc_types", features = ["alloy"] }
 ic-cdk = { workspace = true }
 ic-error-types = { workspace = true }
@@ -24,7 +23,6 @@ pocket-ic = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 strum = { workspace = true }
-url = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }

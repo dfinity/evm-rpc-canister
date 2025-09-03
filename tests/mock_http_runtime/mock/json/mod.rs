@@ -8,7 +8,7 @@ use serde_json::Value;
 use std::{collections::BTreeSet, str::FromStr};
 use url::{Host, Url};
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct JsonRpcRequestMatcher {
     pub method: String,
     pub id: Option<Id>,

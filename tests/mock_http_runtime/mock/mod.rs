@@ -1,10 +1,9 @@
-use dyn_clone::DynClone;
 use pocket_ic::common::rest::{CanisterHttpRequest, CanisterHttpResponse};
 use std::{collections::VecDeque, fmt::Debug};
 
 pub mod json;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Debug, Default)]
 pub struct MockHttpOutcalls(VecDeque<MockHttpOutcall>);
 
 impl MockHttpOutcalls {
@@ -21,13 +20,13 @@ impl Iterator for MockHttpOutcalls {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct MockHttpOutcall {
     pub request: Box<dyn CanisterHttpRequestMatcher>,
     pub response: CanisterHttpResponse,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Debug, Default)]
 pub struct MockHttpOutcallsBuilder(MockHttpOutcalls);
 
 impl MockHttpOutcallsBuilder {
@@ -75,7 +74,6 @@ impl MockJsonRpcOutcallBuilder {
     }
 }
 
-pub trait CanisterHttpRequestMatcher: Send + DynClone + Debug {
+pub trait CanisterHttpRequestMatcher: Send + Debug {
     fn assert_matches(&self, request: &CanisterHttpRequest);
 }
-dyn_clone::clone_trait_object!(CanisterHttpRequestMatcher);
