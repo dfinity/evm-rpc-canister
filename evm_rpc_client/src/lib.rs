@@ -176,7 +176,7 @@
 //! ```
 
 #![forbid(unsafe_code)]
-#![deny(missing_docs)]
+#![forbid(missing_docs)]
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod fixtures;
@@ -193,11 +193,6 @@ use evm_rpc_types::{
 };
 use ic_error_types::RejectCode;
 use request::{GetLogsRequest, GetLogsRequestBuilder};
-#[cfg(feature = "pocket-ic")]
-pub use runtime::{
-    forever, once, times, MockOutcall, MockOutcallBody, MockOutcallBuilder, MockOutcallQueue,
-    MockOutcallRepeat, PocketIcRuntime,
-};
 pub use runtime::{IcRuntime, Runtime};
 use serde::de::DeserializeOwned;
 use std::sync::Arc;

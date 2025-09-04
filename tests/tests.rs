@@ -1,6 +1,11 @@
 mod mock;
+mod mock_http_runtime;
+mod setup;
 
-use crate::mock::MockJsonRequestBody;
+use crate::{
+    mock::MockJsonRequestBody,
+    setup::EvmRpcNonblockingSetup,
+};
 use alloy_primitives::{address, b256, bloom, bytes};
 use alloy_rpc_types::{BlockNumberOrTag, BlockTransactions};
 use assert_matches::assert_matches;
@@ -13,18 +18,15 @@ use evm_rpc::{
     providers::PROVIDERS,
     types::{Metrics, ProviderId, RpcAccess, RpcMethod},
 };
-use evm_rpc_client::{ClientBuilder, EvmRpcClient, MockOutcallQueue, PocketIcRuntime};
 use evm_rpc_types::{
     BlockTag, ConsensusStrategy, EthMainnetService, EthSepoliaService, GetLogsRpcConfig, Hex,
     Hex20, Hex32, HttpOutcallError, InstallArgs, JsonRpcError, LegacyRejectionCode, MultiRpcResult,
     Nat256, Provider, ProviderError, RpcApi, RpcConfig, RpcError, RpcResult, RpcService,
     RpcServices, ValidationError,
 };
-use ic_cdk::api::call::RejectionCode;
-use ic_cdk::api::management_canister::main::CanisterId;
+use ic_cdk::api::{call::RejectionCode, management_canister::main::CanisterId};
 use ic_http_types::{HttpRequest, HttpResponse};
-use ic_management_canister_types::CanisterSettings;
-use ic_management_canister_types::HttpHeader;
+use ic_management_canister_types::{CanisterSettings, HttpHeader};
 use ic_test_utilities_load_wasm::load_wasm;
 use maplit::hashmap;
 use mock::{MockOutcall, MockOutcallBuilder};
@@ -32,11 +34,12 @@ use pocket_ic::common::rest::{
     CanisterHttpMethod, CanisterHttpReject, CanisterHttpResponse, MockCanisterHttpResponse,
     RawMessageId,
 };
-use pocket_ic::{nonblocking, ErrorCode, PocketIc, PocketIcBuilder, RejectResponse};
+use pocket_ic::{ErrorCode, PocketIc, PocketIcBuilder, RejectResponse};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::json;
-use std::sync::{Arc, Mutex};
-use std::{iter, marker::PhantomData, str::FromStr, time::Duration};
+use std::{iter, marker::PhantomData, str::FromStr, sync::Arc, time::Duration};
+use crate::mock_http_runtime::mock::json::{JsonRpcRequestMatcher, JsonRpcResponse};
+use crate::mock_http_runtime::mock::{MockHttpOutcalls, MockHttpOutcallsBuilder};
 
 const DEFAULT_CALLER_TEST_ID: Principal = Principal::from_slice(&[0x9d, 0xf7, 0x01]);
 const DEFAULT_CONTROLLER_TEST_ID: Principal = Principal::from_slice(&[0x9d, 0xf7, 0x02]);
@@ -77,175 +80,6 @@ fn evm_rpc_wasm() -> Vec<u8> {
 
 fn assert_reply(result: Result<Vec<u8>, RejectResponse>) -> Vec<u8> {
     result.unwrap_or_else(|e| panic!("Expected a successful reply, got error {e}"))
-}
-
-#[derive(Clone)]
-pub struct EvmRpcNonblockingSetup {
-    pub env: Arc<nonblocking::PocketIc>,
-    pub caller: Principal,
-    pub controller: Principal,
-    pub canister_id: CanisterId,
-}
-
-impl EvmRpcNonblockingSetup {
-    pub async fn new() -> Self {
-        Self::with_args(InstallArgs {
-            demo: Some(true),
-            ..Default::default()
-        })
-        .await
-    }
-
-    pub async fn with_args(args: InstallArgs) -> Self {
-        // The `with_fiduciary_subnet` setup below requires that `nodes_in_subnet`
-        // setting (part of InstallArgs) to be set appropriately. Otherwise
-        // http outcall will fail due to insufficient cycles, even when `demo` is
-        // enabled (which is the default above).
-        //
-        // As of writing, the default value of `nodes_in_subnet` is 34, which is
-        // also the node count in fiduciary subnet.
-        let pocket_ic = PocketIcBuilder::new()
-            .with_fiduciary_subnet()
-            .build_async()
-            .await;
-        let env = Arc::new(pocket_ic);
-
-        let controller = DEFAULT_CONTROLLER_TEST_ID;
-        let canister_id = env
-            .create_canister_with_settings(
-                None,
-                Some(CanisterSettings {
-                    controllers: Some(vec![controller]),
-                    ..CanisterSettings::default()
-                }),
-            )
-            .await;
-        env.add_cycles(canister_id, INITIAL_CYCLES).await;
-        env.install_canister(
-            canister_id,
-            evm_rpc_wasm(),
-            Encode!(&args).unwrap(),
-            Some(controller),
-        )
-        .await;
-
-        let caller = DEFAULT_CALLER_TEST_ID;
-
-        Self {
-            env,
-            caller,
-            controller,
-            canister_id,
-        }
-    }
-
-    pub async fn upgrade_canister(&self, args: InstallArgs) {
-        for _ in 0..100 {
-            self.env.tick().await;
-            // Avoid `CanisterInstallCodeRateLimited` error
-            self.env.advance_time(Duration::from_secs(600)).await;
-            self.env.tick().await;
-            match self
-                .env
-                .upgrade_canister(
-                    self.canister_id,
-                    evm_rpc_wasm(),
-                    Encode!(&args).unwrap(),
-                    Some(self.controller),
-                )
-                .await
-            {
-                Ok(_) => return,
-                Err(e) if e.error_code == ErrorCode::CanisterInstallCodeRateLimited => continue,
-                Err(e) => panic!("Error while upgrading canister: {e:?}"),
-            }
-        }
-        panic!("Failed to upgrade canister after many trials!")
-    }
-
-    /// Shorthand for deriving an `EvmRpcSetup` with the caller as the canister controller.
-    pub fn as_controller(mut self) -> Self {
-        self.caller = self.controller;
-        self
-    }
-
-    /// Shorthand for deriving an `EvmRpcSetup` with an arbitrary caller.
-    pub fn as_caller<T: Into<Principal>>(mut self, id: T) -> Self {
-        self.caller = id.into();
-        self
-    }
-
-    pub fn client(&self) -> ClientBuilder<PocketIcRuntime> {
-        EvmRpcClient::builder(self.new_pocket_ic_runtime(), self.canister_id)
-    }
-
-    fn new_pocket_ic_runtime(&self) -> PocketIcRuntime {
-        PocketIcRuntime {
-            env: &self.env,
-            caller: self.caller,
-            mocks: Mutex::<MockOutcallQueue>::default(),
-            controller: self.controller,
-        }
-    }
-
-    pub async fn update_api_keys(&self, api_keys: &[(ProviderId, Option<String>)]) {
-        self.env
-            .update_call(
-                self.canister_id,
-                self.controller,
-                "updateApiKeys",
-                Encode!(&api_keys).expect("Failed to encode arguments."),
-            )
-            .await
-            .expect("BUG: Failed to call updateApiKeys");
-    }
-
-    pub async fn mock_api_keys(self) -> Self {
-        self.clone()
-            .as_controller()
-            .update_api_keys(
-                &PROVIDERS
-                    .iter()
-                    .filter_map(|provider| {
-                        Some((
-                            provider.provider_id,
-                            match provider.access {
-                                RpcAccess::Authenticated { .. } => Some(MOCK_API_KEY.to_string()),
-                                RpcAccess::Unauthenticated { .. } => None?,
-                            },
-                        ))
-                    })
-                    .collect::<Vec<_>>(),
-            )
-            .await;
-        self
-    }
-
-    pub async fn http_get_logs(&self, priority: &str) -> Vec<LogEntry<Priority>> {
-        let request = HttpRequest {
-            method: "".to_string(),
-            url: format!("/logs?priority={priority}"),
-            headers: vec![],
-            body: serde_bytes::ByteBuf::new(),
-        };
-        let response = Decode!(
-            &assert_reply(
-                self.env
-                    .query_call(
-                        self.canister_id,
-                        Principal::anonymous(),
-                        "http_request",
-                        Encode!(&request).unwrap()
-                    )
-                    .await
-            ),
-            HttpResponse
-        )
-        .unwrap();
-        serde_json::from_slice::<Log<Priority>>(&response.body)
-            .expect("failed to parse EVM_RPC minter log")
-            .entries
-    }
 }
 
 #[derive(Clone)]
@@ -491,7 +325,7 @@ impl EvmRpcSetup {
             )),
             HttpResponse
         )
-        .unwrap();
+            .unwrap();
         serde_json::from_slice::<Log<Priority>>(&response.body)
             .expect("failed to parse EVM_RPC minter log")
             .entries
@@ -710,21 +544,21 @@ fn should_canonicalize_json_response() {
         r#"{"result":"0x00112233","id":1,"jsonrpc":"2.0"}"#,
         r#"{"result":"0x00112233","jsonrpc":"2.0","id":1}"#,
     ]
-    .into_iter()
-    .map(|response| {
-        setup
-            .request(
-                RpcService::Custom(RpcApi {
-                    url: MOCK_REQUEST_URL.to_string(),
-                    headers: None,
-                }),
-                MOCK_REQUEST_PAYLOAD,
-                MOCK_REQUEST_RESPONSE_BYTES,
-            )
-            .mock_http(MockOutcallBuilder::new(200, response))
-            .wait()
-    })
-    .collect::<Vec<_>>();
+        .into_iter()
+        .map(|response| {
+            setup
+                .request(
+                    RpcService::Custom(RpcApi {
+                        url: MOCK_REQUEST_URL.to_string(),
+                        headers: None,
+                    }),
+                    MOCK_REQUEST_PAYLOAD,
+                    MOCK_REQUEST_RESPONSE_BYTES,
+                )
+                .mock_http(MockOutcallBuilder::new(200, response))
+                .wait()
+        })
+        .collect::<Vec<_>>();
     assert!(responses.windows(2).all(|w| w[0] == w[1]));
 }
 
@@ -809,27 +643,40 @@ fn should_decode_transaction_receipt() {
 
 #[tokio::test]
 async fn eth_get_logs_should_succeed() {
-    let response = json!({
-        "id" : 0,
-        "jsonrpc" : "2.0",
-        "result" : [
-            {
-                "address" : "0xdac17f958d2ee523a2206206994597c13d831ec7",
-                "topics" : [
-                    "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
-                    "0x000000000000000000000000a9d1e08c7793af67e9d92fe308d5697fb81d3e43",
-                    "0x00000000000000000000000078cccfb3d517cd4ed6d045e263e134712288ace2"
-                ],
-                "data" : "0x000000000000000000000000000000000000000000000000000000003b9c6433",
-                "blockNumber" : "0x11dc77e",
-                "transactionHash" : "0xf3ed91a03ddf964281ac7a24351573efd535b80fc460a5c2ad2b9d23153ec678",
-                "transactionIndex" : "0x65",
-                "blockHash" : "0xd5c72ad752b2f0144a878594faf8bd9f570f2f72af8e7f0940d3545a6388f629",
-                "logIndex" : "0xe8",
-                "removed" : false
-            }
-        ]
-    });
+    fn mock_request(
+        from_block: BlockNumberOrTag,
+        to_block: BlockNumberOrTag,
+    ) -> JsonRpcRequestMatcher {
+        JsonRpcRequestMatcher::with_method("eth_getLogs").with_params(json!([{
+                "address" : ["0xdac17f958d2ee523a2206206994597c13d831ec7"],
+                "fromBlock" : from_block,
+                "toBlock" : to_block,
+        }]))
+    }
+
+    fn mock_response() -> JsonRpcResponse {
+        JsonRpcResponse::from(json!({
+            "id" : 0,
+            "jsonrpc" : "2.0",
+            "result" : [
+                {
+                    "address" : "0xdac17f958d2ee523a2206206994597c13d831ec7",
+                    "topics" : [
+                        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                        "0x000000000000000000000000a9d1e08c7793af67e9d92fe308d5697fb81d3e43",
+                        "0x00000000000000000000000078cccfb3d517cd4ed6d045e263e134712288ace2"
+                    ],
+                    "data" : "0x000000000000000000000000000000000000000000000000000000003b9c6433",
+                    "blockNumber" : "0x11dc77e",
+                    "transactionHash" : "0xf3ed91a03ddf964281ac7a24351573efd535b80fc460a5c2ad2b9d23153ec678",
+                    "transactionIndex" : "0x65",
+                    "blockHash" : "0xd5c72ad752b2f0144a878594faf8bd9f570f2f72af8e7f0940d3545a6388f629",
+                    "logIndex" : "0xe8",
+                    "removed" : false
+                }
+            ]
+        }))
+    }
 
     fn expected_logs() -> Vec<alloy_rpc_types::Log> {
         vec![alloy_rpc_types::Log {
@@ -877,16 +724,17 @@ async fn eth_get_logs_should_succeed() {
                 BlockNumberOrTag::Number(501_u16.into()),
             ),
         ] {
+            let mocks = MockHttpOutcallsBuilder::new()
+                .given(mock_request(from_block, to_block).with_id(offset))
+                .respond_with(mock_response().with_id(offset))
+                .given(mock_request(from_block, to_block).with_id(1 + offset))
+                .respond_with(mock_response().with_id(1 + offset))
+                .given(mock_request(from_block, to_block).with_id(2 + offset))
+                .respond_with(mock_response().with_id(2 + offset));
+
             let response = setup
-                .client()
+                .client(mocks)
                 .with_rpc_sources(source.clone())
-                .mock_once(
-                    evm_rpc_client::MockOutcallBuilder::new_success(iter::repeat_n(
-                        response.clone(),
-                        3,
-                    ))
-                    .with_sequential_response_ids(offset),
-                )
                 .build()
                 .get_logs(vec![address!("0xdac17f958d2ee523a2206206994597c13d831ec7")])
                 .with_from_block(from_block)
@@ -928,7 +776,10 @@ async fn eth_get_logs_should_fail_when_block_range_too_large() {
                 BlockTag::Number(1001_u16.into()),
             ),
         ] {
-            let client = setup.client().with_rpc_sources(source.clone()).build();
+            let client = setup
+                .client(MockHttpOutcalls::NEVER)
+                .with_rpc_sources(source.clone())
+                .build();
 
             let response = client
                 .get_logs(vec![address!("0xdAC17F958D2ee523a2206206994597C13D831ec7")])
@@ -988,7 +839,7 @@ async fn eth_get_block_by_number_should_succeed() {
                     response.clone(),
                     3,
                 ))
-                .with_sequential_response_ids(offset),
+                    .with_sequential_response_ids(offset),
             )
             .build()
             .get_block_by_number(BlockNumberOrTag::Latest)
@@ -1075,7 +926,7 @@ async fn eth_get_block_by_number_pre_london_fork_should_succeed() {
                     response.clone(),
                     3,
                 ))
-                .with_sequential_response_ids(offset),
+                    .with_sequential_response_ids(offset),
             )
             .build()
             .get_block_by_number(BlockNumberOrTag::Latest)
@@ -1289,7 +1140,7 @@ async fn eth_fee_history_should_succeed() {
                     response.clone(),
                     3,
                 ))
-                .with_sequential_response_ids(offset),
+                    .with_sequential_response_ids(offset),
             )
             .build()
             .fee_history((3_u64, BlockNumberOrTag::Latest))
@@ -1432,7 +1283,7 @@ fn candid_rpc_should_err_without_cycles() {
         demo: None,
         ..Default::default()
     })
-    .mock_api_keys();
+        .mock_api_keys();
     let result = setup
         .eth_get_transaction_receipt(
             RpcServices::EthMainnet(None),
@@ -1461,7 +1312,7 @@ fn candid_rpc_should_err_with_insufficient_cycles() {
         nodes_in_subnet: Some(33),
         ..Default::default()
     })
-    .mock_api_keys();
+        .mock_api_keys();
     let mut result = setup
         .eth_get_transaction_receipt(
             RpcServices::EthMainnet(None),
@@ -1473,7 +1324,7 @@ fn candid_rpc_should_err_with_insufficient_cycles() {
     let regex = regex::Regex::new(
         "http_request request sent with [0-9_]+ cycles, but [0-9_]+ cycles are required.",
     )
-    .unwrap();
+        .unwrap();
     assert_matches!(
         result.pop().unwrap(),
         (
@@ -2084,11 +1935,22 @@ async fn should_use_custom_response_size_estimate() {
     let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
     let max_response_bytes = 1234;
     let expected_response = r#"{"id":0,"jsonrpc":"2.0","result":[{"address":"0xdac17f958d2ee523a2206206994597c13d831ec7","topics":["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef","0x000000000000000000000000a9d1e08c7793af67e9d92fe308d5697fb81d3e43","0x00000000000000000000000078cccfb3d517cd4ed6d045e263e134712288ace2"],"data":"0x000000000000000000000000000000000000000000000000000000003b9c6433","blockNumber":"0x11dc77e","transactionHash":"0xf3ed91a03ddf964281ac7a24351573efd535b80fc460a5c2ad2b9d23153ec678","transactionIndex":"0x65","blockHash":"0xd5c72ad752b2f0144a878594faf8bd9f570f2f72af8e7f0940d3545a6388f629","logIndex":"0xe8","removed":false}]}"#;
+
+    let mocks = MockHttpOutcallsBuilder::new()
+        .given(
+            JsonRpcRequestMatcher::with_method("eth_getLogs")
+                .with_id(0_u64)
+                .with_params(json!([{
+                    "address" : ["0xdac17f958d2ee523a2206206994597c13d831ec7"],
+                    "fromBlock": "latest",
+                    "toBlock": "latest",
+                }]))
+                .with_max_response_bytes(max_response_bytes),
+        )
+        .respond_with(JsonRpcResponse::from(expected_response));
+
     let client = setup
-        .client()
-        .mock_once(evm_rpc_client::MockOutcallBuilder::new_success([
-            expected_response,
-        ]))
+        .client(mocks)
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
             EthMainnetService::Cloudflare,
         ])))
@@ -2171,7 +2033,7 @@ fn should_update_api_key() {
         manage_api_keys: Some(vec![authorized_caller]),
         ..Default::default()
     })
-    .as_caller(authorized_caller);
+        .as_caller(authorized_caller);
     let provider_id = 1; // Ankr / mainnet
     let api_key = "test-api-key";
 
@@ -2491,23 +2353,31 @@ async fn should_retry_when_response_too_large() {
 
     // around 600 bytes per log
     // we need at least 3334 logs to reach the 2MB limit
-    let response_bodies = json_rpc_sequential_id::<12>(multi_logs_for_single_transaction(3_500));
+    let response_body = multi_logs_for_single_transaction(3_500);
     let max_response_bytes = iter::once(1_u64)
         .chain((1..=10).map(|i| 1024_u64 << i))
         .chain(iter::once(2_000_000_u64));
 
-    let mocks = iter::zip(response_bodies, max_response_bytes).map(
-        |(response_body, max_response_bytes)| {
-            evm_rpc_client::MockOutcallBuilder::new_success([response_body])
-                .with_max_response_bytes(max_response_bytes)
-        },
-    );
+    let mut mocks = MockHttpOutcallsBuilder::new();
+    for (id, max_response_bytes) in max_response_bytes.enumerate() {
+        mocks = mocks
+            .given(
+                JsonRpcRequestMatcher::with_method("eth_getLogs")
+                    .with_id(id as u64)
+                    .with_params(json!([{
+                        "address" : ["0xdac17f958d2ee523a2206206994597c13d831ec7"],
+                        "fromBlock": "latest",
+                        "toBlock": "latest",
+                    }]))
+                    .with_max_response_bytes(max_response_bytes),
+            )
+            .respond_with(JsonRpcResponse::from(&response_body).with_id(id as u64));
+    }
 
     let response = setup
-        .client()
+        .client(mocks)
         .with_rpc_sources(rpc_services.clone())
         .with_response_size_estimate(1)
-        .mock_sequence(mocks)
         .build()
         .get_logs(vec![address!("0xdAC17F958D2ee523a2206206994597C13D831ec7")])
         .send()
@@ -2520,22 +2390,29 @@ async fn should_retry_when_response_too_large() {
         if code == LegacyRejectionCode::SysFatal && message.contains("body exceeds size limit")
     );
 
-    let mut response_bodies =
-        json_rpc_sequential_id::<11>(multi_logs_for_single_transaction(1_000));
-    add_offset_json_rpc_id(response_bodies.as_mut_slice(), 12);
+    let response_body = multi_logs_for_single_transaction(1_000);
     let max_response_bytes = iter::once(1_u64).chain((1..=10).map(|i| 1024_u64 << i));
-    let mocks = iter::zip(max_response_bytes, response_bodies).map(
-        |(max_response_bytes, response_body)| {
-            evm_rpc_client::MockOutcallBuilder::new_success([response_body])
-                .with_max_response_bytes(max_response_bytes)
-        },
-    );
+
+    let mut mocks = MockHttpOutcallsBuilder::new();
+    for (id, max_response_bytes) in max_response_bytes.enumerate() {
+        mocks = mocks
+            .given(
+                JsonRpcRequestMatcher::with_method("eth_getLogs")
+                    .with_id(id as u64 + 12)
+                    .with_params(json!([{
+                        "address" : ["0xdac17f958d2ee523a2206206994597c13d831ec7"],
+                        "fromBlock": "latest",
+                        "toBlock": "latest",
+                    }]))
+                    .with_max_response_bytes(max_response_bytes),
+            )
+            .respond_with(JsonRpcResponse::from(&response_body).with_id(id as u64 + 12));
+    }
 
     let response = setup
-        .client()
+        .client(mocks)
         .with_rpc_sources(rpc_services.clone())
         .with_response_size_estimate(1)
-        .mock_sequence(mocks)
         .build()
         .get_logs(vec![address!("0xdAC17F958D2ee523a2206206994597C13D831ec7")])
         .send()
