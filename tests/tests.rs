@@ -716,7 +716,7 @@ async fn eth_get_logs_should_succeed() {
         }]
     }
 
-    let mut setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
     let mut offset = 0_u64;
     for source in RPC_SERVICES {
         for (config, from_block, to_block) in [
@@ -770,10 +770,9 @@ async fn eth_get_logs_should_succeed() {
                         }])),
                 )
                 .respond_with(JsonRpcResponse::from(&responses[2]));
-            setup = setup.with_http_mocks(mocks);
 
             let response = setup
-                .client()
+                .client_with_http_mocks(mocks)
                 .with_rpc_sources(source.clone())
                 .build()
                 .get_logs(vec![address!("0xdac17f958d2ee523a2206206994597c13d831ec7")])
@@ -793,7 +792,7 @@ async fn eth_get_logs_should_succeed() {
 
 #[tokio::test]
 async fn eth_get_logs_should_fail_when_block_range_too_large() {
-    let mut setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
     let error_msg_regex =
         regex::Regex::new("Requested [0-9_]+ blocks; limited to [0-9_]+").unwrap();
 
@@ -1869,6 +1868,7 @@ fn candid_rpc_should_recognize_rate_limit() {
 
 #[tokio::test]
 async fn should_use_custom_response_size_estimate() {
+    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
     let max_response_bytes = 1234;
     let expected_response = r#"{"id":0,"jsonrpc":"2.0","result":[{"address":"0xdac17f958d2ee523a2206206994597c13d831ec7","topics":["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef","0x000000000000000000000000a9d1e08c7793af67e9d92fe308d5697fb81d3e43","0x00000000000000000000000078cccfb3d517cd4ed6d045e263e134712288ace2"],"data":"0x000000000000000000000000000000000000000000000000000000003b9c6433","blockNumber":"0x11dc77e","transactionHash":"0xf3ed91a03ddf964281ac7a24351573efd535b80fc460a5c2ad2b9d23153ec678","transactionIndex":"0x65","blockHash":"0xd5c72ad752b2f0144a878594faf8bd9f570f2f72af8e7f0940d3545a6388f629","logIndex":"0xe8","removed":false}]}"#;
 
@@ -1885,14 +1885,8 @@ async fn should_use_custom_response_size_estimate() {
         )
         .respond_with(JsonRpcResponse::from(expected_response));
 
-    let mut setup = EvmRpcNonblockingSetup::new()
-        .await
-        .mock_api_keys()
-        .await
-        .with_http_mocks(mocks);
-
     let client = setup
-        .client()
+        .client_with_http_mocks(mocks)
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
             EthMainnetService::Cloudflare,
         ])))
@@ -2289,7 +2283,7 @@ fn should_retrieve_logs() {
 
 #[tokio::test]
 async fn should_retry_when_response_too_large() {
-    let mut setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
 
     let rpc_services = RpcServices::EthMainnet(Some(vec![EthMainnetService::Cloudflare]));
 
@@ -2317,10 +2311,9 @@ async fn should_retry_when_response_too_large() {
             )
             .respond_with(JsonRpcResponse::from(response_body));
     }
-    setup = setup.with_http_mocks(mocks);
 
     let response = setup
-        .client()
+        .client_with_http_mocks(mocks)
         .with_rpc_sources(rpc_services.clone())
         .with_response_size_estimate(1)
         .build()
@@ -2357,10 +2350,9 @@ async fn should_retry_when_response_too_large() {
             )
             .respond_with(JsonRpcResponse::from(response_body));
     }
-    setup = setup.with_http_mocks(mocks);
 
     let response = setup
-        .client()
+        .client_with_http_mocks(mocks)
         .with_rpc_sources(rpc_services.clone())
         .with_response_size_estimate(1)
         .build()

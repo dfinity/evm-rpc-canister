@@ -9,7 +9,6 @@ use evm_rpc_types::InstallArgs;
 use ic_cdk::api::management_canister::main::CanisterId;
 use ic_management_canister_types::CanisterSettings;
 use pocket_ic::{nonblocking, PocketIcBuilder};
-use std::mem;
 use std::sync::{Arc, Mutex};
 
 #[derive(Clone)]
@@ -18,7 +17,6 @@ pub struct EvmRpcNonblockingSetup {
     pub caller: Principal,
     pub controller: Principal,
     pub canister_id: CanisterId,
-    pub mocks: MockHttpOutcalls,
 }
 
 impl EvmRpcNonblockingSetup {
@@ -70,26 +68,28 @@ impl EvmRpcNonblockingSetup {
             caller,
             controller,
             canister_id,
-            mocks: MockHttpOutcalls::default(),
         }
     }
 
-    pub fn with_http_mocks(self, mocks: impl Into<MockHttpOutcalls>) -> Self {
-        Self {
-            mocks: mocks.into(),
-            ..self
-        }
+    pub fn client(&self) -> ClientBuilder<MockHttpRuntime> {
+        EvmRpcClient::builder(self.new_mock_http_runtime(None), self.canister_id)
     }
 
-    pub fn client(&mut self) -> ClientBuilder<MockHttpRuntime> {
-        EvmRpcClient::builder(self.new_mock_http_runtime(), self.canister_id)
+    pub fn client_with_http_mocks(
+        &self,
+        mocks: impl Into<MockHttpOutcalls>,
+    ) -> ClientBuilder<MockHttpRuntime> {
+        EvmRpcClient::builder(
+            self.new_mock_http_runtime(Some(mocks.into())),
+            self.canister_id,
+        )
     }
 
-    fn new_mock_http_runtime(&mut self) -> MockHttpRuntime {
+    fn new_mock_http_runtime(&self, mocks: Option<MockHttpOutcalls>) -> MockHttpRuntime {
         MockHttpRuntime {
             env: self.env.clone(),
             caller: self.caller,
-            mocks: Mutex::new(mem::take(&mut self.mocks)),
+            mocks: mocks.map(Mutex::new).unwrap_or_default(),
         }
     }
 

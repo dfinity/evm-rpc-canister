@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 pub mod json;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Debug, Default)]
 pub struct MockHttpOutcalls(Vec<MockHttpOutcall>);
 
 impl MockHttpOutcalls {
@@ -46,14 +46,14 @@ impl Drop for MockHttpOutcalls {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 #[must_use]
 pub struct MockHttpOutcall {
     pub request: Box<dyn CanisterHttpRequestMatcher>,
     pub response: CanisterHttpResponse,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Debug, Default)]
 pub struct MockHttpOutcallsBuilder(MockHttpOutcalls);
 
 impl MockHttpOutcallsBuilder {
@@ -104,4 +104,3 @@ impl MockHttpOutcallBuilder {
 pub trait CanisterHttpRequestMatcher: Send + DynClone + Debug {
     fn matches(&self, request: &CanisterHttpRequest) -> bool;
 }
-dyn_clone::clone_trait_object!(CanisterHttpRequestMatcher);
