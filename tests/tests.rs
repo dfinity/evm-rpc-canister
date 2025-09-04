@@ -2,12 +2,11 @@ mod mock;
 mod mock_http_runtime;
 mod setup;
 
-use crate::mock_http_runtime::mock::MockHttpOutcalls;
 use crate::{
     mock::MockJsonRequestBody,
     mock_http_runtime::mock::{
         json::{JsonRpcRequestMatcher, JsonRpcResponse},
-        MockHttpOutcallsBuilder,
+        MockHttpOutcalls, MockHttpOutcallsBuilder,
     },
     setup::EvmRpcNonblockingSetup,
 };
@@ -667,6 +666,17 @@ fn should_decode_transaction_receipt() {
 
 #[tokio::test]
 async fn eth_get_logs_should_succeed() {
+    fn mock_request(
+        from_block: BlockNumberOrTag,
+        to_block: BlockNumberOrTag,
+    ) -> JsonRpcRequestMatcher {
+        JsonRpcRequestMatcher::with_method("eth_getLogs").with_params(json!([{
+                "address" : ["0xdac17f958d2ee523a2206206994597c13d831ec7"],
+                "fromBlock" : from_block,
+                "toBlock" : to_block,
+        }]))
+    }
+
     fn mock_response() -> JsonRpcResponse {
         JsonRpcResponse::from(json!({
             "id" : 0,
@@ -738,35 +748,11 @@ async fn eth_get_logs_should_succeed() {
             ),
         ] {
             let mocks = MockHttpOutcallsBuilder::new()
-                .given(
-                    JsonRpcRequestMatcher::with_method("eth_getLogs")
-                        .with_id(offset)
-                        .with_params(json!([{
-                                "address" : ["0xdac17f958d2ee523a2206206994597c13d831ec7"],
-                                "fromBlock" : from_block,
-                                "toBlock" : to_block,
-                        }])),
-                )
+                .given(mock_request(from_block, to_block).with_id(offset))
                 .respond_with(mock_response().with_id(offset))
-                .given(
-                    JsonRpcRequestMatcher::with_method("eth_getLogs")
-                        .with_id(1 + offset)
-                        .with_params(json!([{
-                                "address" : ["0xdac17f958d2ee523a2206206994597c13d831ec7"],
-                                "fromBlock" : from_block,
-                                "toBlock" : to_block,
-                        }])),
-                )
+                .given(mock_request(from_block, to_block).with_id(1 + offset))
                 .respond_with(mock_response().with_id(1 + offset))
-                .given(
-                    JsonRpcRequestMatcher::with_method("eth_getLogs")
-                        .with_id(2 + offset)
-                        .with_params(json!([{
-                                "address" : ["0xdac17f958d2ee523a2206206994597c13d831ec7"],
-                                "fromBlock" : from_block,
-                                "toBlock" : to_block,
-                        }])),
-                )
+                .given(mock_request(from_block, to_block).with_id(2 + offset))
                 .respond_with(mock_response().with_id(2 + offset));
 
             let response = setup

@@ -79,7 +79,7 @@ impl EvmRpcNonblockingSetup {
         MockHttpRuntime {
             env: self.env.clone(),
             caller: self.caller,
-            mocks: mocks.map(Mutex::new).unwrap_or_default(),
+            mocks: Mutex::new(mocks),
         }
     }
 
