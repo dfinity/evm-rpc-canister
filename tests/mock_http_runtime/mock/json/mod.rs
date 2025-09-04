@@ -1,8 +1,8 @@
 use crate::mock_http_runtime::mock::CanisterHttpRequestMatcher;
 use canhttp::http::json::{Id, JsonRpcRequest};
 use pocket_ic::common::rest::{
-    CanisterHttpHeader, CanisterHttpMethod, CanisterHttpReject, CanisterHttpReply,
-    CanisterHttpRequest, CanisterHttpResponse,
+    CanisterHttpHeader, CanisterHttpMethod, CanisterHttpReply, CanisterHttpRequest,
+    CanisterHttpResponse,
 };
 use serde_json::Value;
 use std::{collections::BTreeSet, str::FromStr};
@@ -109,21 +109,15 @@ impl CanisterHttpRequestMatcher for JsonRpcRequestMatcher {
     }
 }
 
-pub enum JsonRpcResponse {
-    CanisterHttpReply {
-        status: u16,
-        headers: Vec<CanisterHttpHeader>,
-        body: Value,
-    },
-    CanisterHttpReject {
-        reject_code: u64,
-        message: String,
-    },
+pub struct JsonRpcResponse {
+    pub status: u16,
+    pub headers: Vec<CanisterHttpHeader>,
+    pub body: Value,
 }
 
 impl From<Value> for JsonRpcResponse {
     fn from(body: Value) -> Self {
-        Self::CanisterHttpReply {
+        Self {
             status: 200,
             headers: vec![],
             body,
@@ -133,12 +127,8 @@ impl From<Value> for JsonRpcResponse {
 
 impl JsonRpcResponse {
     pub fn with_id(mut self, id: impl Into<Id>) -> JsonRpcResponse {
-        if let Self::CanisterHttpReply { ref mut body, .. } = self {
-            body["id"] = serde_json::to_value(id.into()).expect("BUG: cannot serialize ID");
-            self
-        } else {
-            panic!("Expected a CanisterHttpReply")
-        }
+        self.body["id"] = serde_json::to_value(id.into()).expect("BUG: cannot serialize ID");
+        self
     }
 }
 
@@ -162,23 +152,10 @@ impl From<&str> for JsonRpcResponse {
 
 impl From<JsonRpcResponse> for CanisterHttpResponse {
     fn from(response: JsonRpcResponse) -> Self {
-        match response {
-            JsonRpcResponse::CanisterHttpReply {
-                status,
-                headers,
-                body,
-            } => CanisterHttpResponse::CanisterHttpReply(CanisterHttpReply {
-                status,
-                headers,
-                body: serde_json::to_vec(&body).unwrap(),
-            }),
-            JsonRpcResponse::CanisterHttpReject {
-                reject_code,
-                message,
-            } => CanisterHttpResponse::CanisterHttpReject(CanisterHttpReject {
-                reject_code,
-                message,
-            }),
-        }
+        CanisterHttpResponse::CanisterHttpReply(CanisterHttpReply {
+            status: response.status,
+            headers: response.headers,
+            body: serde_json::to_vec(&response.body).unwrap(),
+        })
     }
 }
