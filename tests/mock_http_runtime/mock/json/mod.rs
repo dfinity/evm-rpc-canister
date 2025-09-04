@@ -131,6 +131,17 @@ impl From<Value> for JsonRpcResponse {
     }
 }
 
+impl JsonRpcResponse {
+    pub fn with_id(mut self, id: impl Into<Id>) -> JsonRpcResponse {
+        if let Self::CanisterHttpReply { ref mut body, .. } = self {
+            body["id"] = serde_json::to_value(id.into()).expect("BUG: cannot serialize ID");
+            self
+        } else {
+            panic!("Expected a CanisterHttpReply")
+        }
+    }
+}
+
 impl From<&Value> for JsonRpcResponse {
     fn from(body: &Value) -> Self {
         Self::from(body.clone())

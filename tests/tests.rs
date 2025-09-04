@@ -666,8 +666,8 @@ fn should_decode_transaction_receipt() {
 
 #[tokio::test]
 async fn eth_get_logs_should_succeed() {
-    fn mock_responses() -> [serde_json::Value; 3] {
-        json_rpc_sequential_id(json!({
+    fn mock_response() -> JsonRpcResponse {
+        JsonRpcResponse::from(json!({
             "id" : 0,
             "jsonrpc" : "2.0",
             "result" : [
@@ -736,9 +736,6 @@ async fn eth_get_logs_should_succeed() {
                 BlockNumberOrTag::Number(501_u16.into()),
             ),
         ] {
-            let mut responses: [serde_json::Value; 3] = mock_responses();
-            add_offset_json_rpc_id(responses.as_mut_slice(), offset);
-
             let mocks = MockHttpOutcallsBuilder::new()
                 .given(
                     JsonRpcRequestMatcher::with_method("eth_getLogs")
@@ -749,7 +746,7 @@ async fn eth_get_logs_should_succeed() {
                                 "toBlock" : to_block,
                         }])),
                 )
-                .respond_with(JsonRpcResponse::from(&responses[0]))
+                .respond_with(mock_response().with_id(offset))
                 .given(
                     JsonRpcRequestMatcher::with_method("eth_getLogs")
                         .with_id(1 + offset)
@@ -759,7 +756,7 @@ async fn eth_get_logs_should_succeed() {
                                 "toBlock" : to_block,
                         }])),
                 )
-                .respond_with(JsonRpcResponse::from(&responses[1]))
+                .respond_with(mock_response().with_id(1 + offset))
                 .given(
                     JsonRpcRequestMatcher::with_method("eth_getLogs")
                         .with_id(2 + offset)
@@ -769,7 +766,7 @@ async fn eth_get_logs_should_succeed() {
                                 "toBlock" : to_block,
                         }])),
                 )
-                .respond_with(JsonRpcResponse::from(&responses[2]));
+                .respond_with(mock_response().with_id(2 + offset));
 
             let response = setup
                 .client_with_http_mocks(mocks)
@@ -2289,15 +2286,13 @@ async fn should_retry_when_response_too_large() {
 
     // around 600 bytes per log
     // we need at least 3334 logs to reach the 2MB limit
-    let response_bodies = json_rpc_sequential_id::<12>(multi_logs_for_single_transaction(3_500));
+    let response_body = multi_logs_for_single_transaction(3_500);
     let max_response_bytes = iter::once(1_u64)
         .chain((1..=10).map(|i| 1024_u64 << i))
         .chain(iter::once(2_000_000_u64));
 
     let mut mocks = MockHttpOutcallsBuilder::new();
-    for (id, (response_body, max_response_bytes)) in
-        iter::zip(response_bodies, max_response_bytes).enumerate()
-    {
+    for (id, max_response_bytes) in max_response_bytes.enumerate() {
         mocks = mocks
             .given(
                 JsonRpcRequestMatcher::with_method("eth_getLogs")
@@ -2309,7 +2304,7 @@ async fn should_retry_when_response_too_large() {
                     }]))
                     .with_max_response_bytes(max_response_bytes),
             )
-            .respond_with(JsonRpcResponse::from(response_body));
+            .respond_with(JsonRpcResponse::from(&response_body).with_id(id as u64));
     }
 
     let response = setup
@@ -2328,15 +2323,11 @@ async fn should_retry_when_response_too_large() {
         if code == LegacyRejectionCode::SysFatal && message.contains("body exceeds size limit")
     );
 
-    let mut response_bodies =
-        json_rpc_sequential_id::<11>(multi_logs_for_single_transaction(1_000));
-    add_offset_json_rpc_id(response_bodies.as_mut_slice(), 12);
+    let response_body = multi_logs_for_single_transaction(1_000);
     let max_response_bytes = iter::once(1_u64).chain((1..=10).map(|i| 1024_u64 << i));
 
     let mut mocks = MockHttpOutcallsBuilder::new();
-    for (id, (response_body, max_response_bytes)) in
-        iter::zip(response_bodies, max_response_bytes).enumerate()
-    {
+    for (id, max_response_bytes) in max_response_bytes.enumerate() {
         mocks = mocks
             .given(
                 JsonRpcRequestMatcher::with_method("eth_getLogs")
@@ -2348,7 +2339,7 @@ async fn should_retry_when_response_too_large() {
                     }]))
                     .with_max_response_bytes(max_response_bytes),
             )
-            .respond_with(JsonRpcResponse::from(response_body));
+            .respond_with(JsonRpcResponse::from(&response_body).with_id(id as u64 + 12));
     }
 
     let response = setup
