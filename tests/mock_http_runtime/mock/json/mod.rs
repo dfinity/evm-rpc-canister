@@ -95,10 +95,14 @@ impl CanisterHttpRequestMatcher for JsonRpcRequestMatcher {
                 return false;
             }
         }
-        let actual_body: JsonRpcRequest<Value> =
-            serde_json::from_slice(&request.body).expect("BUG: failed to parse JSON request body");
-        if self.request_body() != actual_body {
-            return false;
+        match serde_json::from_slice(&request.body) {
+            Ok(actual_body) => {
+                if self.request_body() != actual_body {
+                    return false;
+                }
+            }
+            // Not a JSON-RPC request
+            Err(_) => return false,
         }
         if let Some(max_response_bytes) = self.max_response_bytes {
             if Some(max_response_bytes) != request.max_response_bytes {

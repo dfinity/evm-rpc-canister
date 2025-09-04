@@ -2,6 +2,7 @@ mod mock;
 mod mock_http_runtime;
 mod setup;
 
+use crate::mock_http_runtime::mock::MockHttpOutcalls;
 use crate::{
     mock::MockJsonRequestBody,
     mock_http_runtime::mock::{
@@ -769,7 +770,7 @@ async fn eth_get_logs_should_succeed() {
                 .respond_with(mock_response().with_id(2 + offset));
 
             let response = setup
-                .client_with_http_mocks(mocks)
+                .client(mocks)
                 .with_rpc_sources(source.clone())
                 .build()
                 .get_logs(vec![address!("0xdac17f958d2ee523a2206206994597c13d831ec7")])
@@ -811,7 +812,10 @@ async fn eth_get_logs_should_fail_when_block_range_too_large() {
                 BlockTag::Number(1001_u16.into()),
             ),
         ] {
-            let client = setup.client().with_rpc_sources(source.clone()).build();
+            let client = setup
+                .client(MockHttpOutcalls::NEVER)
+                .with_rpc_sources(source.clone())
+                .build();
 
             let response = client
                 .get_logs(vec![address!("0xdAC17F958D2ee523a2206206994597C13D831ec7")])
@@ -1883,7 +1887,7 @@ async fn should_use_custom_response_size_estimate() {
         .respond_with(JsonRpcResponse::from(expected_response));
 
     let client = setup
-        .client_with_http_mocks(mocks)
+        .client(mocks)
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
             EthMainnetService::Cloudflare,
         ])))
@@ -2308,7 +2312,7 @@ async fn should_retry_when_response_too_large() {
     }
 
     let response = setup
-        .client_with_http_mocks(mocks)
+        .client(mocks)
         .with_rpc_sources(rpc_services.clone())
         .with_response_size_estimate(1)
         .build()
@@ -2343,7 +2347,7 @@ async fn should_retry_when_response_too_large() {
     }
 
     let response = setup
-        .client_with_http_mocks(mocks)
+        .client(mocks)
         .with_rpc_sources(rpc_services.clone())
         .with_response_size_estimate(1)
         .build()

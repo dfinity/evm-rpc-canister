@@ -7,6 +7,8 @@ pub mod json;
 pub struct MockHttpOutcalls(Vec<MockHttpOutcall>);
 
 impl MockHttpOutcalls {
+    pub const NEVER: MockHttpOutcalls = Self(Vec::new());
+
     pub fn push(&mut self, mock: MockHttpOutcall) {
         self.0.push(mock);
     }
@@ -27,7 +29,7 @@ impl MockHttpOutcalls {
 
         match matching_positions.len() {
             0 => None,
-            1 => Some(self.0.remove(matching_positions[0])),
+            1 => Some(self.0.swap_remove(matching_positions[0])),
             _ => panic!("Multiple mocks match the request: {:?}", request),
         }
     }

@@ -71,21 +71,11 @@ impl EvmRpcNonblockingSetup {
         }
     }
 
-    pub fn client(&self) -> ClientBuilder<MockHttpRuntime> {
-        EvmRpcClient::builder(self.new_mock_http_runtime(None), self.canister_id)
+    pub fn client(&self, mocks: impl Into<MockHttpOutcalls>) -> ClientBuilder<MockHttpRuntime> {
+        EvmRpcClient::builder(self.new_mock_http_runtime(mocks.into()), self.canister_id)
     }
 
-    pub fn client_with_http_mocks(
-        &self,
-        mocks: impl Into<MockHttpOutcalls>,
-    ) -> ClientBuilder<MockHttpRuntime> {
-        EvmRpcClient::builder(
-            self.new_mock_http_runtime(Some(mocks.into())),
-            self.canister_id,
-        )
-    }
-
-    fn new_mock_http_runtime(&self, mocks: Option<MockHttpOutcalls>) -> MockHttpRuntime {
+    fn new_mock_http_runtime(&self, mocks: MockHttpOutcalls) -> MockHttpRuntime {
         MockHttpRuntime {
             env: self.env.clone(),
             caller: self.caller,
