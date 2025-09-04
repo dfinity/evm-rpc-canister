@@ -1502,7 +1502,6 @@ dependencies = [
  "canhttp",
  "canlog",
  "derive_more 2.0.1",
- "dyn-clone",
  "ethers-core",
  "ethnum",
  "evm_rpc_client",

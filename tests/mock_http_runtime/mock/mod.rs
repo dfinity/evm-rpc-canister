@@ -1,4 +1,3 @@
-use dyn_clone::DynClone;
 use pocket_ic::common::rest::{CanisterHttpRequest, CanisterHttpResponse};
 use std::fmt::Debug;
 
@@ -101,6 +100,6 @@ impl MockHttpOutcallBuilder {
     }
 }
 
-pub trait CanisterHttpRequestMatcher: Send + DynClone + Debug {
+pub trait CanisterHttpRequestMatcher: Send + Debug {
     fn matches(&self, request: &CanisterHttpRequest) -> bool;
 }
