@@ -135,11 +135,18 @@ where
                 })
                 .on_error(
                     |req_data: MetricData, error: &HttpClientError| match error {
-                        HttpClientError::IcError(IcError { code, message: _ }) => {
+                        HttpClientError::IcError(IcError { code, message }) => {
                             add_metric_entry!(
                                 err_http_outcall,
                                 (req_data.method, req_data.host, LegacyRejectionCode::from(*code)),
                                 1
+                            );
+                            log!(
+                                Priority::TraceHttp,
+                                "IC Error for request with id `{}` with code `{}` and message `{}`",
+                                req_data.request_id,
+                                code,
+                                message,
                             );
                         }
                         HttpClientError::UnsuccessfulHttpResponse(
