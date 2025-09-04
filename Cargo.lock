@@ -1582,22 +1582,16 @@ dependencies = [
 name = "evm_rpc_client"
 version = "1.4.0"
 dependencies = [
- "alloy-consensus",
  "alloy-primitives",
  "alloy-rpc-types",
  "async-trait",
  "candid",
- "canhttp",
- "dyn-clone",
  "evm_rpc_types",
  "ic-cdk",
  "ic-error-types",
- "pocket-ic",
  "serde",
- "serde_json",
  "strum 0.27.2",
  "tokio",
- "url",
 ]
 
 [[package]]
