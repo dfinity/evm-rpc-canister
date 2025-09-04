@@ -67,7 +67,7 @@ impl CanisterHttpRequestMatcher for JsonRpcRequestMatcher {
     fn matches(&self, request: &CanisterHttpRequest) -> bool {
         let req_url = Url::from_str(&request.url).expect("BUG: invalid URL");
         if let Some(ref mock_url) = self.url {
-            if mock_url.as_str() != req_url.as_str() {
+            if mock_url != &req_url {
                 return false;
             }
         }
