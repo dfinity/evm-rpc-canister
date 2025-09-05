@@ -164,7 +164,7 @@ pub struct Metrics {
     pub cycles_charged: HashMap<(MetricRpcMethod, MetricRpcHost), u128>,
     #[serde(rename = "errHttpOutcall")]
     pub err_http_outcall: HashMap<(MetricRpcMethod, MetricRpcHost, LegacyRejectionCode), u64>,
-    #[serde(rename = "maxResponseSizeExceeded")]
+    #[serde(rename = "errMaxResponseSizeExceeded")]
     pub err_max_response_size_exceeded: HashMap<(MetricRpcMethod, MetricRpcHost), u64>,
 }
 
