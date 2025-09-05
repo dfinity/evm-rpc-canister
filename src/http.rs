@@ -134,75 +134,74 @@ where
                     );
                 })
                 .on_error(
-                    |req_data: MetricData, error: &HttpClientError|
-                        match error {
-                            HttpClientError::IcError(IcError { code, message }) => {
-                                if error.is_response_too_large() {
-                                    add_metric_entry!(
-                                        err_max_response_size_exceeded,
-                                        (req_data.method, req_data.host),
-                                        1
-                                    );
-                                } else {
-                                    add_metric_entry!(
-                                        err_http_outcall,
-                                        (req_data.method, req_data.host, LegacyRejectionCode::from(*code)),
-                                        1
-                                    );
-                                    log!(
-                                        Priority::TraceHttp,
-                                        "IC Error for request with id `{}` with code `{}` and message `{}`",
-                                        req_data.request_id,
-                                        code,
-                                        message,
-                                    );
-                                }
-                            }
-                            HttpClientError::UnsuccessfulHttpResponse(
-                                FilterNonSuccessfulHttpResponseError::UnsuccessfulResponse(response),
-                            ) => {
-                                observe_response(
-                                    req_data.method,
-                                    req_data.host,
-                                    response.status().as_u16(),
+                    |req_data: MetricData, error: &HttpClientError| match error {
+                        HttpClientError::IcError(IcError { code, message }) => {
+                            if error.is_response_too_large() {
+                                add_metric_entry!(
+                                    err_max_response_size_exceeded,
+                                    (req_data.method, req_data.host),
+                                    1
+                                );
+                            } else {
+                                add_metric_entry!(
+                                    err_http_outcall,
+                                    (req_data.method, req_data.host, LegacyRejectionCode::from(*code)),
+                                    1
                                 );
                                 log!(
                                     Priority::TraceHttp,
-                                    "Unsuccessful HTTP response for request with id `{}`. Response with status {}: {}",
+                                    "IC Error for request with id `{}` with code `{}` and message `{}`",
                                     req_data.request_id,
-                                    response.status(),
-                                    String::from_utf8_lossy(response.body())
+                                    code,
+                                    message,
                                 );
                             }
-                            HttpClientError::InvalidJsonResponse(
-                                JsonResponseConversionError::InvalidJsonResponse {
-                                    status,
-                                    body: _,
-                                    parsing_error: _,
-                                },
-                            ) => {
-                                observe_response(req_data.method, req_data.host, *status);
-                                log!(
-                                    Priority::TraceHttp,
-                                    "Invalid JSON RPC response for request with id `{}`: {}",
-                                    req_data.request_id,
-                                    error
-                                );
-                            }
-                            HttpClientError::InvalidJsonResponseId(ConsistentResponseIdFilterError::InconsistentId { status, request_id: _, response_id: _ }) => {
-                                observe_response(req_data.method, req_data.host, *status);
-                                log!(
-                                    Priority::TraceHttp,
-                                    "Invalid JSON RPC response for request with id `{}`: {}",
-                                    req_data.request_id,
-                                    error
-                                );
-                            }
-                            HttpClientError::NotHandledError(e) => {
-                                log!(Priority::Info, "BUG: Unexpected error: {}", e);
-                            }
-                            HttpClientError::CyclesAccountingError(_) => {}
-                        }),
+                        }
+                        HttpClientError::UnsuccessfulHttpResponse(
+                            FilterNonSuccessfulHttpResponseError::UnsuccessfulResponse(response),
+                        ) => {
+                            observe_response(
+                                req_data.method,
+                                req_data.host,
+                                response.status().as_u16(),
+                            );
+                            log!(
+                                Priority::TraceHttp,
+                                "Unsuccessful HTTP response for request with id `{}`. Response with status {}: {}",
+                                req_data.request_id,
+                                response.status(),
+                                String::from_utf8_lossy(response.body())
+                            );
+                        }
+                        HttpClientError::InvalidJsonResponse(
+                            JsonResponseConversionError::InvalidJsonResponse {
+                                status,
+                                body: _,
+                                parsing_error: _,
+                            },
+                        ) => {
+                            observe_response(req_data.method, req_data.host, *status);
+                            log!(
+                                Priority::TraceHttp,
+                                "Invalid JSON RPC response for request with id `{}`: {}",
+                                req_data.request_id,
+                                error
+                            );
+                        }
+                        HttpClientError::InvalidJsonResponseId(ConsistentResponseIdFilterError::InconsistentId { status, request_id: _, response_id: _ }) => {
+                            observe_response(req_data.method, req_data.host, *status);
+                            log!(
+                                Priority::TraceHttp,
+                                "Invalid JSON RPC response for request with id `{}`: {}",
+                                req_data.request_id,
+                                error
+                            );
+                        }
+                        HttpClientError::NotHandledError(e) => {
+                            log!(Priority::Info, "BUG: Unexpected error: {}", e);
+                        }
+                        HttpClientError::CyclesAccountingError(_) => {}
+                    }),
         )
         .filter_response(CreateJsonRpcIdFilter::new())
         .layer(service_request_builder())
