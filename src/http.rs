@@ -84,7 +84,7 @@ pub async fn json_rpc_request(
 pub fn http_client<I, O>(
     rpc_method: MetricRpcMethod,
     retry: bool,
-) -> impl Service<HttpJsonRpcRequest<I>, Response = HttpJsonRpcResponse<O>, Error = RpcError>
+) -> impl Service<HttpJsonRpcRequest<I>, Response=HttpJsonRpcResponse<O>, Error=RpcError>
 where
     I: Serialize + Clone + Debug,
     O: DeserializeOwned + Debug,
@@ -134,25 +134,29 @@ where
                     );
                 })
                 .on_error(
-                    |req_data: MetricData, error: &HttpClientError| {
-                        if error.is_response_too_large() {
-                            // Client error; do not record any metrics.
-                            return;
-                        };
+                    |req_data: MetricData, error: &HttpClientError|
                         match error {
                             HttpClientError::IcError(IcError { code, message }) => {
-                                add_metric_entry!(
-                                    err_http_outcall,
-                                    (req_data.method, req_data.host, LegacyRejectionCode::from(*code)),
-                                    1
-                                );
-                                log!(
-                                    Priority::TraceHttp,
-                                    "IC Error for request with id `{}` with code `{}` and message `{}`",
-                                    req_data.request_id,
-                                    code,
-                                    message,
-                                );
+                                if error.is_response_too_large() {
+                                    add_metric_entry!(
+                                        err_max_response_size_exceeded,
+                                        (req_data.method, req_data.host),
+                                        1
+                                    );
+                                } else {
+                                    add_metric_entry!(
+                                        err_http_outcall,
+                                        (req_data.method, req_data.host, LegacyRejectionCode::from(*code)),
+                                        1
+                                    );
+                                    log!(
+                                        Priority::TraceHttp,
+                                        "IC Error for request with id `{}` with code `{}` and message `{}`",
+                                        req_data.request_id,
+                                        code,
+                                        message,
+                                    );
+                                }
                             }
                             HttpClientError::UnsuccessfulHttpResponse(
                                 FilterNonSuccessfulHttpResponseError::UnsuccessfulResponse(response),
@@ -198,19 +202,18 @@ where
                                 log!(Priority::Info, "BUG: Unexpected error: {}", e);
                             }
                             HttpClientError::CyclesAccountingError(_) => {}
-                        }
-                    }),
+                        }),
         )
-                .filter_response(CreateJsonRpcIdFilter::new())
-                .layer(service_request_builder())
-                .convert_response(JsonResponseConverter::new())
-                .convert_response(FilterNonSuccessfulHttpResponse)
-                .convert_response(HttpResponseConverter)
-                .convert_request(CyclesAccounting::new(
-                    get_num_subnet_nodes(),
-                    ChargingPolicyWithCollateral::default(),
-                ))
-                .service(canhttp::Client::new_with_error::<HttpClientError>())
+        .filter_response(CreateJsonRpcIdFilter::new())
+        .layer(service_request_builder())
+        .convert_response(JsonResponseConverter::new())
+        .convert_response(FilterNonSuccessfulHttpResponse)
+        .convert_response(HttpResponseConverter)
+        .convert_request(CyclesAccounting::new(
+            get_num_subnet_nodes(),
+            ChargingPolicyWithCollateral::default(),
+        ))
+        .service(canhttp::Client::new_with_error::<HttpClientError>())
 }
 
 fn generate_request_id<I>(request: HttpJsonRpcRequest<I>) -> HttpJsonRpcRequest<I> {
