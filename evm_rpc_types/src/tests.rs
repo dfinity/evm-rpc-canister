@@ -186,7 +186,6 @@ mod hex_string {
 mod alloy_conversion_tests {
     use super::*;
     use alloy_primitives::{Address, Bloom, Bytes, B256, B64, U256};
-    use std::any;
 
     proptest! {
         #[test]
@@ -202,7 +201,7 @@ mod alloy_conversion_tests {
             prop_assert_eq!(hex32.clone(), Hex32::from(B256::from(hex32)));
             prop_assert_eq!(hex256.clone(), Hex256::from(Bloom::from(hex256)));
             prop_assert_eq!(hex.clone(), Hex::from(Bytes::from(hex)));
-            prop_assert_eq!(wrapped_u64.clone(), Nat256::from(B64::from(wrapped_u64)));
+            prop_assert_eq!(wrapped_u64.clone(), Nat256::from(B64::try_from(wrapped_u64).unwrap()));
             prop_assert_eq!(nat256.clone(), Nat256::from(U256::from(nat256)));
         }
     }
@@ -216,7 +215,7 @@ mod alloy_conversion_tests {
     }
 
     fn arb_hex256() -> impl Strategy<Value = Hex256> {
-        arb_var_len_hex_string(256..=256_usize).prop_map(|s| Hex32::from_str(s.as_str()).unwrap())
+        arb_var_len_hex_string(256..=256_usize).prop_map(|s| Hex256::from_str(s.as_str()).unwrap())
     }
 
     fn arb_hex() -> impl Strategy<Value = Hex> {

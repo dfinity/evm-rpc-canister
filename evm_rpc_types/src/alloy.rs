@@ -1,3 +1,4 @@
+use alloy_primitives::ruint::{ToUintError, UintTryFrom};
 use crate::{Hex, Hex20, Hex256, Hex32, Nat256, RpcError};
 
 impl From<Hex20> for alloy_primitives::Address {
@@ -42,9 +43,9 @@ impl From<Nat256> for alloy_primitives::U256 {
     }
 }
 
-impl From<alloy_primitives::U256> for Nat256 {
-    fn from(value: alloy_primitives::U256) -> Self {
-        Nat256::from_be_bytes(value.to_be_bytes())
+impl UintTryFrom<Nat256> for alloy_primitives::U256 {
+    fn uint_try_from(value: Nat256) -> Result<Self, ToUintError<Self>> {
+        Ok(alloy_primitives::U256::from_be_bytes(value.into_be_bytes()))
     }
 }
 
