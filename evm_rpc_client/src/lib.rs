@@ -183,9 +183,11 @@ pub mod fixtures;
 mod request;
 mod runtime;
 
-use crate::request::{Request, RequestBuilder};
+use crate::request::{
+    GetBlockByNumberRequest, GetBlockByNumberRequestBuilder, Request, RequestBuilder,
+};
 use candid::{CandidType, Principal};
-use evm_rpc_types::{ConsensusStrategy, GetLogsArgs, RpcConfig, RpcServices};
+use evm_rpc_types::{BlockTag, ConsensusStrategy, GetLogsArgs, RpcConfig, RpcServices};
 use ic_error_types::RejectCode;
 use request::{GetLogsRequest, GetLogsRequestBuilder};
 pub use runtime::{IcRuntime, Runtime};
@@ -319,6 +321,67 @@ impl<R> ClientBuilder<R> {
 }
 
 impl<R> EvmRpcClient<R> {
+    /// Call `eth_getBlockByNumber` on the EVM RPC canister.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use alloy_primitives::{address, b256, bytes};
+    /// use alloy_rpc_types::BlockNumberOrTag;
+    /// use evm_rpc_client::EvmRpcClient;
+    ///
+    /// # use evm_rpc_types::{Block, Hex, Hex20, Hex32, Hex256, MultiRpcResult, Nat256};
+    /// # use std::str::FromStr;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = EvmRpcClient::builder_for_ic()
+    /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(Block {
+    /// #       base_fee_per_gas: None,
+    /// #       number: Nat256::ZERO,
+    /// #       difficulty: Some(Nat256::ZERO),
+    /// #       extra_data: Hex::from(vec![]),
+    /// #       gas_limit: Nat256::ZERO,
+    /// #       gas_used: Nat256::ZERO,
+    /// #       hash: Hex32::from(b256!("0x47302c2ebfb29611c74f917a380f3cf45c9dfe9de3554e18bff9a9ca7c8454e2")),
+    /// #       logs_bloom: Hex256::from([0; 256]),
+    /// #       miner: Hex20::from([0; 20]),
+    /// #       mix_hash: Hex32::from([0; 32]),
+    /// #       nonce: Nat256::ZERO,
+    /// #       parent_hash: Hex32::from([0; 32]),
+    /// #       receipts_root: Hex32::from([0; 32]),
+    /// #       sha3_uncles: Hex32::from([0; 32]),
+    /// #       size: Nat256::ZERO,
+    /// #       state_root: Hex32::from([0; 32]),
+    /// #       timestamp: Nat256::ZERO,
+    /// #       total_difficulty: Some(Nat256::ZERO),
+    /// #       transactions: vec![],
+    /// #       transactions_root: Some(Hex32::from([0; 32])),
+    /// #       uncles: vec![],
+    /// #   })))
+    ///     .build();
+    ///
+    /// let result = client
+    ///     .get_block_by_number(BlockNumberOrTag::Number(23225439))
+    ///     .send()
+    ///     .await
+    ///     .expect_consistent()
+    ///     .unwrap();
+    ///
+    /// assert_eq!(result.hash(), b256!("0x47302c2ebfb29611c74f917a380f3cf45c9dfe9de3554e18bff9a9ca7c8454e2"));
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn get_block_by_number(
+        &self,
+        params: impl Into<BlockTag>,
+    ) -> GetBlockByNumberRequestBuilder<R> {
+        RequestBuilder::new(
+            self.clone(),
+            GetBlockByNumberRequest::new(params.into()),
+            10_000_000_000,
+        )
+    }
+
     /// Call `eth_getLogs` on the EVM RPC canister.
     ///
     /// # Examples
@@ -353,7 +416,6 @@ impl<R> EvmRpcClient<R> {
     ///
     /// let result = client
     ///     .get_logs(vec![address!("0xdac17f958d2ee523a2206206994597c13d831ec7")])
-    ///     .with_cycles(10_000_000_000)
     ///     .send()
     ///     .await
     ///     .expect_consistent();
