@@ -416,7 +416,6 @@ impl<R> EvmRpcClient<R> {
     ///
     /// let result = client
     ///     .get_logs(vec![address!("0xdac17f958d2ee523a2206206994597c13d831ec7")])
-    ///     .with_cycles(10_000_000_000)
     ///     .send()
     ///     .await
     ///     .expect_consistent();
