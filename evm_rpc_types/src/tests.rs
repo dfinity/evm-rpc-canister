@@ -185,14 +185,25 @@ mod hex_string {
 #[cfg(feature = "alloy")]
 mod alloy_conversion_tests {
     use super::*;
-    use alloy_primitives::{Address, Bytes, B256};
+    use alloy_primitives::{Address, Bloom, Bytes, B256, B64, U256};
+    use std::any;
 
     proptest! {
         #[test]
-        fn should_convert_to_and_from_alloy(hex20 in arb_hex20(), hex32 in arb_hex32(), hex in arb_hex()) {
+        fn should_convert_to_and_from_alloy(
+            hex20 in arb_hex20(),
+            hex32 in arb_hex32(),
+            hex256 in arb_hex256(),
+            hex in arb_hex(),
+            wrapped_u64 in arb_u64(),
+            nat256 in arb_nat256(),
+        ) {
             prop_assert_eq!(hex20.clone(), Hex20::from(Address::from(hex20)));
             prop_assert_eq!(hex32.clone(), Hex32::from(B256::from(hex32)));
+            prop_assert_eq!(hex256.clone(), Hex256::from(Bloom::from(hex256)));
             prop_assert_eq!(hex.clone(), Hex::from(Bytes::from(hex)));
+            prop_assert_eq!(wrapped_u64.clone(), Nat256::from(B64::from(wrapped_u64)));
+            prop_assert_eq!(nat256.clone(), Nat256::from(U256::from(nat256)));
         }
     }
 
@@ -204,8 +215,20 @@ mod alloy_conversion_tests {
         arb_var_len_hex_string(32..=32_usize).prop_map(|s| Hex32::from_str(s.as_str()).unwrap())
     }
 
+    fn arb_hex256() -> impl Strategy<Value = Hex256> {
+        arb_var_len_hex_string(256..=256_usize).prop_map(|s| Hex32::from_str(s.as_str()).unwrap())
+    }
+
     fn arb_hex() -> impl Strategy<Value = Hex> {
         arb_var_len_hex_string(0..=100_usize).prop_map(|s| Hex::from_str(s.as_str()).unwrap())
+    }
+
+    fn arb_u64() -> impl Strategy<Value = Nat256> {
+        any::<u64>().prop_map(Nat256::from)
+    }
+
+    fn arb_nat256() -> impl Strategy<Value = Nat256> {
+        any::<[u8; 32]>().prop_map(Nat256::from_be_bytes)
     }
 }
 
