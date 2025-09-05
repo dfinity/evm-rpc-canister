@@ -2392,8 +2392,8 @@ fn should_have_different_request_ids_when_retrying_because_response_too_big() {
             responses: hashmap! {
                 (rpc_method(), CLOUDFLARE_HOSTNAME.into(), 200.into()) => 1,
             },
-            err_http_outcall: hashmap! {
-                (rpc_method(), CLOUDFLARE_HOSTNAME.into(), LegacyRejectionCode::SysFatal) => 1,
+            err_max_response_size_exceeded: hashmap! {
+                (rpc_method(), CLOUDFLARE_HOSTNAME.into()) => 1,
             },
             ..Default::default()
         }
