@@ -84,7 +84,7 @@ pub async fn json_rpc_request(
 pub fn http_client<I, O>(
     rpc_method: MetricRpcMethod,
     retry: bool,
-) -> impl Service<HttpJsonRpcRequest<I>, Response=HttpJsonRpcResponse<O>, Error=RpcError>
+) -> impl Service<HttpJsonRpcRequest<I>, Response = HttpJsonRpcResponse<O>, Error = RpcError>
 where
     I: Serialize + Clone + Debug,
     O: DeserializeOwned + Debug,
