@@ -109,9 +109,16 @@ pub mod fixtures;
 mod request;
 mod runtime;
 
-use crate::request::{FeeHistoryRequest, FeeHistoryRequestBuilder, GetBlockByNumberRequest, GetBlockByNumberRequestBuilder, GetTransactionCountRequest, GetTransactionCountRequestBuilder, Request, RequestBuilder};
+use crate::request::{
+    FeeHistoryRequest, FeeHistoryRequestBuilder, GetBlockByNumberRequest,
+    GetBlockByNumberRequestBuilder, GetTransactionCountRequest, GetTransactionCountRequestBuilder,
+    Request, RequestBuilder,
+};
 use candid::{CandidType, Principal};
-use evm_rpc_types::{BlockTag, ConsensusStrategy, FeeHistoryArgs, GetLogsArgs, GetTransactionCountArgs, RpcConfig, RpcServices};
+use evm_rpc_types::{
+    BlockTag, ConsensusStrategy, FeeHistoryArgs, GetLogsArgs, GetTransactionCountArgs, RpcConfig,
+    RpcServices,
+};
 use ic_error_types::RejectCode;
 use request::{GetLogsRequest, GetLogsRequestBuilder};
 pub use runtime::{IcRuntime, Runtime};
@@ -480,7 +487,10 @@ impl<R> EvmRpcClient<R> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn get_transaction_count(&self, params: impl Into<GetTransactionCountArgs>) -> GetTransactionCountRequestBuilder<R> {
+    pub fn get_transaction_count(
+        &self,
+        params: impl Into<GetTransactionCountArgs>,
+    ) -> GetTransactionCountRequestBuilder<R> {
         RequestBuilder::new(
             self.clone(),
             GetTransactionCountRequest::new(params.into()),
