@@ -1,5 +1,5 @@
-use alloy_primitives::ruint::{ToUintError, UintTryFrom};
 use crate::{Hex, Hex20, Hex256, Hex32, Nat256, RpcError};
+use alloy_primitives::ruint::{ToUintError, UintTryFrom};
 
 impl From<Hex20> for alloy_primitives::Address {
     fn from(value: Hex20) -> Self {
