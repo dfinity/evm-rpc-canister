@@ -37,9 +37,9 @@ impl From<alloy_primitives::Bytes> for Hex {
     }
 }
 
-impl From<Nat256> for alloy_primitives::U256 {
-    fn from(value: Nat256) -> Self {
-        alloy_primitives::U256::from_be_bytes(value.into_be_bytes())
+impl From<alloy_primitives::U256> for Nat256 {
+    fn from(value: alloy_primitives::U256) -> Self {
+        Nat256::from_be_bytes(value.to_be_bytes())
     }
 }
 

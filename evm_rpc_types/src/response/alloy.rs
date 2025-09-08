@@ -75,8 +75,8 @@ impl TryFrom<Block> for alloy_rpc_types::Block {
                     parent_beacon_block_root: None,
                     requests_hash: None,
                 },
-                total_difficulty: value.total_difficulty.map(|value| value.into()),
-                size: Some(value.size.into()),
+                total_difficulty: value.total_difficulty.map(U256::from),
+                size: Some(U256::from(value.size)),
             },
             uncles: value
                 .uncles
