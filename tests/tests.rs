@@ -1162,8 +1162,11 @@ fn eth_get_transaction_count_should_succeed() {
 #[tokio::test]
 async fn eth_fee_history_should_succeed() {
     fn mock_request() -> JsonRpcRequestMatcher {
-        JsonRpcRequestMatcher::with_method("eth_feeHistory")
-            .with_params(json!(["0x3", "latest", []]))
+        JsonRpcRequestMatcher::with_method("eth_feeHistory").with_params(json!([
+            "0x3",
+            "latest",
+            []
+        ]))
     }
 
     fn mock_response() -> JsonRpcResponse {
