@@ -1,8 +1,8 @@
 use crate::{EvmRpcClient, Runtime};
 use candid::CandidType;
 use evm_rpc_types::{
-    BlockTag, FeeHistoryArgs, GetLogsArgs, GetLogsRpcConfig, Hex20, Hex32, MultiRpcResult, Nat256,
-    RpcConfig, RpcServices,
+    BlockTag, FeeHistoryArgs, GetLogsArgs, GetLogsRpcConfig, GetTransactionCountArgs, Hex20, Hex32,
+    MultiRpcResult, Nat256, RpcConfig, RpcServices,
 };
 use ic_error_types::RejectCode;
 use serde::de::DeserializeOwned;
@@ -156,6 +156,52 @@ impl<R> GetLogsRequestBuilder<R> {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct GetTransactionCountRequest(GetTransactionCountArgs);
+
+impl GetTransactionCountRequest {
+    pub fn new(params: GetTransactionCountArgs) -> Self {
+        Self(params)
+    }
+}
+
+impl EvmRpcRequest for GetTransactionCountRequest {
+    type Config = RpcConfig;
+    type Params = GetTransactionCountArgs;
+    type CandidOutput = MultiRpcResult<Nat256>;
+    type Output = MultiRpcResult<alloy_primitives::U256>;
+
+    fn endpoint(&self) -> EvmRpcEndpoint {
+        EvmRpcEndpoint::GetTransactionCount
+    }
+
+    fn params(self) -> Self::Params {
+        self.0
+    }
+}
+
+pub type GetTransactionCountRequestBuilder<R> = RequestBuilder<
+    R,
+    RpcConfig,
+    GetTransactionCountArgs,
+    MultiRpcResult<Nat256>,
+    MultiRpcResult<alloy_primitives::U256>,
+>;
+
+impl<R> GetTransactionCountRequestBuilder<R> {
+    /// Change the `address` parameter for an `eth_getTransactionCount` request.
+    pub fn with_address(mut self, address: impl Into<Hex20>) -> Self {
+        self.request.params.address = address.into();
+        self
+    }
+
+    /// Change the `block` parameter for an `eth_getTransactionCount` request.
+    pub fn with_block(mut self, block: impl Into<BlockTag>) -> Self {
+        self.request.params.block = block.into();
+        self
+    }
+}
+
 /// Ethereum RPC endpoint supported by the EVM RPC canister.
 pub trait EvmRpcRequest {
     /// Type of RPC config for that request.
@@ -183,6 +229,8 @@ pub enum EvmRpcEndpoint {
     GetBlockByNumber,
     /// `eth_getLogs` endpoint.
     GetLogs,
+    /// `eth_getTransactionCount` endpoint.
+    GetTransactionCount,
 }
 
 impl EvmRpcEndpoint {
@@ -192,6 +240,7 @@ impl EvmRpcEndpoint {
             Self::FeeHistory => "eth_feeHistory",
             Self::GetBlockByNumber => "eth_getBlockByNumber",
             Self::GetLogs => "eth_getLogs",
+            Self::GetTransactionCount => "eth_getTransactionCount",
         }
     }
 }

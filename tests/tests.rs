@@ -10,7 +10,7 @@ use crate::{
     },
     setup::EvmRpcNonblockingSetup,
 };
-use alloy_primitives::{address, b256, bloom, bytes};
+use alloy_primitives::{address, b256, bloom, bytes, U256};
 use alloy_rpc_types::{BlockNumberOrTag, BlockTransactions};
 use assert_matches::assert_matches;
 use candid::{CandidType, Decode, Encode, Nat, Principal};
@@ -1133,30 +1133,43 @@ fn eth_get_transaction_receipt_should_succeed() {
     }
 }
 
-#[test]
-fn eth_get_transaction_count_should_succeed() {
-    let [response_0, response_1, response_2] =
-        json_rpc_sequential_id(json!({"jsonrpc":"2.0","id":0,"result":"0x1"}));
-    for source in RPC_SERVICES {
-        let setup = EvmRpcSetup::new().mock_api_keys();
+#[tokio::test]
+async fn eth_get_transaction_count_should_succeed() {
+    fn mock_request() -> JsonRpcRequestMatcher {
+        JsonRpcRequestMatcher::with_method("eth_getTransactionCount").with_params(json!([
+            "0xdac17f958d2ee523a2206206994597c13d831ec7",
+            "latest"
+        ]))
+    }
+
+    fn mock_response() -> JsonRpcResponse {
+        JsonRpcResponse::from(json!({ "jsonrpc" : "2.0", "id" : 0, "result" : "0x1" }))
+    }
+
+    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+
+    for (source, offset) in iter::zip(RPC_SERVICES, (0_u64..).step_by(3)) {
+        let mocks = MockHttpOutcallsBuilder::new()
+            .given(mock_request().with_id(offset))
+            .respond_with(mock_response().with_id(offset))
+            .given(mock_request().with_id(offset + 1))
+            .respond_with(mock_response().with_id(offset + 1))
+            .given(mock_request().with_id(offset + 2))
+            .respond_with(mock_response().with_id(offset + 2));
+
         let response = setup
-            .eth_get_transaction_count(
-                source.clone(),
-                None,
-                evm_rpc_types::GetTransactionCountArgs {
-                    address: "0xdAC17F958D2ee523a2206206994597C13D831ec7"
-                        .parse()
-                        .unwrap(),
-                    block: evm_rpc_types::BlockTag::Latest,
-                },
-            )
-            .mock_http_once(MockOutcallBuilder::new(200, response_0.clone()))
-            .mock_http_once(MockOutcallBuilder::new(200, response_1.clone()))
-            .mock_http_once(MockOutcallBuilder::new(200, response_2.clone()))
-            .wait()
-            .expect_consistent()
-            .unwrap();
-        assert_eq!(response, 1_u8.into());
+            .client(mocks)
+            .with_rpc_sources(source.clone())
+            .build()
+            .get_transaction_count((
+                address!("0xdac17f958d2ee523a2206206994597c13d831ec7"),
+                BlockNumberOrTag::Latest,
+            ))
+            .send()
+            .await
+            .expect_consistent();
+
+        assert_eq!(response, Ok(U256::ONE));
     }
 }
 
