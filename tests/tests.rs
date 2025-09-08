@@ -650,9 +650,9 @@ async fn eth_get_logs_should_succeed() {
         to_block: BlockNumberOrTag,
     ) -> JsonRpcRequestMatcher {
         JsonRpcRequestMatcher::with_method("eth_getLogs").with_params(json!([{
-                "address" : ["0xdac17f958d2ee523a2206206994597c13d831ec7"],
-                "fromBlock" : from_block,
-                "toBlock" : to_block,
+            "address" : ["0xdac17f958d2ee523a2206206994597c13d831ec7"],
+            "fromBlock" : from_block,
+            "toBlock" : to_block,
         }]))
     }
 
@@ -705,9 +705,9 @@ async fn eth_get_logs_should_succeed() {
             block_timestamp: None,
         }]
     }
-
     let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
-    for (source, offset) in iter::zip(RPC_SERVICES, (0_u64..).step_by(3)) {
+    let mut offsets = (0_u64..).step_by(3);
+    for source in RPC_SERVICES {
         for (config, from_block, to_block) in [
             // default block range
             (
@@ -725,6 +725,7 @@ async fn eth_get_logs_should_succeed() {
                 BlockNumberOrTag::Number(501_u16.into()),
             ),
         ] {
+            let offset = offsets.next().unwrap();
             let mocks = MockHttpOutcallsBuilder::new()
                 .given(mock_request(from_block, to_block).with_id(offset))
                 .respond_with(mock_response().with_id(offset))
