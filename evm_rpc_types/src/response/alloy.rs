@@ -104,7 +104,12 @@ fn validate_difficulty(number: &Nat256, difficulty: Option<Nat256>) -> Result<U2
                 "Block before Paris upgrade but missing difficulty".into(),
             )))
     } else {
-        Ok(difficulty.map(U256::from).unwrap_or_default())
+        match difficulty.map(U256::from) {
+            None | Some(U256::ZERO) => Ok(U256::ZERO),
+            _ => Err(RpcError::ValidationError(ValidationError::Custom(
+                "Block after Paris upgrade with non-zero difficulty".into(),
+            ))),
+        }
     }
 }
 

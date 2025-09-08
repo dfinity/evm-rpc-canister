@@ -26,12 +26,10 @@ mod alloy_conversion_tests {
         fn should_convert_log_to_alloy(entry in arb_log_entry()) {
             let serialized = serde_json::to_value(&entry).unwrap();
 
-            let mut alloy_serialized = serde_json::to_value(&alloy_rpc_types::Log::try_from(entry.clone()).unwrap()).unwrap();
-            hex_to_u32_digits(&mut alloy_serialized, "transactionIndex");
-            hex_to_u32_digits(&mut alloy_serialized, "logIndex");
-            hex_to_u32_digits(&mut alloy_serialized, "blockNumber");
+            let alloy_log = alloy_rpc_types::Log::try_from(entry.clone()).unwrap();
+            let alloy_serialized = serde_json::to_value(&alloy_log).unwrap();
 
-            prop_assert_eq!(serialized, alloy_serialized);
+            prop_assert_eq!(canonicalize_log(serialized), canonicalize_log(alloy_serialized));
         }
 
         #[test]
@@ -39,43 +37,50 @@ mod alloy_conversion_tests {
             let serialized = serde_json::to_value(&block).unwrap();
 
             let alloy_block = alloy_rpc_types::Block::try_from(block.clone()).unwrap();
-            let alloy_serialized = serialize_alloy_block(alloy_block);
+            let alloy_serialized = serde_json::to_value(&alloy_block).unwrap();
 
-            prop_assert_eq!(serialized, alloy_serialized);
+            prop_assert_eq!(canonicalize_block(serialized), canonicalize_block(alloy_serialized));
         }
 
         #[test]
         fn should_convert_post_paris_block_to_alloy(block in arb_post_paris_block()) {
-            let mut serialized = serde_json::to_value(&block).unwrap();
+            let serialized = serde_json::to_value(&block).unwrap();
 
             let alloy_block = alloy_rpc_types::Block::try_from(block.clone()).unwrap();
-            let alloy_serialized = serialize_alloy_block(alloy_block);
+            let alloy_serialized = serde_json::to_value(&alloy_block).unwrap();
 
-            // For post-Paris blocks, the difficulty field is optional. However, alloy requires the
-            // value to always be present (i.e., it uses a value of 0x0 instead of null).
-            // To be able to compare the serialized values, we therefore convert null values of
-            // difficulty to a serialized 0x0 (i.e., an empty array).
-            // NOTE: We do this AFTER converting to alloy, only to compare the serialized values.
-            null_to_zero(&mut serialized, "difficulty");
-
-            prop_assert_eq!(serialized, alloy_serialized);
+            prop_assert_eq!(canonicalize_block(serialized), canonicalize_block(alloy_serialized));
         }
     }
 
-    fn serialize_alloy_block(block: alloy_rpc_types::Block) -> Value {
-        let mut alloy_serialized = serde_json::to_value(&block).unwrap();
-        hex_to_u32_digits(&mut alloy_serialized, "baseFeePerGas");
-        hex_to_u32_digits(&mut alloy_serialized, "number");
-        hex_to_u32_digits(&mut alloy_serialized, "difficulty");
-        hex_to_u32_digits(&mut alloy_serialized, "gasLimit");
-        hex_to_u32_digits(&mut alloy_serialized, "gasUsed");
-        hex_to_u32_digits(&mut alloy_serialized, "nonce");
-        hex_to_u32_digits(&mut alloy_serialized, "size");
-        hex_to_u32_digits(&mut alloy_serialized, "timestamp");
-        hex_to_u32_digits(&mut alloy_serialized, "totalDifficulty");
-        add_null_if_absent(&mut alloy_serialized, "baseFeePerGas");
-        add_null_if_absent(&mut alloy_serialized, "totalDifficulty");
-        alloy_serialized
+    fn canonicalize_log(mut serialized_log: Value) -> Value {
+        // Convert hex-encoded numerical values to arrays of `u32` digits.
+        hex_to_u32_digits(&mut serialized_log, "transactionIndex");
+        hex_to_u32_digits(&mut serialized_log, "logIndex");
+        hex_to_u32_digits(&mut serialized_log, "blockNumber");
+        serialized_log
+    }
+
+    fn canonicalize_block(mut serialized_block: Value) -> Value {
+        // For post-Paris blocks, the difficulty field is optional. However, the `difficulty` field
+        // is mandatory in the `alloy_rpc_types::Block` type. Therefore, convert `null` values to 0.
+        if let Some(Value::Null) = serialized_block.get("difficulty") {
+            serialized_block["difficulty"] = Value::from("0x0");
+        }
+        // Convert hex-encoded numerical values to arrays of `u32` digits.
+        hex_to_u32_digits(&mut serialized_block, "baseFeePerGas");
+        hex_to_u32_digits(&mut serialized_block, "number");
+        hex_to_u32_digits(&mut serialized_block, "difficulty");
+        hex_to_u32_digits(&mut serialized_block, "gasLimit");
+        hex_to_u32_digits(&mut serialized_block, "gasUsed");
+        hex_to_u32_digits(&mut serialized_block, "nonce");
+        hex_to_u32_digits(&mut serialized_block, "size");
+        hex_to_u32_digits(&mut serialized_block, "timestamp");
+        hex_to_u32_digits(&mut serialized_block, "totalDifficulty");
+        // Add `null` for values that alloy skips during serialization when they are absent.
+        add_null_if_absent(&mut serialized_block, "baseFeePerGas");
+        add_null_if_absent(&mut serialized_block, "totalDifficulty");
+        serialized_block
     }
 
     fn arb_pre_paris_block() -> impl Strategy<Value = Block> {
@@ -221,12 +226,6 @@ mod alloy_conversion_tests {
     fn add_null_if_absent(serialized: &mut Value, field: &str) {
         if serialized.get(field).is_none() {
             serialized[field] = Value::Null;
-        }
-    }
-
-    fn null_to_zero(serialized: &mut Value, field: &str) {
-        if let Some(Value::Null) = serialized.get(field) {
-            serialized[field] = Value::Array(vec![]);
         }
     }
 }
