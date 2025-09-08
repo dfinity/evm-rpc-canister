@@ -1,13 +1,15 @@
-use crate::mock_http_runtime::mock::MockHttpOutcalls;
-use crate::mock_http_runtime::MockHttpRuntime;
 use crate::{
-    assert_reply, DEFAULT_CALLER_TEST_ID, DEFAULT_CONTROLLER_TEST_ID, INITIAL_CYCLES, MOCK_API_KEY,
+    assert_reply,
+    mock_http_runtime::{mock::MockHttpOutcalls, MockHttpRuntime},
+    DEFAULT_CALLER_TEST_ID, DEFAULT_CONTROLLER_TEST_ID, INITIAL_CYCLES, MOCK_API_KEY,
 };
 use candid::{Decode, Encode, Principal};
 use canlog::{Log, LogEntry};
-use evm_rpc::logs::Priority;
-use evm_rpc::providers::PROVIDERS;
-use evm_rpc::types::{ProviderId, RpcAccess};
+use evm_rpc::{
+    logs::Priority,
+    providers::PROVIDERS,
+    types::{ProviderId, RpcAccess},
+};
 use evm_rpc_client::{ClientBuilder, EvmRpcClient};
 use evm_rpc_types::InstallArgs;
 use ic_cdk::api::management_canister::main::CanisterId;

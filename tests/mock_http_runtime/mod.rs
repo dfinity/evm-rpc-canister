@@ -19,6 +19,7 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
+use serde_json::Value;
 
 pub struct MockHttpRuntime {
     pub env: Arc<PocketIc>,
@@ -91,7 +92,7 @@ impl MockHttpRuntime {
                         self.env.mock_canister_http_response(mock_response).await;
                     }
                     None => {
-                        panic!("No mocks matching the request: {:?}", request);
+                        panic!("No mocks matching the request: {:?}", { serde_json::from_slice::<Value>(&request.body).unwrap() });
                     }
                 }
             } else {

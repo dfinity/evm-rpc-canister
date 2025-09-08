@@ -30,7 +30,6 @@ proptest = { workspace = true }
 serde_json = { workspace = true }
 
 [features]
-default = ["alloy"]
 alloy = [
     "dep:alloy-consensus",
     "dep:alloy-primitives",

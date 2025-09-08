@@ -1,4 +1,5 @@
-use crate::{Block, FeeHistory, LogEntry, Nat256, RpcError, ValidationError};
+use crate::{Block, FeeHistory, Hex32, LogEntry, Nat256, RpcError, ValidationError};
+use alloy_primitives::{B256, U256};
 use alloy_rpc_types::BlockTransactions;
 use candid::Nat;
 use num_bigint::BigUint;
@@ -55,21 +56,10 @@ impl TryFrom<Block> for alloy_rpc_types::Block {
                     ommers_hash: alloy_primitives::BlockHash::from(value.sha3_uncles),
                     beneficiary: alloy_primitives::Address::from(value.miner),
                     state_root: alloy_primitives::B256::from(value.state_root),
-                    transactions_root: alloy_primitives::B256::from(
-                        value.transactions_root.ok_or(RpcError::ValidationError(
-                            ValidationError::Custom(
-                                "Block does not have a transactions root field".to_string(),
-                            ),
-                        ))?,
-                    ),
+                    transactions_root: validate_transactions_root(value.transactions_root)?,
                     receipts_root: alloy_primitives::B256::from(value.receipts_root),
                     logs_bloom: alloy_primitives::Bloom::from(value.logs_bloom),
-                    difficulty: value
-                        .difficulty
-                        .ok_or(RpcError::ValidationError(ValidationError::Custom(
-                            "Block does not have a difficulty field".to_string(),
-                        )))?
-                        .into(),
+                    difficulty: validate_difficulty(&value.number, value.difficulty)?,
                     number: try_from_nat256(value.number, "number")?,
                     gas_limit: try_from_nat256(value.gas_limit, "gas_limit")?,
                     gas_used: try_from_nat256(value.gas_used, "gas_used")?,
@@ -87,8 +77,8 @@ impl TryFrom<Block> for alloy_rpc_types::Block {
                     parent_beacon_block_root: None,
                     requests_hash: None,
                 },
-                total_difficulty: value.total_difficulty.map(|value| value.into()),
-                size: Some(value.size.into()),
+                total_difficulty: value.total_difficulty.map(U256::from),
+                size: Some(U256::from(value.size)),
             },
             uncles: value
                 .uncles
@@ -135,6 +125,27 @@ impl TryFrom<FeeHistory> for alloy_rpc_types::FeeHistory {
             ),
         })
     }
+}
+
+fn validate_difficulty(number: &Nat256, difficulty: Option<Nat256>) -> Result<U256, RpcError> {
+    const PARIS_BLOCK: u64 = 15_537_394;
+    if number.as_ref() < &Nat::from(PARIS_BLOCK) {
+        difficulty
+            .map(U256::from)
+            .ok_or(RpcError::ValidationError(ValidationError::Custom(
+                "Block before Paris upgrade but missing difficulty".into(),
+            )))
+    } else {
+        Ok(difficulty.map(U256::from).unwrap_or_default())
+    }
+}
+
+fn validate_transactions_root(transactions_root: Option<Hex32>) -> Result<B256, RpcError> {
+    transactions_root
+        .map(alloy_primitives::B256::from)
+        .ok_or(RpcError::ValidationError(ValidationError::Custom(
+            "Block does not have a transactions root field".to_string(),
+        )))
 }
 
 fn try_from_nat256<T: TryFrom<BigUint, Error = E>, E: Debug>(

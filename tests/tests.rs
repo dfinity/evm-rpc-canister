@@ -4,6 +4,10 @@ mod setup;
 
 use crate::{
     mock::MockJsonRequestBody,
+    mock_http_runtime::mock::{
+        json::{JsonRpcRequestMatcher, JsonRpcResponse},
+        MockHttpOutcalls, MockHttpOutcallsBuilder,
+    },
     setup::EvmRpcNonblockingSetup,
 };
 use alloy_primitives::{address, b256, bloom, bytes};
@@ -36,10 +40,8 @@ use pocket_ic::common::rest::{
 };
 use pocket_ic::{ErrorCode, PocketIc, PocketIcBuilder, RejectResponse};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{json, Value};
 use std::{iter, marker::PhantomData, str::FromStr, sync::Arc, time::Duration};
-use crate::mock_http_runtime::mock::json::{JsonRpcRequestMatcher, JsonRpcResponse};
-use crate::mock_http_runtime::mock::{MockHttpOutcalls, MockHttpOutcallsBuilder};
 
 const DEFAULT_CALLER_TEST_ID: Principal = Principal::from_slice(&[0x9d, 0xf7, 0x01]);
 const DEFAULT_CONTROLLER_TEST_ID: Principal = Principal::from_slice(&[0x9d, 0xf7, 0x02]);
@@ -325,7 +327,7 @@ impl EvmRpcSetup {
             )),
             HttpResponse
         )
-            .unwrap();
+        .unwrap();
         serde_json::from_slice::<Log<Priority>>(&response.body)
             .expect("failed to parse EVM_RPC minter log")
             .entries
@@ -544,21 +546,21 @@ fn should_canonicalize_json_response() {
         r#"{"result":"0x00112233","id":1,"jsonrpc":"2.0"}"#,
         r#"{"result":"0x00112233","jsonrpc":"2.0","id":1}"#,
     ]
-        .into_iter()
-        .map(|response| {
-            setup
-                .request(
-                    RpcService::Custom(RpcApi {
-                        url: MOCK_REQUEST_URL.to_string(),
-                        headers: None,
-                    }),
-                    MOCK_REQUEST_PAYLOAD,
-                    MOCK_REQUEST_RESPONSE_BYTES,
-                )
-                .mock_http(MockOutcallBuilder::new(200, response))
-                .wait()
-        })
-        .collect::<Vec<_>>();
+    .into_iter()
+    .map(|response| {
+        setup
+            .request(
+                RpcService::Custom(RpcApi {
+                    url: MOCK_REQUEST_URL.to_string(),
+                    headers: None,
+                }),
+                MOCK_REQUEST_PAYLOAD,
+                MOCK_REQUEST_RESPONSE_BYTES,
+            )
+            .mock_http(MockOutcallBuilder::new(200, response))
+            .wait()
+    })
+    .collect::<Vec<_>>();
     assert!(responses.windows(2).all(|w| w[0] == w[1]));
 }
 
@@ -705,8 +707,7 @@ async fn eth_get_logs_should_succeed() {
     }
 
     let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
-    let mut offset = 0_u64;
-    for source in RPC_SERVICES {
+    for (source, offset) in iter::zip(RPC_SERVICES, (0_u64..).step_by(3)) {
         for (config, from_block, to_block) in [
             // default block range
             (
@@ -744,8 +745,6 @@ async fn eth_get_logs_should_succeed() {
                 .await
                 .expect_consistent()
                 .unwrap();
-
-            offset += 3;
 
             assert_eq!(response, expected_logs());
         }
@@ -801,53 +800,59 @@ async fn eth_get_logs_should_fail_when_block_range_too_large() {
 
 #[tokio::test]
 async fn eth_get_block_by_number_should_succeed() {
-    let response = json!({
-        "jsonrpc": "2.0",
-        "result": {
-            "baseFeePerGas": "0xd7232aa34",
-            "difficulty": "0x0",
-            "extraData": "0x546974616e2028746974616e6275696c6465722e78797a29",
-            "gasLimit": "0x1c9c380",
-            "gasUsed": "0xa768c4",
-            "hash": "0xc3674be7b9d95580d7f23c03d32e946f2b453679ee6505e3a778f003c5a3cfae",
-            "logsBloom": "0x3e6b8420e1a13038902c24d6c2a9720a7ad4860cdc870cd5c0490011e43631134f608935bd83171247407da2c15d85014f9984608c03684c74aad48b20bc24022134cdca5f2e9d2dee3b502a8ccd39eff8040b1d96601c460e119c408c620b44fa14053013220847045556ea70484e67ec012c322830cf56ef75e09bd0db28a00f238adfa587c9f80d7e30d3aba2863e63a5cad78954555966b1055a4936643366a0bb0b1bac68d0e6267fc5bf8304d404b0c69041125219aa70562e6a5a6362331a414a96d0716990a10161b87dd9568046a742d4280014975e232b6001a0360970e569d54404b27807d7a44c949ac507879d9d41ec8842122da6772101bc8b",
-            "miner": "0x388c818ca8b9251b393131c08a736a67ccb19297",
-            "mixHash": "0x516a58424d4883a3614da00a9c6f18cd5cd54335a08388229a993a8ecf05042f",
-            "nonce": "0x0000000000000000",
-            "number": "0x11db01d",
-            "parentHash": "0x43325027f6adf9befb223f8ae80db057daddcd7b48e41f60cd94bfa8877181ae",
-            "receiptsRoot": "0x66934c3fd9c547036fe0e56ad01bc43c84b170be7c4030a86805ddcdab149929",
-            "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
-            "size": "0xcd35",
-            "stateRoot": "0x13552447dd62f11ad885f21a583c4fa34144efe923c7e35fb018d6710f06b2b6",
-            "timestamp": "0x656f96f3",
-            "withdrawalsRoot": "0xecae44b2c53871003c5cc75285995764034c9b5978a904229d36c1280b141d48",
-            "transactionsRoot": "0x93a1ad3d067009259b508cc95fde63b5efd7e9d8b55754314c173fdde8c0826a",
-        },
-        "id": 0
-    });
+    fn mock_request() -> JsonRpcRequestMatcher {
+        JsonRpcRequestMatcher::with_method("eth_getBlockByNumber")
+            .with_params(json!(["latest", false]))
+    }
+
+    fn mock_response() -> JsonRpcResponse {
+        JsonRpcResponse::from(json!({
+            "jsonrpc": "2.0",
+            "result": {
+                "baseFeePerGas": "0xd7232aa34",
+                "difficulty": "0x0",
+                "extraData": "0x546974616e2028746974616e6275696c6465722e78797a29",
+                "gasLimit": "0x1c9c380",
+                "gasUsed": "0xa768c4",
+                "hash": "0xc3674be7b9d95580d7f23c03d32e946f2b453679ee6505e3a778f003c5a3cfae",
+                "logsBloom": "0x3e6b8420e1a13038902c24d6c2a9720a7ad4860cdc870cd5c0490011e43631134f608935bd83171247407da2c15d85014f9984608c03684c74aad48b20bc24022134cdca5f2e9d2dee3b502a8ccd39eff8040b1d96601c460e119c408c620b44fa14053013220847045556ea70484e67ec012c322830cf56ef75e09bd0db28a00f238adfa587c9f80d7e30d3aba2863e63a5cad78954555966b1055a4936643366a0bb0b1bac68d0e6267fc5bf8304d404b0c69041125219aa70562e6a5a6362331a414a96d0716990a10161b87dd9568046a742d4280014975e232b6001a0360970e569d54404b27807d7a44c949ac507879d9d41ec8842122da6772101bc8b",
+                "miner": "0x388c818ca8b9251b393131c08a736a67ccb19297",
+                "mixHash": "0x516a58424d4883a3614da00a9c6f18cd5cd54335a08388229a993a8ecf05042f",
+                "nonce": "0x0000000000000000",
+                "number": "0x11db01d",
+                "parentHash": "0x43325027f6adf9befb223f8ae80db057daddcd7b48e41f60cd94bfa8877181ae",
+                "receiptsRoot": "0x66934c3fd9c547036fe0e56ad01bc43c84b170be7c4030a86805ddcdab149929",
+                "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+                "size": "0xcd35",
+                "stateRoot": "0x13552447dd62f11ad885f21a583c4fa34144efe923c7e35fb018d6710f06b2b6",
+                "timestamp": "0x656f96f3",
+                "withdrawalsRoot": "0xecae44b2c53871003c5cc75285995764034c9b5978a904229d36c1280b141d48",
+                "transactionsRoot": "0x93a1ad3d067009259b508cc95fde63b5efd7e9d8b55754314c173fdde8c0826a",
+            },
+            "id": 0
+        }))
+    }
 
     let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
-    let mut offset = 0;
 
-    for source in RPC_SERVICES {
+    for (source, offset) in iter::zip(RPC_SERVICES, (0_u64..).step_by(3)) {
+        let mocks = MockHttpOutcallsBuilder::new()
+            .given(mock_request().with_id(offset))
+            .respond_with(mock_response().with_id(offset))
+            .given(mock_request().with_id(1 + offset))
+            .respond_with(mock_response().with_id(1 + offset))
+            .given(mock_request().with_id(2 + offset))
+            .respond_with(mock_response().with_id(2 + offset));
+
         let response = setup
-            .client()
+            .client(mocks)
             .with_rpc_sources(source.clone())
-            .mock_once(
-                evm_rpc_client::MockOutcallBuilder::new_success(iter::repeat_n(
-                    response.clone(),
-                    3,
-                ))
-                    .with_sequential_response_ids(offset),
-            )
             .build()
             .get_block_by_number(BlockNumberOrTag::Latest)
             .send()
             .await
             .expect_consistent()
             .unwrap();
-        offset += 3;
 
         assert_eq!(response, alloy_rpc_types::Block {
             header: alloy_rpc_types::Header {
@@ -887,54 +892,60 @@ async fn eth_get_block_by_number_should_succeed() {
 
 #[tokio::test]
 async fn eth_get_block_by_number_pre_london_fork_should_succeed() {
-    let response = json!({
-       "jsonrpc":"2.0",
-       "id":0,
-       "result":{
-          "number":"0x0",
-          "hash":"0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3",
-          "transactions":[],
-          "totalDifficulty":"0x400000000",
-          "logsBloom":"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-          "receiptsRoot":"0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
-          "extraData":"0x11bbe8db4e347b4e8c937c1c8370e4b5ed33adb3db69cbdb7a38e1e50b1b82fa",
-          "nonce":"0x0000000000000042",
-          "miner":"0x0000000000000000000000000000000000000000",
-          "difficulty":"0x400000000",
-          "gasLimit":"0x1388",
-          "gasUsed":"0x0",
-          "uncles":[],
-          "sha3Uncles":"0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
-          "size":"0x21c",
-          "transactionsRoot":"0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
-          "stateRoot":"0xd7f8974fb5ac78d9ac099b9ad5018bedc2ce0a72dad1827a1709da30580f0544",
-          "mixHash":"0x0000000000000000000000000000000000000000000000000000000000000000",
-          "parentHash":"0x0000000000000000000000000000000000000000000000000000000000000000",
-          "timestamp":"0x0"
-       }
-    });
+    fn mock_request() -> JsonRpcRequestMatcher {
+        JsonRpcRequestMatcher::with_method("eth_getBlockByNumber")
+            .with_params(json!(["latest", false]))
+    }
+
+    fn mock_response() -> JsonRpcResponse {
+        JsonRpcResponse::from(json!({
+           "jsonrpc":"2.0",
+           "id":0,
+           "result":{
+              "number":"0x0",
+              "hash":"0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3",
+              "transactions":[],
+              "totalDifficulty":"0x400000000",
+              "logsBloom":"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+              "receiptsRoot":"0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+              "extraData":"0x11bbe8db4e347b4e8c937c1c8370e4b5ed33adb3db69cbdb7a38e1e50b1b82fa",
+              "nonce":"0x0000000000000042",
+              "miner":"0x0000000000000000000000000000000000000000",
+              "difficulty":"0x400000000",
+              "gasLimit":"0x1388",
+              "gasUsed":"0x0",
+              "uncles":[],
+              "sha3Uncles":"0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+              "size":"0x21c",
+              "transactionsRoot":"0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+              "stateRoot":"0xd7f8974fb5ac78d9ac099b9ad5018bedc2ce0a72dad1827a1709da30580f0544",
+              "mixHash":"0x0000000000000000000000000000000000000000000000000000000000000000",
+              "parentHash":"0x0000000000000000000000000000000000000000000000000000000000000000",
+              "timestamp":"0x0"
+           }
+        }))
+    }
 
     let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
-    let mut offset = 0;
 
-    for source in RPC_SERVICES {
+    for (source, offset) in iter::zip(RPC_SERVICES, (0_u64..).step_by(3)) {
+        let mocks = MockHttpOutcallsBuilder::new()
+            .given(mock_request().with_id(offset))
+            .respond_with(mock_response().with_id(offset))
+            .given(mock_request().with_id(1 + offset))
+            .respond_with(mock_response().with_id(1 + offset))
+            .given(mock_request().with_id(2 + offset))
+            .respond_with(mock_response().with_id(2 + offset));
+
         let response = setup
-            .client()
+            .client(mocks)
             .with_rpc_sources(source.clone())
-            .mock_once(
-                evm_rpc_client::MockOutcallBuilder::new_success(iter::repeat_n(
-                    response.clone(),
-                    3,
-                ))
-                    .with_sequential_response_ids(offset),
-            )
             .build()
             .get_block_by_number(BlockNumberOrTag::Latest)
             .send()
             .await
             .expect_consistent()
             .unwrap();
-        offset += 3;
 
         assert_eq!(response, alloy_rpc_types::Block {
             header: alloy_rpc_types::Header {
@@ -974,26 +985,58 @@ async fn eth_get_block_by_number_pre_london_fork_should_succeed() {
 
 #[tokio::test]
 async fn eth_get_block_by_number_should_be_consistent_when_total_difficulty_inconsistent() {
+    fn mock_request() -> JsonRpcRequestMatcher {
+        JsonRpcRequestMatcher::with_method("eth_getBlockByNumber")
+            .with_params(json!(["latest", false]))
+    }
+
+    fn mock_response(total_difficulty: Option<&str>) -> JsonRpcResponse {
+        let mut body = json!({
+           "jsonrpc":"2.0",
+           "result":{
+              "baseFeePerGas":"0xd7232aa34",
+              "difficulty":"0x0",
+              "extraData":"0x546974616e2028746974616e6275696c6465722e78797a29",
+              "gasLimit":"0x1c9c380",
+              "gasUsed":"0xa768c4",
+              "hash":"0xc3674be7b9d95580d7f23c03d32e946f2b453679ee6505e3a778f003c5a3cfae",
+              "logsBloom":"0x3e6b8420e1a13038902c24d6c2a9720a7ad4860cdc870cd5c0490011e43631134f608935bd83171247407da2c15d85014f9984608c03684c74aad48b20bc24022134cdca5f2e9d2dee3b502a8ccd39eff8040b1d96601c460e119c408c620b44fa14053013220847045556ea70484e67ec012c322830cf56ef75e09bd0db28a00f238adfa587c9f80d7e30d3aba2863e63a5cad78954555966b1055a4936643366a0bb0b1bac68d0e6267fc5bf8304d404b0c69041125219aa70562e6a5a6362331a414a96d0716990a10161b87dd9568046a742d4280014975e232b6001a0360970e569d54404b27807d7a44c949ac507879d9d41ec8842122da6772101bc8b",
+              "miner":"0x388c818ca8b9251b393131c08a736a67ccb19297",
+              "mixHash":"0x516a58424d4883a3614da00a9c6f18cd5cd54335a08388229a993a8ecf05042f",
+              "nonce":"0x0000000000000000",
+              "number":"0x11db01d",
+              "parentHash":"0x43325027f6adf9befb223f8ae80db057daddcd7b48e41f60cd94bfa8877181ae",
+              "receiptsRoot":"0x66934c3fd9c547036fe0e56ad01bc43c84b170be7c4030a86805ddcdab149929",
+              "sha3Uncles":"0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+              "size":"0xcd35",
+              "stateRoot":"0x13552447dd62f11ad885f21a583c4fa34144efe923c7e35fb018d6710f06b2b6",
+              "timestamp":"0x656f96f3",
+              "withdrawalsRoot":"0xecae44b2c53871003c5cc75285995764034c9b5978a904229d36c1280b141d48",
+              "transactionsRoot":"0x93a1ad3d067009259b508cc95fde63b5efd7e9d8b55754314c173fdde8c0826a",
+           },
+           "id":0
+        });
+        if let Some(total_difficulty) = total_difficulty {
+            body.get_mut("result").unwrap()["totalDifficulty"] =
+                Value::String(total_difficulty.to_string());
+        }
+        JsonRpcResponse::from(body)
+    }
+
     let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
-    let [response_0, mut response_1] = json_rpc_sequential_id(
-        json!({"jsonrpc":"2.0","result":{"baseFeePerGas":"0xd7232aa34","difficulty":"0x0","extraData":"0x546974616e2028746974616e6275696c6465722e78797a29","gasLimit":"0x1c9c380","gasUsed":"0xa768c4","hash":"0xc3674be7b9d95580d7f23c03d32e946f2b453679ee6505e3a778f003c5a3cfae","logsBloom":"0x3e6b8420e1a13038902c24d6c2a9720a7ad4860cdc870cd5c0490011e43631134f608935bd83171247407da2c15d85014f9984608c03684c74aad48b20bc24022134cdca5f2e9d2dee3b502a8ccd39eff8040b1d96601c460e119c408c620b44fa14053013220847045556ea70484e67ec012c322830cf56ef75e09bd0db28a00f238adfa587c9f80d7e30d3aba2863e63a5cad78954555966b1055a4936643366a0bb0b1bac68d0e6267fc5bf8304d404b0c69041125219aa70562e6a5a6362331a414a96d0716990a10161b87dd9568046a742d4280014975e232b6001a0360970e569d54404b27807d7a44c949ac507879d9d41ec8842122da6772101bc8b","miner":"0x388c818ca8b9251b393131c08a736a67ccb19297","mixHash":"0x516a58424d4883a3614da00a9c6f18cd5cd54335a08388229a993a8ecf05042f","nonce":"0x0000000000000000","number":"0x11db01d","parentHash":"0x43325027f6adf9befb223f8ae80db057daddcd7b48e41f60cd94bfa8877181ae","receiptsRoot":"0x66934c3fd9c547036fe0e56ad01bc43c84b170be7c4030a86805ddcdab149929","sha3Uncles":"0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347","size":"0xcd35","stateRoot":"0x13552447dd62f11ad885f21a583c4fa34144efe923c7e35fb018d6710f06b2b6","timestamp":"0x656f96f3","totalDifficulty":"0xc70d815d562d3cfa955","withdrawalsRoot":"0xecae44b2c53871003c5cc75285995764034c9b5978a904229d36c1280b141d48","transactionsRoot":"0x93a1ad3d067009259b508cc95fde63b5efd7e9d8b55754314c173fdde8c0826a"},"id":0}),
-    );
-    assert_eq!(
-        Some(json!("0xc70d815d562d3cfa955")),
-        response_1["result"]
-            .as_object_mut()
-            .unwrap()
-            .remove("totalDifficulty")
-    );
+
+    let mocks = MockHttpOutcallsBuilder::new()
+        .given(mock_request().with_id(0_u64))
+        .respond_with(mock_response(Some("0xc70d815d562d3cfa955")).with_id(0_u64))
+        .given(mock_request().with_id(1_u64))
+        .respond_with(mock_response(None).with_id(1_u64));
+
     let response = setup
-        .client()
+        .client(mocks)
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
             EthMainnetService::Ankr,
             EthMainnetService::PublicNode,
         ])))
-        .mock_once(evm_rpc_client::MockOutcallBuilder::new_success([
-            response_0, response_1,
-        ]))
         .build()
         .get_block_by_number(BlockNumberOrTag::Latest)
         .send()
@@ -1118,47 +1161,49 @@ fn eth_get_transaction_count_should_succeed() {
 
 #[tokio::test]
 async fn eth_fee_history_should_succeed() {
-    let response = json!({
-        "id" : 0,
-        "jsonrpc" : "2.0",
-        "result" : {
-            "oldestBlock" : "0x11e57f5",
-            "baseFeePerGas" : ["0x9cf6c61b9","0x97d853982","0x9ba55a0b0","0x9543bf98d"],
-            "reward": [ [ "0x0123" ] ]
-        }
-    });
+    fn mock_request() -> JsonRpcRequestMatcher {
+        JsonRpcRequestMatcher::with_method("eth_feeHistory")
+            .with_params(json!(["0x3", "latest", []]))
+    }
+
+    fn mock_response() -> JsonRpcResponse {
+        JsonRpcResponse::from(json!({
+            "id" : 0,
+            "jsonrpc" : "2.0",
+            "result" : {
+                "oldestBlock" : "0x11e57f5",
+                "baseFeePerGas" : ["0x9cf6c61b9", "0x97d853982", "0x9ba55a0b0", "0x9543bf98d"],
+                "reward" : [["0x0123"]]
+            }
+        }))
+    }
 
     let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
-    let mut offset = 0_u64;
 
-    for source in RPC_SERVICES {
+    for (source, offset) in iter::zip(RPC_SERVICES, (0_u64..).step_by(3)) {
+        let mocks = MockHttpOutcallsBuilder::new()
+            .given(mock_request().with_id(offset))
+            .respond_with(mock_response().with_id(offset))
+            .given(mock_request().with_id(1 + offset))
+            .respond_with(mock_response().with_id(1 + offset))
+            .given(mock_request().with_id(2 + offset))
+            .respond_with(mock_response().with_id(2 + offset));
+
         let response = setup
-            .client()
+            .client(mocks)
             .with_rpc_sources(source.clone())
-            .mock_once(
-                evm_rpc_client::MockOutcallBuilder::new_success(iter::repeat_n(
-                    response.clone(),
-                    3,
-                ))
-                    .with_sequential_response_ids(offset),
-            )
             .build()
             .fee_history((3_u64, BlockNumberOrTag::Latest))
             .send()
             .await
             .expect_consistent()
             .unwrap();
-        offset += 3;
+
         assert_eq!(
             response,
             alloy_rpc_types::FeeHistory {
                 oldest_block: 0x11e57f5_u64,
-                base_fee_per_gas: vec![
-                    0x9cf6c61b9_u128,
-                    0x97d853982_u128,
-                    0x9ba55a0b0_u128,
-                    0x9543bf98d_u128
-                ],
+                base_fee_per_gas: vec![0x9cf6c61b9_u128, 0x97d853982, 0x9ba55a0b0, 0x9543bf98d],
                 gas_used_ratio: vec![],
                 reward: Some(vec![vec![0x0123_u128]]),
                 base_fee_per_blob_gas: vec![],
@@ -1283,7 +1328,7 @@ fn candid_rpc_should_err_without_cycles() {
         demo: None,
         ..Default::default()
     })
-        .mock_api_keys();
+    .mock_api_keys();
     let result = setup
         .eth_get_transaction_receipt(
             RpcServices::EthMainnet(None),
@@ -1312,7 +1357,7 @@ fn candid_rpc_should_err_with_insufficient_cycles() {
         nodes_in_subnet: Some(33),
         ..Default::default()
     })
-        .mock_api_keys();
+    .mock_api_keys();
     let mut result = setup
         .eth_get_transaction_receipt(
             RpcServices::EthMainnet(None),
@@ -1324,7 +1369,7 @@ fn candid_rpc_should_err_with_insufficient_cycles() {
     let regex = regex::Regex::new(
         "http_request request sent with [0-9_]+ cycles, but [0-9_]+ cycles are required.",
     )
-        .unwrap();
+    .unwrap();
     assert_matches!(
         result.pop().unwrap(),
         (
@@ -2033,7 +2078,7 @@ fn should_update_api_key() {
         manage_api_keys: Some(vec![authorized_caller]),
         ..Default::default()
     })
-        .as_caller(authorized_caller);
+    .as_caller(authorized_caller);
     let provider_id = 1; // Ankr / mainnet
     let api_key = "test-api-key";
 
@@ -2514,29 +2559,42 @@ fn should_fail_when_response_id_inconsistent_with_request_id() {
 
 #[tokio::test]
 async fn should_log_request() {
-    let response = json!({
-        "id" : 0,
-        "jsonrpc" : "2.0",
-        "result": {
-            "oldestBlock" : "0x11e57f5",
-            "baseFeePerGas" : ["0x9cf6c61b9","0x97d853982","0x9ba55a0b0","0x9543bf98d"],
-            "reward":[["0x0123"]]
-        }
-    });
+    fn mock_request() -> JsonRpcRequestMatcher {
+        JsonRpcRequestMatcher::with_method("eth_feeHistory")
+            .with_params(json!(["0x3", "latest", []]))
+            .with_id(0_u64)
+    }
+
+    fn mock_response() -> JsonRpcResponse {
+        JsonRpcResponse::from(json!({
+            "id" : 0,
+            "jsonrpc" : "2.0",
+            "result" : {
+                "oldestBlock" : "0x11e57f5",
+                "baseFeePerGas" : ["0x9cf6c61b9", "0x97d853982", "0x9ba55a0b0", "0x9543bf98d"],
+                "reward" : [["0x0123"]]
+            }
+        }))
+    }
 
     let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+
+    let mocks = MockHttpOutcallsBuilder::new()
+        .given(mock_request())
+        .respond_with(mock_response());
+
     let response = setup
-        .client()
+        .client(mocks)
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
             EthMainnetService::Alchemy,
         ])))
-        .mock_once(evm_rpc_client::MockOutcallBuilder::new_success([response]))
         .build()
         .fee_history((3_u64, BlockNumberOrTag::Latest))
         .send()
         .await
         .expect_consistent()
         .unwrap();
+
     assert_eq!(
         response,
         alloy_rpc_types::FeeHistory {

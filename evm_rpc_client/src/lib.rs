@@ -333,11 +333,10 @@ impl<R> EvmRpcClient<R> {
     /// use alloy_rpc_types::BlockNumberOrTag;
     /// use evm_rpc_client::EvmRpcClient;
     ///
-    /// # use evm_rpc_types::{Block, Hex, Hex20, Hex32, MultiRpcResult, Nat256};
+    /// # use evm_rpc_types::{Block, Hex, Hex20, Hex32, Hex256, MultiRpcResult, Nat256};
     /// # use std::str::FromStr;
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// use evm_rpc_types::Hex256;
     /// let client = EvmRpcClient::builder_for_ic()
     /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(Block {
     /// #       base_fee_per_gas: None,
@@ -366,7 +365,6 @@ impl<R> EvmRpcClient<R> {
     ///
     /// let result = client
     ///     .get_block_by_number(BlockNumberOrTag::Number(23225439))
-    ///     .with_cycles(10_000_000_000)
     ///     .send()
     ///     .await
     ///     .expect_consistent()
@@ -392,10 +390,10 @@ impl<R> EvmRpcClient<R> {
     /// # Examples
     ///
     /// ```rust
-    /// use alloy_primitives::b256;
     /// use alloy_rpc_types::BlockNumberOrTag;
     /// use evm_rpc_client::EvmRpcClient;
     ///
+    /// # use alloy_primitives::b256;
     /// # use evm_rpc_types::{FeeHistory, MultiRpcResult};
     /// # use std::str::FromStr;
     /// # #[tokio::main]
@@ -424,7 +422,6 @@ impl<R> EvmRpcClient<R> {
     ///
     /// let result = client
     ///     .fee_history((0x3_u64, BlockNumberOrTag::Latest))
-    ///     .with_cycles(10_000_000_000)
     ///     .send()
     ///     .await
     ///     .expect_consistent()
@@ -496,7 +493,6 @@ impl<R> EvmRpcClient<R> {
     ///
     /// let result = client
     ///     .get_logs(vec![address!("0xdac17f958d2ee523a2206206994597c13d831ec7")])
-    ///     .with_cycles(10_000_000_000)
     ///     .send()
     ///     .await
     ///     .expect_consistent();
