@@ -6,7 +6,7 @@ use crate::{
     mock::MockJsonRequestBody,
     mock_http_runtime::mock::{
         json::{JsonRpcRequestMatcher, JsonRpcResponse},
-        MockHttpOutcalls, MockHttpOutcallsBuilder,
+        CanisterHttpReply, MockHttpOutcalls, MockHttpOutcallsBuilder,
     },
     setup::EvmRpcNonblockingSetup,
 };
@@ -1135,27 +1135,16 @@ fn eth_get_transaction_receipt_should_succeed() {
 
 #[tokio::test]
 async fn eth_get_transaction_count_should_succeed() {
-    fn mock_request() -> JsonRpcRequestMatcher {
-        JsonRpcRequestMatcher::with_method("eth_getTransactionCount").with_params(json!([
-            "0xdac17f958d2ee523a2206206994597c13d831ec7",
-            "latest"
-        ]))
-    }
-
-    fn mock_response() -> JsonRpcResponse {
-        JsonRpcResponse::from(json!({ "jsonrpc" : "2.0", "id" : 0, "result" : "0x1" }))
-    }
-
     let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
 
     for (source, offset) in iter::zip(RPC_SERVICES, (0_u64..).step_by(3)) {
         let mocks = MockHttpOutcallsBuilder::new()
-            .given(mock_request().with_id(offset))
-            .respond_with(mock_response().with_id(offset))
-            .given(mock_request().with_id(offset + 1))
-            .respond_with(mock_response().with_id(offset + 1))
-            .given(mock_request().with_id(offset + 2))
-            .respond_with(mock_response().with_id(offset + 2));
+            .given(get_transaction_count_request().with_id(offset))
+            .respond_with(get_transaction_count_response().with_id(offset))
+            .given(get_transaction_count_request().with_id(offset + 1))
+            .respond_with(get_transaction_count_response().with_id(offset + 1))
+            .given(get_transaction_count_request().with_id(offset + 2))
+            .respond_with(get_transaction_count_response().with_id(offset + 2));
 
         let response = setup
             .client(mocks)
@@ -1581,128 +1570,148 @@ fn candid_rpc_should_return_inconsistent_results() {
     );
 }
 
-#[test]
-fn candid_rpc_should_return_3_out_of_4_transaction_count() {
-    let setup = EvmRpcSetup::new().mock_api_keys();
-
-    fn eth_get_transaction_count_with_3_out_of_4(
-        setup: &EvmRpcSetup,
-    ) -> CallFlow<MultiRpcResult<Nat256>> {
-        setup.eth_get_transaction_count(
-            RpcServices::EthMainnet(None),
-            Some(RpcConfig {
-                response_consensus: Some(ConsensusStrategy::Threshold {
-                    total: Some(4),
-                    min: 3,
-                }),
-                ..Default::default()
-            }),
-            evm_rpc_types::GetTransactionCountArgs {
-                address: "0xdAC17F958D2ee523a2206206994597C13D831ec7"
-                    .parse()
-                    .unwrap(),
-                block: evm_rpc_types::BlockTag::Latest,
-            },
+#[tokio::test]
+async fn candid_rpc_should_return_3_out_of_4_transaction_count() {
+    fn get_transaction_count_response(result: u64) -> JsonRpcResponse {
+        JsonRpcResponse::from(
+            json!({ "jsonrpc" : "2.0", "id" : 0, "result" : format!("0x{result:x}") }),
         )
     }
 
-    for successful_mocks in [
+    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+
+    async fn eth_get_transaction_count_with_3_out_of_4(
+        setup: &EvmRpcNonblockingSetup,
+        offset: u64,
+        [response0, response1, response2, response3]: [CanisterHttpResponse; 4],
+    ) -> MultiRpcResult<U256> {
+        let mocks = MockHttpOutcallsBuilder::new()
+            .given(get_transaction_count_request().with_id(offset))
+            .respond_with(response0)
+            .given(get_transaction_count_request().with_id(offset + 1))
+            .respond_with(response1)
+            .given(get_transaction_count_request().with_id(offset + 2))
+            .respond_with(response2)
+            .given(get_transaction_count_request().with_id(offset + 3))
+            .respond_with(response3);
+
+        setup
+            .client(mocks)
+            .with_rpc_sources(RpcServices::EthMainnet(None))
+            .with_consensus_strategy(ConsensusStrategy::Threshold {
+                total: Some(4),
+                min: 3,
+            })
+            .build()
+            .get_transaction_count((
+                address!("0xdac17f958d2ee523a2206206994597c13d831ec7"),
+                BlockNumberOrTag::Latest,
+            ))
+            .send()
+            .await
+    }
+
+    for (successful_mocks, offset) in [
         [
-            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":0,"result":"0x1"}"#),
-            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":1,"result":"0x1"}"#),
-            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":2,"result":"0x1"}"#),
-            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":3,"result":"0x1"}"#),
+            get_transaction_count_response(1).with_id(0_u64).into(),
+            get_transaction_count_response(1).with_id(1_u64).into(),
+            get_transaction_count_response(1).with_id(2_u64).into(),
+            get_transaction_count_response(1).with_id(3_u64).into(),
         ],
         [
-            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":4,"result":"0x1"}"#),
-            MockOutcallBuilder::new(500, r#"OFFLINE"#),
-            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":6,"result":"0x1"}"#),
-            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":7,"result":"0x1"}"#),
+            get_transaction_count_response(1).with_id(4_u64).into(),
+            CanisterHttpReply::with_status(500)
+                .with_body("OFFLINE")
+                .into(),
+            get_transaction_count_response(1).with_id(6_u64).into(),
+            get_transaction_count_response(1).with_id(7_u64).into(),
         ],
         [
-            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":8,"result":"0x1"}"#),
-            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":9,"result":"0x1"}"#),
-            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":10,"result":"0x2"}"#),
-            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":11,"result":"0x1"}"#),
+            get_transaction_count_response(1).with_id(8_u64).into(),
+            get_transaction_count_response(1).with_id(9_u64).into(),
+            get_transaction_count_response(2).with_id(10_u64).into(),
+            get_transaction_count_response(1).with_id(11_u64).into(),
         ],
-    ] {
-        let result = eth_get_transaction_count_with_3_out_of_4(&setup)
-            .mock_http_once(successful_mocks[0].clone())
-            .mock_http_once(successful_mocks[1].clone())
-            .mock_http_once(successful_mocks[2].clone())
-            .mock_http_once(successful_mocks[3].clone())
-            .wait()
+    ]
+    .into_iter()
+    .zip((0_u64..).step_by(4))
+    {
+        let result = eth_get_transaction_count_with_3_out_of_4(&setup, offset, successful_mocks)
+            .await
             .expect_consistent()
             .unwrap();
 
-        assert_eq!(result, 1_u8.into());
+        assert_eq!(result, U256::ONE);
     }
 
-    for error_mocks in [
+    for (error_mocks, offset) in [
         [
-            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":0,"result":"0x1"}"#),
-            MockOutcallBuilder::new(500, r#"OFFLINE"#),
-            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":0,"result":"0x2"}"#),
-            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":0,"result":"0x1"}"#),
+            get_transaction_count_response(1).with_id(12_u64).into(),
+            CanisterHttpReply::with_status(500)
+                .with_body("OFFLINE")
+                .into(),
+            get_transaction_count_response(2).into(),
+            get_transaction_count_response(1).with_id(15_u64).into(),
         ],
         [
-            MockOutcallBuilder::new(403, r#"FORBIDDEN"#),
-            MockOutcallBuilder::new(500, r#"OFFLINE"#),
-            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":0,"result":"0x1"}"#),
-            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":0,"result":"0x1"}"#),
+            CanisterHttpReply::with_status(500)
+                .with_body("FORBIDDEN")
+                .into(),
+            CanisterHttpReply::with_status(500)
+                .with_body("OFFLINE")
+                .into(),
+            get_transaction_count_response(1).with_id(18_u64).into(),
+            get_transaction_count_response(1).with_id(19_u64).into(),
         ],
         [
-            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":0,"result":"0x1"}"#),
-            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":0,"result":"0x3"}"#),
-            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":0,"result":"0x2"}"#),
-            MockOutcallBuilder::new(200, r#"{"jsonrpc":"2.0","id":0,"result":"0x1"}"#),
+            get_transaction_count_response(1).with_id(20_u64).into(),
+            get_transaction_count_response(3).with_id(21_u64).into(),
+            get_transaction_count_response(2).with_id(22_u64).into(),
+            get_transaction_count_response(1).with_id(23_u64).into(),
         ],
-    ] {
-        let result = eth_get_transaction_count_with_3_out_of_4(&setup)
-            .mock_http_once(error_mocks[0].clone())
-            .mock_http_once(error_mocks[1].clone())
-            .mock_http_once(error_mocks[2].clone())
-            .mock_http_once(error_mocks[3].clone())
-            .wait()
+    ]
+    .into_iter()
+    .zip((12_u64..).step_by(4))
+    {
+        let result = eth_get_transaction_count_with_3_out_of_4(&setup, offset, error_mocks)
+            .await
             .expect_inconsistent();
 
         assert_eq!(result.len(), 4);
     }
 }
 
-#[test]
-fn candid_rpc_should_return_inconsistent_results_with_error() {
-    let setup = EvmRpcSetup::new().mock_api_keys();
+#[tokio::test]
+async fn candid_rpc_should_return_inconsistent_results_with_error() {
+    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+
+    let mocks = MockHttpOutcallsBuilder::new()
+        .given(get_transaction_count_request().with_id(0_u64))
+        .respond_with(get_transaction_count_response().with_id(0_u64))
+        .given(get_transaction_count_request().with_id(1_u64))
+        .respond_with(JsonRpcResponse::from(json!({"jsonrpc": "2.0", "id": 1, "error" : { "code": 123, "message": "Unexpected"} })));
+
     let result = setup
-        .eth_get_transaction_count(
-            RpcServices::EthMainnet(Some(vec![
-                EthMainnetService::Alchemy,
-                EthMainnetService::Ankr,
-            ])),
-            None,
-            evm_rpc_types::GetTransactionCountArgs {
-                address: "0xdAC17F958D2ee523a2206206994597C13D831ec7"
-                    .parse()
-                    .unwrap(),
-                block: evm_rpc_types::BlockTag::Latest,
-            },
-        )
-        .mock_http_once(MockOutcallBuilder::new(
-            200,
-            r#"{"jsonrpc":"2.0","id":0,"result":"0x1"}"#,
+        .client(mocks)
+        .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
+            EthMainnetService::Alchemy,
+            EthMainnetService::Ankr,
+        ])))
+        .build()
+        .get_transaction_count((
+            address!("0xdac17f958d2ee523a2206206994597c13d831ec7"),
+            BlockNumberOrTag::Latest,
         ))
-        .mock_http_once(MockOutcallBuilder::new(
-            200,
-            r#"{"jsonrpc":"2.0","id":1,"error":{"code":123,"message":"Unexpected"}}"#,
-        ))
-        .wait()
+        .send()
+        .await
         .expect_inconsistent();
+
     assert_eq!(
         result,
         vec![
             (
                 RpcService::EthMainnet(EthMainnetService::Alchemy),
-                Ok(1_u8.into())
+                Ok(U256::ONE)
             ),
             (
                 RpcService::EthMainnet(EthMainnetService::Ankr),
@@ -1715,7 +1724,7 @@ fn candid_rpc_should_return_inconsistent_results_with_error() {
     );
     let rpc_method = || RpcMethod::EthGetTransactionCount.into();
     assert_eq!(
-        setup.get_metrics(),
+        setup.get_metrics().await,
         Metrics {
             requests: hashmap! {
                 (rpc_method(), ALCHEMY_ETH_MAINNET_HOSTNAME.into()) => 1,
@@ -2630,98 +2639,128 @@ async fn should_log_request() {
     assert!(logs[1].message.contains("response for request with id `0`. Response with status 200 OK: JsonRpcResponse { jsonrpc: V2, id: Number(0), result: Ok(FeeHistory"));
 }
 
-#[test]
-fn should_change_default_provider_when_one_keep_failing() {
-    let [response_0, _response_1, response_2] =
-        json_rpc_sequential_id(json!({"jsonrpc":"2.0","id":0,"result":"0x1"}));
-    let setup = EvmRpcSetup::new().mock_api_keys();
-    let response = setup
-        .eth_get_transaction_count(
-            RpcServices::EthMainnet(None),
-            Some(RpcConfig {
-                response_consensus: Some(ConsensusStrategy::Threshold {
-                    total: Some(3),
-                    min: 2,
-                }),
-                ..Default::default()
-            }),
-            evm_rpc_types::GetTransactionCountArgs {
-                address: "0xdAC17F958D2ee523a2206206994597C13D831ec7"
-                    .parse()
-                    .unwrap(),
-                block: evm_rpc_types::BlockTag::Latest,
-            },
-        )
-        .mock_http_once(MockOutcallBuilder::new(200, response_0.clone()).with_host("rpc.ankr.com"))
-        .mock_http_once(MockOutcallBuilder::new(500, "error").with_host("ethereum.blockpi.network"))
-        .mock_http_once(
-            MockOutcallBuilder::new(200, response_2.clone())
-                .with_host("ethereum-rpc.publicnode.com"),
-        )
-        .wait()
-        .expect_consistent()
-        .unwrap();
-    assert_eq!(response, 1_u8.into());
+#[tokio::test]
+async fn should_change_default_provider_when_one_keeps_failing() {
+    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
 
-    let [response_3, response_4] =
-        json_rpc_sequential_id(json!({"jsonrpc":"2.0","id":3,"result":"0x1"}));
     let response = setup
-        .eth_get_transaction_count(
-            RpcServices::EthMainnet(Some(vec![
-                EthMainnetService::Ankr,
-                EthMainnetService::Alchemy,
-            ])),
-            Some(RpcConfig {
-                response_consensus: Some(ConsensusStrategy::Equality),
-                ..Default::default()
-            }),
-            evm_rpc_types::GetTransactionCountArgs {
-                address: "0xdAC17F958D2ee523a2206206994597C13D831ec7"
-                    .parse()
-                    .unwrap(),
-                block: evm_rpc_types::BlockTag::Latest,
-            },
+        .client(
+            MockHttpOutcallsBuilder::new()
+                .given(
+                    get_transaction_count_request()
+                        .with_id(0_u64)
+                        .with_host(ANKR_HOSTNAME),
+                )
+                .respond_with(get_transaction_count_response().with_id(0_u64))
+                .given(
+                    get_transaction_count_request()
+                        .with_id(1_u64)
+                        .with_host(BLOCKPI_ETH_HOSTNAME),
+                )
+                .respond_with(CanisterHttpReply::with_status(500).with_body("Error!"))
+                .given(
+                    get_transaction_count_request()
+                        .with_id(2_u64)
+                        .with_host(PUBLICNODE_ETH_MAINNET_HOSTNAME),
+                )
+                .respond_with(get_transaction_count_response().with_id(2_u64)),
         )
-        .mock_http_once(
-            MockOutcallBuilder::new(200, response_3.clone()).with_host("eth-mainnet.g.alchemy.com"),
-        )
-        .mock_http_once(MockOutcallBuilder::new(200, response_4.clone()).with_host("rpc.ankr.com"))
-        .wait()
+        .with_rpc_sources(RpcServices::EthMainnet(None))
+        .with_consensus_strategy(ConsensusStrategy::Threshold {
+            total: Some(3),
+            min: 2,
+        })
+        .build()
+        .get_transaction_count((
+            address!("0xdac17f958d2ee523a2206206994597c13d831ec7"),
+            BlockNumberOrTag::Latest,
+        ))
+        .send()
+        .await
         .expect_consistent()
         .unwrap();
-    assert_eq!(response, 1_u8.into());
+    assert_eq!(response, U256::ONE);
 
-    let [response_5, response_6, response_7] =
-        json_rpc_sequential_id(json!({"jsonrpc":"2.0","id":5,"result":"0x1"}));
     let response = setup
-        .eth_get_transaction_count(
-            RpcServices::EthMainnet(None),
-            Some(RpcConfig {
-                response_consensus: Some(ConsensusStrategy::Threshold {
-                    total: Some(3),
-                    min: 2,
-                }),
-                ..Default::default()
-            }),
-            evm_rpc_types::GetTransactionCountArgs {
-                address: "0xdAC17F958D2ee523a2206206994597C13D831ec7"
-                    .parse()
-                    .unwrap(),
-                block: evm_rpc_types::BlockTag::Latest,
-            },
+        .client(
+            MockHttpOutcallsBuilder::new()
+                .given(
+                    get_transaction_count_request()
+                        .with_id(3_u64)
+                        .with_host(ALCHEMY_ETH_MAINNET_HOSTNAME),
+                )
+                .respond_with(get_transaction_count_response().with_id(3_u64))
+                .given(
+                    get_transaction_count_request()
+                        .with_id(4_u64)
+                        .with_host(ANKR_HOSTNAME),
+                )
+                .respond_with(get_transaction_count_response().with_id(4_u64)),
         )
-        .mock_http_once(
-            MockOutcallBuilder::new(200, response_5.clone()).with_host("eth-mainnet.g.alchemy.com"),
-        )
-        .mock_http_once(MockOutcallBuilder::new(200, response_6.clone()).with_host("rpc.ankr.com"))
-        .mock_http_once(
-            MockOutcallBuilder::new(200, response_7.clone())
-                .with_host("ethereum-rpc.publicnode.com"),
-        )
-        .wait()
+        .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
+            EthMainnetService::Ankr,
+            EthMainnetService::Alchemy,
+        ])))
+        .with_consensus_strategy(ConsensusStrategy::Equality)
+        .build()
+        .get_transaction_count((
+            address!("0xdac17f958d2ee523a2206206994597c13d831ec7"),
+            BlockNumberOrTag::Latest,
+        ))
+        .send()
+        .await
         .expect_consistent()
         .unwrap();
-    assert_eq!(response, 1_u8.into());
+    assert_eq!(response, U256::ONE);
+
+    let response = setup
+        .client(
+            MockHttpOutcallsBuilder::new()
+                .given(
+                    get_transaction_count_request()
+                        .with_id(5_u64)
+                        .with_host(ALCHEMY_ETH_MAINNET_HOSTNAME),
+                )
+                .respond_with(get_transaction_count_response().with_id(5_u64))
+                .given(
+                    get_transaction_count_request()
+                        .with_id(6_u64)
+                        .with_host(ANKR_HOSTNAME),
+                )
+                .respond_with(get_transaction_count_response().with_id(6_u64))
+                .given(
+                    get_transaction_count_request()
+                        .with_id(7_u64)
+                        .with_host(PUBLICNODE_ETH_MAINNET_HOSTNAME),
+                )
+                .respond_with(get_transaction_count_response().with_id(7_u64)),
+        )
+        .with_rpc_sources(RpcServices::EthMainnet(None))
+        .with_consensus_strategy(ConsensusStrategy::Threshold {
+            total: Some(3),
+            min: 2,
+        })
+        .build()
+        .get_transaction_count((
+            address!("0xdac17f958d2ee523a2206206994597c13d831ec7"),
+            BlockNumberOrTag::Latest,
+        ))
+        .send()
+        .await
+        .expect_consistent()
+        .unwrap();
+    assert_eq!(response, U256::ONE);
+}
+
+fn get_transaction_count_request() -> JsonRpcRequestMatcher {
+    JsonRpcRequestMatcher::with_method("eth_getTransactionCount").with_params(json!([
+        "0xdac17f958d2ee523a2206206994597c13d831ec7",
+        "latest"
+    ]))
+}
+
+fn get_transaction_count_response() -> JsonRpcResponse {
+    JsonRpcResponse::from(json!({ "jsonrpc" : "2.0", "id" : 0, "result" : "0x1" }))
 }
 
 pub fn multi_logs_for_single_transaction(num_logs: usize) -> serde_json::Value {

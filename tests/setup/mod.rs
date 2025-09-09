@@ -5,6 +5,7 @@ use crate::{
 };
 use candid::{Decode, Encode, Principal};
 use canlog::{Log, LogEntry};
+use evm_rpc::types::Metrics;
 use evm_rpc::{
     logs::Priority,
     providers::PROVIDERS,
@@ -146,5 +147,18 @@ impl EvmRpcNonblockingSetup {
         serde_json::from_slice::<Log<Priority>>(&response.body)
             .expect("failed to parse EVM_RPC minter log")
             .entries
+    }
+
+    pub async fn get_metrics(&self) -> Metrics {
+        let response = self
+            .env
+            .query_call(
+                self.canister_id,
+                Principal::anonymous(),
+                "getMetrics",
+                Encode!().unwrap(),
+            )
+            .await;
+        Decode!(&assert_reply(response), Metrics).unwrap()
     }
 }

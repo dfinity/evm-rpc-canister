@@ -32,6 +32,13 @@ impl JsonRpcRequestMatcher {
         }
     }
 
+    pub fn with_host(self, host: &str) -> Self {
+        Self {
+            host: Some(Host::parse(host).expect("BUG: invalid host for a URL")),
+            ..self
+        }
+    }
+
     pub fn with_params(self, params: impl Into<Value>) -> Self {
         Self {
             params: Some(params.into()),
@@ -130,6 +137,15 @@ impl From<Value> for JsonRpcResponse {
 }
 
 impl JsonRpcResponse {
+    pub fn id(&self) -> Id {
+        match self.body.get("id") {
+            Some(id) => {
+                serde_json::from_value(id.clone()).expect("Unable to serialize response ID")
+            }
+            None => panic!("Response has no `id` field"),
+        }
+    }
+
     pub fn with_id(mut self, id: impl Into<Id>) -> JsonRpcResponse {
         self.body["id"] = serde_json::to_value(id.into()).expect("BUG: cannot serialize ID");
         self

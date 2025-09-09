@@ -1,4 +1,5 @@
 use pocket_ic::common::rest::{CanisterHttpRequest, CanisterHttpResponse};
+use serde_json::Value;
 use std::fmt::Debug;
 
 pub mod json;
@@ -104,4 +105,27 @@ impl MockHttpOutcallBuilder {
 
 pub trait CanisterHttpRequestMatcher: Send + Debug {
     fn matches(&self, request: &CanisterHttpRequest) -> bool;
+}
+
+pub struct CanisterHttpReply(pocket_ic::common::rest::CanisterHttpReply);
+
+impl CanisterHttpReply {
+    pub fn with_status(status: u16) -> Self {
+        Self(pocket_ic::common::rest::CanisterHttpReply {
+            status,
+            headers: vec![],
+            body: vec![],
+        })
+    }
+
+    pub fn with_body(mut self, body: impl Into<Value>) -> Self {
+        self.0.body = serde_json::to_vec(&body.into()).unwrap();
+        self
+    }
+}
+
+impl From<CanisterHttpReply> for CanisterHttpResponse {
+    fn from(value: CanisterHttpReply) -> Self {
+        CanisterHttpResponse::CanisterHttpReply(value.0)
+    }
 }
