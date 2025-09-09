@@ -144,6 +144,7 @@ type Metrics = record {
   inconsistentResponses : vec record { record { text; text }; nat64 };
   cyclesCharged : vec record { record { text; text }; nat };
   errHttpOutcall : vec record { record { text; text; RejectionCode }; nat64 };
+  errMaxResponseSizeExceeded : vec record { record { text; text }; nat64 };
 };
 type MultiFeeHistoryResult = variant {
   Consistent : FeeHistoryResult;
