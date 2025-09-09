@@ -3,7 +3,7 @@ use crate::{
     mock_http_runtime::{mock::MockHttpOutcalls, MockHttpRuntime},
     DEFAULT_CALLER_TEST_ID, DEFAULT_CONTROLLER_TEST_ID, INITIAL_CYCLES, MOCK_API_KEY,
 };
-use candid::{Decode, Encode, Principal};
+use candid::{CandidType, Decode, Encode, Principal};
 use canlog::{Log, LogEntry};
 use evm_rpc::types::Metrics;
 use evm_rpc::{
@@ -17,6 +17,7 @@ use ic_cdk::api::management_canister::main::CanisterId;
 use ic_http_types::{HttpRequest, HttpResponse};
 use ic_management_canister_types::CanisterSettings;
 use pocket_ic::{nonblocking, ErrorCode, PocketIcBuilder};
+use serde::de::DeserializeOwned;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -154,35 +155,26 @@ impl EvmRpcNonblockingSetup {
             headers: vec![],
             body: serde_bytes::ByteBuf::new(),
         };
-        let response = Decode!(
-            &assert_reply(
-                self.env
-                    .query_call(
-                        self.canister_id,
-                        Principal::anonymous(),
-                        "http_request",
-                        Encode!(&request).unwrap()
-                    )
-                    .await
-            ),
-            HttpResponse
-        )
-        .unwrap();
+        let response: HttpResponse = self.call_query("http_request", Encode!(&request).unwrap());
         serde_json::from_slice::<Log<Priority>>(&response.body)
             .expect("failed to parse EVM_RPC minter log")
             .entries
     }
 
     pub async fn get_metrics(&self) -> Metrics {
-        let response = self
-            .env
-            .query_call(
-                self.canister_id,
-                Principal::anonymous(),
-                "getMetrics",
-                Encode!().unwrap(),
-            )
-            .await;
-        Decode!(&assert_reply(response), Metrics).unwrap()
+        self.call_query("getMetrics", Encode!().unwrap()).await
+    }
+
+    async fn call_query<R: CandidType + DeserializeOwned>(
+        &self,
+        method: &str,
+        input: Vec<u8>,
+    ) -> R {
+        let candid = &assert_reply(
+            self.env
+                .query_call(self.canister_id, self.caller, method, input)
+                .await,
+        );
+        Decode!(candid, R).expect("error while decoding Candid response from query call")
     }
 }

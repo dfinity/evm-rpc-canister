@@ -159,15 +159,6 @@ impl From<Value> for JsonRpcResponse {
 }
 
 impl JsonRpcResponse {
-    pub fn id(&self) -> Id {
-        match self.body.get("id") {
-            Some(id) => {
-                serde_json::from_value(id.clone()).expect("Unable to serialize response ID")
-            }
-            None => panic!("Response has no `id` field"),
-        }
-    }
-
     pub fn with_id(mut self, id: impl Into<Id>) -> JsonRpcResponse {
         self.body["id"] = serde_json::to_value(id.into()).expect("BUG: cannot serialize ID");
         self
