@@ -155,7 +155,9 @@ impl EvmRpcNonblockingSetup {
             headers: vec![],
             body: serde_bytes::ByteBuf::new(),
         };
-        let response: HttpResponse = self.call_query("http_request", Encode!(&request).unwrap());
+        let response: HttpResponse = self
+            .call_query("http_request", Encode!(&request).unwrap())
+            .await;
         serde_json::from_slice::<Log<Priority>>(&response.body)
             .expect("failed to parse EVM_RPC minter log")
             .entries
