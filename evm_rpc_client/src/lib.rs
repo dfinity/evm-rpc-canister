@@ -34,8 +34,6 @@
 //! use alloy_primitives::{address, U256};
 //! use alloy_rpc_types::BlockNumberOrTag;
 //! use evm_rpc_client::EvmRpcClient;
-//! use evm_rpc_types::{MultiRpcResult, Nat256};
-//! use evm_rpc_client::EvmRpcClient;
 //!
 //! # use evm_rpc_types::{MultiRpcResult, Nat256};
 //! # #[tokio::main]
