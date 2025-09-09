@@ -1,13 +1,53 @@
 use crate::{EvmRpcClient, Runtime};
 use candid::CandidType;
 use evm_rpc_types::{
-    BlockTag, FeeHistoryArgs, GetLogsArgs, GetLogsRpcConfig, GetTransactionCountArgs, Hex20, Hex32,
-    MultiRpcResult, Nat256, RpcConfig, RpcServices,
+    BlockTag, CallArgs, FeeHistoryArgs, GetLogsArgs, GetLogsRpcConfig, GetTransactionCountArgs,
+    Hex, Hex20, Hex32, MultiRpcResult, Nat256, RpcConfig, RpcServices,
 };
 use ic_error_types::RejectCode;
 use serde::de::DeserializeOwned;
 use std::fmt::{Debug, Formatter};
 use strum::EnumIter;
+
+#[derive(Debug, Clone)]
+pub struct CallRequest(CallArgs);
+
+impl CallRequest {
+    pub fn new(params: CallArgs) -> Self {
+        Self(params)
+    }
+}
+
+impl EvmRpcRequest for CallRequest {
+    type Config = RpcConfig;
+    type Params = CallArgs;
+    type CandidOutput = MultiRpcResult<Hex>;
+    type Output = MultiRpcResult<alloy_primitives::Bytes>;
+
+    fn endpoint(&self) -> EvmRpcEndpoint {
+        EvmRpcEndpoint::Call
+    }
+
+    fn params(self) -> Self::Params {
+        self.0
+    }
+}
+
+pub type CallRequestBuilder<R> = RequestBuilder<
+    R,
+    RpcConfig,
+    CallArgs,
+    MultiRpcResult<Hex>,
+    MultiRpcResult<alloy_primitives::Bytes>,
+>;
+
+impl<R> CallRequestBuilder<R> {
+    /// Change the `block` parameter for an `eth_call` request.
+    pub fn with_block(mut self, block: impl Into<BlockTag>) -> Self {
+        self.request.params.block = Some(block.into());
+        self
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct FeeHistoryRequest(FeeHistoryArgs);
@@ -223,6 +263,8 @@ pub trait EvmRpcRequest {
 /// Endpoint on the EVM RPC canister triggering a call to EVM providers.
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, EnumIter)]
 pub enum EvmRpcEndpoint {
+    /// `eth_call` endpoint.
+    Call,
     /// `eth_feeHistory` endpoint.
     FeeHistory,
     /// `eth_getBlockByNumber` endpoint.
@@ -237,6 +279,7 @@ impl EvmRpcEndpoint {
     /// Method name on the EVM RPC canister
     pub fn rpc_method(&self) -> &'static str {
         match &self {
+            Self::Call => "eth_call",
             Self::FeeHistory => "eth_feeHistory",
             Self::GetBlockByNumber => "eth_getBlockByNumber",
             Self::GetLogs => "eth_getLogs",

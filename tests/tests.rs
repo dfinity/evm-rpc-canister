@@ -4,7 +4,6 @@ mod setup;
 
 use crate::mock_http_runtime::mock::CanisterHttpReject;
 use crate::{
-    mock::MockJsonRequestBody,
     mock_http_runtime::mock::{
         json::{JsonRpcRequestMatcher, JsonRpcResponse},
         CanisterHttpReply, MockHttpOutcalls, MockHttpOutcallsBuilder,
@@ -266,15 +265,6 @@ impl EvmRpcSetup {
             "eth_sendRawTransaction",
             Encode!(&source, &config, &signed_raw_transaction_hex).unwrap(),
         )
-    }
-
-    pub fn eth_call(
-        &self,
-        source: RpcServices,
-        config: Option<evm_rpc_types::RpcConfig>,
-        args: evm_rpc_types::CallArgs,
-    ) -> CallFlow<MultiRpcResult<evm_rpc_types::Hex>> {
-        self.call_update("eth_call", Encode!(&source, &config, &args).unwrap())
     }
 
     pub fn update_api_keys(&self, api_keys: &[(ProviderId, Option<String>)]) {
@@ -1233,19 +1223,25 @@ fn eth_send_raw_transaction_should_succeed() {
     }
 }
 
-#[test]
-fn eth_call_should_succeed() {
+#[tokio::test]
+async fn eth_call_should_succeed() {
     const ADDRESS: &str = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
     const INPUT_DATA: &str =
         "0x70a08231000000000000000000000000b25eA1D493B49a1DeD42aC5B1208cC618f9A9B80";
 
-    let [response_0, response_1, response_2] = json_rpc_sequential_id(
-        json!({"jsonrpc":"2.0","result":"0x0000000000000000000000000000000000000000000000000000013c3ee36e89","id":0}),
-    );
-    let expected_request = MockJsonRequestBody::builder("eth_call").with_params(
-        json!( [ { "to": ADDRESS.to_lowercase(), "input": INPUT_DATA.to_lowercase(), }, "latest" ]),
-    );
+    fn mock_request() -> JsonRpcRequestMatcher {
+        JsonRpcRequestMatcher::with_method("eth_call").with_params(json!( [ { "to": ADDRESS.to_lowercase(), "input": INPUT_DATA.to_lowercase(), }, "latest" ]))
+    }
 
+    fn mock_response() -> JsonRpcResponse {
+        JsonRpcResponse::from(
+            json!({ "jsonrpc": "2.0", "id": 0, "result": "0x0000000000000000000000000000000000000000000000000000013c3ee36e89" }),
+        )
+    }
+
+    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+
+    let mut offsets = (0_u64..).step_by(3);
     for call_args in [
         evm_rpc_types::CallArgs {
             transaction: evm_rpc_types::TransactionRequest {
@@ -1253,7 +1249,7 @@ fn eth_call_should_succeed() {
                 input: Some(INPUT_DATA.parse().unwrap()),
                 ..evm_rpc_types::TransactionRequest::default()
             },
-            block: Some(evm_rpc_types::BlockTag::Latest),
+            block: Some(BlockTag::Latest),
         },
         evm_rpc_types::CallArgs {
             transaction: evm_rpc_types::TransactionRequest {
@@ -1265,28 +1261,27 @@ fn eth_call_should_succeed() {
         },
     ] {
         for source in RPC_SERVICES {
-            let setup = EvmRpcSetup::new().mock_api_keys();
+            let offset = offsets.next().unwrap();
+            let mocks = MockHttpOutcallsBuilder::new()
+                .given(mock_request().with_id(offset))
+                .respond_with(mock_response().with_id(offset))
+                .given(mock_request().with_id(offset + 1))
+                .respond_with(mock_response().with_id(offset + 1))
+                .given(mock_request().with_id(offset + 2))
+                .respond_with(mock_response().with_id(offset + 2));
+
             let response = setup
-                .eth_call(source.clone(), None, call_args.clone())
-                .mock_http_once(
-                    MockOutcallBuilder::new(200, response_0.clone())
-                        .with_request_body(expected_request.clone()),
-                )
-                .mock_http_once(
-                    MockOutcallBuilder::new(200, response_1.clone())
-                        .with_request_body(expected_request.clone()),
-                )
-                .mock_http_once(
-                    MockOutcallBuilder::new(200, response_2.clone())
-                        .with_request_body(expected_request.clone()),
-                )
-                .wait()
+                .client(mocks)
+                .with_rpc_sources(source.clone())
+                .build()
+                .call(call_args.clone())
+                .send()
+                .await
                 .expect_consistent()
                 .unwrap();
             assert_eq!(
                 response,
-                Hex::from_str("0x0000000000000000000000000000000000000000000000000000013c3ee36e89")
-                    .unwrap()
+                bytes!("0x0000000000000000000000000000000000000000000000000000013c3ee36e89")
             );
         }
     }

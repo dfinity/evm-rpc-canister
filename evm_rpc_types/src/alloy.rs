@@ -25,6 +25,12 @@ impl From<alloy_primitives::B256> for Hex32 {
     }
 }
 
+impl<const N: usize> From<alloy_primitives::FixedBytes<N>> for Hex {
+    fn from(value: alloy_primitives::FixedBytes<N>) -> Self {
+        Self::from(value.to_vec())
+    }
+}
+
 impl From<Hex> for alloy_primitives::Bytes {
     fn from(value: Hex) -> Self {
         Self::from_iter(Vec::<u8>::from(value))
