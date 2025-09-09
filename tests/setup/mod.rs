@@ -1,5 +1,5 @@
 use crate::{
-    assert_reply,
+    assert_reply, evm_rpc_wasm,
     mock_http_runtime::{mock::MockHttpOutcalls, MockHttpRuntime},
     DEFAULT_CALLER_TEST_ID, DEFAULT_CONTROLLER_TEST_ID, INITIAL_CYCLES, MOCK_API_KEY,
 };
@@ -16,8 +16,9 @@ use evm_rpc_types::InstallArgs;
 use ic_cdk::api::management_canister::main::CanisterId;
 use ic_http_types::{HttpRequest, HttpResponse};
 use ic_management_canister_types::CanisterSettings;
-use pocket_ic::{nonblocking, PocketIcBuilder};
+use pocket_ic::{nonblocking, ErrorCode, PocketIcBuilder};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 #[derive(Clone)]
 pub struct EvmRpcNonblockingSetup {
@@ -79,16 +80,39 @@ impl EvmRpcNonblockingSetup {
         }
     }
 
-    pub fn client(&self, mocks: impl Into<MockHttpOutcalls>) -> ClientBuilder<MockHttpRuntime> {
-        EvmRpcClient::builder(self.new_mock_http_runtime(mocks.into()), self.canister_id)
+    pub async fn upgrade_canister(&self, args: InstallArgs) {
+        for _ in 0..100 {
+            self.env.tick().await;
+            // Avoid `CanisterInstallCodeRateLimited` error
+            self.env.advance_time(Duration::from_secs(600)).await;
+            self.env.tick().await;
+            match self
+                .env
+                .upgrade_canister(
+                    self.canister_id,
+                    evm_rpc_wasm(),
+                    Encode!(&args).unwrap(),
+                    Some(self.controller),
+                )
+                .await
+            {
+                Ok(_) => return,
+                Err(e) if e.error_code == ErrorCode::CanisterInstallCodeRateLimited => continue,
+                Err(e) => panic!("Error while upgrading canister: {e:?}"),
+            }
+        }
+        panic!("Failed to upgrade canister after many trials!")
     }
 
-    fn new_mock_http_runtime(&self, mocks: MockHttpOutcalls) -> MockHttpRuntime {
-        MockHttpRuntime {
-            env: self.env.clone(),
-            caller: self.caller,
-            mocks: Mutex::new(mocks),
-        }
+    pub fn client(&self, mocks: impl Into<MockHttpOutcalls>) -> ClientBuilder<MockHttpRuntime> {
+        EvmRpcClient::builder(
+            MockHttpRuntime {
+                env: self.env.clone(),
+                caller: self.caller,
+                mocks: Mutex::new(mocks.into()),
+            },
+            self.canister_id,
+        )
     }
 
     pub async fn update_api_keys(&self, api_keys: &[(ProviderId, Option<String>)]) {

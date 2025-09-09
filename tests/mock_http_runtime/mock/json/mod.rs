@@ -32,9 +32,9 @@ impl JsonRpcRequestMatcher {
         }
     }
 
-    pub fn with_host(self, host: &str) -> Self {
+    pub fn with_id(self, id: impl Into<Id>) -> Self {
         Self {
-            host: Some(Host::parse(host).expect("BUG: invalid host for a URL")),
+            id: Some(id.into()),
             ..self
         }
     }
@@ -46,9 +46,31 @@ impl JsonRpcRequestMatcher {
         }
     }
 
-    pub fn with_id(self, id: impl Into<Id>) -> Self {
+    pub fn with_url(self, url: &str) -> Self {
         Self {
-            id: Some(id.into()),
+            url: Some(Url::parse(url).expect("BUG: invalid URL")),
+            ..self
+        }
+    }
+
+    pub fn with_host(self, host: &str) -> Self {
+        Self {
+            host: Some(Host::parse(host).expect("BUG: invalid host for a URL")),
+            ..self
+        }
+    }
+
+    pub fn with_request_headers(self, headers: Vec<(impl ToString, impl ToString)>) -> Self {
+        Self {
+            request_headers: Some(
+                headers
+                    .into_iter()
+                    .map(|(name, value)| CanisterHttpHeader {
+                        name: name.to_string(),
+                        value: value.to_string(),
+                    })
+                    .collect(),
+            ),
             ..self
         }
     }

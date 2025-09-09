@@ -129,3 +129,25 @@ impl From<CanisterHttpReply> for CanisterHttpResponse {
         CanisterHttpResponse::CanisterHttpReply(value.0)
     }
 }
+
+pub struct CanisterHttpReject(pocket_ic::common::rest::CanisterHttpReject);
+
+impl CanisterHttpReject {
+    pub fn with_reject_code(reject_code: ic_error_types::RejectCode) -> Self {
+        Self(pocket_ic::common::rest::CanisterHttpReject {
+            reject_code: reject_code as u64,
+            message: "".to_string(),
+        })
+    }
+
+    pub fn with_message(mut self, message: impl Into<String>) -> Self {
+        self.0.message = message.into();
+        self
+    }
+}
+
+impl From<CanisterHttpReject> for CanisterHttpResponse {
+    fn from(value: CanisterHttpReject) -> Self {
+        CanisterHttpResponse::CanisterHttpReject(value.0)
+    }
+}
