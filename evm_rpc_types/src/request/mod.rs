@@ -6,7 +6,9 @@ mod alloy;
 
 use crate::{Hex, Hex20, Hex32, HexByte, Nat256};
 use candid::CandidType;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+#[cfg(test)]
+use serde::Serialize;
 
 #[derive(Clone, Debug, PartialEq, Eq, CandidType, Deserialize, Default)]
 pub enum BlockTag {
