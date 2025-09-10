@@ -115,7 +115,7 @@ use crate::request::{
 use candid::{CandidType, Principal};
 use evm_rpc_types::{
     BlockTag, CallArgs, ConsensusStrategy, FeeHistoryArgs, GetLogsArgs, GetTransactionCountArgs,
-    RpcConfig, RpcResult, RpcServices,
+    RpcConfig, RpcServices,
 };
 use ic_error_types::RejectCode;
 use request::{GetLogsRequest, GetLogsRequestBuilder};
@@ -281,7 +281,6 @@ impl<R> EvmRpcClient<R> {
     ///
     /// let result = client
     ///     .call(tx_request)
-    ///     .expect("Invalid tx request")
     ///     .with_block(BlockNumberOrTag::Latest)
     ///     .send()
     ///     .await
@@ -293,12 +292,20 @@ impl<R> EvmRpcClient<R> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn call(&self, params: impl TryInto<CallArgs>) -> RpcResult<CallRequestBuilder<R>> {
-        Ok(RequestBuilder::new(
+    pub fn call<T>(&self, params: impl TryInto<CallArgs>) -> CallRequestBuilder<R>
+    where
+        T: TryInto<CallArgs>,
+        <T as TryInto<CallArgs>>::Error: std::fmt::Debug,
+    {
+        RequestBuilder::new(
             self.clone(),
-            CallRequest::new(params.try_into()?),
+            CallRequest::new(
+                params
+                    .try_into()
+                    .unwrap_or_else(|e| panic!("Invalid transaction request: {e:?}")),
+            ),
             10_000_000_000,
-        ))
+        )
     }
 
     /// Call `eth_getBlockByNumber` on the EVM RPC canister.
