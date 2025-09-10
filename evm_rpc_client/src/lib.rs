@@ -115,7 +115,7 @@ use crate::request::{
 use candid::{CandidType, Principal};
 use evm_rpc_types::{
     BlockTag, CallArgs, ConsensusStrategy, FeeHistoryArgs, GetLogsArgs, GetTransactionCountArgs,
-    RpcConfig, RpcServices,
+    RpcConfig, RpcResult, RpcServices,
 };
 use ic_error_types::RejectCode;
 use request::{GetLogsRequest, GetLogsRequestBuilder};
@@ -281,23 +281,24 @@ impl<R> EvmRpcClient<R> {
     ///
     /// let result = client
     ///     .call(tx_request)
+    ///     .expect("Invalid tx request")
     ///     .with_block(BlockNumberOrTag::Latest)
     ///     .send()
     ///     .await
     ///     .expect_consistent()
     ///     .unwrap();
     ///
-    /// let decoded = DynSolType::String.abi_decode(&result).unwrap();
-    /// assert_eq!(decoded, DynSolValue::from("USDC".to_string()));
+    /// let decoded = DynSolType::String.abi_decode(&result);
+    /// assert_eq!(decoded, Ok(DynSolValue::from("USDC".to_string())));
     /// # Ok(())
     /// # }
     /// ```
-    pub fn call(&self, params: impl Into<CallArgs>) -> CallRequestBuilder<R> {
-        RequestBuilder::new(
+    pub fn call(&self, params: impl TryInto<CallArgs>) -> RpcResult<CallRequestBuilder<R>> {
+        Ok(RequestBuilder::new(
             self.clone(),
-            CallRequest::new(params.into()),
+            CallRequest::new(params.try_into()?),
             10_000_000_000,
-        )
+        ))
     }
 
     /// Call `eth_getBlockByNumber` on the EVM RPC canister.

@@ -1,6 +1,6 @@
 use crate::{
     AccessList, AccessListEntry, BlockTag, CallArgs, GetLogsArgs, Hex, Hex20, Hex32, HexByte,
-    Nat256, RpcError, TransactionRequest,
+    Nat256, RpcError, TransactionRequest, ValidationError,
 };
 use alloy_primitives::TxKind;
 
@@ -44,18 +44,22 @@ impl<T: IntoIterator<Item = S>, S: Into<Hex20>> From<T> for GetLogsArgs {
     }
 }
 
-impl From<alloy_rpc_types::TransactionRequest> for CallArgs {
-    fn from(request: alloy_rpc_types::TransactionRequest) -> Self {
-        Self {
-            transaction: TransactionRequest::from(request),
+impl TryFrom<alloy_rpc_types::TransactionRequest> for CallArgs {
+    type Error = RpcError;
+
+    fn try_from(request: alloy_rpc_types::TransactionRequest) -> Result<Self, Self::Error> {
+        Ok(Self {
+            transaction: TransactionRequest::try_from(request)?,
             block: None,
-        }
+        })
     }
 }
 
-impl From<alloy_rpc_types::TransactionRequest> for TransactionRequest {
-    fn from(tx_request: alloy_rpc_types::TransactionRequest) -> Self {
-        Self {
+impl TryFrom<alloy_rpc_types::TransactionRequest> for TransactionRequest {
+    type Error = RpcError;
+
+    fn try_from(tx_request: alloy_rpc_types::TransactionRequest) -> Result<Self, Self::Error> {
+        Ok(Self {
             tx_type: tx_request.transaction_type.map(HexByte::from),
             nonce: tx_request.nonce.map(Nat256::from),
             to: tx_request.to.and_then(|kind| match kind {
@@ -65,7 +69,11 @@ impl From<alloy_rpc_types::TransactionRequest> for TransactionRequest {
             from: tx_request.from.map(Hex20::from),
             gas: tx_request.gas.map(Nat256::from),
             value: tx_request.value.map(Nat256::from),
-            input: tx_request.input.input.map(Hex::from),
+            input: tx_request
+                .input
+                .try_into_unique_input()
+                .map_err(|e| RpcError::ValidationError(ValidationError::Custom(e.to_string())))?
+                .map(Hex::from),
             gas_price: tx_request.gas_price.map(Nat256::from),
             max_priority_fee_per_gas: tx_request.max_priority_fee_per_gas.map(Nat256::from),
             max_fee_per_gas: tx_request.max_fee_per_gas.map(Nat256::from),
@@ -78,7 +86,7 @@ impl From<alloy_rpc_types::TransactionRequest> for TransactionRequest {
                 .sidecar
                 .map(|sidecar| sidecar.blobs.into_iter().map(Hex::from).collect()),
             chain_id: tx_request.chain_id.map(Nat256::from),
-        }
+        })
     }
 }
 
