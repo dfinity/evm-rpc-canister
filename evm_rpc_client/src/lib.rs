@@ -292,7 +292,7 @@ impl<R> EvmRpcClient<R> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn call<T>(&self, params: impl TryInto<CallArgs>) -> CallRequestBuilder<R>
+    pub fn call<T>(&self, params: T) -> CallRequestBuilder<R>
     where
         T: TryInto<CallArgs>,
         <T as TryInto<CallArgs>>::Error: std::fmt::Debug,
