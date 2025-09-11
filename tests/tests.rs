@@ -770,11 +770,6 @@ async fn eth_get_logs_should_fail_when_block_range_too_large() {
 
 #[tokio::test]
 async fn eth_get_block_by_number_should_succeed() {
-    fn mock_request() -> JsonRpcRequestMatcher {
-        JsonRpcRequestMatcher::with_method("eth_getBlockByNumber")
-            .with_params(json!(["latest", false]))
-    }
-
     fn mock_response() -> JsonRpcResponse {
         JsonRpcResponse::from(json!({
             "jsonrpc": "2.0",
@@ -807,11 +802,11 @@ async fn eth_get_block_by_number_should_succeed() {
 
     for (source, offset) in iter::zip(RPC_SERVICES, (0_u64..).step_by(3)) {
         let mocks = MockHttpOutcallsBuilder::new()
-            .given(mock_request().with_id(offset))
+            .given(get_block_by_number_request().with_id(offset))
             .respond_with(mock_response().with_id(offset))
-            .given(mock_request().with_id(1 + offset))
+            .given(get_block_by_number_request().with_id(1 + offset))
             .respond_with(mock_response().with_id(1 + offset))
-            .given(mock_request().with_id(2 + offset))
+            .given(get_block_by_number_request().with_id(2 + offset))
             .respond_with(mock_response().with_id(2 + offset));
 
         let response = setup
@@ -862,11 +857,6 @@ async fn eth_get_block_by_number_should_succeed() {
 
 #[tokio::test]
 async fn eth_get_block_by_number_pre_london_fork_should_succeed() {
-    fn mock_request() -> JsonRpcRequestMatcher {
-        JsonRpcRequestMatcher::with_method("eth_getBlockByNumber")
-            .with_params(json!(["latest", false]))
-    }
-
     fn mock_response() -> JsonRpcResponse {
         JsonRpcResponse::from(json!({
            "jsonrpc":"2.0",
@@ -900,11 +890,11 @@ async fn eth_get_block_by_number_pre_london_fork_should_succeed() {
 
     for (source, offset) in iter::zip(RPC_SERVICES, (0_u64..).step_by(3)) {
         let mocks = MockHttpOutcallsBuilder::new()
-            .given(mock_request().with_id(offset))
+            .given(get_block_by_number_request().with_id(offset))
             .respond_with(mock_response().with_id(offset))
-            .given(mock_request().with_id(1 + offset))
+            .given(get_block_by_number_request().with_id(1 + offset))
             .respond_with(mock_response().with_id(1 + offset))
-            .given(mock_request().with_id(2 + offset))
+            .given(get_block_by_number_request().with_id(2 + offset))
             .respond_with(mock_response().with_id(2 + offset));
 
         let response = setup
@@ -955,11 +945,6 @@ async fn eth_get_block_by_number_pre_london_fork_should_succeed() {
 
 #[tokio::test]
 async fn eth_get_block_by_number_should_be_consistent_when_total_difficulty_inconsistent() {
-    fn mock_request() -> JsonRpcRequestMatcher {
-        JsonRpcRequestMatcher::with_method("eth_getBlockByNumber")
-            .with_params(json!(["latest", false]))
-    }
-
     fn mock_response(total_difficulty: Option<&str>) -> JsonRpcResponse {
         let mut body = json!({
            "jsonrpc":"2.0",
@@ -996,9 +981,9 @@ async fn eth_get_block_by_number_should_be_consistent_when_total_difficulty_inco
     let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
 
     let mocks = MockHttpOutcallsBuilder::new()
-        .given(mock_request().with_id(0_u64))
+        .given(get_block_by_number_request().with_id(0_u64))
         .respond_with(mock_response(Some("0xc70d815d562d3cfa955")).with_id(0_u64))
-        .given(mock_request().with_id(1_u64))
+        .given(get_block_by_number_request().with_id(1_u64))
         .respond_with(mock_response(None).with_id(1_u64));
 
     let response = setup
@@ -1139,14 +1124,6 @@ async fn eth_get_transaction_count_should_succeed() {
 
 #[tokio::test]
 async fn eth_fee_history_should_succeed() {
-    fn mock_request() -> JsonRpcRequestMatcher {
-        JsonRpcRequestMatcher::with_method("eth_feeHistory").with_params(json!([
-            "0x3",
-            "latest",
-            []
-        ]))
-    }
-
     fn mock_response() -> JsonRpcResponse {
         JsonRpcResponse::from(json!({
             "id" : 0,
@@ -1163,11 +1140,11 @@ async fn eth_fee_history_should_succeed() {
 
     for (source, offset) in iter::zip(RPC_SERVICES, (0_u64..).step_by(3)) {
         let mocks = MockHttpOutcallsBuilder::new()
-            .given(mock_request().with_id(offset))
+            .given(fee_history_request().with_id(offset))
             .respond_with(mock_response().with_id(offset))
-            .given(mock_request().with_id(1 + offset))
+            .given(fee_history_request().with_id(1 + offset))
             .respond_with(mock_response().with_id(1 + offset))
-            .given(mock_request().with_id(2 + offset))
+            .given(fee_history_request().with_id(2 + offset))
             .respond_with(mock_response().with_id(2 + offset));
 
         let response = setup
@@ -1196,11 +1173,6 @@ async fn eth_fee_history_should_succeed() {
 
 #[tokio::test]
 async fn eth_send_raw_transaction_should_succeed() {
-    fn mock_request() -> JsonRpcRequestMatcher {
-        JsonRpcRequestMatcher::with_method("eth_sendRawTransaction")
-            .with_params(json!([MOCK_TRANSACTION.to_string()]))
-    }
-
     fn mock_response() -> JsonRpcResponse {
         JsonRpcResponse::from(json!({ "id": 0, "jsonrpc": "2.0", "result": "Ok" }))
     }
@@ -1208,11 +1180,11 @@ async fn eth_send_raw_transaction_should_succeed() {
     let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
     for (source, offset) in iter::zip(RPC_SERVICES, (0_u64..).step_by(3)) {
         let mocks = MockHttpOutcallsBuilder::new()
-            .given(mock_request().with_id(offset))
+            .given(send_raw_transaction_request().with_id(offset))
             .respond_with(mock_response().with_id(offset))
-            .given(mock_request().with_id(1 + offset))
+            .given(send_raw_transaction_request().with_id(1 + offset))
             .respond_with(mock_response().with_id(1 + offset))
-            .given(mock_request().with_id(2 + offset))
+            .given(send_raw_transaction_request().with_id(2 + offset))
             .respond_with(mock_response().with_id(2 + offset));
 
         let response = setup
@@ -1506,17 +1478,12 @@ fn candid_rpc_should_reject_empty_service_list() {
 
 #[tokio::test]
 async fn candid_rpc_should_return_inconsistent_results() {
-    fn mock_request() -> JsonRpcRequestMatcher {
-        JsonRpcRequestMatcher::with_method("eth_sendRawTransaction")
-            .with_params(json!([MOCK_TRANSACTION.to_string()]))
-    }
-
     let mocks = MockHttpOutcallsBuilder::new()
-        .given(mock_request().with_id(0_u64))
+        .given(send_raw_transaction_request().with_id(0_u64))
         .respond_with(JsonRpcResponse::from(
             json!({ "id": 0, "jsonrpc": "2.0", "result": "Ok" }),
         ))
-        .given(mock_request().with_id(1_u64))
+        .given(send_raw_transaction_request().with_id(1_u64))
         .respond_with(JsonRpcResponse::from(
             json!({ "id": 1, "jsonrpc": "2.0", "result": "NonceTooLow" }),
         ));
@@ -1916,17 +1883,12 @@ async fn candid_rpc_should_return_inconsistent_results_with_unexpected_http_stat
 
 #[tokio::test]
 async fn candid_rpc_should_handle_already_known() {
-    fn mock_request() -> JsonRpcRequestMatcher {
-        JsonRpcRequestMatcher::with_method("eth_sendRawTransaction")
-            .with_params(json!([MOCK_TRANSACTION.to_string()]))
-    }
-
     let mocks = MockHttpOutcallsBuilder::new()
-        .given(mock_request().with_id(0_u64))
+        .given(send_raw_transaction_request().with_id(0_u64))
         .respond_with(JsonRpcResponse::from(
             json!({ "id": 0, "jsonrpc": "2.0", "result": "Ok" }),
         ))
-        .given(mock_request().with_id(1_u64))
+        .given(send_raw_transaction_request().with_id(1_u64))
         .respond_with(JsonRpcResponse::from(
             json!({ "id": 1, "jsonrpc": "2.0", "error": {"code": -32000, "message": "already known"} }),
         ));
@@ -1963,15 +1925,10 @@ async fn candid_rpc_should_handle_already_known() {
 
 #[tokio::test]
 async fn candid_rpc_should_recognize_rate_limit() {
-    fn mock_request() -> JsonRpcRequestMatcher {
-        JsonRpcRequestMatcher::with_method("eth_sendRawTransaction")
-            .with_params(json!([MOCK_TRANSACTION.to_string()]))
-    }
-
     let mocks = MockHttpOutcallsBuilder::new()
-        .given(mock_request().with_id(0_u64))
+        .given(send_raw_transaction_request().with_id(0_u64))
         .respond_with(CanisterHttpReply::with_status(429).with_body("(Rate limit error message)"))
-        .given(mock_request().with_id(1_u64))
+        .given(send_raw_transaction_request().with_id(1_u64))
         .respond_with(CanisterHttpReply::with_status(429).with_body("(Rate limit error message)"));
 
     let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
@@ -2623,12 +2580,6 @@ async fn should_fail_when_response_id_inconsistent_with_request_id() {
 
 #[tokio::test]
 async fn should_log_request() {
-    fn mock_request() -> JsonRpcRequestMatcher {
-        JsonRpcRequestMatcher::with_method("eth_feeHistory")
-            .with_params(json!(["0x3", "latest", []]))
-            .with_id(0_u64)
-    }
-
     fn mock_response() -> JsonRpcResponse {
         JsonRpcResponse::from(json!({
             "id" : 0,
@@ -2644,7 +2595,7 @@ async fn should_log_request() {
     let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
 
     let mocks = MockHttpOutcallsBuilder::new()
-        .given(mock_request())
+        .given(fee_history_request())
         .respond_with(mock_response());
 
     let response = setup
@@ -2788,6 +2739,24 @@ async fn should_change_default_provider_when_one_keeps_failing() {
         .expect_consistent()
         .unwrap();
     assert_eq!(response, U256::ONE);
+}
+
+fn get_block_by_number_request() -> JsonRpcRequestMatcher {
+    JsonRpcRequestMatcher::with_method("eth_getBlockByNumber")
+        .with_params(json!(["latest", false]))
+        .with_id(0_u64)
+}
+
+fn fee_history_request() -> JsonRpcRequestMatcher {
+    JsonRpcRequestMatcher::with_method("eth_feeHistory")
+        .with_params(json!(["0x3", "latest", []]))
+        .with_id(0_u64)
+}
+
+fn send_raw_transaction_request() -> JsonRpcRequestMatcher {
+    JsonRpcRequestMatcher::with_method("eth_sendRawTransaction")
+        .with_params(json!([MOCK_TRANSACTION.to_string()]))
+        .with_id(0_u64)
 }
 
 fn get_transaction_count_request() -> JsonRpcRequestMatcher {
