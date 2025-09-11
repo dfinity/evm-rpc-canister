@@ -9,6 +9,38 @@ use std::fmt::{Debug, Formatter};
 use strum::EnumIter;
 
 #[derive(Debug, Clone)]
+pub struct GetBlockByNumberRequest(BlockTag);
+
+impl GetBlockByNumberRequest {
+    pub fn new(params: BlockTag) -> Self {
+        Self(params)
+    }
+}
+
+impl EvmRpcRequest for GetBlockByNumberRequest {
+    type Config = RpcConfig;
+    type Params = BlockTag;
+    type CandidOutput = MultiRpcResult<evm_rpc_types::Block>;
+    type Output = MultiRpcResult<alloy_rpc_types::Block>;
+
+    fn endpoint(&self) -> EvmRpcEndpoint {
+        EvmRpcEndpoint::GetBlockByNumber
+    }
+
+    fn params(self) -> Self::Params {
+        self.0
+    }
+}
+
+pub type GetBlockByNumberRequestBuilder<R> = RequestBuilder<
+    R,
+    RpcConfig,
+    BlockTag,
+    MultiRpcResult<evm_rpc_types::Block>,
+    MultiRpcResult<alloy_rpc_types::Block>,
+>;
+
+#[derive(Debug, Clone)]
 pub struct GetLogsRequest(GetLogsArgs);
 
 impl GetLogsRequest {
@@ -92,6 +124,8 @@ pub trait EvmRpcRequest {
 /// Endpoint on the EVM RPC canister triggering a call to EVM providers.
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, EnumIter)]
 pub enum EvmRpcEndpoint {
+    /// `eth_getBlockByNumber` endpoint.
+    GetBlockByNumber,
     /// `eth_getLogs` endpoint.
     GetLogs,
 }
@@ -100,6 +134,7 @@ impl EvmRpcEndpoint {
     /// Method name on the EVM RPC canister
     pub fn rpc_method(&self) -> &'static str {
         match &self {
+            Self::GetBlockByNumber => "eth_getBlockByNumber",
             Self::GetLogs => "eth_getLogs",
         }
     }
