@@ -1,4 +1,4 @@
-use crate::{Block, Hex, Hex20, Hex256, Hex32, LogEntry, Nat256};
+use crate::{Block, FeeHistory, Hex, Hex20, Hex256, Hex32, LogEntry, Nat256};
 use num_bigint::BigUint;
 use proptest::{
     arbitrary::any,
@@ -60,6 +60,16 @@ mod alloy_conversion_tests {
 
             prop_assert_eq!(canonicalize_difficulty(serialized), canonicalize_block(alloy_serialized));
         }
+
+        #[test]
+        fn should_convert_fee_history_to_alloy(fee_history in arb_fee_history()) {
+            let serialized = serde_json::to_value(&fee_history).unwrap();
+
+            let alloy_fee_history = alloy_rpc_types::FeeHistory::try_from(fee_history.clone()).unwrap();
+            let alloy_serialized = serde_json::to_value(&alloy_fee_history).unwrap();
+
+            prop_assert_eq!(serialized, canonicalize_fee_history(alloy_serialized));
+        }
     }
 
     fn canonicalize_log(mut serialized_log: Value) -> Value {
@@ -68,6 +78,28 @@ mod alloy_conversion_tests {
         hex_to_u32_digits(&mut serialized_log, "logIndex");
         hex_to_u32_digits(&mut serialized_log, "blockNumber");
         serialized_log
+    }
+
+    fn canonicalize_fee_history(mut serialized_fee_history: Value) -> Value {
+        // Convert hex-encoded numerical values to arrays of `u32` digits.
+        hex_to_u32_digits(&mut serialized_fee_history, "oldestBlock");
+        // Convert hex-encoded arrays of numerical values to contain arrays of `u32` digits.
+        fn f(v: &mut Value) {
+            if let Value::String(hex) = v {
+                let hex = hex.strip_prefix("0x").unwrap_or(hex);
+                *v = BigUint::parse_bytes(hex.as_bytes(), 16)
+                    .unwrap()
+                    .to_u32_digits()
+                    .into();
+            }
+        }
+        traverse_nested_array(serialized_fee_history.get_mut("baseFeePerGas"), &f);
+        traverse_nested_array(serialized_fee_history.get_mut("reward"), &f);
+        // Add `[]` for values that alloy skips during serialization when they are empty.
+        add_empty_if_absent(&mut serialized_fee_history, "baseFeePerGas");
+        add_empty_if_absent(&mut serialized_fee_history, "gasUsedRatio");
+        add_empty_if_absent(&mut serialized_fee_history, "reward");
+        serialized_fee_history
     }
 
     fn canonicalize_block(mut serialized_block: Value) -> Value {
@@ -99,6 +131,22 @@ mod alloy_conversion_tests {
             (PARIS_BLOCK..).prop_map(Nat256::from),
             option::of(Just(Nat256::ZERO)),
         )
+    }
+
+    prop_compose! {
+        fn arb_fee_history()(
+            oldest_block in arb_u64(),
+            base_fee_per_gas in vec(arb_u128(), 0..10),
+            gas_used_ratio in vec(any::<f64>(), 0..10),
+            reward in vec(vec(arb_u128(), 0..10), 0..10),
+        ) -> FeeHistory {
+            FeeHistory {
+                oldest_block,
+                base_fee_per_gas,
+                gas_used_ratio,
+                reward,
+            }
+        }
     }
 
     prop_compose! {
@@ -189,6 +237,11 @@ mod alloy_conversion_tests {
         any::<u64>().prop_map(Nat256::from)
     }
 
+    // `u128` wrapped in a `Nat256`
+    fn arb_u128() -> impl Strategy<Value = Nat256> {
+        any::<u128>().prop_map(Nat256::from)
+    }
+
     fn arb_nat256() -> impl Strategy<Value = Nat256> {
         any::<[u8; 32]>().prop_map(Nat256::from_be_bytes)
     }
@@ -230,6 +283,28 @@ mod alloy_conversion_tests {
     fn add_null_if_absent(serialized: &mut Value, field: &str) {
         if serialized.get(field).is_none() {
             serialized[field] = Value::Null;
+        }
+    }
+
+    // This method checks if the given `serde_json` contains the given field, and if not, sets its
+    // value to `serde_json::Value::Array([])`.
+    // This is needed to compare serialized values because some fields are skipped during
+    // serialization in `alloy_rpc_types` but not `evm_rpc_types`
+    fn add_empty_if_absent(serialized: &mut Value, field: &str) {
+        if serialized.get(field).is_none() {
+            serialized[field] = Value::Array(Vec::<Value>::new());
+        }
+    }
+
+    fn traverse_nested_array(v: Option<&mut Value>, f: &impl Fn(&mut Value)) {
+        if let Some(Value::Array(ref mut values)) = v {
+            for value in values.iter_mut() {
+                if let Value::Array(_) = value {
+                    traverse_nested_array(Some(value), f)
+                } else {
+                    f(value);
+                }
+            }
         }
     }
 }

@@ -1,12 +1,19 @@
-use crate::mock_http_runtime::mock::MockHttpOutcalls;
-use crate::mock_http_runtime::MockHttpRuntime;
-use crate::{DEFAULT_CALLER_TEST_ID, DEFAULT_CONTROLLER_TEST_ID, INITIAL_CYCLES, MOCK_API_KEY};
-use candid::{Encode, Principal};
-use evm_rpc::providers::PROVIDERS;
-use evm_rpc::types::{ProviderId, RpcAccess};
+use crate::{
+    assert_reply,
+    mock_http_runtime::{mock::MockHttpOutcalls, MockHttpRuntime},
+    DEFAULT_CALLER_TEST_ID, DEFAULT_CONTROLLER_TEST_ID, INITIAL_CYCLES, MOCK_API_KEY,
+};
+use candid::{Decode, Encode, Principal};
+use canlog::{Log, LogEntry};
+use evm_rpc::{
+    logs::Priority,
+    providers::PROVIDERS,
+    types::{ProviderId, RpcAccess},
+};
 use evm_rpc_client::{ClientBuilder, EvmRpcClient};
 use evm_rpc_types::InstallArgs;
 use ic_cdk::api::management_canister::main::CanisterId;
+use ic_http_types::{HttpRequest, HttpResponse};
 use ic_management_canister_types::CanisterSettings;
 use pocket_ic::{nonblocking, PocketIcBuilder};
 use std::sync::{Arc, Mutex};
@@ -113,5 +120,31 @@ impl EvmRpcNonblockingSetup {
             )
             .await;
         self
+    }
+
+    pub async fn http_get_logs(&self, priority: &str) -> Vec<LogEntry<Priority>> {
+        let request = HttpRequest {
+            method: "".to_string(),
+            url: format!("/logs?priority={priority}"),
+            headers: vec![],
+            body: serde_bytes::ByteBuf::new(),
+        };
+        let response = Decode!(
+            &assert_reply(
+                self.env
+                    .query_call(
+                        self.canister_id,
+                        Principal::anonymous(),
+                        "http_request",
+                        Encode!(&request).unwrap()
+                    )
+                    .await
+            ),
+            HttpResponse
+        )
+        .unwrap();
+        serde_json::from_slice::<Log<Priority>>(&response.body)
+            .expect("failed to parse EVM_RPC minter log")
+            .entries
     }
 }

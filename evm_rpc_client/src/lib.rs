@@ -184,10 +184,13 @@ mod request;
 mod runtime;
 
 use crate::request::{
-    GetBlockByNumberRequest, GetBlockByNumberRequestBuilder, Request, RequestBuilder,
+    FeeHistoryRequest, FeeHistoryRequestBuilder, GetBlockByNumberRequest,
+    GetBlockByNumberRequestBuilder, Request, RequestBuilder,
 };
 use candid::{CandidType, Principal};
-use evm_rpc_types::{BlockTag, ConsensusStrategy, GetLogsArgs, RpcConfig, RpcServices};
+use evm_rpc_types::{
+    BlockTag, ConsensusStrategy, FeeHistoryArgs, GetLogsArgs, RpcConfig, RpcServices,
+};
 use ic_error_types::RejectCode;
 use request::{GetLogsRequest, GetLogsRequestBuilder};
 pub use runtime::{IcRuntime, Runtime};
@@ -378,6 +381,80 @@ impl<R> EvmRpcClient<R> {
         RequestBuilder::new(
             self.clone(),
             GetBlockByNumberRequest::new(params.into()),
+            10_000_000_000,
+        )
+    }
+
+    /// Call `eth_feeHistory` on the EVM RPC canister.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use alloy_rpc_types::BlockNumberOrTag;
+    /// use evm_rpc_client::EvmRpcClient;
+    ///
+    /// # use alloy_primitives::b256;
+    /// # use evm_rpc_types::{FeeHistory, MultiRpcResult};
+    /// # use std::str::FromStr;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = EvmRpcClient::builder_for_ic()
+    /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(FeeHistory {
+    /// #       oldest_block: 0x1627fb8_u64.into(),
+    /// #       base_fee_per_gas: vec![
+    /// #           0x2e9d4aab_u128.into(),
+    /// #           0x2fcec030_u128.into(),
+    /// #           0x2ea50b1a_u128.into(),
+    /// #           0x2e0a7fbd_u128.into(),
+    /// #       ],
+    /// #       gas_used_ratio: vec![
+    /// #           0.6023888561516908_f64,
+    /// #           0.4027000776793981,
+    /// #           0.44823085535879276,
+    /// #       ],
+    /// #       reward: vec![
+    /// #           vec![0xe4e1c0_u128.into(), 0x05f5e100_u128.into(), 0x59682f00_u128.into()],
+    /// #           vec![0x011170_u128.into(), 0x05d628d0_u128.into(), 0x77359400_u128.into()],
+    /// #           vec![0x0222e0_u128.into(), 0x3b9aca00_u128.into(), 0x77359400_u128.into()],
+    /// #       ],
+    /// #   })))
+    ///     .build();
+    ///
+    /// let result = client
+    ///     .fee_history((0x3_u64, BlockNumberOrTag::Latest))
+    ///     .send()
+    ///     .await
+    ///     .expect_consistent()
+    ///     .unwrap();
+    ///
+    /// assert_eq!(result, alloy_rpc_types::FeeHistory {
+    ///     oldest_block: 0x1627fb8_u64.into(),
+    ///     base_fee_per_gas: vec![
+    ///         0x2e9d4aab_u128,
+    ///         0x2fcec030,
+    ///         0x2ea50b1a,
+    ///         0x2e0a7fbd,
+    ///     ],
+    ///     gas_used_ratio: vec![
+    ///         0.6023888561516908_f64,
+    ///         0.4027000776793981,
+    ///         0.44823085535879276,
+    ///     ],
+    ///     reward: Some(vec![
+    ///         vec![0xe4e1c0_u128, 0x05f5e100, 0x59682f00],
+    ///         vec![0x011170_u128, 0x05d628d0, 0x77359400],
+    ///         vec![0x0222e0_u128, 0x3b9aca00, 0x77359400],
+    ///     ]),
+    ///     base_fee_per_blob_gas: vec![],
+    ///     blob_gas_used_ratio: vec![],
+    /// });
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn fee_history(&self, params: impl Into<FeeHistoryArgs>) -> FeeHistoryRequestBuilder<R> {
+        RequestBuilder::new(
+            self.clone(),
+            FeeHistoryRequest::new(params.into()),
             10_000_000_000,
         )
     }
