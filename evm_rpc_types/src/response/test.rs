@@ -29,7 +29,7 @@ mod alloy_conversion_tests {
             let alloy_log = alloy_rpc_types::Log::try_from(entry.clone()).unwrap();
             let alloy_serialized = serde_json::to_value(&alloy_log).unwrap();
 
-            prop_assert_eq!(canonicalize_log(serialized), canonicalize_log(alloy_serialized));
+            prop_assert_eq!(serialized, canonicalize_log(alloy_serialized));
         }
 
         #[test]
@@ -39,17 +39,26 @@ mod alloy_conversion_tests {
             let alloy_block = alloy_rpc_types::Block::try_from(block.clone()).unwrap();
             let alloy_serialized = serde_json::to_value(&alloy_block).unwrap();
 
-            prop_assert_eq!(canonicalize_block(serialized), canonicalize_block(alloy_serialized));
+            prop_assert_eq!(serialized, canonicalize_block(alloy_serialized));
         }
 
         #[test]
         fn should_convert_post_paris_block_to_alloy(block in arb_post_paris_block()) {
+            // For post-Paris blocks, the difficulty field is optional. However, the `difficulty` field
+            // is mandatory in the `alloy_rpc_types::Block` type. Therefore, convert `null` values to 0.
+            fn canonicalize_difficulty (mut serialized_block: Value) -> Value {
+                if let Some(Value::Null) = serialized_block.get("difficulty") {
+                    serialized_block["difficulty"] = Value::from(Vec::<Value>::new());
+                }
+                serialized_block
+            }
+
             let serialized = serde_json::to_value(&block).unwrap();
 
             let alloy_block = alloy_rpc_types::Block::try_from(block.clone()).unwrap();
             let alloy_serialized = serde_json::to_value(&alloy_block).unwrap();
 
-            prop_assert_eq!(canonicalize_block(serialized), canonicalize_block(alloy_serialized));
+            prop_assert_eq!(canonicalize_difficulty(serialized), canonicalize_block(alloy_serialized));
         }
     }
 
@@ -62,11 +71,6 @@ mod alloy_conversion_tests {
     }
 
     fn canonicalize_block(mut serialized_block: Value) -> Value {
-        // For post-Paris blocks, the difficulty field is optional. However, the `difficulty` field
-        // is mandatory in the `alloy_rpc_types::Block` type. Therefore, convert `null` values to 0.
-        if let Some(Value::Null) = serialized_block.get("difficulty") {
-            serialized_block["difficulty"] = Value::from("0x0");
-        }
         // Convert hex-encoded numerical values to arrays of `u32` digits.
         hex_to_u32_digits(&mut serialized_block, "baseFeePerGas");
         hex_to_u32_digits(&mut serialized_block, "number");
