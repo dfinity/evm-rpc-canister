@@ -1,4 +1,7 @@
-use crate::{Block, FeeHistory, Hex, LogEntry, MultiRpcResult, Nat256};
+use crate::{
+    Block, FeeHistory, Hex, JsonRpcError, LogEntry, MultiRpcResult, Nat256, RpcError,
+    SendRawTransactionStatus,
+};
 
 impl From<MultiRpcResult<Vec<LogEntry>>> for MultiRpcResult<Vec<alloy_rpc_types::Log>> {
     fn from(result: MultiRpcResult<Vec<LogEntry>>) -> Self {
@@ -31,5 +34,27 @@ impl From<MultiRpcResult<Nat256>> for MultiRpcResult<alloy_primitives::U256> {
 impl From<MultiRpcResult<Hex>> for MultiRpcResult<alloy_primitives::Bytes> {
     fn from(result: MultiRpcResult<Hex>) -> Self {
         result.map(alloy_primitives::Bytes::from)
+    }
+}
+
+impl From<MultiRpcResult<SendRawTransactionStatus>>
+    for MultiRpcResult<Option<alloy_primitives::B256>>
+{
+    fn from(result: MultiRpcResult<SendRawTransactionStatus>) -> Self {
+        result.and_then(|status| match status {
+            SendRawTransactionStatus::Ok(maybe_hash) => {
+                Ok(maybe_hash.map(alloy_primitives::B256::from))
+            }
+            error => Err(RpcError::JsonRpcError(JsonRpcError {
+                code: -32_000,
+                message: match error {
+                    SendRawTransactionStatus::Ok(_) => unreachable!(),
+                    SendRawTransactionStatus::InsufficientFunds => "Insufficient funds",
+                    SendRawTransactionStatus::NonceTooLow => "Nonce too low",
+                    SendRawTransactionStatus::NonceTooHigh => "Nonce too high",
+                }
+                .to_string(),
+            })),
+        })
     }
 }

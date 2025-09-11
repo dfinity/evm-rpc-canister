@@ -110,12 +110,13 @@ mod runtime;
 use crate::request::{
     CallRequest, CallRequestBuilder, FeeHistoryRequest, FeeHistoryRequestBuilder,
     GetBlockByNumberRequest, GetBlockByNumberRequestBuilder, GetTransactionCountRequest,
-    GetTransactionCountRequestBuilder, Request, RequestBuilder,
+    GetTransactionCountRequestBuilder, Request, RequestBuilder, SendRawTransactionRequest,
+    SendRawTransactionRequestBuilder,
 };
 use candid::{CandidType, Principal};
 use evm_rpc_types::{
     BlockTag, CallArgs, ConsensusStrategy, FeeHistoryArgs, GetLogsArgs, GetTransactionCountArgs,
-    RpcConfig, RpcServices,
+    Hex, RpcConfig, RpcServices,
 };
 use ic_error_types::RejectCode;
 use request::{GetLogsRequest, GetLogsRequestBuilder};
@@ -550,6 +551,44 @@ impl<R> EvmRpcClient<R> {
         RequestBuilder::new(
             self.clone(),
             GetTransactionCountRequest::new(params.into()),
+            10_000_000_000,
+        )
+    }
+
+    /// Call `eth_sendRawTransaction` on the EVM RPC canister.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use alloy_primitives::{b256, bytes};
+    /// use evm_rpc_client::EvmRpcClient;
+    ///
+    /// # use evm_rpc_types::{MultiRpcResult, Hex32};
+    /// # use std::str::FromStr;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// use evm_rpc_types::SendRawTransactionStatus;
+    /// let client = EvmRpcClient::builder_for_ic()
+    /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(SendRawTransactionStatus::Ok(Some(Hex32::from_str("0x5f1d3e4f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d").unwrap())))))
+    ///     .build();
+    ///
+    /// let result = client
+    ///     .send_raw_transaction(bytes!("0xd46e8dd67c5d32be8d46e8dd67c5d32be8058bb8eb970870f072445675058bb8eb970870f072445675"))
+    ///     .send()
+    ///     .await
+    ///     .expect_consistent();
+    ///
+    /// assert_eq!(result, Ok(Some(b256!("0x5f1d3e4f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d"))));
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn send_raw_transaction(
+        &self,
+        params: impl Into<Hex>,
+    ) -> SendRawTransactionRequestBuilder<R> {
+        RequestBuilder::new(
+            self.clone(),
+            SendRawTransactionRequest::new(params.into()),
             10_000_000_000,
         )
     }
