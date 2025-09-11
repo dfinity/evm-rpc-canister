@@ -136,18 +136,26 @@ where
                 .on_error(
                     |req_data: MetricData, error: &HttpClientError| match error {
                         HttpClientError::IcError(IcError { code, message }) => {
-                            add_metric_entry!(
-                                err_http_outcall,
-                                (req_data.method, req_data.host, LegacyRejectionCode::from(*code)),
-                                1
-                            );
-                            log!(
-                                Priority::TraceHttp,
-                                "IC Error for request with id `{}` with code `{}` and message `{}`",
-                                req_data.request_id,
-                                code,
-                                message,
-                            );
+                            if error.is_response_too_large() {
+                                add_metric_entry!(
+                                    err_max_response_size_exceeded,
+                                    (req_data.method, req_data.host),
+                                    1
+                                );
+                            } else {
+                                add_metric_entry!(
+                                    err_http_outcall,
+                                    (req_data.method, req_data.host, LegacyRejectionCode::from(*code)),
+                                    1
+                                );
+                                log!(
+                                    Priority::TraceHttp,
+                                    "IC Error for request with id `{}` with code `{}` and message `{}`",
+                                    req_data.request_id,
+                                    code,
+                                    message,
+                                );
+                            }
                         }
                         HttpClientError::UnsuccessfulHttpResponse(
                             FilterNonSuccessfulHttpResponseError::UnsuccessfulResponse(response),
@@ -193,8 +201,7 @@ where
                             log!(Priority::Info, "BUG: Unexpected error: {}", e);
                         }
                         HttpClientError::CyclesAccountingError(_) => {}
-                    },
-                ),
+                    }),
         )
         .filter_response(CreateJsonRpcIdFilter::new())
         .layer(service_request_builder())
