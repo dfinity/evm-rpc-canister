@@ -569,16 +569,16 @@ impl<R> EvmRpcClient<R> {
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// use evm_rpc_types::SendRawTransactionStatus;
     /// let client = EvmRpcClient::builder_for_ic()
-    /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(SendRawTransactionStatus::Ok(Some(Hex32::from_str("0x5f1d3e4f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d").unwrap())))))
+    /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(SendRawTransactionStatus::Ok(Some(Hex32::from_str("0x33469b22e9f636356c4160a87eb19df52b7412e8eac32a4a55ffe88ea8350788").unwrap())))))
     ///     .build();
     ///
     /// let result = client
-    ///     .send_raw_transaction(bytes!("0xd46e8dd67c5d32be8d46e8dd67c5d32be8058bb8eb970870f072445675058bb8eb970870f072445675"))
+    ///     .send_raw_transaction(bytes!("0xf86c098504a817c800825208943535353535353535353535353535353535353535880de0b6b3a76400008025a028ef61340bd939bc2195fe537567866003e1a15d3c71ff63e1590620aa636276a067cbe9d8997f761aecb703304b3800ccf555c9f3dc64214b297fb1966a3b6d83"))
     ///     .send()
     ///     .await
     ///     .expect_consistent();
     ///
-    /// assert_eq!(result, Ok(Some(b256!("0x5f1d3e4f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d"))));
+    /// assert_eq!(result, Ok(Some(b256!("0x33469b22e9f636356c4160a87eb19df52b7412e8eac32a4a55ffe88ea8350788"))));
     /// # Ok(())
     /// # }
     /// ```

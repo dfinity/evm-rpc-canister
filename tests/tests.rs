@@ -10,7 +10,7 @@ use crate::{
     },
     setup::EvmRpcNonblockingSetup,
 };
-use alloy_primitives::{address, b256, bloom, bytes, U256};
+use alloy_primitives::{address, b256, bloom, bytes, Bytes, B256, U256};
 use alloy_rpc_types::{BlockNumberOrTag, BlockTransactions};
 use assert_matches::assert_matches;
 use candid::{CandidType, Decode, Encode, Nat, Principal};
@@ -23,10 +23,9 @@ use evm_rpc::{
     types::{Metrics, ProviderId, RpcAccess, RpcMethod},
 };
 use evm_rpc_types::{
-    BlockTag, ConsensusStrategy, EthMainnetService, EthSepoliaService, GetLogsRpcConfig, Hex,
-    Hex20, Hex32, HttpOutcallError, InstallArgs, JsonRpcError, LegacyRejectionCode, MultiRpcResult,
-    Nat256, Provider, ProviderError, RpcApi, RpcError, RpcResult, RpcService, RpcServices,
-    ValidationError,
+    BlockTag, ConsensusStrategy, EthMainnetService, EthSepoliaService, GetLogsRpcConfig, Hex20,
+    HttpOutcallError, InstallArgs, JsonRpcError, LegacyRejectionCode, MultiRpcResult, Nat256,
+    Provider, ProviderError, RpcApi, RpcError, RpcResult, RpcService, RpcServices, ValidationError,
 };
 use ic_cdk::api::management_canister::main::CanisterId;
 use ic_error_types::RejectCode;
@@ -57,9 +56,9 @@ const MOCK_REQUEST_RESPONSE: &str = r#"{"jsonrpc":"2.0","id":1,"result":"0x00112
 const MOCK_REQUEST_RESPONSE_BYTES: u64 = 1000;
 const MOCK_API_KEY: &str = "mock-api-key";
 
-const MOCK_TRANSACTION: &str = "0xf86c098504a817c800825208943535353535353535353535353535353535353535880de0b6b3a76400008025a028ef61340bd939bc2195fe537567866003e1a15d3c71ff63e1590620aa636276a067cbe9d8997f761aecb703304b3800ccf555c9f3dc64214b297fb1966a3b6d83";
-const MOCK_TRANSACTION_HASH: &str =
-    "0x33469b22e9f636356c4160a87eb19df52b7412e8eac32a4a55ffe88ea8350788";
+const MOCK_TRANSACTION: Bytes = bytes!("0xf86c098504a817c800825208943535353535353535353535353535353535353535880de0b6b3a76400008025a028ef61340bd939bc2195fe537567866003e1a15d3c71ff63e1590620aa636276a067cbe9d8997f761aecb703304b3800ccf555c9f3dc64214b297fb1966a3b6d83");
+const MOCK_TRANSACTION_HASH: B256 =
+    b256!("0x33469b22e9f636356c4160a87eb19df52b7412e8eac32a4a55ffe88ea8350788");
 
 const RPC_SERVICES: &[RpcServices] = &[
     RpcServices::EthMainnet(None),
@@ -251,19 +250,6 @@ impl EvmRpcSetup {
         self.call_update(
             "eth_getTransactionReceipt",
             Encode!(&source, &config, &tx_hash).unwrap(),
-        )
-    }
-
-    pub fn eth_send_raw_transaction(
-        &self,
-        source: RpcServices,
-        config: Option<evm_rpc_types::RpcConfig>,
-        signed_raw_transaction_hex: &str,
-    ) -> CallFlow<MultiRpcResult<evm_rpc_types::SendRawTransactionStatus>> {
-        let signed_raw_transaction_hex: Hex = signed_raw_transaction_hex.parse().unwrap();
-        self.call_update(
-            "eth_sendRawTransaction",
-            Encode!(&source, &config, &signed_raw_transaction_hex).unwrap(),
         )
     }
 
@@ -1208,26 +1194,38 @@ async fn eth_fee_history_should_succeed() {
     }
 }
 
-#[test]
-fn eth_send_raw_transaction_should_succeed() {
-    let [response_0, response_1, response_2] =
-        json_rpc_sequential_id(json!({"id":0,"jsonrpc":"2.0","result":"Ok"}));
-    for source in RPC_SERVICES {
-        let setup = EvmRpcSetup::new().mock_api_keys();
+#[tokio::test]
+async fn eth_send_raw_transaction_should_succeed() {
+    fn mock_request() -> JsonRpcRequestMatcher {
+        JsonRpcRequestMatcher::with_method("eth_sendRawTransaction")
+            .with_params(json!([MOCK_TRANSACTION.to_string()]))
+    }
+
+    fn mock_response() -> JsonRpcResponse {
+        JsonRpcResponse::from(json!({ "id": 0, "jsonrpc": "2.0", "result": "Ok" }))
+    }
+
+    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    for (source, offset) in iter::zip(RPC_SERVICES, (0_u64..).step_by(3)) {
+        let mocks = MockHttpOutcallsBuilder::new()
+            .given(mock_request().with_id(offset))
+            .respond_with(mock_response().with_id(offset))
+            .given(mock_request().with_id(1 + offset))
+            .respond_with(mock_response().with_id(1 + offset))
+            .given(mock_request().with_id(2 + offset))
+            .respond_with(mock_response().with_id(2 + offset));
+
         let response = setup
-            .eth_send_raw_transaction(source.clone(), None, MOCK_TRANSACTION)
-            .mock_http_once(MockOutcallBuilder::new(200, response_0.clone()))
-            .mock_http_once(MockOutcallBuilder::new(200, response_1.clone()))
-            .mock_http_once(MockOutcallBuilder::new(200, response_2.clone()))
-            .wait()
+            .client(mocks)
+            .with_rpc_sources(source.clone())
+            .build()
+            .send_raw_transaction(MOCK_TRANSACTION)
+            .send()
+            .await
             .expect_consistent()
             .unwrap();
-        assert_eq!(
-            response,
-            evm_rpc_types::SendRawTransactionStatus::Ok(Some(
-                Hex32::from_str(MOCK_TRANSACTION_HASH).unwrap()
-            ))
-        );
+
+        assert_eq!(response, Some(MOCK_TRANSACTION_HASH));
     }
 }
 
@@ -1506,46 +1504,54 @@ fn candid_rpc_should_reject_empty_service_list() {
     );
 }
 
-#[test]
-fn candid_rpc_should_return_inconsistent_results() {
-    let setup = EvmRpcSetup::new().mock_api_keys();
+#[tokio::test]
+async fn candid_rpc_should_return_inconsistent_results() {
+    fn mock_request() -> JsonRpcRequestMatcher {
+        JsonRpcRequestMatcher::with_method("eth_sendRawTransaction")
+            .with_params(json!([MOCK_TRANSACTION.to_string()]))
+    }
+
+    let mocks = MockHttpOutcallsBuilder::new()
+        .given(mock_request().with_id(0_u64))
+        .respond_with(JsonRpcResponse::from(
+            json!({ "id": 0, "jsonrpc": "2.0", "result": "Ok" }),
+        ))
+        .given(mock_request().with_id(1_u64))
+        .respond_with(JsonRpcResponse::from(
+            json!({ "id": 1, "jsonrpc": "2.0", "result": "NonceTooLow" }),
+        ));
+
+    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
     let results = setup
-        .eth_send_raw_transaction(
-            RpcServices::EthMainnet(Some(vec![
-                EthMainnetService::Ankr,
-                EthMainnetService::Cloudflare,
-            ])),
-            None,
-            MOCK_TRANSACTION,
-        )
-        .mock_http_once(MockOutcallBuilder::new(
-            200,
-            r#"{"id":0,"jsonrpc":"2.0","result":"Ok"}"#,
-        ))
-        .mock_http_once(MockOutcallBuilder::new(
-            200,
-            r#"{"id":1,"jsonrpc":"2.0","result":"NonceTooLow"}"#,
-        ))
-        .wait()
+        .client(mocks)
+        .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
+            EthMainnetService::Ankr,
+            EthMainnetService::Cloudflare,
+        ])))
+        .build()
+        .send_raw_transaction(MOCK_TRANSACTION)
+        .send()
+        .await
         .expect_inconsistent();
     assert_eq!(
         results,
         vec![
             (
                 RpcService::EthMainnet(EthMainnetService::Ankr),
-                Ok(evm_rpc_types::SendRawTransactionStatus::Ok(Some(
-                    Hex32::from_str(MOCK_TRANSACTION_HASH).unwrap()
-                )))
+                Ok(Some(MOCK_TRANSACTION_HASH))
             ),
             (
                 RpcService::EthMainnet(EthMainnetService::Cloudflare),
-                Ok(evm_rpc_types::SendRawTransactionStatus::NonceTooLow)
+                Err(RpcError::JsonRpcError(JsonRpcError {
+                    code: -32_000,
+                    message: "Nonce too low".to_string()
+                }))
             )
         ]
     );
     let rpc_method = || RpcMethod::EthSendRawTransaction.into();
     assert_eq!(
-        setup.get_metrics(),
+        setup.get_metrics().await,
         Metrics {
             requests: hashmap! {
                 (rpc_method(), ANKR_HOSTNAME.into()) => 1,
@@ -1908,37 +1914,39 @@ async fn candid_rpc_should_return_inconsistent_results_with_unexpected_http_stat
     );
 }
 
-#[test]
-fn candid_rpc_should_handle_already_known() {
-    let setup = EvmRpcSetup::new().mock_api_keys();
+#[tokio::test]
+async fn candid_rpc_should_handle_already_known() {
+    fn mock_request() -> JsonRpcRequestMatcher {
+        JsonRpcRequestMatcher::with_method("eth_sendRawTransaction")
+            .with_params(json!([MOCK_TRANSACTION.to_string()]))
+    }
+
+    let mocks = MockHttpOutcallsBuilder::new()
+        .given(mock_request().with_id(0_u64))
+        .respond_with(JsonRpcResponse::from(
+            json!({ "id": 0, "jsonrpc": "2.0", "result": "Ok" }),
+        ))
+        .given(mock_request().with_id(1_u64))
+        .respond_with(JsonRpcResponse::from(
+            json!({ "id": 1, "jsonrpc": "2.0", "error": {"code": -32000, "message": "already known"} }),
+        ));
+
+    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
     let result = setup
-        .eth_send_raw_transaction(
-            RpcServices::EthMainnet(Some(vec![
-                EthMainnetService::Ankr,
-                EthMainnetService::Cloudflare,
-            ])),
-            None,
-            MOCK_TRANSACTION,
-        )
-        .mock_http_once(MockOutcallBuilder::new(
-            200,
-            r#"{"id":0,"jsonrpc":"2.0","result":"Ok"}"#,
-        ))
-        .mock_http_once(MockOutcallBuilder::new(
-            200,
-            r#"{"id":1,"jsonrpc":"2.0","error":{"code":-32000,"message":"already known"}}"#,
-        ))
-        .wait()
+        .client(mocks)
+        .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
+            EthMainnetService::Ankr,
+            EthMainnetService::Cloudflare,
+        ])))
+        .build()
+        .send_raw_transaction(MOCK_TRANSACTION)
+        .send()
+        .await
         .expect_consistent();
-    assert_eq!(
-        result,
-        Ok(evm_rpc_types::SendRawTransactionStatus::Ok(Some(
-            Hex32::from_str(MOCK_TRANSACTION_HASH).unwrap()
-        )))
-    );
+    assert_eq!(result, Ok(Some(MOCK_TRANSACTION_HASH)));
     let rpc_method = || RpcMethod::EthSendRawTransaction.into();
     assert_eq!(
-        setup.get_metrics(),
+        setup.get_metrics().await,
         Metrics {
             requests: hashmap! {
                 (rpc_method(), ANKR_HOSTNAME.into()) => 1,
@@ -1953,34 +1961,45 @@ fn candid_rpc_should_handle_already_known() {
     );
 }
 
-#[test]
-fn candid_rpc_should_recognize_rate_limit() {
-    let setup = EvmRpcSetup::new().mock_api_keys();
+#[tokio::test]
+async fn candid_rpc_should_recognize_rate_limit() {
+    fn mock_request() -> JsonRpcRequestMatcher {
+        JsonRpcRequestMatcher::with_method("eth_sendRawTransaction")
+            .with_params(json!([MOCK_TRANSACTION.to_string()]))
+    }
+
+    let mocks = MockHttpOutcallsBuilder::new()
+        .given(mock_request().with_id(0_u64))
+        .respond_with(CanisterHttpReply::with_status(429).with_body("(Rate limit error message)"))
+        .given(mock_request().with_id(1_u64))
+        .respond_with(CanisterHttpReply::with_status(429).with_body("(Rate limit error message)"));
+
+    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
     let result = setup
-        .eth_send_raw_transaction(
-            RpcServices::EthMainnet(Some(vec![
-                EthMainnetService::Ankr,
-                EthMainnetService::Cloudflare,
-            ])),
-            None,
-            MOCK_TRANSACTION,
-        )
-        .mock_http(MockOutcallBuilder::new(429, "(Rate limit error message)"))
-        .wait()
+        .client(mocks)
+        .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
+            EthMainnetService::Ankr,
+            EthMainnetService::Cloudflare,
+        ])))
+        .build()
+        .send_raw_transaction(MOCK_TRANSACTION)
+        .send()
+        .await
         .expect_consistent();
+
     assert_eq!(
         result,
         Err(RpcError::HttpOutcallError(
             HttpOutcallError::InvalidHttpJsonRpcResponse {
                 status: 429,
-                body: "(Rate limit error message)".to_string(),
+                body: "\"(Rate limit error message)\"".to_string(),
                 parsing_error: None
             }
         ))
     );
     let rpc_method = || RpcMethod::EthSendRawTransaction.into();
     assert_eq!(
-        setup.get_metrics(),
+        setup.get_metrics().await,
         Metrics {
             requests: hashmap! {
                 (rpc_method(), ANKR_HOSTNAME.into()) => 1,
