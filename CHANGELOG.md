@@ -9,10 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 * Dynamically select supported providers based on successful responses rate in the last 20min ([#434](https://github.com/dfinity/evm-rpc-canister/pull/434), [#435](https://github.com/dfinity/evm-rpc-canister/pull/435), [#436](https://github.com/dfinity/evm-rpc-canister/pull/436))
-* Handle `max_response_bytes` exceeded errors separately from other IC errors in metrics ([#464](https://github.com/dfinity/evm-rpc-canister/pull/463))
 
 ### Fixed
-* Fix metric name for `eth_call` ([#439](https://github.com/dfinity/evm-rpc-canister/pull/439))
 * Update URLs of BlockPi public endpoints ([#440](https://github.com/dfinity/evm-rpc-canister/pull/440))
 
 [2.5.0]: https://github.com/dfinity/evm-rpc-canister/compare/v2.4.0...v2.5.0
