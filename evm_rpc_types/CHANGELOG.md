@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2025-09-12
+
+### Added
+* New field to `evm_rpc_types::Metrics` for `max_response_bytes` exceeded errors ([#463](https://github.com/dfinity/evm-rpc-canister/pull/463))
+
+### Fixed
+* Fix `MultiRpcResult::map` so non-injective mappings can turn `Inconsistent` results into `Consistent` ([#456](https://github.com/dfinity/evm-rpc-canister/pull/463))
+
+[2.1.0]: https://github.com/dfinity/evm-rpc-canister/compare/evm_rpc_types-v2.0.0...evm_rpc_types-v2.1.0
+
 ## [2.0.0] - 2025-08-12
 
 ### Added
@@ -19,20 +29,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Removed the types `RegexString` and `RegexSubstitution` to use the ones from the `canlog` crate ([#437](https://github.com/dfinity/evm-rpc-canister/pull/437)).
 
-## [1.4.0] - 2025-06-04
+[2.0.0]: https://github.com/dfinity/evm-rpc-canister/compare/evm_rpc_types-v1.4.0...evm_rpc_types-v2.0.0
+
+## 1.4.0 - 2025-06-04
 
 ### Added
 
 - Customize maximum block range for `eth_getLogs` ([#424](https://github.com/dfinity/evm-rpc-canister/pull/424))
 
-## [1.3.0] - 2025-02-11
+## 1.3.0 - 2025-02-11
 
 ### Added
 
 - The number of nodes in a subnet can be specified in the installation arguments (new optional field `nodes_in_subnet` in `InstallArgs`).
 - Allow to override provider URL upon installation for testing purposes (new optional field `override_provider` in `InstallArgs`)
 
-## [1.2.0] - 2024-10-17
+## 1.2.0 - 2024-10-17
 
 ### Added
 
@@ -42,14 +54,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added missing `serde::Deserialize` annotation on `Provider`, `RpcAccess` and `RpcAuth` structs.
 
-## [1.1.0] - 2024-10-14
+## 1.1.0 - 2024-10-14
 
 ### Changed
 
 - v1.1.0 Improve Debug and Display implementations for `HexByte`, `Hex20`, `Hex32`, `Hex256`, `Hex` and `Nat256`.
 - v1.1.0 Improve Debug implementation of `RpcApi`.
 
-## [1.0.0] - 2024-10-07
+## 1.0.0 - 2024-10-07
 
 ### Added
 
