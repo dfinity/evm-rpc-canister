@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.0] - 2025-09-12
+
+### Changed
+* Dynamically select supported providers based on successful responses rate in the last 20min ([#434](https://github.com/dfinity/evm-rpc-canister/pull/434), [#435](https://github.com/dfinity/evm-rpc-canister/pull/435), [#436](https://github.com/dfinity/evm-rpc-canister/pull/436))
+* Handle `max_response_bytes` exceeded errors separately from other IC errors in metrics ([#464](https://github.com/dfinity/evm-rpc-canister/pull/463))
+
+### Fixed
+* Fix metric name for `eth_call` ([#439](https://github.com/dfinity/evm-rpc-canister/pull/439))
+* Update URLs of BlockPi public endpoints ([#440](https://github.com/dfinity/evm-rpc-canister/pull/440))
+
+[2.5.0]: https://github.com/dfinity/evm-rpc-canister/compare/v2.4.0...v2.5.0
+
 ## [2.4.0] - 2025-06-04
 
 ### Added
@@ -39,6 +51,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reject calls to HTTP endpoint in replicated mode ([#373](https://github.com/dfinity/evm-rpc-canister/pull/373))
 - Double `max_response_bytes` when response too big ([#368](https://github.com/dfinity/evm-rpc-canister/pull/368))
 
+[2.4.0]: https://github.com/dfinity/evm-rpc-canister/compare/v2.3.1...v2.4.0
+
 ## [2.3.1] - 2025-05-19
 
 ### Changed
@@ -48,6 +62,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Replace Cloudflare with Ankr ([#414](https://github.com/dfinity/evm-rpc-canister/pull/414))
+
+[2.3.1]: https://github.com/dfinity/evm-rpc-canister/compare/v2.3.0...v2.3.1
 
 ## [2.3.0] - 2025-02-11
 
@@ -64,6 +80,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Improve cycles cost calculation for HTTPs outcalls to avoid overcharging.
 
+[2.3.0]: https://github.com/dfinity/evm-rpc-canister/compare/v2.2.0...v2.3.0
+
 ## [2.2.0] - 2024-10-17
 
 ### Added
@@ -77,6 +95,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * fix: Switch order of Ethereum mainnet providers `Alchemy` and `LlamaNodes` to reduce the chance of automatically
 selecting `Alchemy` when no providers are specified by the caller due to its low rate limit.
 
+[2.2.0]: https://github.com/dfinity/evm-rpc-canister/compare/v2.1.0...v2.2.0
+
 ## [2.1.0] - 2024-10-14
 
 ### Added
@@ -87,6 +107,7 @@ selecting `Alchemy` when no providers are specified by the caller due to its low
 
 * v2.1.0 refactor: Remove Ankr as a default provider 
 
+[2.1.0]: https://github.com/dfinity/evm-rpc-canister/compare/v2.0.0...v2.1.0
 
 ## [2.0.0] - 2024-10-08
 
@@ -202,4 +223,5 @@ This release brings the following main changes (see details below)
 * @gregorydemay made their first contribution in https://github.com/internet-computer-protocol/evm-rpc-canister/pull/235
 * @ChitranshVashney made their first contribution in https://github.com/internet-computer-protocol/evm-rpc-canister/pull/260
 
+[2.0.0]: https://github.com/internet-computer-protocol/evm-rpc-canister/compare/release-2024-03-26...v2.0.0
 **Full Changelog**: https://github.com/internet-computer-protocol/evm-rpc-canister/compare/release-2024-03-26...v2.0.0
