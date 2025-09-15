@@ -2057,8 +2057,9 @@ async fn should_insert_api_keys() {
     })
     .await;
     let provider_id = 1;
+    let api_keys = &[(provider_id, Some("test-api-key".to_string()))];
     setup
-        .update_api_keys(&[(provider_id, Some("test-api-key".to_string()))])
+        .update_api_keys(api_keys, DEFAULT_CALLER_TEST_ID)
         .await;
     let response = setup
         .client(
@@ -2093,8 +2094,9 @@ async fn should_update_api_key() {
     let provider_id = 1; // Ankr / mainnet
     let api_key = "test-api-key";
 
+    let api_keys = &[(provider_id, Some(api_key.to_string()))];
     setup
-        .update_api_keys(&[(provider_id, Some(api_key.to_string()))])
+        .update_api_keys(api_keys, DEFAULT_CALLER_TEST_ID)
         .await;
     let response = setup
         .client(
@@ -2118,7 +2120,10 @@ async fn should_update_api_key() {
         .unwrap();
     assert_eq!(response, U256::ONE);
 
-    setup.update_api_keys(&[(provider_id, None)]).await;
+    let api_keys = &[(provider_id, None)];
+    setup
+        .update_api_keys(api_keys, DEFAULT_CALLER_TEST_ID)
+        .await;
     let response = setup
         .client(
             MockHttpOutcallsBuilder::new()
@@ -2152,8 +2157,9 @@ async fn should_update_bearer_token() {
     .await;
     let provider_id = 8; // Alchemy / mainnet
     let api_key = "test-api-key";
+    let api_keys = &[(provider_id, Some(api_key.to_string()))];
     setup
-        .update_api_keys(&[(provider_id, Some(api_key.to_string()))])
+        .update_api_keys(api_keys, DEFAULT_CALLER_TEST_ID)
         .await;
     let response = setup
         .client(
@@ -2242,8 +2248,9 @@ async fn upgrade_should_keep_api_keys() {
     .await;
     let provider_id = 1; // Ankr / mainnet
     let api_key = "test-api-key";
+    let api_keys = &[(provider_id, Some(api_key.to_string()))];
     setup
-        .update_api_keys(&[(provider_id, Some(api_key.to_string()))])
+        .update_api_keys(api_keys, DEFAULT_CALLER_TEST_ID)
         .await;
     let response = setup
         .client(

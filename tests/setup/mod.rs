@@ -116,12 +116,7 @@ impl EvmRpcNonblockingSetup {
         )
     }
 
-    pub async fn update_api_keys(&self, api_keys: &[(ProviderId, Option<String>)]) {
-        self.update_api_keys_with_caller(api_keys, self.caller)
-            .await;
-    }
-
-    pub async fn update_api_keys_with_caller(
+    pub async fn update_api_keys(
         &self,
         api_keys: &[(ProviderId, Option<String>)],
         caller: Principal,
@@ -138,7 +133,7 @@ impl EvmRpcNonblockingSetup {
     }
 
     pub async fn mock_api_keys(self) -> Self {
-        self.update_api_keys_with_caller(
+        self.update_api_keys(
             &PROVIDERS
                 .iter()
                 .filter_map(|provider| {
