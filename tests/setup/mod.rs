@@ -117,10 +117,19 @@ impl EvmRpcNonblockingSetup {
     }
 
     pub async fn update_api_keys(&self, api_keys: &[(ProviderId, Option<String>)]) {
+        self.update_api_keys_with_caller(api_keys, self.caller)
+            .await;
+    }
+
+    pub async fn update_api_keys_with_caller(
+        &self,
+        api_keys: &[(ProviderId, Option<String>)],
+        caller: Principal,
+    ) {
         self.env
             .update_call(
                 self.canister_id,
-                self.controller,
+                caller,
                 "updateApiKeys",
                 Encode!(&api_keys).expect("Failed to encode arguments."),
             )
@@ -129,7 +138,7 @@ impl EvmRpcNonblockingSetup {
     }
 
     pub async fn mock_api_keys(self) -> Self {
-        self.update_api_keys(
+        self.update_api_keys_with_caller(
             &PROVIDERS
                 .iter()
                 .filter_map(|provider| {
@@ -142,6 +151,7 @@ impl EvmRpcNonblockingSetup {
                     ))
                 })
                 .collect::<Vec<_>>(),
+            self.controller,
         )
         .await;
         self
