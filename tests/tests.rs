@@ -145,7 +145,7 @@ impl EvmRpcSetup {
     }
 
     pub fn upgrade_canister(&self, args: InstallArgs) {
-        for _ in 0..100 {
+        for _ in 0..10 {
             self.env.tick();
             // Avoid `CanisterInstallCodeRateLimited` error
             self.env.advance_time(Duration::from_secs(600));
