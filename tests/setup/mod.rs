@@ -129,22 +129,21 @@ impl EvmRpcNonblockingSetup {
     }
 
     pub async fn mock_api_keys(self) -> Self {
-        self.clone()
-            .update_api_keys(
-                &PROVIDERS
-                    .iter()
-                    .filter_map(|provider| {
-                        Some((
-                            provider.provider_id,
-                            match provider.access {
-                                RpcAccess::Authenticated { .. } => Some(MOCK_API_KEY.to_string()),
-                                RpcAccess::Unauthenticated { .. } => None?,
-                            },
-                        ))
-                    })
-                    .collect::<Vec<_>>(),
-            )
-            .await;
+        self.update_api_keys(
+            &PROVIDERS
+                .iter()
+                .filter_map(|provider| {
+                    Some((
+                        provider.provider_id,
+                        match provider.access {
+                            RpcAccess::Authenticated { .. } => Some(MOCK_API_KEY.to_string()),
+                            RpcAccess::Unauthenticated { .. } => None?,
+                        },
+                    ))
+                })
+                .collect::<Vec<_>>(),
+        )
+        .await;
         self
     }
 
@@ -174,7 +173,7 @@ impl EvmRpcNonblockingSetup {
     ) -> R {
         let candid = &assert_reply(
             self.env
-                .query_call(self.canister_id, self.caller, method, input)
+                .query_call(self.canister_id, Principal::anonymous(), method, input)
                 .await,
         );
         Decode!(candid, R).expect("error while decoding Candid response from query call")
