@@ -75,6 +75,19 @@ pub struct GetTransactionCountArgs {
     pub block: BlockTag,
 }
 
+impl<T, U> From<(T, U)> for GetTransactionCountArgs
+where
+    T: Into<Hex20>,
+    U: Into<BlockTag>,
+{
+    fn from((address, block): (T, U)) -> Self {
+        Self {
+            address: address.into(),
+            block: block.into(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, CandidType, Deserialize)]
 pub struct CallArgs {
     pub transaction: TransactionRequest,

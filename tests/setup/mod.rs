@@ -1,10 +1,11 @@
 use crate::{
-    assert_reply,
+    assert_reply, evm_rpc_wasm,
     mock_http_runtime::{mock::MockHttpOutcalls, MockHttpRuntime},
     DEFAULT_CALLER_TEST_ID, DEFAULT_CONTROLLER_TEST_ID, INITIAL_CYCLES, MOCK_API_KEY,
 };
-use candid::{Decode, Encode, Principal};
+use candid::{CandidType, Decode, Encode, Principal};
 use canlog::{Log, LogEntry};
+use evm_rpc::types::Metrics;
 use evm_rpc::{
     logs::Priority,
     providers::PROVIDERS,
@@ -15,8 +16,10 @@ use evm_rpc_types::InstallArgs;
 use ic_cdk::api::management_canister::main::CanisterId;
 use ic_http_types::{HttpRequest, HttpResponse};
 use ic_management_canister_types::CanisterSettings;
-use pocket_ic::{nonblocking, PocketIcBuilder};
+use pocket_ic::{nonblocking, ErrorCode, PocketIcBuilder};
+use serde::de::DeserializeOwned;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 #[derive(Clone)]
 pub struct EvmRpcNonblockingSetup {
@@ -78,23 +81,50 @@ impl EvmRpcNonblockingSetup {
         }
     }
 
-    pub fn client(&self, mocks: impl Into<MockHttpOutcalls>) -> ClientBuilder<MockHttpRuntime> {
-        EvmRpcClient::builder(self.new_mock_http_runtime(mocks.into()), self.canister_id)
-    }
-
-    fn new_mock_http_runtime(&self, mocks: MockHttpOutcalls) -> MockHttpRuntime {
-        MockHttpRuntime {
-            env: self.env.clone(),
-            caller: self.caller,
-            mocks: Mutex::new(mocks),
+    pub async fn upgrade_canister(&self, args: InstallArgs) {
+        for _ in 0..100 {
+            self.env.tick().await;
+            // Avoid `CanisterInstallCodeRateLimited` error
+            self.env.advance_time(Duration::from_secs(600)).await;
+            self.env.tick().await;
+            match self
+                .env
+                .upgrade_canister(
+                    self.canister_id,
+                    evm_rpc_wasm(),
+                    Encode!(&args).unwrap(),
+                    Some(self.controller),
+                )
+                .await
+            {
+                Ok(_) => return,
+                Err(e) if e.error_code == ErrorCode::CanisterInstallCodeRateLimited => continue,
+                Err(e) => panic!("Error while upgrading canister: {e:?}"),
+            }
         }
+        panic!("Failed to upgrade canister after many trials!")
     }
 
-    pub async fn update_api_keys(&self, api_keys: &[(ProviderId, Option<String>)]) {
+    pub fn client(&self, mocks: impl Into<MockHttpOutcalls>) -> ClientBuilder<MockHttpRuntime> {
+        EvmRpcClient::builder(
+            MockHttpRuntime {
+                env: self.env.clone(),
+                caller: self.caller,
+                mocks: Mutex::new(mocks.into()),
+            },
+            self.canister_id,
+        )
+    }
+
+    pub async fn update_api_keys(
+        &self,
+        api_keys: &[(ProviderId, Option<String>)],
+        caller: Principal,
+    ) {
         self.env
             .update_call(
                 self.canister_id,
-                self.controller,
+                caller,
                 "updateApiKeys",
                 Encode!(&api_keys).expect("Failed to encode arguments."),
             )
@@ -103,22 +133,22 @@ impl EvmRpcNonblockingSetup {
     }
 
     pub async fn mock_api_keys(self) -> Self {
-        self.clone()
-            .update_api_keys(
-                &PROVIDERS
-                    .iter()
-                    .filter_map(|provider| {
-                        Some((
-                            provider.provider_id,
-                            match provider.access {
-                                RpcAccess::Authenticated { .. } => Some(MOCK_API_KEY.to_string()),
-                                RpcAccess::Unauthenticated { .. } => None?,
-                            },
-                        ))
-                    })
-                    .collect::<Vec<_>>(),
-            )
-            .await;
+        self.update_api_keys(
+            &PROVIDERS
+                .iter()
+                .filter_map(|provider| {
+                    Some((
+                        provider.provider_id,
+                        match provider.access {
+                            RpcAccess::Authenticated { .. } => Some(MOCK_API_KEY.to_string()),
+                            RpcAccess::Unauthenticated { .. } => None?,
+                        },
+                    ))
+                })
+                .collect::<Vec<_>>(),
+            self.controller,
+        )
+        .await;
         self
     }
 
@@ -129,22 +159,28 @@ impl EvmRpcNonblockingSetup {
             headers: vec![],
             body: serde_bytes::ByteBuf::new(),
         };
-        let response = Decode!(
-            &assert_reply(
-                self.env
-                    .query_call(
-                        self.canister_id,
-                        Principal::anonymous(),
-                        "http_request",
-                        Encode!(&request).unwrap()
-                    )
-                    .await
-            ),
-            HttpResponse
-        )
-        .unwrap();
+        let response: HttpResponse = self
+            .call_query("http_request", Encode!(&request).unwrap())
+            .await;
         serde_json::from_slice::<Log<Priority>>(&response.body)
             .expect("failed to parse EVM_RPC minter log")
             .entries
+    }
+
+    pub async fn get_metrics(&self) -> Metrics {
+        self.call_query("getMetrics", Encode!().unwrap()).await
+    }
+
+    async fn call_query<R: CandidType + DeserializeOwned>(
+        &self,
+        method: &str,
+        input: Vec<u8>,
+    ) -> R {
+        let candid = &assert_reply(
+            self.env
+                .query_call(self.canister_id, Principal::anonymous(), method, input)
+                .await,
+        );
+        Decode!(candid, R).expect("error while decoding Candid response from query call")
     }
 }
