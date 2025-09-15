@@ -15,7 +15,6 @@ use pocket_ic::{
     RejectResponse,
 };
 use serde::de::DeserializeOwned;
-use serde_json::Value;
 use std::{
     sync::{Arc, Mutex},
     time::Duration,
@@ -92,11 +91,7 @@ impl MockHttpRuntime {
                         self.env.mock_canister_http_response(mock_response).await;
                     }
                     None => {
-                        let CanisterHttpRequest { ref body, .. } = request;
-                        if let Ok(body) = serde_json::from_slice::<Value>(body) {
-                            panic!("No mocks matching the request: {request:?} with body {body:?}");
-                        }
-                        panic!("No mocks matching the request: {request:?}");
+                        panic!("No mocks matching the request: {:?}", request);
                     }
                 }
             } else {
