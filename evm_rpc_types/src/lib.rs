@@ -215,6 +215,12 @@ impl_hex_string!(Hex32([u8; 32]));
 impl_hex_string!(Hex256([u8; 256]));
 impl_hex_string!(Hex(Vec<u8>));
 
+impl HexByte {
+    pub fn into_byte(self) -> u8 {
+        self.0.into_byte()
+    }
+}
+
 impl Hex20 {
     pub fn as_array(&self) -> &[u8; 20] {
         &self.0
