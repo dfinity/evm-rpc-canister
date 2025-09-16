@@ -110,13 +110,14 @@ mod runtime;
 use crate::request::{
     CallRequest, CallRequestBuilder, FeeHistoryRequest, FeeHistoryRequestBuilder,
     GetBlockByNumberRequest, GetBlockByNumberRequestBuilder, GetTransactionCountRequest,
-    GetTransactionCountRequestBuilder, Request, RequestBuilder, SendRawTransactionRequest,
+    GetTransactionCountRequestBuilder, GetTransactionReceiptRequest,
+    GetTransactionReceiptRequestBuilder, Request, RequestBuilder, SendRawTransactionRequest,
     SendRawTransactionRequestBuilder,
 };
 use candid::{CandidType, Principal};
 use evm_rpc_types::{
     BlockTag, CallArgs, ConsensusStrategy, FeeHistoryArgs, GetLogsArgs, GetTransactionCountArgs,
-    Hex, RpcConfig, RpcServices,
+    Hex, Hex32, RpcConfig, RpcServices,
 };
 use ic_error_types::RejectCode;
 use request::{GetLogsRequest, GetLogsRequestBuilder};
@@ -551,6 +552,61 @@ impl<R> EvmRpcClient<R> {
         RequestBuilder::new(
             self.clone(),
             GetTransactionCountRequest::new(params.into()),
+            10_000_000_000,
+        )
+    }
+
+    /// Call `eth_getTransactionReceipt` on the EVM RPC canister.
+    ///
+    /// # Examples
+    ///
+    ///  ```rust
+    /// use alloy_primitives::b256;
+    /// use evm_rpc_client::EvmRpcClient;
+    ///
+    /// # use evm_rpc_types::{Hex20, Hex32, Hex256, HexByte, MultiRpcResult, Nat256};
+    /// # use std::str::FromStr;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = EvmRpcClient::builder_for_ic()
+    /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(evm_rpc_types::TransactionReceipt {
+    /// #       block_hash: Hex32::from_str("0xf6084155ff2022773b22df3217d16e9df53cbc42689b27ca4789e06b6339beb2").unwrap(),
+    /// #       block_number: Nat256::from(0x52a975_u64),
+    /// #       effective_gas_price: Nat256::from(0x6052340_u64),
+    /// #       gas_used: Nat256::from(0x1308c_u64),
+    /// #       cumulative_gas_used: Nat256::from(0x797db0_u64),
+    /// #       status: Some(Nat256::from(0x1_u8)),
+    /// #       root: None,
+    /// #       transaction_hash: Hex32::from_str("0xa3ece39ae137617669c6933b7578b94e705e765683f260fcfe30eaa41932610f").unwrap(),
+    /// #       contract_address: None,
+    /// #       from: Hex20::from_str("0xd907941c8b3b966546fc408b8c942eb10a4f98df").unwrap(),
+    /// #       // This receipt contains some transactions, but they are left out here since not asserted in the doctest
+    /// #       logs: vec![],
+    /// #       logs_bloom: Hex256::from_str("0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000020000000000000000000800000000000000004010000010100000000000000000000000000000000000000000000000000040000080000000000000080000000000000000000000000000000000000000000020000000000000000000000002000000000000000000000000000000000000000000000000000020000000010000000000000000000000000000000000000000000000000000000000").unwrap(),
+    /// #       to: Some(Hex20::from_str("0xd6df5935cd03a768b7b9e92637a01b25e24cb709").unwrap()),
+    /// #       transaction_index: Nat256::from(0x29_u64),
+    /// #       tx_type: HexByte::from(0x0_u8),
+    /// #   })))
+    ///     .build();
+    ///
+    /// let result = client
+    ///     .get_transaction_receipt(b256!("0xa3ece39ae137617669c6933b7578b94e705e765683f260fcfe30eaa41932610f"))
+    ///     .send()
+    ///     .await
+    ///     .expect_consistent()
+    ///     .unwrap();
+    ///
+    /// assert!(result.unwrap().status());
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn get_transaction_receipt(
+        &self,
+        params: impl Into<Hex32>,
+    ) -> GetTransactionReceiptRequestBuilder<R> {
+        RequestBuilder::new(
+            self.clone(),
+            GetTransactionReceiptRequest::new(params.into()),
             10_000_000_000,
         )
     }

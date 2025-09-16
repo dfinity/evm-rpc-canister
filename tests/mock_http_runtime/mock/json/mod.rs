@@ -142,6 +142,7 @@ impl CanisterHttpRequestMatcher for JsonRpcRequestMatcher {
     }
 }
 
+#[derive(Clone)]
 pub struct JsonRpcResponse {
     pub status: u16,
     pub headers: Vec<CanisterHttpHeader>,

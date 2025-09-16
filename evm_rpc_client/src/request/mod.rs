@@ -243,6 +243,38 @@ impl<R> GetTransactionCountRequestBuilder<R> {
 }
 
 #[derive(Debug, Clone)]
+pub struct GetTransactionReceiptRequest(Hex32);
+
+impl GetTransactionReceiptRequest {
+    pub fn new(params: Hex32) -> Self {
+        Self(params)
+    }
+}
+
+impl EvmRpcRequest for GetTransactionReceiptRequest {
+    type Config = RpcConfig;
+    type Params = Hex32;
+    type CandidOutput = MultiRpcResult<Option<evm_rpc_types::TransactionReceipt>>;
+    type Output = MultiRpcResult<Option<alloy_rpc_types::TransactionReceipt>>;
+
+    fn endpoint(&self) -> EvmRpcEndpoint {
+        EvmRpcEndpoint::GetTransactionReceipt
+    }
+
+    fn params(self) -> Self::Params {
+        self.0
+    }
+}
+
+pub type GetTransactionReceiptRequestBuilder<R> = RequestBuilder<
+    R,
+    RpcConfig,
+    Hex32,
+    MultiRpcResult<Option<evm_rpc_types::TransactionReceipt>>,
+    MultiRpcResult<Option<alloy_rpc_types::TransactionReceipt>>,
+>;
+
+#[derive(Debug, Clone)]
 pub struct SendRawTransactionRequest(Hex);
 
 impl SendRawTransactionRequest {
@@ -305,6 +337,8 @@ pub enum EvmRpcEndpoint {
     GetLogs,
     /// `eth_getTransactionCount` endpoint.
     GetTransactionCount,
+    /// `eth_getTransactionReceipt` endpoint.
+    GetTransactionReceipt,
     /// `eth_sendRawTransaction` endpoint.
     SendRawTransaction,
 }
@@ -318,6 +352,7 @@ impl EvmRpcEndpoint {
             Self::GetBlockByNumber => "eth_getBlockByNumber",
             Self::GetLogs => "eth_getLogs",
             Self::GetTransactionCount => "eth_getTransactionCount",
+            Self::GetTransactionReceipt => "eth_getTransactionReceipt",
             Self::SendRawTransaction => "eth_sendRawTransaction",
         }
     }
