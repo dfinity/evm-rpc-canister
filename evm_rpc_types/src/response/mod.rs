@@ -94,9 +94,17 @@ pub struct TransactionReceipt {
     #[serde(rename = "gasUsed")]
     pub gas_used: Nat256,
 
+    /// The amount of gas used by this specific transaction alone
+    #[serde(rename = "cumulativeGasUsed")]
+    pub cumulative_gas_used: Nat256,
+
     /// Either 1 (success) or 0 (failure).
     /// Only specified for transactions included after the Byzantium upgrade.
     pub status: Option<Nat256>,
+
+    /// The post-transaction state root.
+    /// Only specified for transactions included before the Byzantium upgrade.
+    pub root: Option<Hex32>,
 
     /// The hash of the transaction
     #[serde(rename = "transactionHash")]

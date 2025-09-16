@@ -607,6 +607,7 @@ fn should_decode_address() {
 fn should_decode_transaction_receipt() {
     let value = evm_rpc_types::TransactionReceipt {
         status: Some(0x1_u8.into()),
+        root: None,
         transaction_hash: "0xdd5d4b18923d7aae953c7996d791118102e889bea37b48a651157a4890e4746f"
             .parse()
             .unwrap(),
@@ -627,6 +628,7 @@ fn should_decode_transaction_receipt() {
             .unwrap()),
         transaction_index: 0xd9_u16.into(),
         tx_type: "0x2".parse().unwrap(),
+        cumulative_gas_used: 0xf02aed_u64.into(),
     };
     assert_eq!(
         Decode!(&Encode!(&value).unwrap(), evm_rpc_types::TransactionReceipt).unwrap(),
@@ -1048,6 +1050,7 @@ fn eth_get_transaction_receipt_should_succeed() {
             raw_body: json!({"jsonrpc":"2.0","id":0,"result":{"blockHash":"0x5115c07eb1f20a9d6410db0916ed3df626cfdab161d3904f45c8c8b65c90d0be","blockNumber":"0x11a85ab","contractAddress":null,"cumulativeGasUsed":"0xf02aed","effectiveGasPrice":"0x63c00ee76","from":"0x0aa8ebb6ad5a8e499e550ae2c461197624c6e667","gasUsed":"0x7d89","logs":[],"logsBloom":"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","status":"0x1","to":"0x356cfd6e6d0000400000003900b415f80669009e","transactionHash":"0xdd5d4b18923d7aae953c7996d791118102e889bea37b48a651157a4890e4746f","transactionIndex":"0xd9","type":"0x2"}}),
             expected: evm_rpc_types::TransactionReceipt {
                 status: Some(0x1_u8.into()),
+                root: None,
                 transaction_hash: "0xdd5d4b18923d7aae953c7996d791118102e889bea37b48a651157a4890e4746f".parse().unwrap(),
                 contract_address: None,
                 block_number: 0x11a85ab_u64.into(),
@@ -1060,13 +1063,15 @@ fn eth_get_transaction_receipt_should_succeed() {
                 to: Some("0x356cfd6e6d0000400000003900b415f80669009e".parse().unwrap()),
                 transaction_index: 0xd9_u16.into(),
                 tx_type: "0x2".parse().unwrap(),
+                cumulative_gas_used: 0xf02aed_u64.into(),
             },
         },
         TestCase { //first transaction after genesis
             request: "0x5c504ed432cb51138bcf09aa5e8a410dd4a1e204ef84bfed1be16dfba1b22060",
-            raw_body: json!({"jsonrpc":"2.0","id":0,"result":{"transactionHash":"0x5c504ed432cb51138bcf09aa5e8a410dd4a1e204ef84bfed1be16dfba1b22060","blockHash":"0x4e3a3754410177e6937ef1f84bba68ea139e8d1a2258c5f85db9f1cd715a1bdd","blockNumber":"0xb443","logsBloom":"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","gasUsed":"0x5208","root":"0x96a8e009d2b88b1483e6941e6812e32263b05683fac202abc622a3e31aed1957","contractAddress":null,"cumulativeGasUsed":"0x5208","transactionIndex":"0x0","from":"0xa1e4380a3b1f749673e270229993ee55f35663b4","to":"0x5df9b87991262f6ba471f09758cde1c0fc1de734","type":"0x0","effectiveGasPrice":"0x2d79883d2000","logs":[]}}),
+            raw_body: json!({"jsonrpc":"2.0","id":0,"result":{"transactionHash":"0x5c504ed432cb51138bcf09aa5e8a410dd4a1e204ef84bfed1be16dfba1b22060","blockHash":"0x4e3a3754410177e6937ef1f84bba68ea139e8d1a2258c5f85db9f1cd715a1bdd","blockNumber":"0xb443","logsBloom":"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","gasUsed":"0x5208","root":"0x96a8e009d2b88b1483e6941e6812e32263b05683fac202abc622a3e31aed1957","contractAddress":null,"cumulativeGasUsed":"0x5208","transactionIndex":"0x0","from":"0xa1e4380a3b1f749673e270229993ee55f35663b4","to":"0x5df9b87991262f6ba471f09758cde1c0fc1de734","type":"0x0","effectiveGasPrice":"0x2d79883d2000","logs":[],"root":"0x96a8e009d2b88b1483e6941e6812e32263b05683fac202abc622a3e31aed1957"}}),
             expected: evm_rpc_types::TransactionReceipt {
                 status: None,
+                root: Some("0x96a8e009d2b88b1483e6941e6812e32263b05683fac202abc622a3e31aed1957".parse().unwrap()),
                 transaction_hash: "0x5c504ed432cb51138bcf09aa5e8a410dd4a1e204ef84bfed1be16dfba1b22060".parse().unwrap(),
                 contract_address: None,
                 block_number: 0xb443_u64.into(),
@@ -1079,6 +1084,7 @@ fn eth_get_transaction_receipt_should_succeed() {
                 to: Some("0x5df9b87991262f6ba471f09758cde1c0fc1de734".parse().unwrap()),
                 transaction_index: 0x0_u16.into(),
                 tx_type: "0x0".parse().unwrap(),
+                cumulative_gas_used: 0x5208_u64.into(),
             },
         },
         TestCase { //contract creation
@@ -1086,6 +1092,7 @@ fn eth_get_transaction_receipt_should_succeed() {
             raw_body: json!({"jsonrpc":"2.0","id":0,"result":{"transactionHash":"0x2b8e12d42a187ace19c64b47fae0955def8859bf966c345102c6d3a52f28308b","blockHash":"0xd050426a753a7cc4833ba15a5dfcef761fd983f5277230ea8dc700eadd307363","blockNumber":"0x12e64fd","logsBloom":"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","gasUsed":"0x69892","contractAddress":"0x6abda0438307733fc299e9c229fd3cc074bd8cc0","cumulativeGasUsed":"0x3009d2","transactionIndex":"0x17","from":"0xe12e9a6661aeaf57abf95fd060bebb223fbee7dd","to":null,"type":"0x2","effectiveGasPrice":"0x17c01a135","logs":[],"status":"0x1"}}),
             expected: evm_rpc_types::TransactionReceipt {
                 status: Some(0x1_u8.into()),
+                root: None,
                 transaction_hash: "0x2b8e12d42a187ace19c64b47fae0955def8859bf966c345102c6d3a52f28308b".parse().unwrap(),
                 contract_address: Some("0x6abda0438307733fc299e9c229fd3cc074bd8cc0".parse().unwrap()),
                 block_number: 0x12e64fd_u64.into(),
@@ -1098,6 +1105,7 @@ fn eth_get_transaction_receipt_should_succeed() {
                 to: None,
                 transaction_index: 0x17_u16.into(),
                 tx_type: "0x2".parse().unwrap(),
+                cumulative_gas_used: 0x3009d2_u64.into(),
             },
         }
     ];
