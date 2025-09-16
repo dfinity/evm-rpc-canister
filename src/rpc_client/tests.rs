@@ -117,8 +117,6 @@ mod eth_get_transaction_receipt {
         )
     }
 
-
-
     #[test]
     fn should_deserialize_post_byzantium_transaction_receipt() {
         const RECEIPT: &str = r#"{
