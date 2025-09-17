@@ -69,7 +69,56 @@ mod eth_get_transaction_receipt {
     use std::str::FromStr;
 
     #[test]
-    fn should_deserialize_transaction_receipt() {
+    fn should_deserialize_pre_byzantium_transaction_receipt() {
+        const RECEIPT: &str = r#"{
+        "blockHash": "0x9b3c1d182975fdaa5797879cbc45d6b00a84fb3b13980a107645b2491bcca899",
+        "blockNumber": "0x3d08ff",
+        "contractAddress": null,
+        "cumulativeGasUsed": "0x3a827d",
+        "effectiveGasPrice": "0x4e3b29200",
+        "from": "0xcaf8925d8e825ebe0cb3fc34a2be2c8c737c1ecc",
+        "gasUsed": "0x5208",
+        "logs": [],
+        "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        "root": "0xc13704a89e282b166ecf5ac93f7f7c1be7141572c1ce4cc8aae28d526d535b4d",
+        "to": "0x0f1f8a981160a93da959484216b0b8db0ce2cd8e",
+        "transactionHash": "0x48614dab7303dda8ecfa52c6f583a3e09b3bc1724fb5a1512c361f2b36ed242d",
+        "transactionIndex": "0x14",
+        "type": "0x0"
+    }"#;
+
+        let receipt: TransactionReceipt = serde_json::from_str(RECEIPT).unwrap();
+
+        assert_eq!(
+            receipt,
+            TransactionReceipt {
+                block_hash: Hash::from_str(
+                    "0x9b3c1d182975fdaa5797879cbc45d6b00a84fb3b13980a107645b2491bcca899"
+                )
+                    .unwrap(),
+                block_number: BlockNumber::new(0x3d08ff),
+                effective_gas_price: WeiPerGas::new(0x4e3b29200),
+                cumulative_gas_used: GasAmount::new(0x3a827d),
+                gas_used: GasAmount::new(0x5208),
+                status: None,
+                root: Some(Hash::from_str("0xc13704a89e282b166ecf5ac93f7f7c1be7141572c1ce4cc8aae28d526d535b4d").unwrap()),
+                transaction_hash: Hash::from_str(
+                    "0x48614dab7303dda8ecfa52c6f583a3e09b3bc1724fb5a1512c361f2b36ed242d"
+                )
+                    .unwrap(),
+                contract_address: None,
+                from: "0xcaf8925d8e825ebe0cb3fc34a2be2c8c737c1ecc".parse().unwrap(),
+                logs: vec![],
+                logs_bloom: "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000".parse().unwrap(),
+                to: Some("0x0f1f8a981160a93da959484216b0b8db0ce2cd8e".parse().unwrap()),
+                transaction_index: 0x14_u32.into(),
+                tx_type: JsonByte::new(0),
+            }
+        )
+    }
+
+    #[test]
+    fn should_deserialize_post_byzantium_transaction_receipt() {
         const RECEIPT: &str = r#"{
         "transactionHash": "0x0e59bd032b9b22aca5e2784e4cf114783512db00988c716cf17a1cc755a0a93d",
         "blockHash": "0x82005d2f17b251900968f01b0ed482cb49b7e1d797342bc504904d442b64dbe4",
@@ -98,8 +147,10 @@ mod eth_get_transaction_receipt {
                     .unwrap(),
                 block_number: BlockNumber::new(0x4132ec),
                 effective_gas_price: WeiPerGas::new(0xfefbee3e),
+                cumulative_gas_used: GasAmount::new(0x8b2e10),
                 gas_used: GasAmount::new(0x5208),
                 status: Some(TransactionStatus::Success),
+                root: None,
                 transaction_hash: Hash::from_str(
                     "0x0e59bd032b9b22aca5e2784e4cf114783512db00988c716cf17a1cc755a0a93d"
                 )

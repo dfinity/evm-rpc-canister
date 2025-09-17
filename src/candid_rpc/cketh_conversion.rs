@@ -120,10 +120,12 @@ pub(super) fn from_transaction_receipt(
         block_number: value.block_number.into(),
         effective_gas_price: value.effective_gas_price.into(),
         gas_used: value.gas_used.into(),
+        cumulative_gas_used: value.cumulative_gas_used.into(),
         status: value.status.map(|v| match v {
             crate::rpc_client::json::responses::TransactionStatus::Success => Nat256::from(1_u8),
             crate::rpc_client::json::responses::TransactionStatus::Failure => Nat256::from(0_u8),
         }),
+        root: value.root.map(Hash::into_bytes).map(Hex32::from),
         transaction_hash: Hex32::from(value.transaction_hash.into_bytes()),
         contract_address: value
             .contract_address

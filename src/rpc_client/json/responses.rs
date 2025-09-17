@@ -19,16 +19,25 @@ pub struct TransactionReceipt {
     #[serde(rename = "blockNumber")]
     pub block_number: BlockNumber,
 
-    /// The total base charge plus tip paid for each unit of gas
+    /// The total base charge plus tip paid for each unit of gas.
     #[serde(rename = "effectiveGasPrice")]
     pub effective_gas_price: WeiPerGas,
 
-    /// The amount of gas used by this specific transaction alone
+    /// The sum of gas used by this transaction and all preceding transactions in the same block.
+    #[serde(rename = "cumulativeGasUsed")]
+    pub cumulative_gas_used: GasAmount,
+
+    /// The amount of gas used for this specific transaction alone.
     #[serde(rename = "gasUsed")]
     pub gas_used: GasAmount,
 
     /// Status of the transaction.
+    /// Only specified for transactions included after the Byzantium upgrade.
     pub status: Option<TransactionStatus>,
+
+    /// The post-transaction state root.
+    /// Only specified for transactions included before the Byzantium upgrade.
+    pub root: Option<Hash>,
 
     /// The hash of the transaction
     #[serde(rename = "transactionHash")]

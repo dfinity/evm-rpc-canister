@@ -284,6 +284,7 @@ type Topic = vec text;
 type TransactionReceipt = record {
   to : opt text;
   status : opt nat;
+  root : opt text;
   transactionHash : text;
   blockNumber : nat;
   from : text;
@@ -295,6 +296,7 @@ type TransactionReceipt = record {
   logsBloom : text;
   contractAddress : opt text;
   gasUsed : nat;
+  cumulativeGasUsed : nat;
 };
 type ValidationError = variant {
   Custom : text;
