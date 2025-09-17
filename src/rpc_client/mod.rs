@@ -23,6 +23,7 @@ use json::responses::{
 };
 use json::Hash;
 use serde::{de::DeserializeOwned, Serialize};
+use serde_json::Value;
 use std::collections::BTreeSet;
 use std::fmt::Debug;
 use tower::ServiceExt;
@@ -413,6 +414,20 @@ impl EthRpcClient {
     pub async fn eth_call(&self, params: EthCallParams) -> ReducedResult<Data> {
         self.parallel_call(
             "eth_call",
+            params,
+            self.response_size_estimate(256 + HEADER_SIZE_LIMIT),
+        )
+        .await
+        .reduce(self.consensus_strategy())
+    }
+
+    pub async fn json_request(
+        &self,
+        method: &str,
+        params: Option<&Value>,
+    ) -> ReducedResult<String> {
+        self.parallel_call(
+            method,
             params,
             self.response_size_estimate(256 + HEADER_SIZE_LIMIT),
         )

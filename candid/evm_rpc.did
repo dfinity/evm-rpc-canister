@@ -294,6 +294,11 @@ type ValidationError = variant {
   Custom : text;
   InvalidHex : text;
 };
+type JsonRequestResult = variant { Ok : text; Err : RpcError };
+type MultiJsonRequestResult = variant {
+  Consistent : JsonRequestResult;
+  Inconsistent : vec record { RpcService; JsonRequestResult };
+};
 service : (InstallArgs) -> {
   eth_feeHistory : (RpcServices, opt RpcConfig, FeeHistoryArgs) -> (MultiFeeHistoryResult);
   eth_getBlockByNumber : (RpcServices, opt RpcConfig, BlockTag) -> (MultiGetBlockByNumberResult);
@@ -302,6 +307,8 @@ service : (InstallArgs) -> {
   eth_getTransactionReceipt : (RpcServices, opt RpcConfig, hash : text) -> (MultiGetTransactionReceiptResult);
   eth_sendRawTransaction : (RpcServices, opt RpcConfig, rawSignedTransactionHex : text) -> (MultiSendRawTransactionResult);
   eth_call : (RpcServices, opt RpcConfig, CallArgs) -> (MultiCallResult);
+  json_request : (RpcServices, opt RpcConfig, text) -> (MultiJsonRequestResult);
+  // DEPRECATED: Use `json_request` instead.
   request : (RpcService, json : text, maxResponseBytes : nat64) -> (RequestResult);
   requestCost : (RpcService, json : text, maxResponseBytes : nat64) -> (RequestCostResult) query;
 

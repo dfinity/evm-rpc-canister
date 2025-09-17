@@ -37,6 +37,7 @@ use ic_cdk::api::management_canister::http_request::{
 };
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::cmp::PartialEq;
 use std::fmt::Debug;
 use thiserror::Error;
 use tower::layer::util::{Identity, Stack};

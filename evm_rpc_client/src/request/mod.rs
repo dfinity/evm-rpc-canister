@@ -275,6 +275,37 @@ pub type GetTransactionReceiptRequestBuilder<R> = RequestBuilder<
 >;
 
 #[derive(Debug, Clone)]
+pub struct JsonRequest(String);
+
+impl TryFrom<serde_json::Value> for JsonRequest {
+    type Error = String;
+
+    fn try_from(value: serde_json::Value) -> Result<Self, Self::Error> {
+        serde_json::to_string(&value)
+            .map(JsonRequest)
+            .map_err(|e| e.to_string())
+    }
+}
+
+impl EvmRpcRequest for JsonRequest {
+    type Config = RpcConfig;
+    type Params = String;
+    type CandidOutput = MultiRpcResult<String>;
+    type Output = MultiRpcResult<String>;
+
+    fn endpoint(&self) -> EvmRpcEndpoint {
+        EvmRpcEndpoint::JsonRequest
+    }
+
+    fn params(self) -> Self::Params {
+        self.0
+    }
+}
+
+pub type JsonRequestBuilder<R> =
+    RequestBuilder<R, RpcConfig, String, MultiRpcResult<String>, MultiRpcResult<String>>;
+
+#[derive(Debug, Clone)]
 pub struct SendRawTransactionRequest(Hex);
 
 impl SendRawTransactionRequest {
@@ -339,6 +370,8 @@ pub enum EvmRpcEndpoint {
     GetTransactionCount,
     /// `eth_getTransactionReceipt` endpoint.
     GetTransactionReceipt,
+    /// `json_request` endpoint.
+    JsonRequest,
     /// `eth_sendRawTransaction` endpoint.
     SendRawTransaction,
 }
@@ -353,6 +386,7 @@ impl EvmRpcEndpoint {
             Self::GetLogs => "eth_getLogs",
             Self::GetTransactionCount => "eth_getTransactionCount",
             Self::GetTransactionReceipt => "eth_getTransactionReceipt",
+            Self::JsonRequest => "json_request",
             Self::SendRawTransaction => "eth_sendRawTransaction",
         }
     }
