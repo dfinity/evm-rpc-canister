@@ -94,7 +94,7 @@ pub struct TransactionReceipt {
     #[serde(rename = "gasUsed")]
     pub gas_used: Nat256,
 
-    /// The amount of gas used by this specific transaction alone
+    /// The sum of gas used by this transaction and all preceding transactions in the same block.
     #[serde(rename = "cumulativeGasUsed")]
     pub cumulative_gas_used: Nat256,
 

@@ -19,15 +19,15 @@ pub struct TransactionReceipt {
     #[serde(rename = "blockNumber")]
     pub block_number: BlockNumber,
 
-    /// The total base charge plus tip paid for each unit of gas
+    /// The total base charge plus tip paid for each unit of gas.
     #[serde(rename = "effectiveGasPrice")]
     pub effective_gas_price: WeiPerGas,
 
-    /// The amount of gas used by this specific transaction alone
+    /// The sum of gas used by this transaction and all preceding transactions in the same block.
     #[serde(rename = "cumulativeGasUsed")]
     pub cumulative_gas_used: GasAmount,
 
-    /// The sum of gas used by this transaction and all preceding transactions in the same block.
+    /// The amount of gas used for this specific transaction alone.
     #[serde(rename = "gasUsed")]
     pub gas_used: GasAmount,
 
