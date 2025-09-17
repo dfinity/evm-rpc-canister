@@ -22,4 +22,5 @@ serde = { workspace = true }
 strum = { workspace = true }
 
 [dev-dependencies]
+alloy-dyn-abi = { workspace = true }
 tokio = { workspace = true, features = ["full"] }

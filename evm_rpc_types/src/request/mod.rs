@@ -1,9 +1,14 @@
+#[cfg(test)]
+mod tests;
+
 #[cfg(feature = "alloy")]
 mod alloy;
 
 use crate::{Hex, Hex20, Hex32, HexByte, Nat256};
 use candid::CandidType;
 use serde::Deserialize;
+#[cfg(test)]
+use serde::Serialize;
 
 #[derive(Clone, Debug, PartialEq, Eq, CandidType, Deserialize, Default)]
 pub enum BlockTag {
@@ -96,6 +101,7 @@ pub struct CallArgs {
     pub block: Option<BlockTag>,
 }
 
+#[cfg_attr(test, derive(Serialize))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, CandidType, Deserialize)]
 pub struct TransactionRequest {
     /// The type of the transaction:
@@ -155,10 +161,12 @@ pub struct TransactionRequest {
     pub chain_id: Option<Nat256>,
 }
 
+#[cfg_attr(test, derive(Serialize))]
 #[derive(Clone, Debug, PartialEq, Eq, CandidType, Deserialize)]
 #[serde(transparent)]
 pub struct AccessList(pub Vec<AccessListEntry>);
 
+#[cfg_attr(test, derive(Serialize))]
 #[derive(Clone, Debug, PartialEq, Eq, CandidType, Deserialize)]
 pub struct AccessListEntry {
     pub address: Hex20,

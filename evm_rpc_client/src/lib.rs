@@ -108,14 +108,14 @@ mod request;
 mod runtime;
 
 use crate::request::{
-    FeeHistoryRequest, FeeHistoryRequestBuilder, GetBlockByNumberRequest,
-    GetBlockByNumberRequestBuilder, GetTransactionCountRequest, GetTransactionCountRequestBuilder,
-    Request, RequestBuilder,
+    CallRequest, CallRequestBuilder, FeeHistoryRequest, FeeHistoryRequestBuilder,
+    GetBlockByNumberRequest, GetBlockByNumberRequestBuilder, GetTransactionCountRequest,
+    GetTransactionCountRequestBuilder, Request, RequestBuilder,
 };
 use candid::{CandidType, Principal};
 use evm_rpc_types::{
-    BlockTag, ConsensusStrategy, FeeHistoryArgs, GetLogsArgs, GetTransactionCountArgs, RpcConfig,
-    RpcServices,
+    BlockTag, CallArgs, ConsensusStrategy, FeeHistoryArgs, GetLogsArgs, GetTransactionCountArgs,
+    RpcConfig, RpcServices,
 };
 use ic_error_types::RejectCode;
 use request::{GetLogsRequest, GetLogsRequestBuilder};
@@ -250,6 +250,64 @@ impl<R> ClientBuilder<R> {
 }
 
 impl<R> EvmRpcClient<R> {
+    /// Call `eth_call` on the EVM RPC canister.
+    ///
+    /// # Examples
+    ///
+    /// This example sends an `eth_call` to the USDC ERC-20 contract to fetch its symbol,
+    /// then decodes the ABI-encoded response into the human-readable string `USDC`.
+    ///
+    /// ```rust
+    /// use alloy_dyn_abi::{DynSolType, DynSolValue};
+    /// use alloy_primitives::{address, bytes};
+    /// use alloy_rpc_types::BlockNumberOrTag;
+    /// use evm_rpc_client::EvmRpcClient;
+    ///
+    /// # use evm_rpc_types::{Hex, MultiRpcResult};
+    /// # use std::str::FromStr;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = EvmRpcClient::builder_for_ic()
+    /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(
+    /// #       Hex::from_str("0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000045553444300000000000000000000000000000000000000000000000000000000").unwrap()
+    /// #   )))
+    ///     .build();
+    ///
+    /// let tx_request = alloy_rpc_types::TransactionRequest::default()
+    ///     // USDC address
+    ///     .from(address!("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"))
+    ///     // Selector for `symbol()`
+    ///     .input(bytes!(0x95, 0xd8, 0x9b, 0x41).into());
+    ///
+    /// let result = client
+    ///     .call(tx_request)
+    ///     .with_block(BlockNumberOrTag::Latest)
+    ///     .send()
+    ///     .await
+    ///     .expect_consistent()
+    ///     .unwrap();
+    ///
+    /// let decoded = DynSolType::String.abi_decode(&result);
+    /// assert_eq!(decoded, Ok(DynSolValue::from("USDC".to_string())));
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn call<T>(&self, params: T) -> CallRequestBuilder<R>
+    where
+        T: TryInto<CallArgs>,
+        <T as TryInto<CallArgs>>::Error: std::fmt::Debug,
+    {
+        RequestBuilder::new(
+            self.clone(),
+            CallRequest::new(
+                params
+                    .try_into()
+                    .unwrap_or_else(|e| panic!("Invalid transaction request: {e:?}")),
+            ),
+            10_000_000_000,
+        )
+    }
+
     /// Call `eth_getBlockByNumber` on the EVM RPC canister.
     ///
     /// # Examples

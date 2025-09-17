@@ -1,4 +1,4 @@
-use crate::{Block, FeeHistory, LogEntry, MultiRpcResult, Nat256};
+use crate::{Block, FeeHistory, Hex, LogEntry, MultiRpcResult, Nat256};
 
 impl From<MultiRpcResult<Vec<LogEntry>>> for MultiRpcResult<Vec<alloy_rpc_types::Log>> {
     fn from(result: MultiRpcResult<Vec<LogEntry>>) -> Self {
@@ -25,5 +25,11 @@ impl From<MultiRpcResult<FeeHistory>> for MultiRpcResult<alloy_rpc_types::FeeHis
 impl From<MultiRpcResult<Nat256>> for MultiRpcResult<alloy_primitives::U256> {
     fn from(result: MultiRpcResult<Nat256>) -> Self {
         result.map(alloy_primitives::U256::from)
+    }
+}
+
+impl From<MultiRpcResult<Hex>> for MultiRpcResult<alloy_primitives::Bytes> {
+    fn from(result: MultiRpcResult<Hex>) -> Self {
+        result.map(alloy_primitives::Bytes::from)
     }
 }
