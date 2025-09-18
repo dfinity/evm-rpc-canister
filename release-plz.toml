@@ -30,7 +30,7 @@ allow_dirty = false
 publish_allow_dirty = false
 
 [[package]] # the double square brackets define a TOML table array
-name = "evm_rpc_canister"
+name = "evm_rpc"
 semver_check = false # disable API breaking changes checks
 publish = false # disable `cargo publish`
 
