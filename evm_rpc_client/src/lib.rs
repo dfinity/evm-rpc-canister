@@ -107,13 +107,7 @@ pub mod fixtures;
 mod request;
 mod runtime;
 
-use crate::request::{
-    CallRequest, CallRequestBuilder, FeeHistoryRequest, FeeHistoryRequestBuilder,
-    GetBlockByNumberRequest, GetBlockByNumberRequestBuilder, GetTransactionCountRequest,
-    GetTransactionCountRequestBuilder, GetTransactionReceiptRequest,
-    GetTransactionReceiptRequestBuilder, Request, RequestBuilder, SendRawTransactionRequest,
-    SendRawTransactionRequestBuilder,
-};
+use crate::request::{CallRequest, CallRequestBuilder, EvmRpcEndpoint, FeeHistoryRequest, FeeHistoryRequestBuilder, GetBlockByNumberRequest, GetBlockByNumberRequestBuilder, GetTransactionCountRequest, GetTransactionCountRequestBuilder, GetTransactionReceiptRequest, GetTransactionReceiptRequestBuilder, Request, RequestBuilder, SendRawTransactionRequest, SendRawTransactionRequestBuilder};
 use candid::{CandidType, Principal};
 use evm_rpc_types::{
     BlockTag, CallArgs, ConsensusStrategy, FeeHistoryArgs, GetLogsArgs, GetTransactionCountArgs,
@@ -685,5 +679,31 @@ impl<R: Runtime> EvmRpcClient<R> {
             )
             .await
             .map(Into::into)
+    }
+
+    async fn execute_cycles_cost_request<Config, Params, CandidOutput, Output>(
+        &self,
+        request: Request<Config, Params, CandidOutput, Output>,
+    ) -> Output
+    where
+        Config: CandidType + Send,
+        Params: CandidType + Send,
+        CandidOutput: Into<Output> + CandidType + DeserializeOwned,
+    {
+        self.config
+            .runtime
+            .query_call::<(RpcServices, Option<Config>, Params), CandidOutput>(
+                self.config.evm_rpc_canister,
+                EvmRpcEndpoint::RequestCost.rpc_method(),
+                (request.rpc_services, request.rpc_config, request.params),
+            )
+            .await
+            .unwrap_or_else(|e| {
+                panic!(
+                    "Client error: failed to call `{:?}`: {e:?}",
+                    EvmRpcEndpoint::RequestCost
+                )
+            })
+            .into()
     }
 }
