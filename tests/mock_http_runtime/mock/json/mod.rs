@@ -4,7 +4,7 @@ use pocket_ic::common::rest::{
     CanisterHttpHeader, CanisterHttpMethod, CanisterHttpReply, CanisterHttpRequest,
     CanisterHttpResponse,
 };
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::{collections::BTreeSet, str::FromStr};
 use url::{Host, Url};
 
@@ -83,12 +83,13 @@ impl JsonRpcRequestMatcher {
     }
 
     pub fn request_body(&self) -> JsonRpcRequest<Value> {
-        let mut request_body =
-            JsonRpcRequest::new(&self.method, self.params.clone().unwrap_or(Value::Null));
-        if let Some(id) = &self.id {
-            request_body.set_id(id.clone());
-        }
-        request_body
+        serde_json::from_value(json!({
+            "jsonrpc": "2.0",
+            "method": &self.method,
+            "params": self.params.clone().unwrap_or(Value::Null),
+            "id": self.id.clone().unwrap_or(Id::Null),
+        }))
+        .unwrap()
     }
 }
 
@@ -127,6 +128,7 @@ impl CanisterHttpRequestMatcher for JsonRpcRequestMatcher {
         match serde_json::from_slice(&request.body) {
             Ok(actual_body) => {
                 if self.request_body() != actual_body {
+                    println!("{:?} *** {:?}", self.request_body(), actual_body);
                     return false;
                 }
             }

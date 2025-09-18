@@ -3,7 +3,7 @@ use crate::{
     mock_http_runtime::{mock::MockHttpOutcalls, MockHttpRuntime},
     DEFAULT_CALLER_TEST_ID, DEFAULT_CONTROLLER_TEST_ID, INITIAL_CYCLES, MOCK_API_KEY,
 };
-use candid::{CandidType, Decode, Encode, Principal};
+use candid::{CandidType, Decode, Encode, Nat, Principal};
 use canlog::{Log, LogEntry};
 use evm_rpc::types::Metrics;
 use evm_rpc::{
@@ -12,7 +12,7 @@ use evm_rpc::{
     types::{ProviderId, RpcAccess},
 };
 use evm_rpc_client::{ClientBuilder, EvmRpcClient, Runtime};
-use evm_rpc_types::{InstallArgs, RpcResult, RpcService};
+use evm_rpc_types::{InstallArgs, Provider, RpcResult, RpcService};
 use ic_cdk::api::management_canister::main::CanisterId;
 use ic_http_types::{HttpRequest, HttpResponse};
 use ic_management_canister_types::CanisterSettings;
@@ -174,6 +174,29 @@ impl EvmRpcNonblockingSetup {
             .await
     }
 
+    pub async fn get_service_provider_map(&self) -> Vec<(RpcService, ProviderId)> {
+        self.call_query(
+            "getServiceProviderMap",
+            Encode!().unwrap(),
+            Principal::anonymous(),
+        )
+        .await
+    }
+
+    pub async fn get_providers(&self) -> Vec<Provider> {
+        self.call_query("getProviders", Encode!().unwrap(), Principal::anonymous())
+            .await
+    }
+
+    pub async fn get_nodes_in_subnet(&self) -> u32 {
+        self.call_query(
+            "getNodesInSubnet",
+            Encode!().unwrap(),
+            Principal::anonymous(),
+        )
+        .await
+    }
+
     // Legacy endpoint, not supported by the `evm_rpc_client::EvmRpcClient`
     pub async fn request(
         &self,
@@ -189,6 +212,22 @@ impl EvmRpcNonblockingSetup {
             )
             .await
             .unwrap()
+    }
+
+    // TODO XC-412: Add a `request_cost()` method to `evm_rpc_client::RequestBuilder`
+    //  and get rid ogf
+    pub async fn request_cost(
+        &self,
+        source: RpcService,
+        json_rpc_payload: &str,
+        max_response_bytes: u64,
+    ) -> RpcResult<Nat> {
+        self.call_query(
+            "requestCost",
+            Encode!(&source, &json_rpc_payload, &max_response_bytes).unwrap(),
+            Principal::anonymous(),
+        )
+        .await
     }
 
     async fn call_query<R: CandidType + DeserializeOwned>(
