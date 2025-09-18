@@ -22,14 +22,14 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 #[derive(Clone)]
-pub struct EvmRpcNonblockingSetup {
+pub struct EvmRpcSetup {
     pub env: Arc<nonblocking::PocketIc>,
     pub caller: Principal,
     pub controller: Principal,
     pub canister_id: CanisterId,
 }
 
-impl EvmRpcNonblockingSetup {
+impl EvmRpcSetup {
     pub async fn new() -> Self {
         Self::with_args(InstallArgs {
             demo: Some(true),
@@ -215,7 +215,7 @@ impl EvmRpcNonblockingSetup {
     }
 
     // TODO XC-412: Add a `request_cost()` method to `evm_rpc_client::RequestBuilder`
-    //  and get rid ogf
+    //  and delete this method
     pub async fn request_cost(
         &self,
         source: RpcService,

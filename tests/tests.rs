@@ -6,7 +6,7 @@ use crate::{
         json::{JsonRpcRequestMatcher, JsonRpcResponse},
         CanisterHttpReject, CanisterHttpReply, MockHttpOutcalls, MockHttpOutcallsBuilder,
     },
-    setup::EvmRpcNonblockingSetup,
+    setup::EvmRpcSetup,
 };
 use alloy_primitives::{address, b256, bloom, bytes, Bytes, B256, U256};
 use alloy_rpc_types::{BlockNumberOrTag, BlockTransactions};
@@ -92,7 +92,7 @@ async fn mock_request(request_fn: impl Fn(JsonRpcRequestMatcher) -> JsonRpcReque
         ))
         .respond_with(JsonRpcResponse::from(MOCK_REQUEST_RESPONSE));
 
-    let setup = EvmRpcNonblockingSetup::new().await;
+    let setup = EvmRpcSetup::new().await;
     assert_matches!(
         setup
             .request(
@@ -217,7 +217,7 @@ async fn should_canonicalize_json_response() {
         r#"{"result":"0x00112233","jsonrpc":"2.0","id":1}"#,
     ];
 
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let mut results = Vec::with_capacity(3);
     for response in responses {
         let mocks = MockHttpOutcallsBuilder::new()
@@ -254,7 +254,7 @@ async fn should_not_modify_json_rpc_request_from_request_endpoint() {
         .given(JsonRpcRequestMatcher::with_method("eth_gasPrice").with_id(123_u64))
         .respond_with(JsonRpcResponse::from(mock_response));
 
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let response = setup
         .request(
             &setup.new_mock_http_runtime(mocks),
@@ -390,7 +390,7 @@ async fn eth_get_logs_should_succeed() {
             block_timestamp: None,
         }]
     }
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let mut offsets = (0_u64..).step_by(3);
     for source in RPC_SERVICES {
         for (config, from_block, to_block) in [
@@ -439,7 +439,7 @@ async fn eth_get_logs_should_succeed() {
 
 #[tokio::test]
 async fn eth_get_logs_should_fail_when_block_range_too_large() {
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let error_msg_regex =
         regex::Regex::new("Requested [0-9_]+ blocks; limited to [0-9_]+").unwrap();
 
@@ -514,7 +514,7 @@ async fn eth_get_block_by_number_should_succeed() {
         }))
     }
 
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     for (source, offset) in iter::zip(RPC_SERVICES, (0_u64..).step_by(3)) {
         let mocks = MockHttpOutcallsBuilder::new()
@@ -602,7 +602,7 @@ async fn eth_get_block_by_number_pre_london_fork_should_succeed() {
         }))
     }
 
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     for (source, offset) in iter::zip(RPC_SERVICES, (0_u64..).step_by(3)) {
         let mocks = MockHttpOutcallsBuilder::new()
@@ -694,7 +694,7 @@ async fn eth_get_block_by_number_should_be_consistent_when_total_difficulty_inco
         JsonRpcResponse::from(body)
     }
 
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     let mocks = MockHttpOutcallsBuilder::new()
         .given(get_block_by_number_request().with_id(0_u64))
@@ -864,7 +864,7 @@ async fn eth_get_transaction_receipt_should_succeed() {
     ];
 
     let mut offsets = (0_u64..).step_by(3);
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     for (tx_hash, response, expected) in test_cases {
         for source in RPC_SERVICES {
             let offset = offsets.next().unwrap();
@@ -893,7 +893,7 @@ async fn eth_get_transaction_receipt_should_succeed() {
 
 #[tokio::test]
 async fn eth_get_transaction_count_should_succeed() {
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     for (source, offset) in iter::zip(RPC_SERVICES, (0_u64..).step_by(3)) {
         let mocks = MockHttpOutcallsBuilder::new()
@@ -934,7 +934,7 @@ async fn eth_fee_history_should_succeed() {
         }))
     }
 
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     for (source, offset) in iter::zip(RPC_SERVICES, (0_u64..).step_by(3)) {
         let mocks = MockHttpOutcallsBuilder::new()
@@ -975,7 +975,7 @@ async fn eth_send_raw_transaction_should_succeed() {
         JsonRpcResponse::from(json!({ "id": 0, "jsonrpc": "2.0", "result": MOCK_TRANSACTION_HASH }))
     }
 
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     for (source, offset) in iter::zip(RPC_SERVICES, (0_u64..).step_by(3)) {
         let mocks = MockHttpOutcallsBuilder::new()
             .given(send_raw_transaction_request().with_id(offset))
@@ -1015,7 +1015,7 @@ async fn eth_call_should_succeed() {
         )
     }
 
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     let mut offsets = (0_u64..).step_by(3);
     for call_args in [
@@ -1089,7 +1089,7 @@ async fn candid_rpc_should_allow_unexpected_response_fields() {
         }))
     }
 
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     let mocks = MockHttpOutcallsBuilder::new()
         .given(get_transaction_receipt_request().with_id(0_u64))
@@ -1121,7 +1121,7 @@ async fn candid_rpc_should_allow_unexpected_response_fields() {
 
 #[tokio::test]
 async fn candid_rpc_should_err_without_cycles() {
-    let setup = EvmRpcNonblockingSetup::with_args(InstallArgs {
+    let setup = EvmRpcSetup::with_args(InstallArgs {
         demo: None,
         ..Default::default()
     })
@@ -1155,7 +1155,7 @@ async fn candid_rpc_should_err_without_cycles() {
 
 #[tokio::test]
 async fn candid_rpc_should_err_with_insufficient_cycles() {
-    let setup = EvmRpcNonblockingSetup::with_args(InstallArgs {
+    let setup = EvmRpcSetup::with_args(InstallArgs {
         demo: Some(true),
         nodes_in_subnet: Some(33),
         ..Default::default()
@@ -1220,7 +1220,7 @@ async fn candid_rpc_should_err_with_insufficient_cycles() {
 
 #[tokio::test]
 async fn candid_rpc_should_err_when_service_unavailable() {
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let mocks = MockHttpOutcallsBuilder::new()
         .given(get_transaction_receipt_request().with_id(0_u64))
         .respond_with(CanisterHttpReply::with_status(503).with_body("Service unavailable"))
@@ -1280,7 +1280,7 @@ async fn candid_rpc_should_recognize_json_error() {
         }))
     }
 
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let mocks = MockHttpOutcallsBuilder::new()
         .given(get_transaction_receipt_request().with_id(0_u64))
         .respond_with(mock_response().with_id(0_u64))
@@ -1325,7 +1325,7 @@ async fn candid_rpc_should_recognize_json_error() {
 
 #[tokio::test]
 async fn candid_rpc_should_reject_empty_service_list() {
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let result = setup
         .client(MockHttpOutcalls::NEVER)
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![])))
@@ -1354,7 +1354,7 @@ async fn candid_rpc_should_return_inconsistent_results() {
             json!({ "id": 1, "jsonrpc": "2.0", "result": "NonceTooLow" }),
         ));
 
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let results = setup
         .client(mocks)
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
@@ -1411,10 +1411,10 @@ async fn candid_rpc_should_return_3_out_of_4_transaction_count() {
         )
     }
 
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     async fn eth_get_transaction_count_with_3_out_of_4(
-        setup: &EvmRpcNonblockingSetup,
+        setup: &EvmRpcSetup,
         offset: u64,
         [response0, response1, response2, response3]: [CanisterHttpResponse; 4],
     ) -> MultiRpcResult<U256> {
@@ -1516,7 +1516,7 @@ async fn candid_rpc_should_return_3_out_of_4_transaction_count() {
 
 #[tokio::test]
 async fn candid_rpc_should_return_inconsistent_results_with_error() {
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     let mocks = MockHttpOutcallsBuilder::new()
         .given(get_transaction_count_request().with_id(0_u64))
@@ -1583,7 +1583,7 @@ async fn candid_rpc_should_return_inconsistent_results_with_consensus_error() {
     const CONSENSUS_ERROR: &str =
         "No consensus could be reached. Replicas had different responses.";
 
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     let mocks = MockHttpOutcallsBuilder::new()
         .given(get_transaction_count_request().with_id(0_u64))
@@ -1661,7 +1661,7 @@ async fn should_have_metrics_for_generic_request() {
         )
         .respond_with(JsonRpcResponse::from(MOCK_REQUEST_RESPONSE));
 
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let response = setup
         .request(
             &setup.new_mock_http_runtime(mocks),
@@ -1694,7 +1694,7 @@ async fn should_have_metrics_for_generic_request() {
 
 #[tokio::test]
 async fn candid_rpc_should_return_inconsistent_results_with_unexpected_http_status() {
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     let mocks = MockHttpOutcallsBuilder::new()
         .given(get_transaction_count_request().with_id(0_u64))
@@ -1768,7 +1768,7 @@ async fn candid_rpc_should_handle_already_known() {
             json!({ "id": 1, "jsonrpc": "2.0", "error": {"code": -32000, "message": "already known"} }),
         ));
 
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let result = setup
         .client(mocks)
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
@@ -1806,7 +1806,7 @@ async fn candid_rpc_should_recognize_rate_limit() {
         .given(send_raw_transaction_request().with_id(1_u64))
         .respond_with(CanisterHttpReply::with_status(429).with_body("(Rate limit error message)"));
 
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let result = setup
         .client(mocks)
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
@@ -1848,7 +1848,7 @@ async fn candid_rpc_should_recognize_rate_limit() {
 
 #[tokio::test]
 async fn should_use_custom_response_size_estimate() {
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let max_response_bytes = 1234;
     let expected_response = r#"{"id":0,"jsonrpc":"2.0","result":[{"address":"0xdac17f958d2ee523a2206206994597c13d831ec7","topics":["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef","0x000000000000000000000000a9d1e08c7793af67e9d92fe308d5697fb81d3e43","0x00000000000000000000000078cccfb3d517cd4ed6d045e263e134712288ace2"],"data":"0x000000000000000000000000000000000000000000000000000000003b9c6433","blockNumber":"0x11dc77e","transactionHash":"0xf3ed91a03ddf964281ac7a24351573efd535b80fc460a5c2ad2b9d23153ec678","transactionIndex":"0x65","blockHash":"0xd5c72ad752b2f0144a878594faf8bd9f570f2f72af8e7f0940d3545a6388f629","logIndex":"0xe8","removed":false}]}"#;
 
@@ -1882,7 +1882,7 @@ async fn should_use_custom_response_size_estimate() {
 
 #[tokio::test]
 async fn should_use_fallback_public_url() {
-    let setup = EvmRpcNonblockingSetup::new().await;
+    let setup = EvmRpcSetup::new().await;
     let response = setup
         .client(
             MockHttpOutcallsBuilder::new()
@@ -1904,7 +1904,7 @@ async fn should_use_fallback_public_url() {
 
 #[tokio::test]
 async fn should_insert_api_keys() {
-    let setup = EvmRpcNonblockingSetup::with_args(InstallArgs {
+    let setup = EvmRpcSetup::with_args(InstallArgs {
         demo: Some(true),
         manage_api_keys: Some(vec![DEFAULT_CALLER_TEST_ID]),
         ..Default::default()
@@ -1939,7 +1939,7 @@ async fn should_insert_api_keys() {
 
 #[tokio::test]
 async fn should_update_api_key() {
-    let setup = EvmRpcNonblockingSetup::with_args(InstallArgs {
+    let setup = EvmRpcSetup::with_args(InstallArgs {
         demo: Some(true),
         manage_api_keys: Some(vec![DEFAULT_CALLER_TEST_ID]),
         ..Default::default()
@@ -2003,7 +2003,7 @@ async fn should_update_api_key() {
 
 #[tokio::test]
 async fn should_update_bearer_token() {
-    let setup = EvmRpcNonblockingSetup::with_args(InstallArgs {
+    let setup = EvmRpcSetup::with_args(InstallArgs {
         demo: Some(true),
         manage_api_keys: Some(vec![DEFAULT_CALLER_TEST_ID]),
         ..Default::default()
@@ -2046,7 +2046,7 @@ async fn should_update_bearer_token() {
 #[tokio::test]
 #[should_panic(expected = "You are not authorized")]
 async fn should_prevent_unauthorized_update_api_keys() {
-    let setup = EvmRpcNonblockingSetup::new().await;
+    let setup = EvmRpcSetup::new().await;
     setup
         .update_api_keys(
             &[(0, Some("unauthorized-api-key".to_string()))],
@@ -2058,7 +2058,7 @@ async fn should_prevent_unauthorized_update_api_keys() {
 #[tokio::test]
 #[should_panic(expected = "Trying to set API key for unauthenticated provider")]
 async fn should_prevent_unauthenticated_update_api_keys() {
-    let setup = EvmRpcNonblockingSetup::new().await;
+    let setup = EvmRpcSetup::new().await;
     setup
         .update_api_keys(
             &[(
@@ -2073,7 +2073,7 @@ async fn should_prevent_unauthenticated_update_api_keys() {
 #[tokio::test]
 #[should_panic(expected = "Provider not found")]
 async fn should_prevent_unknown_provider_update_api_keys() {
-    let setup = EvmRpcNonblockingSetup::new().await;
+    let setup = EvmRpcSetup::new().await;
     setup
         .update_api_keys(
             &[(5555, Some("unknown-provider-api-key".to_string()))],
@@ -2084,14 +2084,14 @@ async fn should_prevent_unknown_provider_update_api_keys() {
 
 #[tokio::test]
 async fn should_get_nodes_in_subnet() {
-    let setup = EvmRpcNonblockingSetup::new().await;
+    let setup = EvmRpcSetup::new().await;
     let nodes_in_subnet = setup.get_nodes_in_subnet().await;
     assert_eq!(nodes_in_subnet, 34);
 }
 
 #[tokio::test]
 async fn should_get_providers_and_get_service_provider_map_be_consistent() {
-    let setup = EvmRpcNonblockingSetup::new().await;
+    let setup = EvmRpcSetup::new().await;
     let providers = setup.get_providers().await;
     let service_provider_map = setup.get_service_provider_map().await;
     assert_eq!(providers.len(), service_provider_map.len());
@@ -2107,7 +2107,7 @@ async fn should_get_providers_and_get_service_provider_map_be_consistent() {
 
 #[tokio::test]
 async fn upgrade_should_keep_api_keys() {
-    let setup = EvmRpcNonblockingSetup::with_args(InstallArgs {
+    let setup = EvmRpcSetup::with_args(InstallArgs {
         demo: Some(true),
         manage_api_keys: Some(vec![DEFAULT_CALLER_TEST_ID]),
         ..Default::default()
@@ -2166,7 +2166,7 @@ async fn upgrade_should_keep_api_keys() {
 
 #[tokio::test]
 async fn upgrade_should_keep_demo() {
-    let setup = EvmRpcNonblockingSetup::with_args(InstallArgs {
+    let setup = EvmRpcSetup::with_args(InstallArgs {
         demo: Some(true),
         ..Default::default()
     })
@@ -2198,7 +2198,7 @@ async fn upgrade_should_keep_demo() {
 
 #[tokio::test]
 async fn upgrade_should_change_demo() {
-    let setup = EvmRpcNonblockingSetup::with_args(InstallArgs {
+    let setup = EvmRpcSetup::with_args(InstallArgs {
         demo: Some(true),
         ..Default::default()
     })
@@ -2235,7 +2235,7 @@ async fn upgrade_should_change_demo() {
 
 #[tokio::test]
 async fn upgrade_should_keep_manage_api_key_principals() {
-    let setup = EvmRpcNonblockingSetup::with_args(InstallArgs {
+    let setup = EvmRpcSetup::with_args(InstallArgs {
         manage_api_keys: Some(vec![ADDITIONAL_TEST_ID]),
         ..Default::default()
     })
@@ -2257,7 +2257,7 @@ async fn upgrade_should_keep_manage_api_key_principals() {
 #[tokio::test]
 #[should_panic(expected = "You are not authorized")]
 async fn upgrade_should_change_manage_api_key_principals() {
-    let setup = EvmRpcNonblockingSetup::with_args(InstallArgs {
+    let setup = EvmRpcSetup::with_args(InstallArgs {
         manage_api_keys: Some(vec![ADDITIONAL_TEST_ID]),
         ..Default::default()
     })
@@ -2284,7 +2284,7 @@ async fn should_reject_http_request_in_replicated_mode() {
         headers: vec![],
         body: serde_bytes::ByteBuf::new(),
     };
-    let setup = EvmRpcNonblockingSetup::new().await;
+    let setup = EvmRpcSetup::new().await;
     assert_matches!(
         setup
         .env
@@ -2300,7 +2300,7 @@ async fn should_reject_http_request_in_replicated_mode() {
 
 #[tokio::test]
 async fn should_retrieve_logs() {
-    let setup = EvmRpcNonblockingSetup::with_args(InstallArgs {
+    let setup = EvmRpcSetup::with_args(InstallArgs {
         demo: None,
         manage_api_keys: None,
         ..Default::default()
@@ -2319,7 +2319,7 @@ async fn should_retrieve_logs() {
 
 #[tokio::test]
 async fn should_retry_when_response_too_large() {
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     let rpc_services = RpcServices::EthMainnet(Some(vec![EthMainnetService::Cloudflare]));
 
@@ -2399,7 +2399,7 @@ async fn should_retry_when_response_too_large() {
 
 #[tokio::test]
 async fn should_have_different_request_ids_when_retrying_because_response_too_big() {
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     let mocks = MockHttpOutcallsBuilder::new()
         .given(
@@ -2452,7 +2452,7 @@ async fn should_have_different_request_ids_when_retrying_because_response_too_bi
 
 #[tokio::test]
 async fn should_fail_when_response_id_inconsistent_with_request_id() {
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     let request_id = 0_u64;
     let response_id = 1_u64;
@@ -2500,7 +2500,7 @@ async fn should_log_request() {
         }))
     }
 
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     let mocks = MockHttpOutcallsBuilder::new()
         .given(fee_history_request())
@@ -2538,7 +2538,7 @@ async fn should_log_request() {
 
 #[tokio::test]
 async fn should_change_default_provider_when_one_keeps_failing() {
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     let response = setup
         .client(
