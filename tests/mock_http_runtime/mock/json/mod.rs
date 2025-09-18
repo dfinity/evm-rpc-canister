@@ -128,7 +128,6 @@ impl CanisterHttpRequestMatcher for JsonRpcRequestMatcher {
         match serde_json::from_slice(&request.body) {
             Ok(actual_body) => {
                 if self.request_body() != actual_body {
-                    println!("{:?} *** {:?}", self.request_body(), actual_body);
                     return false;
                 }
             }
