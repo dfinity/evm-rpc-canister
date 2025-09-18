@@ -5,18 +5,24 @@ use std::fmt::Debug;
 pub mod json;
 
 #[derive(Debug, Default)]
-pub struct MockHttpOutcalls(Vec<MockHttpOutcall>);
+pub struct MockHttpOutcalls {
+    allow_unconsumed_mocks: bool,
+    mocks: Vec<MockHttpOutcall>,
+}
 
 impl MockHttpOutcalls {
-    pub const NEVER: MockHttpOutcalls = Self(Vec::new());
+    pub const NEVER: MockHttpOutcalls = Self {
+        allow_unconsumed_mocks: false,
+        mocks: vec![],
+    };
 
     pub fn push(&mut self, mock: MockHttpOutcall) {
-        self.0.push(mock);
+        self.mocks.push(mock);
     }
 
     pub fn pop_matching(&mut self, request: &CanisterHttpRequest) -> Option<MockHttpOutcall> {
         let matching_positions = self
-            .0
+            .mocks
             .iter()
             .enumerate()
             .filter_map(|(i, mock)| {
@@ -30,7 +36,8 @@ impl MockHttpOutcalls {
 
         match matching_positions.len() {
             0 => None,
-            1 => Some(self.0.swap_remove(matching_positions[0])),
+            // Maintain ordering of remaining mocks when popping an element
+            1 => Some(self.mocks.remove(matching_positions[0])),
             _ => panic!("Multiple mocks match the request: {:?}", request),
         }
     }
@@ -38,11 +45,11 @@ impl MockHttpOutcalls {
 
 impl Drop for MockHttpOutcalls {
     fn drop(&mut self) {
-        if !self.0.is_empty() {
+        if !self.allow_unconsumed_mocks && !self.mocks.is_empty() {
             panic!(
                 "MockHttpOutcalls dropped but {} mocks were not consumed: {:?}",
-                self.0.len(),
-                self.0
+                self.mocks.len(),
+                self.mocks
             );
         }
     }
@@ -61,6 +68,11 @@ pub struct MockHttpOutcallsBuilder(MockHttpOutcalls);
 impl MockHttpOutcallsBuilder {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn allow_unconsumed_mocks(mut self) -> Self {
+        self.0.allow_unconsumed_mocks = true;
+        self
     }
 
     pub fn given(
@@ -105,6 +117,15 @@ impl MockHttpOutcallBuilder {
 
 pub trait CanisterHttpRequestMatcher: Send + Debug {
     fn matches(&self, request: &CanisterHttpRequest) -> bool;
+}
+
+#[derive(Debug)]
+pub struct AnyRequestMatcher;
+
+impl CanisterHttpRequestMatcher for AnyRequestMatcher {
+    fn matches(&self, _request: &CanisterHttpRequest) -> bool {
+        true
+    }
 }
 
 pub struct CanisterHttpReply(pocket_ic::common::rest::CanisterHttpReply);

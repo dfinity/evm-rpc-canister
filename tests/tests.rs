@@ -14,6 +14,7 @@ use alloy_primitives::{address, b256, bloom, bytes, Bytes, B256, U256};
 use alloy_rpc_types::{BlockNumberOrTag, BlockTransactions};
 use assert_matches::assert_matches;
 use candid::{CandidType, Decode, Encode, Nat, Principal};
+use canhttp::http::json::Id;
 use canlog::{Log, LogEntry};
 use evm_rpc::constants::DEFAULT_MAX_RESPONSE_BYTES;
 use evm_rpc::logs::Priority;
@@ -33,10 +34,8 @@ use ic_http_types::{HttpRequest, HttpResponse};
 use ic_management_canister_types::{CanisterSettings, HttpHeader};
 use ic_test_utilities_load_wasm::load_wasm;
 use maplit::hashmap;
-use mock::{MockOutcall, MockOutcallBuilder};
-use pocket_ic::common::rest::{
-    CanisterHttpMethod, CanisterHttpResponse, MockCanisterHttpResponse, RawMessageId,
-};
+use mock::MockOutcall;
+use pocket_ic::common::rest::{CanisterHttpResponse, MockCanisterHttpResponse, RawMessageId};
 use pocket_ic::{ErrorCode, PocketIc, PocketIcBuilder, RejectResponse};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -50,8 +49,13 @@ const INITIAL_CYCLES: u128 = 100_000_000_000_000_000;
 
 const MAX_TICKS: usize = 10;
 
+const MOCK_REQUEST_METHOD: &str = "eth_gasPrice";
+const MOCK_REQUEST_ID: Id = Id::Number(1);
+const MOCK_REQUEST_PARAMS: Value = Value::Array(vec![]);
 const MOCK_REQUEST_URL: &str = "https://cloudflare-eth.com";
-const MOCK_REQUEST_PAYLOAD: &str = r#"{"id":1,"jsonrpc":"2.0","method":"eth_gasPrice"}"#;
+const MOCK_REQUEST_HOST: &str = "cloudflare-eth.com";
+const MOCK_REQUEST_PAYLOAD: &str =
+    r#"{"id":1,"jsonrpc":"2.0","method":"eth_gasPrice","params":[]}"#;
 const MOCK_REQUEST_RESPONSE: &str = r#"{"jsonrpc":"2.0","id":1,"result":"0x00112233"}"#;
 const MOCK_REQUEST_RESPONSE_BYTES: u64 = 1000;
 const MOCK_API_KEY: &str = "mock-api-key";
@@ -201,10 +205,6 @@ impl EvmRpcSetup {
         }
     }
 
-    pub fn get_metrics(&self) -> Metrics {
-        self.call_query("getMetrics", Encode!().unwrap())
-    }
-
     pub fn get_service_provider_map(&self) -> Vec<(RpcService, ProviderId)> {
         self.call_query("getServiceProviderMap", Encode!().unwrap())
     }
@@ -225,18 +225,6 @@ impl EvmRpcSetup {
     ) -> RpcResult<Nat> {
         self.call_query(
             "requestCost",
-            Encode!(&source, &json_rpc_payload, &max_response_bytes).unwrap(),
-        )
-    }
-
-    pub fn request(
-        &self,
-        source: RpcService,
-        json_rpc_payload: &str,
-        max_response_bytes: u64,
-    ) -> CallFlow<RpcResult<String>> {
-        self.call_update(
-            "request",
             Encode!(&source, &json_rpc_payload, &max_response_bytes).unwrap(),
         )
     }
@@ -394,154 +382,200 @@ impl<R: CandidType + DeserializeOwned> CallFlow<R> {
     }
 }
 
-fn mock_request(builder_fn: impl Fn(MockOutcallBuilder) -> MockOutcallBuilder) {
-    let setup = EvmRpcSetup::new();
+async fn mock_request(request_fn: impl Fn(JsonRpcRequestMatcher) -> JsonRpcRequestMatcher) {
+    let mocks = MockHttpOutcallsBuilder::new()
+        // We allow unconsumed mocks because we expect the mocked response to NOT match the
+        // request in some tests, and we do not want to panic when dropping the runtime (which
+        // causes a double panic).
+        .allow_unconsumed_mocks()
+        .given(request_fn(
+            JsonRpcRequestMatcher::with_method(MOCK_REQUEST_METHOD)
+                .with_id(MOCK_REQUEST_ID)
+                .with_params(MOCK_REQUEST_PARAMS),
+        ))
+        .respond_with(JsonRpcResponse::from(MOCK_REQUEST_RESPONSE));
+
+    let setup = EvmRpcNonblockingSetup::new().await;
     assert_matches!(
         setup
             .request(
-                RpcService::Custom(RpcApi {
-                    url: MOCK_REQUEST_URL.to_string(),
-                    headers: Some(vec![HttpHeader {
-                        name: "Custom".to_string(),
-                        value: "Value".to_string(),
-                    }]),
-                }),
-                MOCK_REQUEST_PAYLOAD,
-                MOCK_REQUEST_RESPONSE_BYTES,
+                &setup.new_mock_http_runtime(mocks),
+                (
+                    RpcService::Custom(RpcApi {
+                        url: MOCK_REQUEST_URL.to_string(),
+                        headers: Some(vec![HttpHeader {
+                            name: "Custom".to_string(),
+                            value: "Value".to_string(),
+                        }]),
+                    }),
+                    MOCK_REQUEST_PAYLOAD,
+                    MOCK_REQUEST_RESPONSE_BYTES,
+                ),
             )
-            .mock_http(builder_fn(MockOutcallBuilder::new(
-                200,
-                MOCK_REQUEST_RESPONSE
-            )))
-            .wait(),
+            .await,
         Ok(_)
     );
 }
 
-#[test]
-fn mock_request_should_succeed() {
-    mock_request(|builder| builder)
+#[tokio::test]
+async fn mock_request_should_succeed() {
+    mock_request(|request| request).await
 }
 
-#[test]
-fn mock_request_should_succeed_with_url() {
-    mock_request(|builder| builder.with_url(MOCK_REQUEST_URL))
+#[tokio::test]
+async fn mock_request_should_succeed_with_url() {
+    mock_request(|request| request.with_url(MOCK_REQUEST_URL)).await
 }
 
-#[test]
-fn mock_request_should_succeed_with_method() {
-    mock_request(|builder| builder.with_method(CanisterHttpMethod::POST))
+#[tokio::test]
+async fn mock_request_should_succeed_with_host() {
+    mock_request(|request| request.with_host(MOCK_REQUEST_HOST)).await
 }
 
-#[test]
-fn mock_request_should_succeed_with_request_headers() {
-    mock_request(|builder| {
-        builder.with_request_headers(vec![
+#[tokio::test]
+async fn mock_request_should_succeed_with_request_headers() {
+    mock_request(|request| {
+        request.with_request_headers(vec![
             (CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE),
             ("Custom", "Value"),
         ])
     })
+    .await
 }
 
-#[test]
-fn mock_request_should_succeed_with_request_body() {
-    mock_request(|builder| builder.with_raw_request_body(MOCK_REQUEST_PAYLOAD))
+#[tokio::test]
+async fn mock_request_should_succeed_with_max_response_bytes() {
+    mock_request(|request| {
+        request.with_max_response_bytes(MOCK_REQUEST_RESPONSE_BYTES)
+    })
+    .await
 }
 
-#[test]
-fn mock_request_should_succeed_with_max_response_bytes() {
-    mock_request(|builder| builder.with_max_response_bytes(MOCK_REQUEST_RESPONSE_BYTES))
-}
-
-#[test]
-fn mock_request_should_succeed_with_all() {
-    mock_request(|builder| {
-        builder
+#[tokio::test]
+async fn mock_request_should_succeed_with_all() {
+    mock_request(|_| {
+        JsonRpcRequestMatcher::with_method(MOCK_REQUEST_METHOD)
+            .with_id(MOCK_REQUEST_ID)
+            .with_params(MOCK_REQUEST_PARAMS)
             .with_url(MOCK_REQUEST_URL)
-            .with_method(CanisterHttpMethod::POST)
+            .with_host(MOCK_REQUEST_HOST)
             .with_request_headers(vec![
                 (CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE),
                 ("Custom", "Value"),
             ])
-            .with_raw_request_body(MOCK_REQUEST_PAYLOAD)
+            .with_max_response_bytes(MOCK_REQUEST_RESPONSE_BYTES)
     })
+    .await
 }
 
-#[test]
-#[should_panic(expected = "assertion `left == right` failed")]
-fn mock_request_should_fail_with_url() {
-    mock_request(|builder| builder.with_url("https://not-the-url.com"))
-}
-
-#[test]
-#[should_panic(expected = "assertion `left == right` failed")]
-fn mock_request_should_fail_with_method() {
-    mock_request(|builder| builder.with_method(CanisterHttpMethod::GET))
-}
-
-#[test]
-#[should_panic(expected = "assertion `left == right` failed")]
-fn mock_request_should_fail_with_request_headers() {
-    mock_request(|builder| builder.with_request_headers(vec![("Custom", "NotValue")]))
-}
-
-#[test]
-#[should_panic(expected = "assertion `left == right` failed")]
-fn mock_request_should_fail_with_request_body() {
-    mock_request(|builder| {
-        builder.with_raw_request_body(r#"{"id":1,"jsonrpc":"2.0","method":"unknown_method"}"#)
+#[tokio::test]
+#[should_panic(expected = "No mocks matching the request")]
+async fn mock_request_should_fail_with_method() {
+    mock_request(|_| {
+        JsonRpcRequestMatcher::with_method("eth_getBlockByNumber")
+            .with_id(MOCK_REQUEST_ID)
+            .with_params(MOCK_REQUEST_PARAMS)
     })
+    .await
 }
 
-#[test]
-fn should_canonicalize_json_response() {
-    let setup = EvmRpcSetup::new();
+#[tokio::test]
+#[should_panic(expected = "No mocks matching the request")]
+async fn mock_request_should_fail_with_id() {
+    mock_request(|request| request.with_id(123_u64)).await
+}
+
+#[tokio::test]
+#[should_panic(expected = "No mocks matching the request")]
+async fn mock_request_should_fail_with_params() {
+    mock_request(|request| request.with_params(Value::Null)).await
+}
+
+#[tokio::test]
+#[should_panic(expected = "No mocks matching the request")]
+async fn mock_request_should_fail_with_url() {
+    mock_request(|request| request.with_url("https://not-the-url.com")).await
+}
+
+#[tokio::test]
+#[should_panic(expected = "No mocks matching the request")]
+async fn mock_request_should_fail_with_host() {
+    mock_request(|request| request.with_host("not-the-host")).await
+}
+
+#[tokio::test]
+#[should_panic(expected = "No mocks matching the request")]
+async fn mock_request_should_fail_with_request_headers() {
+    mock_request(|request| request.with_request_headers(vec![("Custom", "NotValue")]))
+        .await
+}
+
+#[tokio::test]
+#[should_panic(expected = "No mocks matching the request")]
+async fn mock_request_should_fail_with_max_response_bytes() {
+    mock_request(|request| request.with_max_response_bytes(123_u64)).await
+}
+
+#[tokio::test]
+async fn should_canonicalize_json_response() {
     let responses = [
         r#"{"id":1,"jsonrpc":"2.0","result":"0x00112233"}"#,
         r#"{"result":"0x00112233","id":1,"jsonrpc":"2.0"}"#,
         r#"{"result":"0x00112233","jsonrpc":"2.0","id":1}"#,
-    ]
-    .into_iter()
-    .map(|response| {
-        setup
+    ];
+
+    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let mut results = Vec::with_capacity(3);
+    for response in responses {
+        let mocks = MockHttpOutcallsBuilder::new()
+            .given(
+                JsonRpcRequestMatcher::with_method(MOCK_REQUEST_METHOD)
+                    .with_params(MOCK_REQUEST_PARAMS)
+                    .with_id(MOCK_REQUEST_ID),
+            )
+            .respond_with(JsonRpcResponse::from(response));
+        let result = setup
             .request(
+                &setup.new_mock_http_runtime(mocks),
+                (
+                    RpcService::Custom(RpcApi {
+                        url: MOCK_REQUEST_URL.to_string(),
+                        headers: None,
+                    }),
+                    MOCK_REQUEST_PAYLOAD,
+                    MOCK_REQUEST_RESPONSE_BYTES,
+                ),
+            )
+            .await;
+        results.push(result);
+    }
+
+    assert!(results.windows(2).all(|w| w[0] == w[1]));
+}
+
+#[tokio::test]
+async fn should_not_modify_json_rpc_request_from_request_endpoint() {
+    let mock_response = r#"{"jsonrpc":"2.0","id":123,"result":"0x00112233"}"#;
+    let mocks = MockHttpOutcallsBuilder::new()
+        .given(JsonRpcRequestMatcher::with_method("eth_gasPrice").with_id(123_u64))
+        .respond_with(JsonRpcResponse::from(mock_response));
+
+    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let response = setup
+        .request(
+            &setup.new_mock_http_runtime(mocks),
+            (
                 RpcService::Custom(RpcApi {
                     url: MOCK_REQUEST_URL.to_string(),
                     headers: None,
                 }),
-                MOCK_REQUEST_PAYLOAD,
+                r#"{"id":123,"jsonrpc":"2.0","method":"eth_gasPrice"}"#,
                 MOCK_REQUEST_RESPONSE_BYTES,
-            )
-            .mock_http(MockOutcallBuilder::new(200, response))
-            .wait()
-    })
-    .collect::<Vec<_>>();
-    assert!(responses.windows(2).all(|w| w[0] == w[1]));
-}
-
-#[test]
-fn should_not_modify_json_rpc_request_from_request_endpoint() {
-    let setup = EvmRpcSetup::new();
-
-    let json_rpc_request = r#"{"id":123,"jsonrpc":"2.0","method":"eth_gasPrice"}"#;
-    let mock_response = r#"{"jsonrpc":"2.0","id":123,"result":"0x00112233"}"#;
-
-    let response = setup
-        .request(
-            RpcService::Custom(RpcApi {
-                url: MOCK_REQUEST_URL.to_string(),
-                headers: None,
-            }),
-            json_rpc_request,
-            MOCK_REQUEST_RESPONSE_BYTES,
+            ),
         )
-        .mock_http_once(
-            MockOutcallBuilder::new(200, mock_response).with_raw_request_body(json_rpc_request),
-        )
-        .wait()
-        .unwrap();
+        .await;
 
-    assert_eq!(response, mock_response);
+    assert_eq!(response, Ok(mock_response.to_string()));
 }
 
 #[test]
@@ -1922,27 +1956,36 @@ async fn candid_rpc_should_return_inconsistent_results_with_consensus_error() {
     );
 }
 
-#[test]
-fn should_have_metrics_for_generic_request() {
+#[tokio::test]
+async fn should_have_metrics_for_generic_request() {
     use evm_rpc::types::MetricRpcMethod;
+    let mocks = MockHttpOutcallsBuilder::new()
+        .given(
+            JsonRpcRequestMatcher::with_method(MOCK_REQUEST_METHOD)
+                .with_params(MOCK_REQUEST_PARAMS)
+                .with_id(MOCK_REQUEST_ID),
+        )
+        .respond_with(JsonRpcResponse::from(MOCK_REQUEST_RESPONSE));
 
-    let setup = EvmRpcSetup::new().mock_api_keys();
+    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
     let response = setup
         .request(
-            RpcService::Custom(RpcApi {
-                url: MOCK_REQUEST_URL.to_string(),
-                headers: None,
-            }),
-            MOCK_REQUEST_PAYLOAD,
-            MOCK_REQUEST_RESPONSE_BYTES,
+            &setup.new_mock_http_runtime(mocks),
+            (
+                RpcService::Custom(RpcApi {
+                    url: MOCK_REQUEST_URL.to_string(),
+                    headers: None,
+                }),
+                MOCK_REQUEST_PAYLOAD,
+                MOCK_REQUEST_RESPONSE_BYTES,
+            ),
         )
-        .mock_http(MockOutcallBuilder::new(200, MOCK_REQUEST_RESPONSE))
-        .wait();
+        .await;
     assert_eq!(response, Ok(MOCK_REQUEST_RESPONSE.to_string()));
 
     let rpc_method = || MetricRpcMethod("request".to_string());
     assert_eq!(
-        setup.get_metrics(),
+        setup.get_metrics().await,
         Metrics {
             requests: hashmap! {
                 (rpc_method(), CLOUDFLARE_HOSTNAME.into()) => 1,
