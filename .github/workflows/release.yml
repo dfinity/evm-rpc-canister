@@ -1,13 +1,7 @@
 name: Release
 
 on:
-  pull_request:
-    types:
-      - opened
-      - reopened
-      - edited
-      - synchronize
-  workflow_dispatch:
+  workflow_dispatch
 
 jobs:
   # Create a PR with the new versions and changelog, preparing the next release.
