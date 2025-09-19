@@ -13,10 +13,7 @@ use alloy_rpc_types::{BlockNumberOrTag, BlockTransactions};
 use assert_matches::assert_matches;
 use candid::{CandidType, Decode, Encode, Principal};
 use canhttp::http::json::Id;
-use evm_rpc::{
-    constants::{CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE},
-    types::{Metrics, RpcMethod},
-};
+use evm_rpc::constants::{CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE};
 use evm_rpc_types::{
     BlockTag, ConsensusStrategy, EthMainnetService, EthSepoliaService, GetLogsRpcConfig, Hex20,
     HttpOutcallError, InstallArgs, JsonRpcError, LegacyRejectionCode, MultiRpcResult, Nat256,
@@ -26,7 +23,6 @@ use ic_error_types::RejectCode;
 use ic_http_types::HttpRequest;
 use ic_management_canister_types::HttpHeader;
 use ic_test_utilities_load_wasm::load_wasm;
-use maplit::hashmap;
 use pocket_ic::common::rest::CanisterHttpResponse;
 use pocket_ic::{ErrorCode, RejectResponse};
 use serde::{Deserialize, Serialize};
@@ -66,9 +62,7 @@ const RPC_SERVICES: &[RpcServices] = &[
 
 const ANKR_HOSTNAME: &str = "rpc.ankr.com";
 const ALCHEMY_ETH_MAINNET_HOSTNAME: &str = "eth-mainnet.g.alchemy.com";
-const CLOUDFLARE_HOSTNAME: &str = "cloudflare-eth.com";
 const BLOCKPI_ETH_HOSTNAME: &str = "ethereum.blockpi.network";
-const BLOCKPI_ETH_SEPOLIA_HOSTNAME: &str = "ethereum-sepolia.blockpi.network";
 const PUBLICNODE_ETH_MAINNET_HOSTNAME: &str = "ethereum-rpc.publicnode.com";
 
 fn evm_rpc_wasm() -> Vec<u8> {
@@ -1248,23 +1242,16 @@ async fn candid_rpc_should_err_when_service_unavailable() {
             }
         ))
     );
-    let rpc_method = || RpcMethod::EthGetTransactionReceipt.into();
-    assert_eq!(
-        setup.get_metrics().await,
-        Metrics {
-            requests: hashmap! {
-                (rpc_method(), BLOCKPI_ETH_HOSTNAME.into()) => 1,
-                (rpc_method(), ANKR_HOSTNAME.into()) => 1,
-                (rpc_method(), PUBLICNODE_ETH_MAINNET_HOSTNAME.into()) => 1,
-            },
-            responses: hashmap! {
-                (rpc_method(), BLOCKPI_ETH_HOSTNAME.into(), 503.into()) => 1,
-                (rpc_method(), ANKR_HOSTNAME.into(), 503.into()) => 1,
-                (rpc_method(), PUBLICNODE_ETH_MAINNET_HOSTNAME.into(), 503.into()) => 1,
-            },
-            ..Default::default()
-        }
-    );
+
+    setup
+        .check_metrics()
+        .await
+        .assert_contains_metric_matching(r#"evmrpc_requests\{method="eth_getTransactionReceipt",host="ethereum.blockpi.network"\} 1 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_requests\{method="eth_getTransactionReceipt",host="rpc.ankr.com"\} 1 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_requests\{method="eth_getTransactionReceipt",host="ethereum-rpc.publicnode.com"\} 1 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_responses\{method="eth_getTransactionReceipt",host="ethereum.blockpi.network",status="503"\} 1 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_responses\{method="eth_getTransactionReceipt",host="rpc.ankr.com",status="503"\} 1 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_responses\{method="eth_getTransactionReceipt",host="ethereum-rpc.publicnode.com",status="503"\} 1 \d+"#);
 }
 
 #[tokio::test]
@@ -1306,21 +1293,14 @@ async fn candid_rpc_should_recognize_json_error() {
             message: "Error message".to_string(),
         }))
     );
-    let rpc_method = || RpcMethod::EthGetTransactionReceipt.into();
-    assert_eq!(
-        setup.get_metrics().await,
-        Metrics {
-            requests: hashmap! {
-                (rpc_method(), ANKR_HOSTNAME.into()) => 1,
-                (rpc_method(), BLOCKPI_ETH_SEPOLIA_HOSTNAME.into()) => 1,
-            },
-            responses: hashmap! {
-                (rpc_method(), ANKR_HOSTNAME.into(), 200.into()) => 1,
-                (rpc_method(), BLOCKPI_ETH_SEPOLIA_HOSTNAME.into(), 200.into()) => 1,
-            },
-            ..Default::default()
-        }
-    );
+
+    setup
+        .check_metrics()
+        .await
+        .assert_contains_metric_matching(r#"evmrpc_requests\{method="eth_getTransactionReceipt",host="rpc.ankr.com"\} 1 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_requests\{method="eth_getTransactionReceipt",host="ethereum-sepolia.blockpi.network"\} 1 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_responses\{method="eth_getTransactionReceipt",host="rpc.ankr.com",status="200"\} 1 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_responses\{method="eth_getTransactionReceipt",host="ethereum-sepolia.blockpi.network",status="200"\} 1 \d+"#);
 }
 
 #[tokio::test]
@@ -1382,25 +1362,16 @@ async fn candid_rpc_should_return_inconsistent_results() {
             )
         ]
     );
-    let rpc_method = || RpcMethod::EthSendRawTransaction.into();
-    assert_eq!(
-        setup.get_metrics().await,
-        Metrics {
-            requests: hashmap! {
-                (rpc_method(), ANKR_HOSTNAME.into()) => 1,
-                (rpc_method(), CLOUDFLARE_HOSTNAME.into()) => 1,
-            },
-            responses: hashmap! {
-                (rpc_method(), ANKR_HOSTNAME.into(), 200.into()) => 1,
-                (rpc_method(), CLOUDFLARE_HOSTNAME.into(), 200.into()) => 1,
-            },
-            inconsistent_responses: hashmap! {
-                (rpc_method(), ANKR_HOSTNAME.into()) => 1,
-                (rpc_method(), CLOUDFLARE_HOSTNAME.into()) => 1,
-            },
-            ..Default::default()
-        }
-    );
+
+    setup
+        .check_metrics()
+        .await
+        .assert_contains_metric_matching(r#"evmrpc_requests\{method="eth_sendRawTransaction",host="rpc.ankr.com"\} 1 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_requests\{method="eth_sendRawTransaction",host="cloudflare-eth.com"\} 1 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_responses\{method="eth_sendRawTransaction",host="rpc.ankr.com",status="200"\} 1 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_responses\{method="eth_sendRawTransaction",host="cloudflare-eth.com",status="200"\} 1 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_inconsistent_responses\{method="eth_sendRawTransaction",host="rpc.ankr.com"\} 1 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_inconsistent_responses\{method="eth_sendRawTransaction",host="cloudflare-eth.com"\} 1 \d+"#);
 }
 
 #[tokio::test]
@@ -1557,25 +1528,16 @@ async fn candid_rpc_should_return_inconsistent_results_with_error() {
             ),
         ]
     );
-    let rpc_method = || RpcMethod::EthGetTransactionCount.into();
-    assert_eq!(
-        setup.get_metrics().await,
-        Metrics {
-            requests: hashmap! {
-                (rpc_method(), ALCHEMY_ETH_MAINNET_HOSTNAME.into()) => 1,
-                (rpc_method(), ANKR_HOSTNAME.into()) => 1,
-            },
-            responses: hashmap! {
-                (rpc_method(), ALCHEMY_ETH_MAINNET_HOSTNAME.into(), 200.into()) => 1,
-                (rpc_method(), ANKR_HOSTNAME.into(), 200.into()) => 1,
-            },
-            inconsistent_responses: hashmap! {
-                (rpc_method(), ALCHEMY_ETH_MAINNET_HOSTNAME.into()) => 1,
-                (rpc_method(), ANKR_HOSTNAME.into()) => 1,
-            },
-            ..Default::default()
-        }
-    );
+
+    setup
+        .check_metrics()
+        .await
+        .assert_contains_metric_matching(r#"evmrpc_requests\{method="eth_getTransactionCount",host="eth-mainnet.g.alchemy.com"\} 1 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_requests\{method="eth_getTransactionCount",host="rpc.ankr.com"\} 1 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_responses\{method="eth_getTransactionCount",host="eth-mainnet.g.alchemy.com",status="200"\} 1 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_responses\{method="eth_getTransactionCount",host="rpc.ankr.com",status="200"\} 1 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_inconsistent_responses\{method="eth_getTransactionCount",host="eth-mainnet.g.alchemy.com"\} 1 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_inconsistent_responses\{method="eth_getTransactionCount",host="rpc.ankr.com"\} 1 \d+"#);
 }
 
 #[tokio::test]
@@ -1639,20 +1601,15 @@ async fn candid_rpc_should_return_inconsistent_results_with_consensus_error() {
         ]
     );
 
-    let rpc_method = || RpcMethod::EthGetTransactionCount.into();
-    let err_http_outcall = setup.get_metrics().await.err_http_outcall;
-    assert_eq!(
-        err_http_outcall,
-        hashmap! {
-            (rpc_method(), ANKR_HOSTNAME.into(), LegacyRejectionCode::SysTransient) => 1,
-            (rpc_method(), PUBLICNODE_ETH_MAINNET_HOSTNAME.into(), LegacyRejectionCode::SysTransient) => 1,
-        },
-    );
+    setup
+        .check_metrics()
+        .await
+        .assert_contains_metric_matching(r#"evmrpc_err_http_outcall\{method="eth_getTransactionCount",host="rpc.ankr.com",code="SYS_TRANSIENT"\} 1 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_err_http_outcall\{method="eth_getTransactionCount",host="ethereum-rpc.publicnode.com",code="SYS_TRANSIENT"\} 1 \d+"#);
 }
 
 #[tokio::test]
 async fn should_have_metrics_for_generic_request() {
-    use evm_rpc::types::MetricRpcMethod;
     let mocks = MockHttpOutcallsBuilder::new()
         .given(
             JsonRpcRequestMatcher::with_method(MOCK_REQUEST_METHOD)
@@ -1677,19 +1634,15 @@ async fn should_have_metrics_for_generic_request() {
         .await;
     assert_eq!(response, Ok(MOCK_REQUEST_RESPONSE.to_string()));
 
-    let rpc_method = || MetricRpcMethod("request".to_string());
-    assert_eq!(
-        setup.get_metrics().await,
-        Metrics {
-            requests: hashmap! {
-                (rpc_method(), CLOUDFLARE_HOSTNAME.into()) => 1,
-            },
-            responses: hashmap! {
-                (rpc_method(), CLOUDFLARE_HOSTNAME.into(), 200.into()) => 1,
-            },
-            ..Default::default()
-        }
-    );
+    setup
+        .check_metrics()
+        .await
+        .assert_contains_metric_matching(
+            r#"evmrpc_requests\{method="request",host="cloudflare-eth.com"\} 1 \d+"#,
+        )
+        .assert_contains_metric_matching(
+            r#"evmrpc_responses\{method="request",host="cloudflare-eth.com",status="200"\} 1 \d+"#,
+        );
 }
 
 #[tokio::test]
@@ -1735,25 +1688,16 @@ async fn candid_rpc_should_return_inconsistent_results_with_unexpected_http_stat
             ),
         ]
     );
-    let rpc_method = || RpcMethod::EthGetTransactionCount.into();
-    assert_eq!(
-        setup.get_metrics().await,
-        Metrics {
-            requests: hashmap! {
-                (rpc_method(), ALCHEMY_ETH_MAINNET_HOSTNAME.into()) => 1,
-                (rpc_method(), ANKR_HOSTNAME.into()) => 1,
-            },
-            responses: hashmap! {
-                (rpc_method(), ALCHEMY_ETH_MAINNET_HOSTNAME.into(), 200.into()) => 1,
-                (rpc_method(), ANKR_HOSTNAME.into(), 400.into()) => 1,
-            },
-            inconsistent_responses: hashmap! {
-                (rpc_method(), ALCHEMY_ETH_MAINNET_HOSTNAME.into()) => 1,
-                (rpc_method(), ANKR_HOSTNAME.into()) => 1,
-            },
-            ..Default::default()
-        }
-    );
+
+    setup
+        .check_metrics()
+        .await
+        .assert_contains_metric_matching(r#"evmrpc_requests\{method="eth_getTransactionCount",host="eth-mainnet.g.alchemy.com"\} 1 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_requests\{method="eth_getTransactionCount",host="rpc.ankr.com"\} 1 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_responses\{method="eth_getTransactionCount",host="eth-mainnet.g.alchemy.com",status="200"\} 1 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_responses\{method="eth_getTransactionCount",host="rpc.ankr.com",status="400"\} 1 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_inconsistent_responses\{method="eth_getTransactionCount",host="eth-mainnet.g.alchemy.com"\} 1 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_inconsistent_responses\{method="eth_getTransactionCount",host="rpc.ankr.com"\} 1 \d+"#);
 }
 
 #[tokio::test]
@@ -1781,21 +1725,14 @@ async fn candid_rpc_should_handle_already_known() {
         .await
         .expect_consistent();
     assert_eq!(result, Ok(MOCK_TRANSACTION_HASH));
-    let rpc_method = || RpcMethod::EthSendRawTransaction.into();
-    assert_eq!(
-        setup.get_metrics().await,
-        Metrics {
-            requests: hashmap! {
-                (rpc_method(), ANKR_HOSTNAME.into()) => 1,
-                (rpc_method(), CLOUDFLARE_HOSTNAME.into()) => 1,
-            },
-            responses: hashmap! {
-                (rpc_method(), ANKR_HOSTNAME.into(), 200.into()) => 1,
-                (rpc_method(), CLOUDFLARE_HOSTNAME.into(), 200.into()) => 1,
-            },
-            ..Default::default()
-        }
-    );
+
+    setup
+        .check_metrics()
+        .await
+        .assert_contains_metric_matching(r#"evmrpc_requests\{method="eth_sendRawTransaction",host="rpc.ankr.com"\} 1 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_requests\{method="eth_sendRawTransaction",host="cloudflare-eth.com"\} 1 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_responses\{method="eth_sendRawTransaction",host="rpc.ankr.com",status="200"\} 1 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_responses\{method="eth_sendRawTransaction",host="cloudflare-eth.com",status="200"\} 1 \d+"#);
 }
 
 #[tokio::test]
@@ -1829,21 +1766,14 @@ async fn candid_rpc_should_recognize_rate_limit() {
             }
         ))
     );
-    let rpc_method = || RpcMethod::EthSendRawTransaction.into();
-    assert_eq!(
-        setup.get_metrics().await,
-        Metrics {
-            requests: hashmap! {
-                (rpc_method(), ANKR_HOSTNAME.into()) => 1,
-                (rpc_method(), CLOUDFLARE_HOSTNAME.into()) => 1,
-            },
-            responses: hashmap! {
-                (rpc_method(), ANKR_HOSTNAME.into(), 429.into()) => 1,
-                (rpc_method(), CLOUDFLARE_HOSTNAME.into(), 429.into()) => 1,
-            },
-            ..Default::default()
-        }
-    );
+
+    setup
+        .check_metrics()
+        .await
+        .assert_contains_metric_matching(r#"evmrpc_requests\{method="eth_sendRawTransaction",host="rpc.ankr.com"\} 1 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_requests\{method="eth_sendRawTransaction",host="cloudflare-eth.com"\} 1 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_responses\{method="eth_sendRawTransaction",host="rpc.ankr.com",status="429"\} 1 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_responses\{method="eth_sendRawTransaction",host="cloudflare-eth.com",status="429"\} 1 \d+"#);
 }
 
 #[tokio::test]
@@ -2432,22 +2362,12 @@ async fn should_have_different_request_ids_when_retrying_because_response_too_bi
 
     assert_eq!(response, Ok(U256::ONE));
 
-    let rpc_method = || RpcMethod::EthGetTransactionCount.into();
-    assert_eq!(
-        setup.get_metrics().await,
-        Metrics {
-            requests: hashmap! {
-                (rpc_method(), CLOUDFLARE_HOSTNAME.into()) => 2,
-            },
-            responses: hashmap! {
-                (rpc_method(), CLOUDFLARE_HOSTNAME.into(), 200.into()) => 1,
-            },
-            err_max_response_size_exceeded: hashmap! {
-                (rpc_method(), CLOUDFLARE_HOSTNAME.into()) => 1,
-            },
-            ..Default::default()
-        }
-    );
+    setup
+        .check_metrics()
+        .await
+        .assert_contains_metric_matching(r#"evmrpc_requests\{method="eth_getTransactionCount",host="cloudflare-eth.com"\} 2 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_responses\{method="eth_getTransactionCount",host="cloudflare-eth.com",status="200"\} 1 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_err_max_response_size_exceeded\{method="eth_getTransactionCount",host="cloudflare-eth.com"\} 1 \d+"#);
 }
 
 #[tokio::test]
