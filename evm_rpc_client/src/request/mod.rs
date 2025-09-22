@@ -255,7 +255,7 @@ impl EvmRpcRequest for SendRawTransactionRequest {
     type Config = RpcConfig;
     type Params = Hex;
     type CandidOutput = MultiRpcResult<evm_rpc_types::SendRawTransactionStatus>;
-    type Output = MultiRpcResult<Option<alloy_primitives::B256>>;
+    type Output = MultiRpcResult<alloy_primitives::B256>;
 
     fn endpoint(&self) -> EvmRpcEndpoint {
         EvmRpcEndpoint::SendRawTransaction
@@ -271,7 +271,7 @@ pub type SendRawTransactionRequestBuilder<R> = RequestBuilder<
     RpcConfig,
     Hex,
     MultiRpcResult<evm_rpc_types::SendRawTransactionStatus>,
-    MultiRpcResult<Option<alloy_primitives::B256>>,
+    MultiRpcResult<alloy_primitives::B256>,
 >;
 
 /// Ethereum RPC endpoint supported by the EVM RPC canister.

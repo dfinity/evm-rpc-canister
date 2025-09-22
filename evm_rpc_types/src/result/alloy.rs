@@ -1,6 +1,6 @@
 use crate::{
     Block, FeeHistory, Hex, JsonRpcError, LogEntry, MultiRpcResult, Nat256, RpcError,
-    SendRawTransactionStatus,
+    SendRawTransactionStatus, ValidationError,
 };
 
 impl From<MultiRpcResult<Vec<LogEntry>>> for MultiRpcResult<Vec<alloy_rpc_types::Log>> {
@@ -37,14 +37,15 @@ impl From<MultiRpcResult<Hex>> for MultiRpcResult<alloy_primitives::Bytes> {
     }
 }
 
-impl From<MultiRpcResult<SendRawTransactionStatus>>
-    for MultiRpcResult<Option<alloy_primitives::B256>>
-{
+impl From<MultiRpcResult<SendRawTransactionStatus>> for MultiRpcResult<alloy_primitives::B256> {
     fn from(result: MultiRpcResult<SendRawTransactionStatus>) -> Self {
         result.and_then(|status| match status {
-            SendRawTransactionStatus::Ok(maybe_hash) => {
-                Ok(maybe_hash.map(alloy_primitives::B256::from))
-            }
+            SendRawTransactionStatus::Ok(maybe_hash) => match maybe_hash {
+                Some(hash) => Ok(alloy_primitives::B256::from(hash)),
+                None => Err(RpcError::ValidationError(ValidationError::Custom(
+                    "Unable to compute transaction hash".to_string(),
+                ))),
+            },
             error => Err(RpcError::JsonRpcError(JsonRpcError {
                 code: -32_000,
                 message: match error {

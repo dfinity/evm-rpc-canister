@@ -1197,7 +1197,7 @@ async fn eth_send_raw_transaction_should_succeed() {
             .expect_consistent()
             .unwrap();
 
-        assert_eq!(response, Some(MOCK_TRANSACTION_HASH));
+        assert_eq!(response, MOCK_TRANSACTION_HASH);
     }
 }
 
@@ -1505,7 +1505,7 @@ async fn candid_rpc_should_return_inconsistent_results() {
         vec![
             (
                 RpcService::EthMainnet(EthMainnetService::Ankr),
-                Ok(Some(MOCK_TRANSACTION_HASH))
+                Ok(MOCK_TRANSACTION_HASH)
             ),
             (
                 RpcService::EthMainnet(EthMainnetService::Cloudflare),
@@ -1905,7 +1905,7 @@ async fn candid_rpc_should_handle_already_known() {
         .send()
         .await
         .expect_consistent();
-    assert_eq!(result, Ok(Some(MOCK_TRANSACTION_HASH)));
+    assert_eq!(result, Ok(MOCK_TRANSACTION_HASH));
     let rpc_method = || RpcMethod::EthSendRawTransaction.into();
     assert_eq!(
         setup.get_metrics().await,

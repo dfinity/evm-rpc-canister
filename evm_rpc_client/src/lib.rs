@@ -577,7 +577,7 @@ impl<R> EvmRpcClient<R> {
     ///     .await
     ///     .expect_consistent();
     ///
-    /// assert_eq!(result, Ok(Some(b256!("0x33469b22e9f636356c4160a87eb19df52b7412e8eac32a4a55ffe88ea8350788"))));
+    /// assert_eq!(result, Ok(b256!("0x33469b22e9f636356c4160a87eb19df52b7412e8eac32a4a55ffe88ea8350788")));
     /// # Ok(())
     /// # }
     /// ```
