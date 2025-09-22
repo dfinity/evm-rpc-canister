@@ -563,11 +563,10 @@ impl<R> EvmRpcClient<R> {
     /// use alloy_primitives::{b256, bytes};
     /// use evm_rpc_client::EvmRpcClient;
     ///
-    /// # use evm_rpc_types::{MultiRpcResult, Hex32};
+    /// # use evm_rpc_types::{MultiRpcResult, Hex32, SendRawTransactionStatus};
     /// # use std::str::FromStr;
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// use evm_rpc_types::SendRawTransactionStatus;
     /// let client = EvmRpcClient::builder_for_ic()
     /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(SendRawTransactionStatus::Ok(Some(Hex32::from_str("0x33469b22e9f636356c4160a87eb19df52b7412e8eac32a4a55ffe88ea8350788").unwrap())))))
     ///     .build();
