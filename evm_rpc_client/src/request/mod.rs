@@ -242,6 +242,38 @@ impl<R> GetTransactionCountRequestBuilder<R> {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct SendRawTransactionRequest(Hex);
+
+impl SendRawTransactionRequest {
+    pub fn new(params: Hex) -> Self {
+        Self(params)
+    }
+}
+
+impl EvmRpcRequest for SendRawTransactionRequest {
+    type Config = RpcConfig;
+    type Params = Hex;
+    type CandidOutput = MultiRpcResult<evm_rpc_types::SendRawTransactionStatus>;
+    type Output = MultiRpcResult<alloy_primitives::B256>;
+
+    fn endpoint(&self) -> EvmRpcEndpoint {
+        EvmRpcEndpoint::SendRawTransaction
+    }
+
+    fn params(self) -> Self::Params {
+        self.0
+    }
+}
+
+pub type SendRawTransactionRequestBuilder<R> = RequestBuilder<
+    R,
+    RpcConfig,
+    Hex,
+    MultiRpcResult<evm_rpc_types::SendRawTransactionStatus>,
+    MultiRpcResult<alloy_primitives::B256>,
+>;
+
 /// Ethereum RPC endpoint supported by the EVM RPC canister.
 pub trait EvmRpcRequest {
     /// Type of RPC config for that request.
@@ -273,6 +305,8 @@ pub enum EvmRpcEndpoint {
     GetLogs,
     /// `eth_getTransactionCount` endpoint.
     GetTransactionCount,
+    /// `eth_sendRawTransaction` endpoint.
+    SendRawTransaction,
 }
 
 impl EvmRpcEndpoint {
@@ -284,6 +318,7 @@ impl EvmRpcEndpoint {
             Self::GetBlockByNumber => "eth_getBlockByNumber",
             Self::GetLogs => "eth_getLogs",
             Self::GetTransactionCount => "eth_getTransactionCount",
+            Self::SendRawTransaction => "eth_sendRawTransaction",
         }
     }
 }
