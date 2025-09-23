@@ -1244,7 +1244,7 @@ async fn eth_fee_history_should_succeed() {
 #[tokio::test]
 async fn eth_send_raw_transaction_should_succeed() {
     fn mock_response() -> JsonRpcResponse {
-        JsonRpcResponse::from(json!({ "id": 0, "jsonrpc": "2.0", "result": "Ok" }))
+        JsonRpcResponse::from(json!({ "id": 0, "jsonrpc": "2.0", "result": MOCK_TRANSACTION_HASH }))
     }
 
     let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
@@ -1619,7 +1619,7 @@ async fn candid_rpc_should_return_inconsistent_results() {
     let mocks = MockHttpOutcallsBuilder::new()
         .given(send_raw_transaction_request().with_id(0_u64))
         .respond_with(JsonRpcResponse::from(
-            json!({ "id": 0, "jsonrpc": "2.0", "result": "Ok" }),
+            json!({ "id": 0, "jsonrpc": "2.0", "result": MOCK_TRANSACTION_HASH }),
         ))
         .given(send_raw_transaction_request().with_id(1_u64))
         .respond_with(JsonRpcResponse::from(
@@ -2024,7 +2024,7 @@ async fn candid_rpc_should_handle_already_known() {
     let mocks = MockHttpOutcallsBuilder::new()
         .given(send_raw_transaction_request().with_id(0_u64))
         .respond_with(JsonRpcResponse::from(
-            json!({ "id": 0, "jsonrpc": "2.0", "result": "Ok" }),
+            json!({ "id": 0, "jsonrpc": "2.0", "result": MOCK_TRANSACTION_HASH }),
         ))
         .given(send_raw_transaction_request().with_id(1_u64))
         .respond_with(JsonRpcResponse::from(
