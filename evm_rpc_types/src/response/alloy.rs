@@ -1,5 +1,8 @@
-use crate::{Block, FeeHistory, Hex32, LogEntry, Nat256, RpcError, ValidationError};
-use alloy_primitives::{B256, U256};
+use crate::{
+    Block, FeeHistory, Hex32, HexByte, LogEntry, Nat256, RpcError, RpcResult, TransactionReceipt,
+    ValidationError,
+};
+use alloy_primitives::{Address, B256, U256};
 use alloy_rpc_types::BlockTransactions;
 use candid::Nat;
 use num_bigint::BigUint;
@@ -127,19 +130,106 @@ impl TryFrom<FeeHistory> for alloy_rpc_types::FeeHistory {
     }
 }
 
+impl TryFrom<TransactionReceipt> for alloy_rpc_types::TransactionReceipt {
+    type Error = RpcError;
+
+    fn try_from(receipt: TransactionReceipt) -> Result<Self, Self::Error> {
+        Ok(Self {
+            inner: alloy_consensus::ReceiptEnvelope::from_typed(
+                alloy_consensus::TxType::try_from(receipt.tx_type)?,
+                alloy_consensus::ReceiptWithBloom {
+                    receipt: alloy_consensus::Receipt {
+                        status: validate_receipt_status(
+                            &receipt.block_number,
+                            receipt.root,
+                            receipt.status,
+                        )?,
+                        cumulative_gas_used: try_from_nat256(
+                            receipt.cumulative_gas_used,
+                            "cumulative_gas_used",
+                        )?,
+                        logs: receipt
+                            .logs
+                            .into_iter()
+                            .map(alloy_rpc_types::Log::try_from)
+                            .collect::<RpcResult<Vec<alloy_rpc_types::Log>>>()?,
+                    },
+                    logs_bloom: alloy_primitives::Bloom::from(receipt.logs_bloom),
+                },
+            ),
+            transaction_hash: B256::from(receipt.transaction_hash),
+            transaction_index: Some(try_from_nat256(
+                receipt.transaction_index,
+                "transaction_index",
+            )?),
+            block_hash: Some(B256::from(receipt.block_hash)),
+            block_number: Some(try_from_nat256(receipt.block_number, "block_number")?),
+            gas_used: try_from_nat256(receipt.gas_used, "gas_used")?,
+            effective_gas_price: try_from_nat256(
+                receipt.effective_gas_price,
+                "effective_gas_price",
+            )?,
+            blob_gas_used: None,
+            blob_gas_price: None,
+            from: Address::from(receipt.from),
+            to: receipt.to.map(Address::from),
+            contract_address: receipt.contract_address.map(Address::from),
+        })
+    }
+}
+
+impl TryFrom<HexByte> for alloy_consensus::TxType {
+    type Error = RpcError;
+
+    fn try_from(value: HexByte) -> Result<Self, Self::Error> {
+        alloy_consensus::TxType::try_from(value.into_byte()).map_err(|e| {
+            RpcError::ValidationError(ValidationError::Custom(format!(
+                "Unable to parse transaction type: {e:?}"
+            )))
+        })
+    }
+}
+
 fn validate_difficulty(number: &Nat256, difficulty: Option<Nat256>) -> Result<U256, RpcError> {
     const PARIS_BLOCK: u64 = 15_537_394;
     if number.as_ref() < &Nat::from(PARIS_BLOCK) {
         difficulty
             .map(U256::from)
             .ok_or(RpcError::ValidationError(ValidationError::Custom(
-                "Block before Paris upgrade but missing difficulty".into(),
+                "Missing difficulty field in pre Paris upgrade block".into(),
             )))
     } else {
         match difficulty.map(U256::from) {
             None | Some(U256::ZERO) => Ok(U256::ZERO),
             _ => Err(RpcError::ValidationError(ValidationError::Custom(
-                "Block after Paris upgrade with non-zero difficulty".into(),
+                "Post Paris upgrade block has non-zero difficulty".into(),
+            ))),
+        }
+    }
+}
+
+fn validate_receipt_status(
+    number: &Nat256,
+    root: Option<Hex32>,
+    status: Option<Nat256>,
+) -> Result<alloy_consensus::Eip658Value, RpcError> {
+    const BYZANTIUM_BLOCK: u64 = 4_370_000;
+    if number.as_ref() < &Nat::from(BYZANTIUM_BLOCK) {
+        match root {
+            None => Err(RpcError::ValidationError(ValidationError::Custom(
+                "Missing root field in transaction included before the Byzantium upgrade".into(),
+            ))),
+            Some(root) => Ok(alloy_consensus::Eip658Value::PostState(B256::from(root))),
+        }
+    } else {
+        match status.map(U256::from) {
+            None => Err(RpcError::ValidationError(ValidationError::Custom(
+                "Missing status field in transaction included after the Byzantium upgrade".into(),
+            ))),
+            Some(U256::ZERO) => Ok(alloy_consensus::Eip658Value::Eip658(false)),
+            Some(U256::ONE) => Ok(alloy_consensus::Eip658Value::Eip658(true)),
+            Some(_) => Err(RpcError::ValidationError(ValidationError::Custom(
+                "Post-Byzantium receipt has invalid status (expected 0 or 1)".into(),
             ))),
         }
     }

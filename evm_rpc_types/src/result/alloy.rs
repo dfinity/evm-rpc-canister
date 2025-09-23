@@ -1,6 +1,6 @@
 use crate::{
     Block, FeeHistory, Hex, JsonRpcError, LogEntry, MultiRpcResult, Nat256, RpcError,
-    SendRawTransactionStatus, ValidationError,
+    SendRawTransactionStatus, TransactionReceipt, ValidationError,
 };
 
 impl From<MultiRpcResult<Vec<LogEntry>>> for MultiRpcResult<Vec<alloy_rpc_types::Log>> {
@@ -56,6 +56,18 @@ impl From<MultiRpcResult<SendRawTransactionStatus>> for MultiRpcResult<alloy_pri
                 }
                 .to_string(),
             })),
+        })
+    }
+}
+
+impl From<MultiRpcResult<Option<TransactionReceipt>>>
+    for MultiRpcResult<Option<alloy_rpc_types::TransactionReceipt>>
+{
+    fn from(result: MultiRpcResult<Option<TransactionReceipt>>) -> Self {
+        result.and_then(|maybe_receipt| {
+            maybe_receipt
+                .map(alloy_rpc_types::TransactionReceipt::try_from)
+                .transpose()
         })
     }
 }
