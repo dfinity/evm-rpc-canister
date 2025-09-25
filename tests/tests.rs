@@ -39,6 +39,7 @@ const MAX_TICKS: usize = 10;
 const MOCK_REQUEST_METHOD: &str = "eth_gasPrice";
 const MOCK_REQUEST_ID: Id = Id::Number(1);
 const MOCK_REQUEST_PARAMS: Value = Value::Array(vec![]);
+const MOCK_REQUEST_URL: &str = "https://cloudflare-eth.com";
 const MOCK_REQUEST_PAYLOAD: &str =
     r#"{"id":1,"jsonrpc":"2.0","method":"eth_gasPrice","params":[]}"#;
 const MOCK_REQUEST_RESPONSE: &str = r#"{"jsonrpc":"2.0","id":1,"result":"0x00112233"}"#;
