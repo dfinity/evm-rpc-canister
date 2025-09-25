@@ -108,7 +108,7 @@ mod json_rpc_request_matcher_tests {
         assert!(JsonRpcRequestMatcher::with_method(DEFAULT_RPC_METHOD)
             .with_id(DEFAULT_RPC_ID)
             .with_params(DEFAULT_RPC_PARAMS)
-            .with_host(DEFAULT_URL)
+            .with_url(DEFAULT_URL)
             .with_host(DEFAULT_HOST)
             .with_max_response_bytes(DEFAULT_MAX_RESPONSE_BYTES)
             .with_request_headers(vec![(CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE),])
