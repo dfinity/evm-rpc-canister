@@ -13,10 +13,7 @@ use alloy_rpc_types::{BlockNumberOrTag, BlockTransactions};
 use assert_matches::assert_matches;
 use candid::{CandidType, Decode, Encode, Principal};
 use canhttp::http::json::Id;
-use evm_rpc::{
-    constants::{CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE},
-    types::{Metrics, RpcMethod},
-};
+use evm_rpc::types::{Metrics, RpcMethod};
 use evm_rpc_types::{
     BlockTag, ConsensusStrategy, EthMainnetService, EthSepoliaService, GetLogsRpcConfig, Hex20,
     HttpOutcallError, InstallArgs, JsonRpcError, LegacyRejectionCode, MultiRpcResult, Nat256,
@@ -24,7 +21,6 @@ use evm_rpc_types::{
 };
 use ic_error_types::RejectCode;
 use ic_http_types::HttpRequest;
-use ic_management_canister_types::HttpHeader;
 use ic_test_utilities_load_wasm::load_wasm;
 use maplit::hashmap;
 use pocket_ic::common::rest::CanisterHttpResponse;
@@ -77,136 +73,6 @@ fn evm_rpc_wasm() -> Vec<u8> {
 
 fn assert_reply(result: Result<Vec<u8>, RejectResponse>) -> Vec<u8> {
     result.unwrap_or_else(|e| panic!("Expected a successful reply, got error {e}"))
-}
-
-async fn mock_request(request_fn: impl Fn(JsonRpcRequestMatcher) -> JsonRpcRequestMatcher) {
-    let mocks = MockHttpOutcallsBuilder::new()
-        // We allow unconsumed mocks because we expect the mocked response to NOT match the
-        // request in some tests, and we do not want to panic when dropping the runtime (which
-        // causes a double panic).
-        .allow_unconsumed_mocks()
-        .given(request_fn(
-            JsonRpcRequestMatcher::with_method(MOCK_REQUEST_METHOD)
-                .with_id(MOCK_REQUEST_ID)
-                .with_params(MOCK_REQUEST_PARAMS),
-        ))
-        .respond_with(JsonRpcResponse::from(MOCK_REQUEST_RESPONSE));
-
-    let setup = EvmRpcSetup::new().await;
-    assert_matches!(
-        setup
-            .request(
-                &setup.new_mock_http_runtime(mocks),
-                (
-                    RpcService::Custom(RpcApi {
-                        url: MOCK_REQUEST_URL.to_string(),
-                        headers: Some(vec![HttpHeader {
-                            name: "Custom".to_string(),
-                            value: "Value".to_string(),
-                        }]),
-                    }),
-                    MOCK_REQUEST_PAYLOAD,
-                    MOCK_REQUEST_RESPONSE_BYTES,
-                ),
-            )
-            .await,
-        Ok(_)
-    );
-}
-
-#[tokio::test]
-async fn mock_request_should_succeed() {
-    mock_request(|request| request).await
-}
-
-#[tokio::test]
-async fn mock_request_should_succeed_with_url() {
-    mock_request(|request| request.with_url(MOCK_REQUEST_URL)).await
-}
-
-#[tokio::test]
-async fn mock_request_should_succeed_with_host() {
-    mock_request(|request| request.with_host(MOCK_REQUEST_HOST)).await
-}
-
-#[tokio::test]
-async fn mock_request_should_succeed_with_request_headers() {
-    mock_request(|request| {
-        request.with_request_headers(vec![
-            (CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE),
-            ("Custom", "Value"),
-        ])
-    })
-    .await
-}
-
-#[tokio::test]
-async fn mock_request_should_succeed_with_max_response_bytes() {
-    mock_request(|request| request.with_max_response_bytes(MOCK_REQUEST_RESPONSE_BYTES)).await
-}
-
-#[tokio::test]
-async fn mock_request_should_succeed_with_all() {
-    mock_request(|_| {
-        JsonRpcRequestMatcher::with_method(MOCK_REQUEST_METHOD)
-            .with_id(MOCK_REQUEST_ID)
-            .with_params(MOCK_REQUEST_PARAMS)
-            .with_url(MOCK_REQUEST_URL)
-            .with_host(MOCK_REQUEST_HOST)
-            .with_request_headers(vec![
-                (CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE),
-                ("Custom", "Value"),
-            ])
-            .with_max_response_bytes(MOCK_REQUEST_RESPONSE_BYTES)
-    })
-    .await
-}
-
-#[tokio::test]
-#[should_panic(expected = "No mocks matching the request")]
-async fn mock_request_should_fail_with_method() {
-    mock_request(|_| {
-        JsonRpcRequestMatcher::with_method("eth_getBlockByNumber")
-            .with_id(MOCK_REQUEST_ID)
-            .with_params(MOCK_REQUEST_PARAMS)
-    })
-    .await
-}
-
-#[tokio::test]
-#[should_panic(expected = "No mocks matching the request")]
-async fn mock_request_should_fail_with_id() {
-    mock_request(|request| request.with_id(123_u64)).await
-}
-
-#[tokio::test]
-#[should_panic(expected = "No mocks matching the request")]
-async fn mock_request_should_fail_with_params() {
-    mock_request(|request| request.with_params(Value::Null)).await
-}
-
-#[tokio::test]
-#[should_panic(expected = "No mocks matching the request")]
-async fn mock_request_should_fail_with_url() {
-    mock_request(|request| request.with_url("https://not-the-url.com")).await
-}
-
-#[tokio::test]
-#[should_panic(expected = "No mocks matching the request")]
-async fn mock_request_should_fail_with_host() {
-    mock_request(|request| request.with_host("not-the-host")).await
-}
-
-#[tokio::test]
-#[should_panic(expected = "No mocks matching the request")]
-async fn mock_request_should_fail_with_request_headers() {
-    mock_request(|request| request.with_request_headers(vec![("Custom", "NotValue")])).await
-}
-
-#[tokio::test]
-#[should_panic(expected = "No mocks matching the request")]
-async fn mock_request_should_fail_with_max_response_bytes() {
-    mock_request(|request| request.with_max_response_bytes(123_u64)).await
 }
 
 #[tokio::test]
