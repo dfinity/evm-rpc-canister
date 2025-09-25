@@ -21,10 +21,9 @@ use evm_rpc_types::{
 };
 use ic_error_types::RejectCode;
 use ic_http_types::HttpRequest;
-use ic_test_utilities_load_wasm::load_wasm;
 use maplit::hashmap;
 use pocket_ic::common::rest::CanisterHttpResponse;
-use pocket_ic::{ErrorCode, RejectResponse};
+use pocket_ic::ErrorCode;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{iter, str::FromStr};
@@ -66,14 +65,6 @@ const CLOUDFLARE_HOSTNAME: &str = "cloudflare-eth.com";
 const BLOCKPI_ETH_HOSTNAME: &str = "ethereum.blockpi.network";
 const BLOCKPI_ETH_SEPOLIA_HOSTNAME: &str = "ethereum-sepolia.blockpi.network";
 const PUBLICNODE_ETH_MAINNET_HOSTNAME: &str = "ethereum-rpc.publicnode.com";
-
-fn evm_rpc_wasm() -> Vec<u8> {
-    load_wasm(std::env::var("CARGO_MANIFEST_DIR").unwrap(), "evm_rpc", &[])
-}
-
-fn assert_reply(result: Result<Vec<u8>, RejectResponse>) -> Vec<u8> {
-    result.unwrap_or_else(|e| panic!("Expected a successful reply, got error {e}"))
-}
 
 #[tokio::test]
 async fn should_canonicalize_json_response() {

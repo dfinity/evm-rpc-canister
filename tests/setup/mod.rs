@@ -1,5 +1,4 @@
 use crate::{
-    assert_reply, evm_rpc_wasm,
     mock_http_runtime::{mock::MockHttpOutcalls, MockHttpRuntime},
     DEFAULT_CALLER_TEST_ID, DEFAULT_CONTROLLER_TEST_ID, INITIAL_CYCLES, MOCK_API_KEY,
 };
@@ -16,7 +15,8 @@ use evm_rpc_types::{InstallArgs, Provider, RpcResult, RpcService};
 use ic_cdk::api::management_canister::main::CanisterId;
 use ic_http_types::{HttpRequest, HttpResponse};
 use ic_management_canister_types::CanisterSettings;
-use pocket_ic::{nonblocking, ErrorCode, PocketIcBuilder};
+use ic_test_utilities_load_wasm::load_wasm;
+use pocket_ic::{nonblocking, ErrorCode, PocketIcBuilder, RejectResponse};
 use serde::de::DeserializeOwned;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -65,7 +65,7 @@ impl EvmRpcSetup {
         env.add_cycles(canister_id, INITIAL_CYCLES).await;
         env.install_canister(
             canister_id,
-            crate::evm_rpc_wasm(),
+            evm_rpc_wasm(),
             Encode!(&args).unwrap(),
             Some(controller),
         )
@@ -256,4 +256,12 @@ impl EvmRpcSetup {
         );
         Decode!(candid, R).expect("error while decoding Candid response from query call")
     }
+}
+
+fn evm_rpc_wasm() -> Vec<u8> {
+    load_wasm(std::env::var("CARGO_MANIFEST_DIR").unwrap(), "evm_rpc", &[])
+}
+
+fn assert_reply(result: Result<Vec<u8>, RejectResponse>) -> Vec<u8> {
+    result.unwrap_or_else(|e| panic!("Expected a successful reply, got error {e}"))
 }
