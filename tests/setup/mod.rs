@@ -214,8 +214,7 @@ impl EvmRpcSetup {
             .unwrap()
     }
 
-    // TODO XC-412: Add a `request_cost()` method to `evm_rpc_client::RequestBuilder`
-    //  and delete this method
+    // Legacy endpoint, not supported by the `evm_rpc_client::EvmRpcClient`
     pub async fn request_cost(
         &self,
         source: RpcService,
