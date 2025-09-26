@@ -411,20 +411,14 @@ impl<Runtime: Debug, Config: Debug, Params: Debug, CandidOutput> Debug
     }
 }
 
-impl<Runtime, Config, Params, CandidOutput>
-    RequestBuilder<Runtime, Config, Params, CandidOutput>
-{
+impl<Runtime, Config, Params, CandidOutput> RequestBuilder<Runtime, Config, Params, CandidOutput> {
     pub(super) fn new<RpcRequest>(
         client: EvmRpcClient<Runtime>,
         rpc_request: RpcRequest,
         cycles: u128,
     ) -> Self
     where
-        RpcRequest: EvmRpcRequest<
-            Config = Config,
-            Params = Params,
-            CandidOutput = CandidOutput,
-        >,
+        RpcRequest: EvmRpcRequest<Config = Config, Params = Params, CandidOutput = CandidOutput>,
         Config: From<RpcConfig>,
     {
         let endpoint = rpc_request.endpoint();
@@ -468,9 +462,7 @@ impl<Runtime, Config, Params, CandidOutput>
     }
 }
 
-impl<R: Runtime, Config, Params, CandidOutput>
-    RequestBuilder<R, Config, Params, CandidOutput>
-{
+impl<R: Runtime, Config, Params, CandidOutput> RequestBuilder<R, Config, Params, CandidOutput> {
     /// Constructs the [`Request`] and sends it using the [`EvmRpcClient`] returning the response.
     ///
     /// # Panics
@@ -522,9 +514,7 @@ pub struct Request<Config, Params, CandidOutput> {
     pub(super) _candid_marker: std::marker::PhantomData<CandidOutput>,
 }
 
-impl<Config: Debug, Params: Debug, CandidOutput> Debug
-    for Request<Config, Params, CandidOutput>
-{
+impl<Config: Debug, Params: Debug, CandidOutput> Debug for Request<Config, Params, CandidOutput> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let Request {
             endpoint,
@@ -568,9 +558,7 @@ impl<Config: PartialEq, Params: PartialEq, CandidOutput> PartialEq
     }
 }
 
-impl<Config: Clone, Params: Clone, CandidOutput> Clone
-    for Request<Config, Params, CandidOutput>
-{
+impl<Config: Clone, Params: Clone, CandidOutput> Clone for Request<Config, Params, CandidOutput> {
     fn clone(&self) -> Self {
         Self {
             endpoint: self.endpoint.clone(),
