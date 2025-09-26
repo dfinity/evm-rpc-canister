@@ -1,5 +1,4 @@
-use crate::mock_http_runtime::mock::json::JsonRpcRequestMatcher;
-use crate::mock_http_runtime::mock::CanisterHttpRequestMatcher;
+use crate::mock_http_runtime::mock::{json::JsonRpcRequestMatcher, CanisterHttpRequestMatcher};
 use candid::Principal;
 use canhttp::http::json::Id;
 use evm_rpc::constants::{CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE};
@@ -21,12 +20,6 @@ mod json_rpc_request_matcher_tests {
     #[test]
     fn should_match_request() {
         assert!(request_matcher().matches(&request()));
-    }
-
-    fn request_matcher() -> JsonRpcRequestMatcher {
-        JsonRpcRequestMatcher::with_method(DEFAULT_RPC_METHOD)
-            .with_id(DEFAULT_RPC_ID)
-            .with_params(DEFAULT_RPC_PARAMS)
     }
 
     #[test]
@@ -116,7 +109,13 @@ mod json_rpc_request_matcher_tests {
     }
 }
 
-pub fn request() -> CanisterHttpRequest {
+fn request_matcher() -> JsonRpcRequestMatcher {
+    JsonRpcRequestMatcher::with_method(DEFAULT_RPC_METHOD)
+        .with_id(DEFAULT_RPC_ID)
+        .with_params(DEFAULT_RPC_PARAMS)
+}
+
+fn request() -> CanisterHttpRequest {
     CanisterHttpRequest {
         subnet_id: SUBNET_ID,
         request_id: 0,
