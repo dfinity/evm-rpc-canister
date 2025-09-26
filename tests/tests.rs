@@ -1544,7 +1544,7 @@ async fn should_have_metrics_for_request_endpoint() {
 async fn should_have_metrics_for_json_request_endpoint() {
     let mocks = MockHttpOutcallsBuilder::new()
         .given(JsonRpcRequestMatcher::with_method("eth_gasPrice").with_id(0_u64))
-        .respond_with(JsonRpcResponse::from(MOCK_REQUEST_RESPONSE));
+        .respond_with(JsonRpcResponse::from(MOCK_REQUEST_RESPONSE).with_id(0_u64));
 
     let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let response = setup
