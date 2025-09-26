@@ -1,46 +1,32 @@
-mod mock;
 mod mock_http_runtime;
 mod setup;
 
-use crate::mock_http_runtime::mock::CanisterHttpReject;
 use crate::{
     mock_http_runtime::mock::{
         json::{JsonRpcRequestMatcher, JsonRpcResponse},
-        CanisterHttpReply, MockHttpOutcalls, MockHttpOutcallsBuilder,
+        CanisterHttpReject, CanisterHttpReply, MockHttpOutcalls, MockHttpOutcallsBuilder,
     },
-    setup::EvmRpcNonblockingSetup,
+    setup::EvmRpcSetup,
 };
 use alloy_primitives::{address, b256, bloom, bytes, Bytes, B256, U256};
 use alloy_rpc_types::{BlockNumberOrTag, BlockTransactions};
 use assert_matches::assert_matches;
-use candid::{CandidType, Decode, Encode, Nat, Principal};
-use canlog::{Log, LogEntry};
-use evm_rpc::constants::DEFAULT_MAX_RESPONSE_BYTES;
-use evm_rpc::logs::Priority;
-use evm_rpc::{
-    constants::{CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE},
-    providers::PROVIDERS,
-    types::{Metrics, ProviderId, RpcAccess, RpcMethod},
-};
+use candid::{CandidType, Decode, Encode, Principal};
+use canhttp::http::json::Id;
+use evm_rpc::types::{Metrics, RpcMethod};
 use evm_rpc_types::{
     BlockTag, ConsensusStrategy, EthMainnetService, EthSepoliaService, GetLogsRpcConfig, Hex20,
     HttpOutcallError, InstallArgs, JsonRpcError, LegacyRejectionCode, MultiRpcResult, Nat256,
-    Provider, ProviderError, RpcApi, RpcError, RpcResult, RpcService, RpcServices, ValidationError,
+    ProviderError, RpcApi, RpcError, RpcService, RpcServices, ValidationError,
 };
-use ic_cdk::api::management_canister::main::CanisterId;
 use ic_error_types::RejectCode;
-use ic_http_types::{HttpRequest, HttpResponse};
-use ic_management_canister_types::{CanisterSettings, HttpHeader};
-use ic_test_utilities_load_wasm::load_wasm;
+use ic_http_types::HttpRequest;
 use maplit::hashmap;
-use mock::{MockOutcall, MockOutcallBuilder};
-use pocket_ic::common::rest::{
-    CanisterHttpMethod, CanisterHttpResponse, MockCanisterHttpResponse, RawMessageId,
-};
-use pocket_ic::{ErrorCode, PocketIc, PocketIcBuilder, RejectResponse};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use pocket_ic::common::rest::CanisterHttpResponse;
+use pocket_ic::ErrorCode;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::{iter, marker::PhantomData, str::FromStr, sync::Arc, time::Duration};
+use std::{iter, str::FromStr};
 
 const DEFAULT_CALLER_TEST_ID: Principal = Principal::from_slice(&[0x9d, 0xf7, 0x01]);
 const DEFAULT_CONTROLLER_TEST_ID: Principal = Principal::from_slice(&[0x9d, 0xf7, 0x02]);
@@ -50,8 +36,12 @@ const INITIAL_CYCLES: u128 = 100_000_000_000_000_000;
 
 const MAX_TICKS: usize = 10;
 
+const MOCK_REQUEST_METHOD: &str = "eth_gasPrice";
+const MOCK_REQUEST_ID: Id = Id::Number(1);
+const MOCK_REQUEST_PARAMS: Value = Value::Array(vec![]);
 const MOCK_REQUEST_URL: &str = "https://cloudflare-eth.com";
-const MOCK_REQUEST_PAYLOAD: &str = r#"{"id":1,"jsonrpc":"2.0","method":"eth_gasPrice"}"#;
+const MOCK_REQUEST_PAYLOAD: &str =
+    r#"{"id":1,"jsonrpc":"2.0","method":"eth_gasPrice","params":[]}"#;
 const MOCK_REQUEST_RESPONSE: &str = r#"{"jsonrpc":"2.0","id":1,"result":"0x00112233"}"#;
 const MOCK_REQUEST_RESPONSE_BYTES: u64 = 1000;
 const MOCK_API_KEY: &str = "mock-api-key";
@@ -75,473 +65,67 @@ const BLOCKPI_ETH_HOSTNAME: &str = "ethereum.blockpi.network";
 const BLOCKPI_ETH_SEPOLIA_HOSTNAME: &str = "ethereum-sepolia.blockpi.network";
 const PUBLICNODE_ETH_MAINNET_HOSTNAME: &str = "ethereum-rpc.publicnode.com";
 
-fn evm_rpc_wasm() -> Vec<u8> {
-    load_wasm(std::env::var("CARGO_MANIFEST_DIR").unwrap(), "evm_rpc", &[])
-}
-
-fn assert_reply(result: Result<Vec<u8>, RejectResponse>) -> Vec<u8> {
-    result.unwrap_or_else(|e| panic!("Expected a successful reply, got error {e}"))
-}
-
-#[derive(Clone)]
-pub struct EvmRpcSetup {
-    pub env: Arc<PocketIc>,
-    pub caller: Principal,
-    pub controller: Principal,
-    pub canister_id: CanisterId,
-}
-
-impl Default for EvmRpcSetup {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl EvmRpcSetup {
-    pub fn new() -> Self {
-        Self::with_args(InstallArgs {
-            demo: Some(true),
-            ..Default::default()
-        })
-    }
-
-    pub fn with_args(args: InstallArgs) -> Self {
-        // The `with_fiduciary_subnet` setup below requires that `nodes_in_subnet`
-        // setting (part of InstallArgs) to be set appropriately. Otherwise
-        // http outcall will fail due to insufficient cycles, even when `demo` is
-        // enabled (which is the default above).
-        //
-        // As of writing, the default value of `nodes_in_subnet` is 34, which is
-        // also the node count in fiduciary subnet.
-        let pocket_ic = PocketIcBuilder::new().with_fiduciary_subnet().build();
-        let env = Arc::new(pocket_ic);
-
-        let controller = DEFAULT_CONTROLLER_TEST_ID;
-        let canister_id = env.create_canister_with_settings(
-            None,
-            Some(CanisterSettings {
-                controllers: Some(vec![controller]),
-                ..CanisterSettings::default()
-            }),
-        );
-        env.add_cycles(canister_id, INITIAL_CYCLES);
-        env.install_canister(
-            canister_id,
-            evm_rpc_wasm(),
-            Encode!(&args).unwrap(),
-            Some(controller),
-        );
-
-        let caller = DEFAULT_CALLER_TEST_ID;
-
-        Self {
-            env,
-            caller,
-            controller,
-            canister_id,
-        }
-    }
-
-    pub fn upgrade_canister(&self, args: InstallArgs) {
-        for _ in 0..10 {
-            self.env.tick();
-            // Avoid `CanisterInstallCodeRateLimited` error
-            self.env.advance_time(Duration::from_secs(600));
-            self.env.tick();
-            match self.env.upgrade_canister(
-                self.canister_id,
-                evm_rpc_wasm(),
-                Encode!(&args).unwrap(),
-                Some(self.controller),
-            ) {
-                Ok(_) => return,
-                Err(e) if e.error_code == ErrorCode::CanisterInstallCodeRateLimited => continue,
-                Err(e) => panic!("Error while upgrading canister: {e:?}"),
-            }
-        }
-        panic!("Failed to upgrade canister after many trials!")
-    }
-
-    /// Shorthand for deriving an `EvmRpcSetup` with the caller as the canister controller.
-    pub fn as_controller(mut self) -> Self {
-        self.caller = self.controller;
-        self
-    }
-
-    /// Shorthand for deriving an `EvmRpcSetup` with an arbitrary caller.
-    pub fn as_caller<T: Into<Principal>>(mut self, id: T) -> Self {
-        self.caller = id.into();
-        self
-    }
-
-    fn call_update<R: CandidType + DeserializeOwned>(
-        &self,
-        method: &str,
-        input: Vec<u8>,
-    ) -> CallFlow<R> {
-        CallFlow::from_update(self.clone(), method, input)
-    }
-
-    fn call_query<R: CandidType + DeserializeOwned>(&self, method: &str, input: Vec<u8>) -> R {
-        let candid =
-            &assert_reply(
-                self.env
-                    .query_call(self.canister_id, self.caller, method, input),
-            );
-        Decode!(candid, R).expect("error while decoding Candid response from query call")
-    }
-
-    pub fn tick_until_http_request(&self) {
-        for _ in 0..MAX_TICKS {
-            if !self.env.get_canister_http().is_empty() {
-                break;
-            }
-            self.env.tick();
-            self.env.advance_time(Duration::from_nanos(1));
-        }
-    }
-
-    pub fn get_metrics(&self) -> Metrics {
-        self.call_query("getMetrics", Encode!().unwrap())
-    }
-
-    pub fn get_service_provider_map(&self) -> Vec<(RpcService, ProviderId)> {
-        self.call_query("getServiceProviderMap", Encode!().unwrap())
-    }
-
-    pub fn get_providers(&self) -> Vec<Provider> {
-        self.call_query("getProviders", Encode!().unwrap())
-    }
-
-    pub fn get_nodes_in_subnet(&self) -> u32 {
-        self.call_query("getNodesInSubnet", Encode!().unwrap())
-    }
-
-    pub fn request_cost(
-        &self,
-        source: RpcService,
-        json_rpc_payload: &str,
-        max_response_bytes: u64,
-    ) -> RpcResult<Nat> {
-        self.call_query(
-            "requestCost",
-            Encode!(&source, &json_rpc_payload, &max_response_bytes).unwrap(),
-        )
-    }
-
-    pub fn request(
-        &self,
-        source: RpcService,
-        json_rpc_payload: &str,
-        max_response_bytes: u64,
-    ) -> CallFlow<RpcResult<String>> {
-        self.call_update(
-            "request",
-            Encode!(&source, &json_rpc_payload, &max_response_bytes).unwrap(),
-        )
-    }
-
-    pub fn update_api_keys(&self, api_keys: &[(ProviderId, Option<String>)]) {
-        self.call_update("updateApiKeys", Encode!(&api_keys).unwrap())
-            .wait()
-    }
-
-    pub fn mock_api_keys(self) -> Self {
-        self.clone().as_controller().update_api_keys(
-            &PROVIDERS
-                .iter()
-                .filter_map(|provider| {
-                    Some((
-                        provider.provider_id,
-                        match provider.access {
-                            RpcAccess::Authenticated { .. } => Some(MOCK_API_KEY.to_string()),
-                            RpcAccess::Unauthenticated { .. } => None?,
-                        },
-                    ))
-                })
-                .collect::<Vec<_>>(),
-        );
-        self
-    }
-
-    pub fn http_get_logs(&self, priority: &str) -> Vec<LogEntry<Priority>> {
-        let request = HttpRequest {
-            method: "".to_string(),
-            url: format!("/logs?priority={priority}"),
-            headers: vec![],
-            body: serde_bytes::ByteBuf::new(),
-        };
-        let response = Decode!(
-            &assert_reply(self.env.query_call(
-                self.canister_id,
-                Principal::anonymous(),
-                "http_request",
-                Encode!(&request).unwrap()
-            )),
-            HttpResponse
-        )
-        .unwrap();
-        serde_json::from_slice::<Log<Priority>>(&response.body)
-            .expect("failed to parse EVM_RPC minter log")
-            .entries
-    }
-}
-
-pub struct CallFlow<R> {
-    setup: EvmRpcSetup,
-    method: String,
-    message_id: RawMessageId,
-    phantom: PhantomData<R>,
-}
-
-impl<R: CandidType + DeserializeOwned> CallFlow<R> {
-    pub fn from_update(setup: EvmRpcSetup, method: &str, input: Vec<u8>) -> Self {
-        let message_id = setup
-            .env
-            .submit_call(setup.canister_id, setup.caller, method, input)
-            .expect("failed to submit call");
-        CallFlow::new(setup, method, message_id)
-    }
-
-    pub fn new(setup: EvmRpcSetup, method: impl ToString, message_id: RawMessageId) -> Self {
-        Self {
-            setup,
-            method: method.to_string(),
-            message_id,
-            phantom: Default::default(),
-        }
-    }
-
-    pub fn mock_http(self, mock: impl Into<MockOutcall>) -> Self {
-        let mock = mock.into();
-        self.mock_http_once_inner(&mock);
-        loop {
-            if !self.try_mock_http_inner(&mock) {
-                break;
-            }
-        }
-        self
-    }
-
-    pub fn mock_http_n_times(self, mock: impl Into<MockOutcall>, count: u32) -> Self {
-        let mock = mock.into();
-        for _ in 0..count {
-            self.mock_http_once_inner(&mock);
-        }
-        self
-    }
-
-    pub fn mock_http_once(self, mock: impl Into<MockOutcall>) -> Self {
-        let mock = mock.into();
-        self.mock_http_once_inner(&mock);
-        self
-    }
-
-    fn mock_http_once_inner(&self, mock: &MockOutcall) {
-        if !self.try_mock_http_inner(mock) {
-            panic!("no pending HTTP request for {}", self.method)
-        }
-    }
-
-    fn try_mock_http_inner(&self, mock: &MockOutcall) -> bool {
-        if self.setup.env.get_canister_http().is_empty() {
-            self.setup.tick_until_http_request();
-        }
-        let http_requests = self.setup.env.get_canister_http();
-        let request = match http_requests.first() {
-            Some(request) => request,
-            None => return false,
-        };
-        mock.assert_matches(request);
-
-        let response = match mock.response.clone() {
-            CanisterHttpResponse::CanisterHttpReply(reply) => {
-                let max_response_bytes = request
-                    .max_response_bytes
-                    .unwrap_or(DEFAULT_MAX_RESPONSE_BYTES);
-                if reply.body.len() as u64 > max_response_bytes {
-                    //approximate replica behaviour since headers are not accounted for.
-                    CanisterHttpResponse::CanisterHttpReject(
-                        pocket_ic::common::rest::CanisterHttpReject {
-                            reject_code: 1, //SYS_FATAL
-                            message: format!(
-                                "Http body exceeds size limit of {} bytes.",
-                                max_response_bytes
-                            ),
-                        },
-                    )
-                } else {
-                    CanisterHttpResponse::CanisterHttpReply(reply)
-                }
-            }
-            CanisterHttpResponse::CanisterHttpReject(reject) => {
-                CanisterHttpResponse::CanisterHttpReject(reject)
-            }
-        };
-        let mock_response = MockCanisterHttpResponse {
-            subnet_id: request.subnet_id,
-            request_id: request.request_id,
-            response,
-            additional_responses: vec![],
-        };
-        self.setup.env.mock_canister_http_response(mock_response);
-        true
-    }
-
-    pub fn wait(self) -> R {
-        let candid = &assert_reply(self.setup.env.await_call(self.message_id));
-        Decode!(candid, R).expect("error while decoding Candid response from update call")
-    }
-}
-
-fn mock_request(builder_fn: impl Fn(MockOutcallBuilder) -> MockOutcallBuilder) {
-    let setup = EvmRpcSetup::new();
-    assert_matches!(
-        setup
-            .request(
-                RpcService::Custom(RpcApi {
-                    url: MOCK_REQUEST_URL.to_string(),
-                    headers: Some(vec![HttpHeader {
-                        name: "Custom".to_string(),
-                        value: "Value".to_string(),
-                    }]),
-                }),
-                MOCK_REQUEST_PAYLOAD,
-                MOCK_REQUEST_RESPONSE_BYTES,
-            )
-            .mock_http(builder_fn(MockOutcallBuilder::new(
-                200,
-                MOCK_REQUEST_RESPONSE
-            )))
-            .wait(),
-        Ok(_)
-    );
-}
-
-#[test]
-fn mock_request_should_succeed() {
-    mock_request(|builder| builder)
-}
-
-#[test]
-fn mock_request_should_succeed_with_url() {
-    mock_request(|builder| builder.with_url(MOCK_REQUEST_URL))
-}
-
-#[test]
-fn mock_request_should_succeed_with_method() {
-    mock_request(|builder| builder.with_method(CanisterHttpMethod::POST))
-}
-
-#[test]
-fn mock_request_should_succeed_with_request_headers() {
-    mock_request(|builder| {
-        builder.with_request_headers(vec![
-            (CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE),
-            ("Custom", "Value"),
-        ])
-    })
-}
-
-#[test]
-fn mock_request_should_succeed_with_request_body() {
-    mock_request(|builder| builder.with_raw_request_body(MOCK_REQUEST_PAYLOAD))
-}
-
-#[test]
-fn mock_request_should_succeed_with_max_response_bytes() {
-    mock_request(|builder| builder.with_max_response_bytes(MOCK_REQUEST_RESPONSE_BYTES))
-}
-
-#[test]
-fn mock_request_should_succeed_with_all() {
-    mock_request(|builder| {
-        builder
-            .with_url(MOCK_REQUEST_URL)
-            .with_method(CanisterHttpMethod::POST)
-            .with_request_headers(vec![
-                (CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE),
-                ("Custom", "Value"),
-            ])
-            .with_raw_request_body(MOCK_REQUEST_PAYLOAD)
-    })
-}
-
-#[test]
-#[should_panic(expected = "assertion `left == right` failed")]
-fn mock_request_should_fail_with_url() {
-    mock_request(|builder| builder.with_url("https://not-the-url.com"))
-}
-
-#[test]
-#[should_panic(expected = "assertion `left == right` failed")]
-fn mock_request_should_fail_with_method() {
-    mock_request(|builder| builder.with_method(CanisterHttpMethod::GET))
-}
-
-#[test]
-#[should_panic(expected = "assertion `left == right` failed")]
-fn mock_request_should_fail_with_request_headers() {
-    mock_request(|builder| builder.with_request_headers(vec![("Custom", "NotValue")]))
-}
-
-#[test]
-#[should_panic(expected = "assertion `left == right` failed")]
-fn mock_request_should_fail_with_request_body() {
-    mock_request(|builder| {
-        builder.with_raw_request_body(r#"{"id":1,"jsonrpc":"2.0","method":"unknown_method"}"#)
-    })
-}
-
-#[test]
-fn should_canonicalize_json_response() {
-    let setup = EvmRpcSetup::new();
+#[tokio::test]
+async fn should_canonicalize_json_response() {
     let responses = [
         r#"{"id":1,"jsonrpc":"2.0","result":"0x00112233"}"#,
         r#"{"result":"0x00112233","id":1,"jsonrpc":"2.0"}"#,
         r#"{"result":"0x00112233","jsonrpc":"2.0","id":1}"#,
-    ]
-    .into_iter()
-    .map(|response| {
-        setup
+    ];
+
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
+    let mut results = Vec::with_capacity(3);
+    for response in responses {
+        let mocks = MockHttpOutcallsBuilder::new()
+            .given(
+                JsonRpcRequestMatcher::with_method(MOCK_REQUEST_METHOD)
+                    .with_params(MOCK_REQUEST_PARAMS)
+                    .with_id(MOCK_REQUEST_ID),
+            )
+            .respond_with(JsonRpcResponse::from(response));
+        let result = setup
             .request(
+                &setup.new_mock_http_runtime(mocks),
+                (
+                    RpcService::Custom(RpcApi {
+                        url: MOCK_REQUEST_URL.to_string(),
+                        headers: None,
+                    }),
+                    MOCK_REQUEST_PAYLOAD,
+                    MOCK_REQUEST_RESPONSE_BYTES,
+                ),
+            )
+            .await;
+        results.push(result);
+    }
+
+    assert!(results.windows(2).all(|w| w[0] == w[1]));
+}
+
+#[tokio::test]
+async fn should_not_modify_json_rpc_request_from_request_endpoint() {
+    let mock_request = r#"{"id":123,"jsonrpc":"2.0","method":"eth_gasPrice"}"#;
+    let mock_response = r#"{"jsonrpc":"2.0","id":123,"result":"0x00112233"}"#;
+    let mocks = MockHttpOutcallsBuilder::new()
+        .given(JsonRpcRequestMatcher::with_method("eth_gasPrice").with_id(123_u64))
+        .respond_with(JsonRpcResponse::from(mock_response));
+
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
+    let response = setup
+        .request(
+            &setup.new_mock_http_runtime(mocks),
+            (
                 RpcService::Custom(RpcApi {
                     url: MOCK_REQUEST_URL.to_string(),
                     headers: None,
                 }),
-                MOCK_REQUEST_PAYLOAD,
+                mock_request,
                 MOCK_REQUEST_RESPONSE_BYTES,
-            )
-            .mock_http(MockOutcallBuilder::new(200, response))
-            .wait()
-    })
-    .collect::<Vec<_>>();
-    assert!(responses.windows(2).all(|w| w[0] == w[1]));
-}
-
-#[test]
-fn should_not_modify_json_rpc_request_from_request_endpoint() {
-    let setup = EvmRpcSetup::new();
-
-    let json_rpc_request = r#"{"id":123,"jsonrpc":"2.0","method":"eth_gasPrice"}"#;
-    let mock_response = r#"{"jsonrpc":"2.0","id":123,"result":"0x00112233"}"#;
-
-    let response = setup
-        .request(
-            RpcService::Custom(RpcApi {
-                url: MOCK_REQUEST_URL.to_string(),
-                headers: None,
-            }),
-            json_rpc_request,
-            MOCK_REQUEST_RESPONSE_BYTES,
+            ),
         )
-        .mock_http_once(
-            MockOutcallBuilder::new(200, mock_response).with_raw_request_body(json_rpc_request),
-        )
-        .wait()
-        .unwrap();
+        .await;
 
-    assert_eq!(response, mock_response);
+    assert_eq!(response, Ok(mock_response.to_string()));
 }
 
 #[test]
@@ -662,7 +246,7 @@ async fn eth_get_logs_should_succeed() {
             block_timestamp: None,
         }]
     }
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let mut offsets = (0_u64..).step_by(3);
     for source in RPC_SERVICES {
         for (config, from_block, to_block) in [
@@ -711,7 +295,7 @@ async fn eth_get_logs_should_succeed() {
 
 #[tokio::test]
 async fn eth_get_logs_should_fail_when_block_range_too_large() {
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let error_msg_regex =
         regex::Regex::new("Requested [0-9_]+ blocks; limited to [0-9_]+").unwrap();
 
@@ -786,7 +370,7 @@ async fn eth_get_block_by_number_should_succeed() {
         }))
     }
 
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     for (source, offset) in iter::zip(RPC_SERVICES, (0_u64..).step_by(3)) {
         let mocks = MockHttpOutcallsBuilder::new()
@@ -874,7 +458,7 @@ async fn eth_get_block_by_number_pre_london_fork_should_succeed() {
         }))
     }
 
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     for (source, offset) in iter::zip(RPC_SERVICES, (0_u64..).step_by(3)) {
         let mocks = MockHttpOutcallsBuilder::new()
@@ -966,7 +550,7 @@ async fn eth_get_block_by_number_should_be_consistent_when_total_difficulty_inco
         JsonRpcResponse::from(body)
     }
 
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     let mocks = MockHttpOutcallsBuilder::new()
         .given(get_block_by_number_request().with_id(0_u64))
@@ -1136,7 +720,7 @@ async fn eth_get_transaction_receipt_should_succeed() {
     ];
 
     let mut offsets = (0_u64..).step_by(3);
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     for (tx_hash, response, expected) in test_cases {
         for source in RPC_SERVICES {
             let offset = offsets.next().unwrap();
@@ -1165,7 +749,7 @@ async fn eth_get_transaction_receipt_should_succeed() {
 
 #[tokio::test]
 async fn eth_get_transaction_count_should_succeed() {
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     for (source, offset) in iter::zip(RPC_SERVICES, (0_u64..).step_by(3)) {
         let mocks = MockHttpOutcallsBuilder::new()
@@ -1206,7 +790,7 @@ async fn eth_fee_history_should_succeed() {
         }))
     }
 
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     for (source, offset) in iter::zip(RPC_SERVICES, (0_u64..).step_by(3)) {
         let mocks = MockHttpOutcallsBuilder::new()
@@ -1247,7 +831,7 @@ async fn eth_send_raw_transaction_should_succeed() {
         JsonRpcResponse::from(json!({ "id": 0, "jsonrpc": "2.0", "result": MOCK_TRANSACTION_HASH }))
     }
 
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     for (source, offset) in iter::zip(RPC_SERVICES, (0_u64..).step_by(3)) {
         let mocks = MockHttpOutcallsBuilder::new()
             .given(send_raw_transaction_request().with_id(offset))
@@ -1287,7 +871,7 @@ async fn eth_call_should_succeed() {
         )
     }
 
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     let mut offsets = (0_u64..).step_by(3);
     for call_args in [
@@ -1361,7 +945,7 @@ async fn candid_rpc_should_allow_unexpected_response_fields() {
         }))
     }
 
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     let mocks = MockHttpOutcallsBuilder::new()
         .given(get_transaction_receipt_request().with_id(0_u64))
@@ -1393,7 +977,7 @@ async fn candid_rpc_should_allow_unexpected_response_fields() {
 
 #[tokio::test]
 async fn candid_rpc_should_err_without_cycles() {
-    let setup = EvmRpcNonblockingSetup::with_args(InstallArgs {
+    let setup = EvmRpcSetup::with_args(InstallArgs {
         demo: None,
         ..Default::default()
     })
@@ -1427,7 +1011,7 @@ async fn candid_rpc_should_err_without_cycles() {
 
 #[tokio::test]
 async fn candid_rpc_should_err_with_insufficient_cycles() {
-    let setup = EvmRpcNonblockingSetup::with_args(InstallArgs {
+    let setup = EvmRpcSetup::with_args(InstallArgs {
         demo: Some(true),
         nodes_in_subnet: Some(33),
         ..Default::default()
@@ -1492,7 +1076,7 @@ async fn candid_rpc_should_err_with_insufficient_cycles() {
 
 #[tokio::test]
 async fn candid_rpc_should_err_when_service_unavailable() {
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let mocks = MockHttpOutcallsBuilder::new()
         .given(get_transaction_receipt_request().with_id(0_u64))
         .respond_with(CanisterHttpReply::with_status(503).with_body("Service unavailable"))
@@ -1552,7 +1136,7 @@ async fn candid_rpc_should_recognize_json_error() {
         }))
     }
 
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let mocks = MockHttpOutcallsBuilder::new()
         .given(get_transaction_receipt_request().with_id(0_u64))
         .respond_with(mock_response().with_id(0_u64))
@@ -1597,7 +1181,7 @@ async fn candid_rpc_should_recognize_json_error() {
 
 #[tokio::test]
 async fn candid_rpc_should_reject_empty_service_list() {
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let result = setup
         .client(MockHttpOutcalls::NEVER)
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![])))
@@ -1626,7 +1210,7 @@ async fn candid_rpc_should_return_inconsistent_results() {
             json!({ "id": 1, "jsonrpc": "2.0", "result": "NonceTooLow" }),
         ));
 
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let results = setup
         .client(mocks)
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
@@ -1683,10 +1267,10 @@ async fn candid_rpc_should_return_3_out_of_4_transaction_count() {
         )
     }
 
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     async fn eth_get_transaction_count_with_3_out_of_4(
-        setup: &EvmRpcNonblockingSetup,
+        setup: &EvmRpcSetup,
         offset: u64,
         [response0, response1, response2, response3]: [CanisterHttpResponse; 4],
     ) -> MultiRpcResult<U256> {
@@ -1788,7 +1372,7 @@ async fn candid_rpc_should_return_3_out_of_4_transaction_count() {
 
 #[tokio::test]
 async fn candid_rpc_should_return_inconsistent_results_with_error() {
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     let mocks = MockHttpOutcallsBuilder::new()
         .given(get_transaction_count_request().with_id(0_u64))
@@ -1855,7 +1439,7 @@ async fn candid_rpc_should_return_inconsistent_results_with_consensus_error() {
     const CONSENSUS_ERROR: &str =
         "No consensus could be reached. Replicas had different responses.";
 
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     let mocks = MockHttpOutcallsBuilder::new()
         .given(get_transaction_count_request().with_id(0_u64))
@@ -1922,27 +1506,36 @@ async fn candid_rpc_should_return_inconsistent_results_with_consensus_error() {
     );
 }
 
-#[test]
-fn should_have_metrics_for_generic_request() {
+#[tokio::test]
+async fn should_have_metrics_for_generic_request() {
     use evm_rpc::types::MetricRpcMethod;
+    let mocks = MockHttpOutcallsBuilder::new()
+        .given(
+            JsonRpcRequestMatcher::with_method(MOCK_REQUEST_METHOD)
+                .with_params(MOCK_REQUEST_PARAMS)
+                .with_id(MOCK_REQUEST_ID),
+        )
+        .respond_with(JsonRpcResponse::from(MOCK_REQUEST_RESPONSE));
 
-    let setup = EvmRpcSetup::new().mock_api_keys();
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let response = setup
         .request(
-            RpcService::Custom(RpcApi {
-                url: MOCK_REQUEST_URL.to_string(),
-                headers: None,
-            }),
-            MOCK_REQUEST_PAYLOAD,
-            MOCK_REQUEST_RESPONSE_BYTES,
+            &setup.new_mock_http_runtime(mocks),
+            (
+                RpcService::Custom(RpcApi {
+                    url: MOCK_REQUEST_URL.to_string(),
+                    headers: None,
+                }),
+                MOCK_REQUEST_PAYLOAD,
+                MOCK_REQUEST_RESPONSE_BYTES,
+            ),
         )
-        .mock_http(MockOutcallBuilder::new(200, MOCK_REQUEST_RESPONSE))
-        .wait();
+        .await;
     assert_eq!(response, Ok(MOCK_REQUEST_RESPONSE.to_string()));
 
     let rpc_method = || MetricRpcMethod("request".to_string());
     assert_eq!(
-        setup.get_metrics(),
+        setup.get_metrics().await,
         Metrics {
             requests: hashmap! {
                 (rpc_method(), CLOUDFLARE_HOSTNAME.into()) => 1,
@@ -1957,7 +1550,7 @@ fn should_have_metrics_for_generic_request() {
 
 #[tokio::test]
 async fn candid_rpc_should_return_inconsistent_results_with_unexpected_http_status() {
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     let mocks = MockHttpOutcallsBuilder::new()
         .given(get_transaction_count_request().with_id(0_u64))
@@ -2031,7 +1624,7 @@ async fn candid_rpc_should_handle_already_known() {
             json!({ "id": 1, "jsonrpc": "2.0", "error": {"code": -32000, "message": "already known"} }),
         ));
 
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let result = setup
         .client(mocks)
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
@@ -2069,7 +1662,7 @@ async fn candid_rpc_should_recognize_rate_limit() {
         .given(send_raw_transaction_request().with_id(1_u64))
         .respond_with(CanisterHttpReply::with_status(429).with_body("(Rate limit error message)"));
 
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let result = setup
         .client(mocks)
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
@@ -2111,7 +1704,7 @@ async fn candid_rpc_should_recognize_rate_limit() {
 
 #[tokio::test]
 async fn should_use_custom_response_size_estimate() {
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let max_response_bytes = 1234;
     let expected_response = r#"{"id":0,"jsonrpc":"2.0","result":[{"address":"0xdac17f958d2ee523a2206206994597c13d831ec7","topics":["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef","0x000000000000000000000000a9d1e08c7793af67e9d92fe308d5697fb81d3e43","0x00000000000000000000000078cccfb3d517cd4ed6d045e263e134712288ace2"],"data":"0x000000000000000000000000000000000000000000000000000000003b9c6433","blockNumber":"0x11dc77e","transactionHash":"0xf3ed91a03ddf964281ac7a24351573efd535b80fc460a5c2ad2b9d23153ec678","transactionIndex":"0x65","blockHash":"0xd5c72ad752b2f0144a878594faf8bd9f570f2f72af8e7f0940d3545a6388f629","logIndex":"0xe8","removed":false}]}"#;
 
@@ -2145,7 +1738,7 @@ async fn should_use_custom_response_size_estimate() {
 
 #[tokio::test]
 async fn should_use_fallback_public_url() {
-    let setup = EvmRpcNonblockingSetup::new().await;
+    let setup = EvmRpcSetup::new().await;
     let response = setup
         .client(
             MockHttpOutcallsBuilder::new()
@@ -2167,7 +1760,7 @@ async fn should_use_fallback_public_url() {
 
 #[tokio::test]
 async fn should_insert_api_keys() {
-    let setup = EvmRpcNonblockingSetup::with_args(InstallArgs {
+    let setup = EvmRpcSetup::with_args(InstallArgs {
         demo: Some(true),
         manage_api_keys: Some(vec![DEFAULT_CALLER_TEST_ID]),
         ..Default::default()
@@ -2202,7 +1795,7 @@ async fn should_insert_api_keys() {
 
 #[tokio::test]
 async fn should_update_api_key() {
-    let setup = EvmRpcNonblockingSetup::with_args(InstallArgs {
+    let setup = EvmRpcSetup::with_args(InstallArgs {
         demo: Some(true),
         manage_api_keys: Some(vec![DEFAULT_CALLER_TEST_ID]),
         ..Default::default()
@@ -2266,7 +1859,7 @@ async fn should_update_api_key() {
 
 #[tokio::test]
 async fn should_update_bearer_token() {
-    let setup = EvmRpcNonblockingSetup::with_args(InstallArgs {
+    let setup = EvmRpcSetup::with_args(InstallArgs {
         demo: Some(true),
         manage_api_keys: Some(vec![DEFAULT_CALLER_TEST_ID]),
         ..Default::default()
@@ -2306,44 +1899,57 @@ async fn should_update_bearer_token() {
     assert_eq!(response, U256::ONE);
 }
 
-#[test]
+#[tokio::test]
 #[should_panic(expected = "You are not authorized")]
-fn should_prevent_unauthorized_update_api_keys() {
-    let setup = EvmRpcSetup::new();
-    setup.update_api_keys(&[(0, Some("unauthorized-api-key".to_string()))]);
-}
-
-#[test]
-#[should_panic(expected = "Trying to set API key for unauthenticated provider")]
-fn should_prevent_unauthenticated_update_api_keys() {
-    let setup = EvmRpcSetup::new();
-    setup.as_controller().update_api_keys(&[(
-        2, /* PublicNode / mainnet */
-        Some("invalid-api-key".to_string()),
-    )]);
-}
-
-#[test]
-#[should_panic(expected = "Provider not found")]
-fn should_prevent_unknown_provider_update_api_keys() {
-    let setup = EvmRpcSetup::new();
+async fn should_prevent_unauthorized_update_api_keys() {
+    let setup = EvmRpcSetup::new().await;
     setup
-        .as_controller()
-        .update_api_keys(&[(5555, Some("unknown-provider-api-key".to_string()))]);
+        .update_api_keys(
+            &[(0, Some("unauthorized-api-key".to_string()))],
+            setup.caller,
+        )
+        .await;
 }
 
-#[test]
-fn should_get_nodes_in_subnet() {
-    let setup = EvmRpcSetup::new();
-    let nodes_in_subnet = setup.get_nodes_in_subnet();
+#[tokio::test]
+#[should_panic(expected = "Trying to set API key for unauthenticated provider")]
+async fn should_prevent_unauthenticated_update_api_keys() {
+    let setup = EvmRpcSetup::new().await;
+    setup
+        .update_api_keys(
+            &[(
+                2, /* PublicNode / mainnet */
+                Some("invalid-api-key".to_string()),
+            )],
+            setup.controller,
+        )
+        .await;
+}
+
+#[tokio::test]
+#[should_panic(expected = "Provider not found")]
+async fn should_prevent_unknown_provider_update_api_keys() {
+    let setup = EvmRpcSetup::new().await;
+    setup
+        .update_api_keys(
+            &[(5555, Some("unknown-provider-api-key".to_string()))],
+            setup.controller,
+        )
+        .await;
+}
+
+#[tokio::test]
+async fn should_get_nodes_in_subnet() {
+    let setup = EvmRpcSetup::new().await;
+    let nodes_in_subnet = setup.get_nodes_in_subnet().await;
     assert_eq!(nodes_in_subnet, 34);
 }
 
-#[test]
-fn should_get_providers_and_get_service_provider_map_be_consistent() {
-    let setup = EvmRpcSetup::new();
-    let providers = setup.get_providers();
-    let service_provider_map = setup.get_service_provider_map();
+#[tokio::test]
+async fn should_get_providers_and_get_service_provider_map_be_consistent() {
+    let setup = EvmRpcSetup::new().await;
+    let providers = setup.get_providers().await;
+    let service_provider_map = setup.get_service_provider_map().await;
     assert_eq!(providers.len(), service_provider_map.len());
 
     for (service, provider_id) in service_provider_map {
@@ -2357,7 +1963,7 @@ fn should_get_providers_and_get_service_provider_map_be_consistent() {
 
 #[tokio::test]
 async fn upgrade_should_keep_api_keys() {
-    let setup = EvmRpcNonblockingSetup::with_args(InstallArgs {
+    let setup = EvmRpcSetup::with_args(InstallArgs {
         demo: Some(true),
         manage_api_keys: Some(vec![DEFAULT_CALLER_TEST_ID]),
         ..Default::default()
@@ -2414,12 +2020,13 @@ async fn upgrade_should_keep_api_keys() {
     assert_eq!(response_post_upgrade, U256::ONE);
 }
 
-#[test]
-fn upgrade_should_keep_demo() {
+#[tokio::test]
+async fn upgrade_should_keep_demo() {
     let setup = EvmRpcSetup::with_args(InstallArgs {
         demo: Some(true),
         ..Default::default()
-    });
+    })
+    .await;
     assert_eq!(
         setup
             .request_cost(
@@ -2427,10 +2034,11 @@ fn upgrade_should_keep_demo() {
                 r#"{"jsonrpc":"2.0","id":0,"method":"test"}"#,
                 1000
             )
+            .await
             .unwrap(),
         0_u32
     );
-    setup.upgrade_canister(InstallArgs::default());
+    setup.upgrade_canister(InstallArgs::default()).await;
     assert_eq!(
         setup
             .request_cost(
@@ -2438,17 +2046,19 @@ fn upgrade_should_keep_demo() {
                 r#"{"jsonrpc":"2.0","id":0,"method":"test"}"#,
                 1000
             )
+            .await
             .unwrap(),
         0_u32
     );
 }
 
-#[test]
-fn upgrade_should_change_demo() {
+#[tokio::test]
+async fn upgrade_should_change_demo() {
     let setup = EvmRpcSetup::with_args(InstallArgs {
         demo: Some(true),
         ..Default::default()
-    });
+    })
+    .await;
     assert_eq!(
         setup
             .request_cost(
@@ -2456,13 +2066,16 @@ fn upgrade_should_change_demo() {
                 r#"{"jsonrpc":"2.0","id":0,"method":"test"}"#,
                 1000
             )
+            .await
             .unwrap(),
         0_u32
     );
-    setup.upgrade_canister(InstallArgs {
-        demo: Some(false),
-        ..Default::default()
-    });
+    setup
+        .upgrade_canister(InstallArgs {
+            demo: Some(false),
+            ..Default::default()
+        })
+        .await;
     assert_ne!(
         setup
             .request_cost(
@@ -2470,86 +2083,99 @@ fn upgrade_should_change_demo() {
                 r#"{"jsonrpc":"2.0","id":0,"method":"test"}"#,
                 1000
             )
+            .await
             .unwrap(),
         0_u32
     );
 }
 
-#[test]
-fn upgrade_should_keep_manage_api_key_principals() {
-    let authorized_caller = ADDITIONAL_TEST_ID;
+#[tokio::test]
+async fn upgrade_should_keep_manage_api_key_principals() {
     let setup = EvmRpcSetup::with_args(InstallArgs {
-        manage_api_keys: Some(vec![authorized_caller]),
+        manage_api_keys: Some(vec![ADDITIONAL_TEST_ID]),
         ..Default::default()
-    });
-    setup.upgrade_canister(InstallArgs {
-        manage_api_keys: None,
-        ..Default::default()
-    });
+    })
+    .await;
     setup
-        .as_caller(authorized_caller)
-        .update_api_keys(&[(0, Some("authorized-api-key".to_string()))]);
+        .upgrade_canister(InstallArgs {
+            manage_api_keys: None,
+            ..Default::default()
+        })
+        .await;
+    setup
+        .update_api_keys(
+            &[(0, Some("authorized-api-key".to_string()))],
+            ADDITIONAL_TEST_ID,
+        )
+        .await;
 }
 
-#[test]
+#[tokio::test]
 #[should_panic(expected = "You are not authorized")]
-fn upgrade_should_change_manage_api_key_principals() {
-    let deauthorized_caller = ADDITIONAL_TEST_ID;
+async fn upgrade_should_change_manage_api_key_principals() {
     let setup = EvmRpcSetup::with_args(InstallArgs {
-        manage_api_keys: Some(vec![deauthorized_caller]),
+        manage_api_keys: Some(vec![ADDITIONAL_TEST_ID]),
         ..Default::default()
-    });
-    setup.upgrade_canister(InstallArgs {
-        manage_api_keys: Some(vec![]),
-        ..Default::default()
-    });
+    })
+    .await;
     setup
-        .as_caller(deauthorized_caller)
-        .update_api_keys(&[(0, Some("unauthorized-api-key".to_string()))]);
+        .upgrade_canister(InstallArgs {
+            manage_api_keys: Some(vec![]),
+            ..Default::default()
+        })
+        .await;
+    setup
+        .update_api_keys(
+            &[(0, Some("unauthorized-api-key".to_string()))],
+            ADDITIONAL_TEST_ID,
+        )
+        .await;
 }
 
-#[test]
-fn should_reject_http_request_in_replicated_mode() {
+#[tokio::test]
+async fn should_reject_http_request_in_replicated_mode() {
     let request = HttpRequest {
         method: "".to_string(),
         url: "/nonexistent".to_string(),
         headers: vec![],
         body: serde_bytes::ByteBuf::new(),
     };
+    let setup = EvmRpcSetup::new().await;
     assert_matches!(
-        EvmRpcSetup::new()
+        setup
         .env
         .update_call(
-            EvmRpcSetup::new().canister_id,
+            setup.canister_id,
             Principal::anonymous(),
             "http_request",
             Encode!(&request).unwrap(),
-        ),
+        ).await,
         Err(e) if e.error_code == ErrorCode::CanisterCalledTrap && e.reject_message.contains("Update call rejected")
     );
 }
 
-#[test]
-fn should_retrieve_logs() {
+#[tokio::test]
+async fn should_retrieve_logs() {
     let setup = EvmRpcSetup::with_args(InstallArgs {
         demo: None,
         manage_api_keys: None,
         ..Default::default()
-    });
-    assert_eq!(setup.http_get_logs("DEBUG"), vec![]);
-    assert_eq!(setup.http_get_logs("INFO"), vec![]);
+    })
+    .await;
+    assert_eq!(setup.http_get_logs("DEBUG").await, vec![]);
+    assert_eq!(setup.http_get_logs("INFO").await, vec![]);
 
-    let setup = setup.mock_api_keys();
+    let setup = setup.mock_api_keys().await;
 
-    assert_eq!(setup.http_get_logs("DEBUG"), vec![]);
-    assert!(setup.http_get_logs("INFO")[0]
+    assert_eq!(setup.http_get_logs("DEBUG").await, vec![]);
+    assert!(setup.http_get_logs("INFO").await[0]
         .message
         .contains("Updating API keys"));
 }
 
 #[tokio::test]
 async fn should_retry_when_response_too_large() {
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     let rpc_services = RpcServices::EthMainnet(Some(vec![EthMainnetService::Cloudflare]));
 
@@ -2629,7 +2255,7 @@ async fn should_retry_when_response_too_large() {
 
 #[tokio::test]
 async fn should_have_different_request_ids_when_retrying_because_response_too_big() {
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     let mocks = MockHttpOutcallsBuilder::new()
         .given(
@@ -2682,7 +2308,7 @@ async fn should_have_different_request_ids_when_retrying_because_response_too_bi
 
 #[tokio::test]
 async fn should_fail_when_response_id_inconsistent_with_request_id() {
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     let request_id = 0_u64;
     let response_id = 1_u64;
@@ -2730,7 +2356,7 @@ async fn should_log_request() {
         }))
     }
 
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     let mocks = MockHttpOutcallsBuilder::new()
         .given(fee_history_request())
@@ -2768,7 +2394,7 @@ async fn should_log_request() {
 
 #[tokio::test]
 async fn should_change_default_provider_when_one_keeps_failing() {
-    let setup = EvmRpcNonblockingSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     let response = setup
         .client(
