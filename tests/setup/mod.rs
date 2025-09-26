@@ -4,7 +4,6 @@ use crate::{
 };
 use candid::{CandidType, Decode, Encode, Nat, Principal};
 use canlog::{Log, LogEntry};
-use evm_rpc::types::Metrics;
 use evm_rpc::{
     logs::Priority,
     providers::PROVIDERS,
@@ -15,15 +14,18 @@ use evm_rpc_types::{InstallArgs, Provider, RpcResult, RpcService};
 use ic_cdk::api::management_canister::main::CanisterId;
 use ic_http_types::{HttpRequest, HttpResponse};
 use ic_management_canister_types::CanisterSettings;
+use ic_metrics_assert::{MetricsAssert, PocketIcAsyncHttpQuery};
 use ic_test_utilities_load_wasm::load_wasm;
-use pocket_ic::{nonblocking, ErrorCode, PocketIcBuilder, RejectResponse};
+use pocket_ic::{nonblocking::PocketIc, ErrorCode, PocketIcBuilder, RejectResponse};
 use serde::de::DeserializeOwned;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 #[derive(Clone)]
 pub struct EvmRpcSetup {
-    pub env: Arc<nonblocking::PocketIc>,
+    pub env: Arc<PocketIc>,
     pub caller: Principal,
     pub controller: Principal,
     pub canister_id: CanisterId,
@@ -169,11 +171,6 @@ impl EvmRpcSetup {
             .entries
     }
 
-    pub async fn get_metrics(&self) -> Metrics {
-        self.call_query("getMetrics", Encode!().unwrap(), Principal::anonymous())
-            .await
-    }
-
     pub async fn get_service_provider_map(&self) -> Vec<(RpcService, ProviderId)> {
         self.call_query(
             "getServiceProviderMap",
@@ -195,6 +192,10 @@ impl EvmRpcSetup {
             Principal::anonymous(),
         )
         .await
+    }
+
+    pub async fn check_metrics(self) -> MetricsAssert<Self> {
+        MetricsAssert::from_async_http_query(self).await
     }
 
     // Legacy endpoint, not supported by the `evm_rpc_client::EvmRpcClient`
@@ -255,6 +256,16 @@ impl EvmRpcSetup {
                 .await,
         );
         Decode!(candid, R).expect("error while decoding Candid response from query call")
+    }
+}
+
+impl PocketIcAsyncHttpQuery for EvmRpcSetup {
+    fn get_pocket_ic(&self) -> &PocketIc {
+        &self.env
+    }
+
+    fn get_canister_id(&self) -> ic_management_canister_types::CanisterId {
+        self.canister_id
     }
 }
 

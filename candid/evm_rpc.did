@@ -138,14 +138,6 @@ type LogEntry = record {
   logIndex : opt nat;
   removed : bool;
 };
-type Metrics = record {
-  requests : vec record { record { text; text }; nat64 };
-  responses : vec record { record { text; text; text }; nat64 };
-  inconsistentResponses : vec record { record { text; text }; nat64 };
-  cyclesCharged : vec record { record { text; text }; nat };
-  errHttpOutcall : vec record { record { text; text; RejectionCode }; nat64 };
-  errMaxResponseSizeExceeded : vec record { record { text; text }; nat64 };
-};
 type MultiFeeHistoryResult = variant {
   Consistent : FeeHistoryResult;
   Inconsistent : vec record { RpcService; FeeHistoryResult };
@@ -312,10 +304,7 @@ service : (InstallArgs) -> {
   eth_call : (RpcServices, opt RpcConfig, CallArgs) -> (MultiCallResult);
   request : (RpcService, json : text, maxResponseBytes : nat64) -> (RequestResult);
   requestCost : (RpcService, json : text, maxResponseBytes : nat64) -> (RequestCostResult) query;
-  
-  // DEBUG endpoint to retrieve metrics accumulated by the EVM RPC canister.
-  // NOTE: this method exists for debugging purposes, backward compatibility is not guaranteed.
-  getMetrics : () -> (Metrics) query;
+
   getNodesInSubnet : () -> (numberOfNodes : nat32) query;
   getProviders : () -> (vec Provider) query;
   getServiceProviderMap : () -> (vec record { RpcService; ProviderId }) query;
