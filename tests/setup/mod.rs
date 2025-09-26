@@ -1,5 +1,4 @@
 use crate::{
-    assert_reply, evm_rpc_wasm,
     mock_http_runtime::{mock::MockHttpOutcalls, MockHttpRuntime},
     DEFAULT_CALLER_TEST_ID, DEFAULT_CONTROLLER_TEST_ID, INITIAL_CYCLES, MOCK_API_KEY,
 };
@@ -16,15 +15,17 @@ use ic_cdk::api::management_canister::main::CanisterId;
 use ic_http_types::{HttpRequest, HttpResponse};
 use ic_management_canister_types::CanisterSettings;
 use ic_metrics_assert::{MetricsAssert, PocketIcAsyncHttpQuery};
-use pocket_ic::nonblocking::PocketIc;
-use pocket_ic::{nonblocking, ErrorCode, PocketIcBuilder};
+use ic_test_utilities_load_wasm::load_wasm;
+use pocket_ic::{nonblocking::PocketIc, ErrorCode, PocketIcBuilder, RejectResponse};
 use serde::de::DeserializeOwned;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 #[derive(Clone)]
 pub struct EvmRpcSetup {
-    pub env: Arc<nonblocking::PocketIc>,
+    pub env: Arc<PocketIc>,
     pub caller: Principal,
     pub controller: Principal,
     pub canister_id: CanisterId,
@@ -66,7 +67,7 @@ impl EvmRpcSetup {
         env.add_cycles(canister_id, INITIAL_CYCLES).await;
         env.install_canister(
             canister_id,
-            crate::evm_rpc_wasm(),
+            evm_rpc_wasm(),
             Encode!(&args).unwrap(),
             Some(controller),
         )
@@ -214,8 +215,7 @@ impl EvmRpcSetup {
             .unwrap()
     }
 
-    // TODO XC-412: Add a `request_cost()` method to `evm_rpc_client::RequestBuilder`
-    //  and delete this method
+    // Legacy endpoint, not supported by the `evm_rpc_client::EvmRpcClient`
     pub async fn request_cost(
         &self,
         source: RpcService,
@@ -267,4 +267,12 @@ impl PocketIcAsyncHttpQuery for EvmRpcSetup {
     fn get_canister_id(&self) -> ic_management_canister_types::CanisterId {
         self.canister_id
     }
+}
+
+fn evm_rpc_wasm() -> Vec<u8> {
+    load_wasm(std::env::var("CARGO_MANIFEST_DIR").unwrap(), "evm_rpc", &[])
+}
+
+fn assert_reply(result: Result<Vec<u8>, RejectResponse>) -> Vec<u8> {
+    result.unwrap_or_else(|e| panic!("Expected a successful reply, got error {e}"))
 }

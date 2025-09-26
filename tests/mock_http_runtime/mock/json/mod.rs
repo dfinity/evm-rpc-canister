@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod tests;
+
 use crate::mock_http_runtime::mock::CanisterHttpRequestMatcher;
 use canhttp::http::json::{Id, JsonRpcRequest};
 use pocket_ic::common::rest::{
