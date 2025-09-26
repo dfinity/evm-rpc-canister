@@ -107,20 +107,21 @@ pub mod fixtures;
 mod request;
 mod runtime;
 
-use crate::request::{
-    CallRequest, CallRequestBuilder, FeeHistoryRequest, FeeHistoryRequestBuilder,
-    GetBlockByNumberRequest, GetBlockByNumberRequestBuilder, GetTransactionCountRequest,
-    GetTransactionCountRequestBuilder, GetTransactionReceiptRequest,
-    GetTransactionReceiptRequestBuilder, JsonRequest, JsonRequestBuilder, Request, RequestBuilder,
-    SendRawTransactionRequest, SendRawTransactionRequestBuilder,
-};
+use std::fmt::Debug;
 use candid::{CandidType, Principal};
 use evm_rpc_types::{
     BlockTag, CallArgs, ConsensusStrategy, FeeHistoryArgs, GetLogsArgs, GetTransactionCountArgs,
     Hex, Hex32, RpcConfig, RpcServices,
 };
 use ic_error_types::RejectCode;
-use request::{GetLogsRequest, GetLogsRequestBuilder};
+use request::{
+    CallRequest, CallRequestBuilder, EvmRpcCanisterRequest, FeeHistoryRequest,
+    FeeHistoryRequestBuilder, GetBlockByNumberRequest, GetBlockByNumberRequestBuilder,
+    GetLogsRequest, GetLogsRequestBuilder, GetTransactionCountRequest,
+    GetTransactionCountRequestBuilder, GetTransactionReceiptRequest,
+    GetTransactionReceiptRequestBuilder, JsonRequest, JsonRequestBuilder, Request, RequestBuilder,
+    SendRawTransactionRequest, SendRawTransactionRequestBuilder,
+};
 pub use runtime::{IcRuntime, Runtime};
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
@@ -139,6 +140,7 @@ pub const EVM_RPC_CANISTER: Principal = Principal::from_slice(&[0, 0, 0, 0, 2, 4
 #[derive(Debug)]
 pub struct EvmRpcClient<R> {
     config: Arc<ClientConfig<R>>,
+    transformations: Vec<Box<dyn EvmRpcRequestTransformation>>,
 }
 
 impl<R> EvmRpcClient<R> {
@@ -152,6 +154,7 @@ impl<R> Clone for EvmRpcClient<R> {
     fn clone(&self) -> Self {
         Self {
             config: self.config.clone(),
+            transformations: self.transformations.clone(),
         }
     }
 }
@@ -177,12 +180,14 @@ pub struct ClientConfig<R> {
 #[must_use]
 pub struct ClientBuilder<R> {
     config: ClientConfig<R>,
+    transformations: Vec<Box<dyn EvmRpcRequestTransformation>>,
 }
 
 impl<R: Clone> Clone for ClientBuilder<R> {
     fn clone(&self) -> Self {
         ClientBuilder {
             config: self.config.clone(),
+            transformations: self.transformations.clone(),
         }
     }
 }
@@ -196,6 +201,7 @@ impl<R> ClientBuilder<R> {
                 rpc_config: None,
                 rpc_services: RpcServices::EthMainnet(None),
             },
+            transformations: Vec::new(),
         }
     }
 
@@ -210,6 +216,7 @@ impl<R> ClientBuilder<R> {
                 rpc_config: self.config.rpc_config,
                 rpc_services: self.config.rpc_services,
             },
+            transformations: self.transformations,
         }
     }
 
@@ -243,10 +250,17 @@ impl<R> ClientBuilder<R> {
         self
     }
 
+    /// Adds a new transformation to the client
+    pub fn with_transformation(mut self, transformation: impl EvmRpcRequestTransformation) -> Self {
+        self.transformations.push(Box::new(transformation));
+        self
+    }
+
     /// Creates a [`EvmRpcClient`] from the configuration specified in the [`ClientBuilder`].
     pub fn build(self) -> EvmRpcClient<R> {
         EvmRpcClient {
             config: Arc::new(self.config),
+            transformations,
         }
     }
 }
@@ -297,7 +311,7 @@ impl<R> EvmRpcClient<R> {
     pub fn call<T>(&self, params: T) -> CallRequestBuilder<R>
     where
         T: TryInto<CallArgs>,
-        <T as TryInto<CallArgs>>::Error: std::fmt::Debug,
+        <T as TryInto<CallArgs>>::Error: Debug,
     {
         RequestBuilder::new(
             self.clone(),
@@ -726,4 +740,47 @@ impl<R: Runtime> EvmRpcClient<R> {
             .await
             .map(Into::into)
     }
+}
+
+/// A custom transformation applied to requests before they are sent by the [`EvmRpcClient`] to the
+/// EVM RPC canister.
+///
+/// # Examples
+///
+/// Always set the cycles cost to a fixed amount for all requests to the EVM RPC canister.
+/// ```rust
+/// use evm_rpc_client::{EvmRpcRequestTransformation, EvmRpcCanisterRequest};
+///
+/// #[derive(Clone, Debug)]
+/// struct ConstantCycles(u128);
+///
+/// impl EvmRpcRequestTransformation for ConstantCycles {
+///     fn apply(&self, mut request: EvmRpcCanisterRequest) -> EvmRpcCanisterRequest {
+///         *request.as_request_mut().cycles_mut() = self.0;
+///         request
+///     }
+/// }
+/// ```
+///
+/// Use a custom `RpcConfig` for all calls to `eth_call` endpoint.
+/// ``` rust
+/// use evm_rpc_client::{EvmRpcCanisterRequest, EvmRpcRequestTransformation};
+/// use evm_rpc_types::RpcConfig;
+///
+/// #[derive(Clone, Debug)]
+/// struct CustomConfig {
+///     call_config: RpcConfig,
+/// }
+///
+/// impl EvmRpcRequestTransformation for CustomConfig {
+///     fn apply(&self, mut request: EvmRpcCanisterRequest) -> EvmRpcCanisterRequest {
+///         if let EvmRpcCanisterRequest::CallRequest(ref mut request) = request {
+///             *request.rpc_config_mut() = Some(self.call_config.clone());
+///         }
+///         request
+///     }
+/// }
+/// ```
+pub trait EvmRpcRequestTransformation: Debug + Clone {
+    fn apply(&self, request: EvmRpcCanisterRequest) -> EvmRpcCanisterRequest;
 }

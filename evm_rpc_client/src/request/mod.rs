@@ -649,3 +649,154 @@ impl<Config, Params, CandidOutput, Output> Request<Config, Params, CandidOutput,
         &mut self.params
     }
 }
+
+pub trait ToRequest {
+    fn to_request(self) -> EvmRpcCanisterRequest;
+}
+
+impl<R> ToRequest for CallRequestBuilder<R> {
+    fn to_request(self) -> EvmRpcCanisterRequest {
+        EvmRpcCanisterRequest::CallRequest(self.request)
+    }
+}
+
+impl<R> ToRequest for FeeHistoryRequestBuilder<R> {
+    fn to_request(self) -> EvmRpcCanisterRequest {
+        EvmRpcCanisterRequest::FeeHistoryRequest(self.request)
+    }
+}
+
+impl<R> ToRequest for GetBlockByNumberRequestBuilder<R> {
+    fn to_request(self) -> EvmRpcCanisterRequest {
+        EvmRpcCanisterRequest::GetBlockByNumberRequest(self.request)
+    }
+}
+
+impl<R> ToRequest for GetLogsRequestBuilder<R> {
+    fn to_request(self) -> EvmRpcCanisterRequest {
+        EvmRpcCanisterRequest::GetLogsRequest(self.request)
+    }
+}
+
+impl<R> ToRequest for GetTransactionCountRequestBuilder<R> {
+    fn to_request(self) -> EvmRpcCanisterRequest {
+        EvmRpcCanisterRequest::GetTransactionCountRequest(self.request)
+    }
+}
+
+impl<R> ToRequest for GetTransactionReceiptRequestBuilder<R> {
+    fn to_request(self) -> EvmRpcCanisterRequest {
+        EvmRpcCanisterRequest::GetTransactionReceiptRequest(self.request)
+    }
+}
+
+impl<R> ToRequest for JsonRequestBuilder<R> {
+    fn to_request(self) -> EvmRpcCanisterRequest {
+        EvmRpcCanisterRequest::JsonRequest(self.request)
+    }
+}
+
+impl<R> ToRequest for SendRawTransactionRequestBuilder<R> {
+    fn to_request(self) -> EvmRpcCanisterRequest {
+        EvmRpcCanisterRequest::SendRawTransactionRequest(self.request)
+    }
+}
+
+pub enum EvmRpcCanisterRequest {
+    CallRequest(
+        Request<
+            <CallRequest as EvmRpcRequest>::Config,
+            <CallRequest as EvmRpcRequest>::Params,
+            <CallRequest as EvmRpcRequest>::CandidOutput,
+            <CallRequest as EvmRpcRequest>::Output,
+        >,
+    ),
+    FeeHistoryRequest(
+        Request<
+            <FeeHistoryRequest as EvmRpcRequest>::Config,
+            <FeeHistoryRequest as EvmRpcRequest>::Params,
+            <FeeHistoryRequest as EvmRpcRequest>::CandidOutput,
+            <FeeHistoryRequest as EvmRpcRequest>::Output,
+        >,
+    ),
+    GetBlockByNumberRequest(
+        Request<
+            <GetBlockByNumberRequest as EvmRpcRequest>::Config,
+            <GetBlockByNumberRequest as EvmRpcRequest>::Params,
+            <GetBlockByNumberRequest as EvmRpcRequest>::CandidOutput,
+            <GetBlockByNumberRequest as EvmRpcRequest>::Output,
+        >,
+    ),
+    GetLogsRequest(
+        Request<
+            <GetLogsRequest as EvmRpcRequest>::Config,
+            <GetLogsRequest as EvmRpcRequest>::Params,
+            <GetLogsRequest as EvmRpcRequest>::CandidOutput,
+            <GetLogsRequest as EvmRpcRequest>::Output,
+        >,
+    ),
+    GetTransactionCountRequest(
+        Request<
+            <GetTransactionCountRequest as EvmRpcRequest>::Config,
+            <GetTransactionCountRequest as EvmRpcRequest>::Params,
+            <GetTransactionCountRequest as EvmRpcRequest>::CandidOutput,
+            <GetTransactionCountRequest as EvmRpcRequest>::Output,
+        >,
+    ),
+    GetTransactionReceiptRequest(
+        Request<
+            <GetTransactionReceiptRequest as EvmRpcRequest>::Config,
+            <GetTransactionReceiptRequest as EvmRpcRequest>::Params,
+            <GetTransactionReceiptRequest as EvmRpcRequest>::CandidOutput,
+            <GetTransactionReceiptRequest as EvmRpcRequest>::Output,
+        >,
+    ),
+    JsonRequest(
+        Request<
+            <JsonRequest as EvmRpcRequest>::Config,
+            <JsonRequest as EvmRpcRequest>::Params,
+            <JsonRequest as EvmRpcRequest>::CandidOutput,
+            <JsonRequest as EvmRpcRequest>::Output,
+        >,
+    ),
+    SendRawTransactionRequest(
+        Request<
+            <SendRawTransactionRequest as EvmRpcRequest>::Config,
+            <SendRawTransactionRequest as EvmRpcRequest>::Params,
+            <SendRawTransactionRequest as EvmRpcRequest>::CandidOutput,
+            <SendRawTransactionRequest as EvmRpcRequest>::Output,
+        >,
+    ),
+}
+
+impl EvmRpcCanisterRequest {
+    pub fn to_request<Config, Params, CandidOutput, Output>(
+        self,
+    ) -> Request<Config, Params, CandidOutput, Output> {
+        match self {
+            Self::CallRequest(request) => request,
+            Self::FeeHistoryRequest(request) => request,
+            Self::GetBlockByNumberRequest(request) => request,
+            Self::GetLogsRequest(request) => request,
+            Self::GetTransactionCountRequest(request) => request,
+            Self::GetTransactionReceiptRequest(request) => request,
+            Self::JsonRequest(request) => request,
+            Self::SendRawTransactionRequest(request) => request,
+        }
+    }
+
+    pub fn as_request_mut<Config, Params, CandidOutput, Output>(
+        &mut self,
+    ) -> &mut Request<Config, Params, CandidOutput, Output> {
+        match self {
+            Self::CallRequest(request) => request.as_mut(),
+            Self::FeeHistoryRequest(request) => request.as_mut(),
+            Self::GetBlockByNumberRequest(request) => request.as_mut(),
+            Self::GetLogsRequest(request) => request.as_mut(),
+            Self::GetTransactionCountRequest(request) => request.as_mut(),
+            Self::GetTransactionReceiptRequest(request) => request.as_mut(),
+            Self::JsonRequest(request) => request.as_mut(),
+            Self::SendRawTransactionRequest(request) => request.as_mut(),
+        }
+    }
+}
