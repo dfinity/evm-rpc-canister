@@ -323,3 +323,9 @@ impl AsRef<[u8]> for Data {
         &self.0
     }
 }
+
+impl HttpResponsePayload for String {
+    fn response_transform() -> Option<ResponseTransform> {
+        Some(ResponseTransform::Raw)
+    }
+}
