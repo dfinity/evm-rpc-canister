@@ -35,12 +35,12 @@ const INITIAL_CYCLES: u128 = 100_000_000_000_000_000;
 const MAX_TICKS: usize = 10;
 
 const MOCK_REQUEST_METHOD: &str = "eth_gasPrice";
-const MOCK_REQUEST_ID: Id = Id::Number(0);
+const MOCK_REQUEST_ID: Id = Id::Number(1);
 const MOCK_REQUEST_PARAMS: Value = Value::Array(vec![]);
-const MOCK_REQUEST_URL: &str = "https://cloudflare-eth.com/v1/mainnet";
+const MOCK_REQUEST_URL: &str = "https://cloudflare-eth.com";
 const MOCK_REQUEST_PAYLOAD: &str =
-    r#"{"id":0,"jsonrpc":"2.0","method":"eth_gasPrice","params":[]}"#;
-const MOCK_REQUEST_RESPONSE: &str = r#"{"jsonrpc":"2.0","id":0,"result":"0x00112233"}"#;
+    r#"{"id":1,"jsonrpc":"2.0","method":"eth_gasPrice","params":[]}"#;
+const MOCK_REQUEST_RESPONSE: &str = r#"{"jsonrpc":"2.0","id":1,"result":"0x00112233"}"#;
 const MOCK_REQUEST_RESPONSE_BYTES: u64 = 1000;
 const MOCK_API_KEY: &str = "mock-api-key";
 
@@ -62,11 +62,11 @@ const BLOCKPI_ETH_HOSTNAME: &str = "ethereum.blockpi.network";
 const PUBLICNODE_ETH_MAINNET_HOSTNAME: &str = "ethereum-rpc.publicnode.com";
 
 #[tokio::test]
-async fn should_canonicalize_request_response() {
+async fn should_canonicalize_request_endpoint_response() {
     let responses = [
-        r#"{"id":0,"jsonrpc":"2.0","result":"0x00112233"}"#,
-        r#"{"result":"0x00112233","id":0,"jsonrpc":"2.0"}"#,
-        r#"{"result":"0x00112233","jsonrpc":"2.0","id":0}"#,
+        r#"{"id":1,"jsonrpc":"2.0","result":"0x00112233"}"#,
+        r#"{"result":"0x00112233","id":1,"jsonrpc":"2.0"}"#,
+        r#"{"result":"0x00112233","jsonrpc":"2.0","id":1}"#,
     ];
 
     let setup = EvmRpcSetup::new().await.mock_api_keys().await;
