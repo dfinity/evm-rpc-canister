@@ -22,10 +22,6 @@ impl EvmRpcRequest for CallRequest {
     type Config = RpcConfig;
     type Params = CallArgs;
     type CandidOutput = MultiRpcResult<Hex>;
-    #[cfg(feature = "alloy")]
-    type Output = MultiRpcResult<alloy_primitives::Bytes>;
-    #[cfg(not(feature = "alloy"))]
-    type Output = MultiRpcResult<Hex>;
 
     fn endpoint(&self) -> EvmRpcEndpoint {
         EvmRpcEndpoint::Call
@@ -41,7 +37,6 @@ pub type CallRequestBuilder<R> = RequestBuilder<
     <CallRequest as EvmRpcRequest>::Config,
     <CallRequest as EvmRpcRequest>::Params,
     <CallRequest as EvmRpcRequest>::CandidOutput,
-    <CallRequest as EvmRpcRequest>::Output,
 >;
 
 impl<R> CallRequestBuilder<R> {
@@ -65,10 +60,6 @@ impl EvmRpcRequest for FeeHistoryRequest {
     type Config = RpcConfig;
     type Params = FeeHistoryArgs;
     type CandidOutput = MultiRpcResult<evm_rpc_types::FeeHistory>;
-    #[cfg(feature = "alloy")]
-    type Output = MultiRpcResult<alloy_rpc_types::FeeHistory>;
-    #[cfg(not(feature = "alloy"))]
-    type Output = MultiRpcResult<evm_rpc_types::FeeHistory>;
 
     fn endpoint(&self) -> EvmRpcEndpoint {
         EvmRpcEndpoint::FeeHistory
@@ -84,7 +75,6 @@ pub type FeeHistoryRequestBuilder<R> = RequestBuilder<
     <FeeHistoryRequest as EvmRpcRequest>::Config,
     <FeeHistoryRequest as EvmRpcRequest>::Params,
     <FeeHistoryRequest as EvmRpcRequest>::CandidOutput,
-    <FeeHistoryRequest as EvmRpcRequest>::Output,
 >;
 
 impl<R> FeeHistoryRequestBuilder<R> {
@@ -120,10 +110,6 @@ impl EvmRpcRequest for GetBlockByNumberRequest {
     type Config = RpcConfig;
     type Params = BlockTag;
     type CandidOutput = MultiRpcResult<evm_rpc_types::Block>;
-    #[cfg(feature = "alloy")]
-    type Output = MultiRpcResult<alloy_rpc_types::Block>;
-    #[cfg(not(feature = "alloy"))]
-    type Output = MultiRpcResult<evm_rpc_types::Block>;
 
     fn endpoint(&self) -> EvmRpcEndpoint {
         EvmRpcEndpoint::GetBlockByNumber
@@ -139,7 +125,6 @@ pub type GetBlockByNumberRequestBuilder<R> = RequestBuilder<
     <GetBlockByNumberRequest as EvmRpcRequest>::Config,
     <GetBlockByNumberRequest as EvmRpcRequest>::Params,
     <GetBlockByNumberRequest as EvmRpcRequest>::CandidOutput,
-    <GetBlockByNumberRequest as EvmRpcRequest>::Output,
 >;
 
 #[derive(Debug, Clone)]
@@ -155,10 +140,6 @@ impl EvmRpcRequest for GetLogsRequest {
     type Config = GetLogsRpcConfig;
     type Params = GetLogsArgs;
     type CandidOutput = MultiRpcResult<Vec<evm_rpc_types::LogEntry>>;
-    #[cfg(feature = "alloy")]
-    type Output = MultiRpcResult<Vec<alloy_rpc_types::Log>>;
-    #[cfg(not(feature = "alloy"))]
-    type Output = MultiRpcResult<Vec<evm_rpc_types::LogEntry>>;
 
     fn endpoint(&self) -> EvmRpcEndpoint {
         EvmRpcEndpoint::GetLogs
@@ -174,7 +155,6 @@ pub type GetLogsRequestBuilder<R> = RequestBuilder<
     <GetLogsRequest as EvmRpcRequest>::Config,
     <GetLogsRequest as EvmRpcRequest>::Params,
     <GetLogsRequest as EvmRpcRequest>::CandidOutput,
-    <GetLogsRequest as EvmRpcRequest>::Output,
 >;
 
 impl<R> GetLogsRequestBuilder<R> {
@@ -221,10 +201,6 @@ impl EvmRpcRequest for GetTransactionCountRequest {
     type Config = RpcConfig;
     type Params = GetTransactionCountArgs;
     type CandidOutput = MultiRpcResult<Nat256>;
-    #[cfg(feature = "alloy")]
-    type Output = MultiRpcResult<alloy_primitives::U256>;
-    #[cfg(not(feature = "alloy"))]
-    type Output = MultiRpcResult<Nat256>;
 
     fn endpoint(&self) -> EvmRpcEndpoint {
         EvmRpcEndpoint::GetTransactionCount
@@ -240,7 +216,6 @@ pub type GetTransactionCountRequestBuilder<R> = RequestBuilder<
     <GetTransactionCountRequest as EvmRpcRequest>::Config,
     <GetTransactionCountRequest as EvmRpcRequest>::Params,
     <GetTransactionCountRequest as EvmRpcRequest>::CandidOutput,
-    <GetTransactionCountRequest as EvmRpcRequest>::Output,
 >;
 
 impl<R> GetTransactionCountRequestBuilder<R> {
@@ -270,10 +245,6 @@ impl EvmRpcRequest for GetTransactionReceiptRequest {
     type Config = RpcConfig;
     type Params = Hex32;
     type CandidOutput = MultiRpcResult<Option<evm_rpc_types::TransactionReceipt>>;
-    #[cfg(feature = "alloy")]
-    type Output = MultiRpcResult<Option<alloy_rpc_types::TransactionReceipt>>;
-    #[cfg(not(feature = "alloy"))]
-    type Output = MultiRpcResult<Option<evm_rpc_types::TransactionReceipt>>;
 
     fn endpoint(&self) -> EvmRpcEndpoint {
         EvmRpcEndpoint::GetTransactionReceipt
@@ -289,7 +260,6 @@ pub type GetTransactionReceiptRequestBuilder<R> = RequestBuilder<
     <GetTransactionReceiptRequest as EvmRpcRequest>::Config,
     <GetTransactionReceiptRequest as EvmRpcRequest>::Params,
     <GetTransactionReceiptRequest as EvmRpcRequest>::CandidOutput,
-    <GetTransactionReceiptRequest as EvmRpcRequest>::Output,
 >;
 
 #[derive(Debug, Clone)]
@@ -309,7 +279,6 @@ impl EvmRpcRequest for JsonRequest {
     type Config = RpcConfig;
     type Params = String;
     type CandidOutput = MultiRpcResult<String>;
-    type Output = MultiRpcResult<String>;
 
     fn endpoint(&self) -> EvmRpcEndpoint {
         EvmRpcEndpoint::JsonRequest
@@ -325,7 +294,6 @@ pub type JsonRequestBuilder<R> = RequestBuilder<
     <JsonRequest as EvmRpcRequest>::Config,
     <JsonRequest as EvmRpcRequest>::Params,
     <JsonRequest as EvmRpcRequest>::CandidOutput,
-    <JsonRequest as EvmRpcRequest>::Output,
 >;
 
 #[derive(Debug, Clone)]
@@ -341,10 +309,6 @@ impl EvmRpcRequest for SendRawTransactionRequest {
     type Config = RpcConfig;
     type Params = Hex;
     type CandidOutput = MultiRpcResult<evm_rpc_types::SendRawTransactionStatus>;
-    #[cfg(feature = "alloy")]
-    type Output = MultiRpcResult<alloy_primitives::B256>;
-    #[cfg(not(feature = "alloy"))]
-    type Output = MultiRpcResult<evm_rpc_types::SendRawTransactionStatus>;
 
     fn endpoint(&self) -> EvmRpcEndpoint {
         EvmRpcEndpoint::SendRawTransaction
@@ -360,7 +324,6 @@ pub type SendRawTransactionRequestBuilder<R> = RequestBuilder<
     <SendRawTransactionRequest as EvmRpcRequest>::Config,
     <SendRawTransactionRequest as EvmRpcRequest>::Params,
     <SendRawTransactionRequest as EvmRpcRequest>::CandidOutput,
-    <SendRawTransactionRequest as EvmRpcRequest>::Output,
 >;
 
 /// Ethereum RPC endpoint supported by the EVM RPC canister.
@@ -371,8 +334,6 @@ pub trait EvmRpcRequest {
     type Params;
     /// The Candid type returned when executing this request which is then converted to [`Self::Output`].
     type CandidOutput;
-    /// The type returned by this endpoint.
-    type Output;
 
     /// The name of the endpoint on the EVM RPC canister.
     fn endpoint(&self) -> EvmRpcEndpoint;
@@ -422,13 +383,13 @@ impl EvmRpcEndpoint {
 ///
 /// To construct a [`RequestBuilder`], refer to the [`EvmRpcClient`] documentation.
 #[must_use = "RequestBuilder does nothing until you 'send' it"]
-pub struct RequestBuilder<Runtime, Config, Params, CandidOutput, Output> {
+pub struct RequestBuilder<Runtime, Config, Params, CandidOutput> {
     client: EvmRpcClient<Runtime>,
-    request: Request<Config, Params, CandidOutput, Output>,
+    request: Request<Config, Params, CandidOutput>,
 }
 
-impl<Runtime, Config: Clone, Params: Clone, CandidOutput, Output> Clone
-    for RequestBuilder<Runtime, Config, Params, CandidOutput, Output>
+impl<Runtime, Config: Clone, Params: Clone, CandidOutput> Clone
+    for RequestBuilder<Runtime, Config, Params, CandidOutput>
 {
     fn clone(&self) -> Self {
         Self {
@@ -438,8 +399,8 @@ impl<Runtime, Config: Clone, Params: Clone, CandidOutput, Output> Clone
     }
 }
 
-impl<Runtime: Debug, Config: Debug, Params: Debug, CandidOutput, Output> Debug
-    for RequestBuilder<Runtime, Config, Params, CandidOutput, Output>
+impl<Runtime: Debug, Config: Debug, Params: Debug, CandidOutput> Debug
+    for RequestBuilder<Runtime, Config, Params, CandidOutput>
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let RequestBuilder { client, request } = &self;
@@ -450,8 +411,8 @@ impl<Runtime: Debug, Config: Debug, Params: Debug, CandidOutput, Output> Debug
     }
 }
 
-impl<Runtime, Config, Params, CandidOutput, Output>
-    RequestBuilder<Runtime, Config, Params, CandidOutput, Output>
+impl<Runtime, Config, Params, CandidOutput>
+    RequestBuilder<Runtime, Config, Params, CandidOutput>
 {
     pub(super) fn new<RpcRequest>(
         client: EvmRpcClient<Runtime>,
@@ -463,7 +424,6 @@ impl<Runtime, Config, Params, CandidOutput, Output>
             Config = Config,
             Params = Params,
             CandidOutput = CandidOutput,
-            Output = Output,
         >,
         Config: From<RpcConfig>,
     {
@@ -476,9 +436,8 @@ impl<Runtime, Config, Params, CandidOutput, Output>
             params,
             cycles,
             _candid_marker: Default::default(),
-            _output_marker: Default::default(),
         };
-        RequestBuilder::<Runtime, Config, Params, CandidOutput, Output> { client, request }
+        RequestBuilder::<Runtime, Config, Params, CandidOutput> { client, request }
     }
 
     /// Change the amount of cycles to send for that request.
@@ -509,15 +468,15 @@ impl<Runtime, Config, Params, CandidOutput, Output>
     }
 }
 
-impl<R: Runtime, Config, Params, CandidOutput, Output>
-    RequestBuilder<R, Config, Params, CandidOutput, Output>
+impl<R: Runtime, Config, Params, CandidOutput>
+    RequestBuilder<R, Config, Params, CandidOutput>
 {
     /// Constructs the [`Request`] and sends it using the [`EvmRpcClient`] returning the response.
     ///
     /// # Panics
     ///
     /// If the request was not successful.
-    pub async fn send(self) -> Output
+    pub async fn send<Output>(self) -> Output
     where
         Config: CandidType + Send,
         Params: CandidType + Send,
@@ -530,7 +489,7 @@ impl<R: Runtime, Config, Params, CandidOutput, Output>
 
     /// Constructs the [`Request`] and sends it using the [`EvmRpcClient`]. This method returns
     /// either the request response or any error that occurs while sending the request.
-    pub async fn try_send(self) -> Result<Output, (RejectCode, String)>
+    pub async fn try_send<Output>(self) -> Result<Output, (RejectCode, String)>
     where
         Config: CandidType + Send,
         Params: CandidType + Send,
@@ -542,8 +501,8 @@ impl<R: Runtime, Config, Params, CandidOutput, Output>
     }
 }
 
-impl<Runtime, Params, CandidOutput, Output>
-    RequestBuilder<Runtime, GetLogsRpcConfig, Params, CandidOutput, Output>
+impl<Runtime, Params, CandidOutput>
+    RequestBuilder<Runtime, GetLogsRpcConfig, Params, CandidOutput>
 {
     /// Change the max block range error for `eth_getLogs` request.
     pub fn with_max_block_range(mut self, max_block_range: u32) -> Self {
@@ -554,18 +513,17 @@ impl<Runtime, Params, CandidOutput, Output>
 }
 
 /// A request which can be executed with `EvmRpcClient::execute_request` or `EvmRpcClient::execute_query_request`.
-pub struct Request<Config, Params, CandidOutput, Output> {
+pub struct Request<Config, Params, CandidOutput> {
     pub(super) endpoint: EvmRpcEndpoint,
     pub(super) rpc_services: RpcServices,
     pub(super) rpc_config: Option<Config>,
     pub(super) params: Params,
     pub(super) cycles: u128,
     pub(super) _candid_marker: std::marker::PhantomData<CandidOutput>,
-    pub(super) _output_marker: std::marker::PhantomData<Output>,
 }
 
-impl<Config: Debug, Params: Debug, CandidOutput, Output> Debug
-    for Request<Config, Params, CandidOutput, Output>
+impl<Config: Debug, Params: Debug, CandidOutput> Debug
+    for Request<Config, Params, CandidOutput>
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let Request {
@@ -575,7 +533,6 @@ impl<Config: Debug, Params: Debug, CandidOutput, Output> Debug
             params,
             cycles,
             _candid_marker,
-            _output_marker,
         } = &self;
         f.debug_struct("Request")
             .field("endpoint", endpoint)
@@ -584,13 +541,12 @@ impl<Config: Debug, Params: Debug, CandidOutput, Output> Debug
             .field("params", params)
             .field("cycles", cycles)
             .field("_candid_marker", _candid_marker)
-            .field("_output_marker", _output_marker)
             .finish()
     }
 }
 
-impl<Config: PartialEq, Params: PartialEq, CandidOutput, Output> PartialEq
-    for Request<Config, Params, CandidOutput, Output>
+impl<Config: PartialEq, Params: PartialEq, CandidOutput> PartialEq
+    for Request<Config, Params, CandidOutput>
 {
     fn eq(
         &self,
@@ -601,7 +557,6 @@ impl<Config: PartialEq, Params: PartialEq, CandidOutput, Output> PartialEq
             params,
             cycles,
             _candid_marker,
-            _output_marker,
         }: &Self,
     ) -> bool {
         &self.endpoint == endpoint
@@ -610,12 +565,11 @@ impl<Config: PartialEq, Params: PartialEq, CandidOutput, Output> PartialEq
             && &self.params == params
             && &self.cycles == cycles
             && &self._candid_marker == _candid_marker
-            && &self._output_marker == _output_marker
     }
 }
 
-impl<Config: Clone, Params: Clone, CandidOutput, Output> Clone
-    for Request<Config, Params, CandidOutput, Output>
+impl<Config: Clone, Params: Clone, CandidOutput> Clone
+    for Request<Config, Params, CandidOutput>
 {
     fn clone(&self) -> Self {
         Self {
@@ -625,12 +579,11 @@ impl<Config: Clone, Params: Clone, CandidOutput, Output> Clone
             params: self.params.clone(),
             cycles: self.cycles,
             _candid_marker: self._candid_marker,
-            _output_marker: self._output_marker,
         }
     }
 }
 
-impl<Config, Params, CandidOutput, Output> Request<Config, Params, CandidOutput, Output> {
+impl<Config, Params, CandidOutput> Request<Config, Params, CandidOutput> {
     /// Get a mutable reference to the cycles.
     #[inline]
     pub fn cycles_mut(&mut self) -> &mut u128 {

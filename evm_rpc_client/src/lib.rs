@@ -34,8 +34,9 @@
 //! use alloy_primitives::{address, U256};
 //! use alloy_rpc_types::BlockNumberOrTag;
 //! use evm_rpc_client::EvmRpcClient;
+//! use evm_rpc_types::MultiRpcResult;
 //!
-//! # use evm_rpc_types::{MultiRpcResult, Nat256};
+//! # use evm_rpc_types::Nat256;
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let client = EvmRpcClient::builder_for_ic()
@@ -48,7 +49,7 @@
 //!         BlockNumberOrTag::Latest,
 //!     ))
 //!     .with_cycles(20_000_000_000)
-//!     .send()
+//!     .send::<MultiRpcResult<U256>>()
 //!     .await
 //!     .expect_consistent();
 //!
@@ -70,9 +71,9 @@
 //! use alloy_primitives::{address, U256};
 //! use alloy_rpc_types::BlockNumberOrTag;
 //! use evm_rpc_client::EvmRpcClient;
-//! use evm_rpc_types::{ConsensusStrategy, RpcServices};
+//! use evm_rpc_types::{ConsensusStrategy, MultiRpcResult, RpcServices};
 //!
-//! # use evm_rpc_types::{MultiRpcResult, Nat256};
+//! # use evm_rpc_types::Nat256;
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let client = EvmRpcClient::builder_for_ic()
@@ -90,7 +91,7 @@
 //!         BlockNumberOrTag::Latest,
 //!     ))
 //!     .with_cycles(20_000_000_000)
-//!     .send()
+//!     .send::<MultiRpcResult<U256>>()
 //!     .await
 //!     .expect_consistent();
 //!
@@ -261,11 +262,12 @@ impl<R> EvmRpcClient<R> {
     ///
     /// ```rust
     /// use alloy_dyn_abi::{DynSolType, DynSolValue};
-    /// use alloy_primitives::{address, bytes};
+    /// use alloy_primitives::{address, bytes, Bytes};
     /// use alloy_rpc_types::BlockNumberOrTag;
     /// use evm_rpc_client::EvmRpcClient;
+    /// use evm_rpc_types::MultiRpcResult;
     ///
-    /// # use evm_rpc_types::{Hex, MultiRpcResult};
+    /// # use evm_rpc_types::Hex;
     /// # use std::str::FromStr;
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -284,7 +286,7 @@ impl<R> EvmRpcClient<R> {
     /// let result = client
     ///     .call(tx_request)
     ///     .with_block(BlockNumberOrTag::Latest)
-    ///     .send()
+    ///     .send::<MultiRpcResult<Bytes>>()
     ///     .await
     ///     .expect_consistent()
     ///     .unwrap();
@@ -316,15 +318,16 @@ impl<R> EvmRpcClient<R> {
     ///
     /// ```rust
     /// use alloy_primitives::{address, b256, bytes};
-    /// use alloy_rpc_types::BlockNumberOrTag;
+    /// use alloy_rpc_types::{Block, BlockNumberOrTag};
     /// use evm_rpc_client::EvmRpcClient;
+    /// use evm_rpc_types::MultiRpcResult;
     ///
-    /// # use evm_rpc_types::{Block, Hex, Hex20, Hex32, Hex256, MultiRpcResult, Nat256};
+    /// # use evm_rpc_types::{Hex, Hex20, Hex32, Hex256, Nat256};
     /// # use std::str::FromStr;
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = EvmRpcClient::builder_for_ic()
-    /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(Block {
+    /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(evm_rpc_types::Block {
     /// #       base_fee_per_gas: None,
     /// #       number: Nat256::ZERO,
     /// #       difficulty: Some(Nat256::ZERO),
@@ -351,7 +354,7 @@ impl<R> EvmRpcClient<R> {
     ///
     /// let result = client
     ///     .get_block_by_number(BlockNumberOrTag::Number(23225439))
-    ///     .send()
+    ///     .send::<MultiRpcResult<Block>>()
     ///     .await
     ///     .expect_consistent()
     ///     .unwrap();
@@ -376,16 +379,15 @@ impl<R> EvmRpcClient<R> {
     /// # Examples
     ///
     /// ```rust
-    /// use alloy_rpc_types::BlockNumberOrTag;
+    /// use alloy_rpc_types::{BlockNumberOrTag, FeeHistory};
     /// use evm_rpc_client::EvmRpcClient;
+    /// use evm_rpc_types::MultiRpcResult;
     ///
-    /// # use alloy_primitives::b256;
-    /// # use evm_rpc_types::{FeeHistory, MultiRpcResult};
     /// # use std::str::FromStr;
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = EvmRpcClient::builder_for_ic()
-    /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(FeeHistory {
+    /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(evm_rpc_types::FeeHistory {
     /// #       oldest_block: 0x1627fb8_u64.into(),
     /// #       base_fee_per_gas: vec![
     /// #           0x2e9d4aab_u128.into(),
@@ -408,12 +410,12 @@ impl<R> EvmRpcClient<R> {
     ///
     /// let result = client
     ///     .fee_history((0x3_u64, BlockNumberOrTag::Latest))
-    ///     .send()
+    ///     .send::<MultiRpcResult<FeeHistory>>()
     ///     .await
     ///     .expect_consistent()
     ///     .unwrap();
     ///
-    /// assert_eq!(result, alloy_rpc_types::FeeHistory {
+    /// assert_eq!(result, FeeHistory {
     ///     oldest_block: 0x1627fb8_u64.into(),
     ///     base_fee_per_gas: vec![
     ///         0x2e9d4aab_u128,
@@ -451,9 +453,11 @@ impl<R> EvmRpcClient<R> {
     ///
     /// ```rust
     /// use alloy_primitives::{address, b256, bytes};
+    /// use alloy_rpc_types::Log;
     /// use evm_rpc_client::EvmRpcClient;
+    /// use evm_rpc_types::MultiRpcResult;
     ///
-    /// # use evm_rpc_types::{Hex, Hex20, Hex32, MultiRpcResult};
+    /// # use evm_rpc_types::{Hex, Hex20, Hex32};
     /// # use std::str::FromStr;
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -479,12 +483,12 @@ impl<R> EvmRpcClient<R> {
     ///
     /// let result = client
     ///     .get_logs(vec![address!("0xdac17f958d2ee523a2206206994597c13d831ec7")])
-    ///     .send()
+    ///     .send::<MultiRpcResult<Vec<Log>>>()
     ///     .await
     ///     .expect_consistent();
     ///
     /// assert_eq!(result.unwrap().first(), Some(
-    ///     &alloy_rpc_types::Log {
+    ///     &Log {
     ///         inner: alloy_primitives::Log {
     ///             address: address!("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
     ///             data: alloy_primitives::LogData::new(
@@ -524,8 +528,9 @@ impl<R> EvmRpcClient<R> {
     /// use alloy_primitives::{address, U256};
     /// use alloy_rpc_types::BlockNumberOrTag;
     /// use evm_rpc_client::EvmRpcClient;
+    /// use evm_rpc_types::MultiRpcResult;
     ///
-    /// # use evm_rpc_types::{MultiRpcResult, Nat256};
+    /// # use evm_rpc_types::Nat256;
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = EvmRpcClient::builder_for_ic()
@@ -537,7 +542,7 @@ impl<R> EvmRpcClient<R> {
     ///         address!("0xdac17f958d2ee523a2206206994597c13d831ec7"),
     ///         BlockNumberOrTag::Latest,
     ///     ))
-    ///     .send()
+    ///     .send::<MultiRpcResult<U256>>()
     ///     .await
     ///     .expect_consistent();
     ///
@@ -562,9 +567,11 @@ impl<R> EvmRpcClient<R> {
     ///
     ///  ```rust
     /// use alloy_primitives::b256;
+    /// use alloy_rpc_types::TransactionReceipt;
     /// use evm_rpc_client::EvmRpcClient;
+    /// use evm_rpc_types::MultiRpcResult;
     ///
-    /// # use evm_rpc_types::{Hex20, Hex32, Hex256, HexByte, MultiRpcResult, Nat256};
+    /// # use evm_rpc_types::{Hex20, Hex32, Hex256, HexByte, Nat256};
     /// # use std::str::FromStr;
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -591,7 +598,7 @@ impl<R> EvmRpcClient<R> {
     ///
     /// let result = client
     ///     .get_transaction_receipt(b256!("0xa3ece39ae137617669c6933b7578b94e705e765683f260fcfe30eaa41932610f"))
-    ///     .send()
+    ///     .send::<MultiRpcResult<Option<TransactionReceipt>>>()
     ///     .await
     ///     .expect_consistent()
     ///     .unwrap();
@@ -634,7 +641,7 @@ impl<R> EvmRpcClient<R> {
     ///         "id": 73,
     ///         "method": "eth_gasPrice",
     ///     }))
-    ///     .send()
+    ///     .send::<MultiRpcResult<String>>()
     ///     .await
     ///     .expect_consistent()
     ///     .map(|result| U256::from_str(&result).unwrap())
@@ -657,10 +664,11 @@ impl<R> EvmRpcClient<R> {
     /// # Examples
     ///
     /// ```rust
-    /// use alloy_primitives::{b256, bytes};
+    /// use alloy_primitives::{b256, B256, bytes};
     /// use evm_rpc_client::EvmRpcClient;
+    /// use evm_rpc_types::MultiRpcResult;
     ///
-    /// # use evm_rpc_types::{MultiRpcResult, Hex32, SendRawTransactionStatus};
+    /// # use evm_rpc_types::{Hex32, SendRawTransactionStatus};
     /// # use std::str::FromStr;
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -670,7 +678,7 @@ impl<R> EvmRpcClient<R> {
     ///
     /// let result = client
     ///     .send_raw_transaction(bytes!("0xf86c098504a817c800825208943535353535353535353535353535353535353535880de0b6b3a76400008025a028ef61340bd939bc2195fe537567866003e1a15d3c71ff63e1590620aa636276a067cbe9d8997f761aecb703304b3800ccf555c9f3dc64214b297fb1966a3b6d83"))
-    ///     .send()
+    ///     .send::<MultiRpcResult<B256>>()
     ///     .await
     ///     .expect_consistent();
     ///
@@ -693,7 +701,7 @@ impl<R> EvmRpcClient<R> {
 impl<R: Runtime> EvmRpcClient<R> {
     async fn execute_request<Config, Params, CandidOutput, Output>(
         &self,
-        request: Request<Config, Params, CandidOutput, Output>,
+        request: Request<Config, Params, CandidOutput>,
     ) -> Output
     where
         Config: CandidType + Send,
@@ -708,7 +716,7 @@ impl<R: Runtime> EvmRpcClient<R> {
 
     async fn try_execute_request<Config, Params, CandidOutput, Output>(
         &self,
-        request: Request<Config, Params, CandidOutput, Output>,
+        request: Request<Config, Params, CandidOutput>,
     ) -> Result<Output, (RejectCode, String)>
     where
         Config: CandidType + Send,
