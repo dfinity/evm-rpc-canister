@@ -107,7 +107,6 @@ pub mod fixtures;
 mod request;
 mod runtime;
 
-use std::fmt::Debug;
 use candid::{CandidType, Principal};
 use evm_rpc_types::{
     BlockTag, CallArgs, ConsensusStrategy, FeeHistoryArgs, GetLogsArgs, GetTransactionCountArgs,
@@ -124,7 +123,7 @@ use request::{
 };
 pub use runtime::{IcRuntime, Runtime};
 use serde::de::DeserializeOwned;
-use std::sync::Arc;
+use std::{fmt::Debug, sync::Arc};
 
 /// The principal identifying the productive EVM RPC canister under NNS control.
 ///
