@@ -30,4 +30,5 @@ evm_rpc_types = { path = "../evm_rpc_types", features = ["alloy"] }
 tokio = { workspace = true, features = ["full"] }
 
 [features]
+default = ["alloy"]
 alloy = ["evm_rpc_types/alloy", "dep:alloy-primitives", "dep:alloy-rpc-types"]
