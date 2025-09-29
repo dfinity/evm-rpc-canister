@@ -665,6 +665,6 @@ impl EvmRpcResponseConverter for AlloyResponseConverter {
     type GetTransactionCountOutput = MultiRpcResult<alloy_primitives::U256>;
     type GetTransactionReceiptOutput = MultiRpcResult<Option<alloy_rpc_types::TransactionReceipt>>;
     type FeeHistoryOutput = MultiRpcResult<alloy_rpc_types::FeeHistory>;
-    type JsonRequestOutput = <GetTransactionReceiptRequest as EvmRpcRequest>::CandidOutput;
+    type JsonRequestOutput = <JsonRequest as EvmRpcRequest>::CandidOutput;
     type SendRawTransactionOutput = MultiRpcResult<alloy_primitives::B256>;
 }

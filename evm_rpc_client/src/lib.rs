@@ -159,13 +159,13 @@ pub struct EvmRpcClient<R, C> {
     config: Arc<ClientConfig<R, C>>,
 }
 
-impl<R, C> EvmRpcClient<R, C> {
+impl<R> EvmRpcClient<R, CandidResponseConverter> {
     /// Creates a [`ClientBuilder`] to configure a [`EvmRpcClient`].
     pub fn builder(
         runtime: R,
         evm_rpc_canister: Principal,
     ) -> ClientBuilder<R, CandidResponseConverter> {
-        ClientBuilder::<R, CandidResponseConverter>::new(runtime, evm_rpc_canister)
+        ClientBuilder::new(runtime, evm_rpc_canister)
     }
 }
 
