@@ -7,6 +7,7 @@ use crate::providers::SupportedRpcService;
 use crate::util::hostname_from_url;
 use crate::validate::validate_api_key;
 use candid::CandidType;
+use canhttp::http::json::JsonRpcRequest;
 use canlog::{LogFilter, RegexSubstitution};
 use derive_more::{From, Into};
 use evm_rpc_types::{LegacyRejectionCode, RpcApi, RpcError, ValidationError};
@@ -94,17 +95,27 @@ impl<A: MetricLabels, B: MetricLabels, C: MetricLabels> MetricLabels for (A, B, 
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, CandidType, Deserialize)]
-pub struct MetricRpcMethod(pub String);
+pub struct MetricRpcMethod {
+    pub method: String,
+    pub is_manual_request: bool,
+}
 
 impl From<RpcMethod> for MetricRpcMethod {
     fn from(method: RpcMethod) -> Self {
-        MetricRpcMethod(method.name().to_string())
+        MetricRpcMethod {
+            method: method.name().to_string(),
+            is_manual_request: false,
+        }
     }
 }
 
 impl MetricLabels for MetricRpcMethod {
     fn metric_labels(&self) -> Vec<(&str, &str)> {
-        vec![("method", &self.0)]
+        let mut labels = vec![("method", self.method.as_str())];
+        if self.is_manual_request {
+            labels.push(("is_manual_request", "true"));
+        }
+        labels
     }
 }
 

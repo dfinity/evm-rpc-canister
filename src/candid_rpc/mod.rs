@@ -189,7 +189,10 @@ impl CandidRpcClient {
                 }
             };
         process_result(
-            MetricRpcMethod(request.method().to_string()),
+            MetricRpcMethod {
+                method: request.method().to_string(),
+                is_manual_request: true,
+            },
             self.client
                 .multi_request(request.method(), request.params())
                 .await,
