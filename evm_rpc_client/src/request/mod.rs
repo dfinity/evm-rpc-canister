@@ -1,3 +1,6 @@
+#[cfg(feature = "alloy")]
+pub(crate) mod alloy;
+
 use crate::{EvmRpcClient, Runtime};
 use candid::CandidType;
 use evm_rpc_types::{
@@ -651,20 +654,4 @@ impl EvmRpcResponseConverter for CandidResponseConverter {
     type FeeHistoryOutput = <FeeHistoryRequest as EvmRpcRequest>::CandidOutput;
     type JsonRequestOutput = <JsonRequest as EvmRpcRequest>::CandidOutput;
     type SendRawTransactionOutput = <SendRawTransactionRequest as EvmRpcRequest>::CandidOutput;
-}
-
-/// Defines [alloy](alloy.rs) response types.
-#[cfg(feature = "alloy")]
-pub struct AlloyResponseConverter;
-
-#[cfg(feature = "alloy")]
-impl EvmRpcResponseConverter for AlloyResponseConverter {
-    type CallOutput = MultiRpcResult<alloy_primitives::Bytes>;
-    type GetBlockByNumberOutput = MultiRpcResult<alloy_rpc_types::Block>;
-    type GetLogsOutput = MultiRpcResult<Vec<alloy_rpc_types::Log>>;
-    type GetTransactionCountOutput = MultiRpcResult<alloy_primitives::U256>;
-    type GetTransactionReceiptOutput = MultiRpcResult<Option<alloy_rpc_types::TransactionReceipt>>;
-    type FeeHistoryOutput = MultiRpcResult<alloy_rpc_types::FeeHistory>;
-    type JsonRequestOutput = <JsonRequest as EvmRpcRequest>::CandidOutput;
-    type SendRawTransactionOutput = MultiRpcResult<alloy_primitives::B256>;
 }

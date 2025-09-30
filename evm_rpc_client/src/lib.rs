@@ -129,7 +129,7 @@ use evm_rpc_types::{
 };
 use ic_error_types::RejectCode;
 #[cfg(feature = "alloy")]
-pub use request::AlloyResponseConverter;
+pub use request::alloy::AlloyResponseConverter;
 pub use request::CandidResponseConverter;
 use request::{
     CallRequest, CallRequestBuilder, EvmRpcResponseConverter, FeeHistoryRequest,
