@@ -613,6 +613,9 @@ impl<R> EvmRpcClient<R> {
 
     /// Call `multi_request` on the EVM RPC canister.
     ///
+    /// Note: The EVM RPC canister overrides the `id` field in the JSON-RPC
+    /// request payload with the next value from its internal sequential counter.
+    ///
     /// # Examples
     ///
     /// ```rust
@@ -631,6 +634,7 @@ impl<R> EvmRpcClient<R> {
     /// let result = client
     ///     .multi_request(json!({
     ///         "jsonrpc": "2.0",
+    ///         // This value is overwritten by the EVM RPC canister
     ///         "id": 73,
     ///         "method": "eth_gasPrice",
     ///     }))
