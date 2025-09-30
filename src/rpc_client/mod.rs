@@ -1,3 +1,4 @@
+use crate::types::RpcMethod;
 use crate::{
     http::http_client,
     memory::{get_override_provider, rank_providers, record_ok_result},
@@ -270,7 +271,7 @@ impl EthRpcClient {
     /// e.g., ethereum logs upon which ckETH will be minted.
     async fn parallel_call<I, O>(
         &self,
-        method: impl Into<String> + Clone,
+        method: RpcMethod<'_>,
         params: I,
         response_size_estimate: ResponseSizeEstimate,
     ) -> MultiCallResults<O>
@@ -300,13 +301,13 @@ impl EthRpcClient {
                             "cleanup_response".to_owned(),
                             transform_op.clone(),
                         ))
-                        .body(JsonRpcRequest::new(method.clone(), params.clone()))
+                        .body(JsonRpcRequest::new(method.name(), params.clone()))
                         .expect("BUG: invalid request")
                 });
             requests.insert_once(provider.clone(), request);
         }
 
-        let client = http_client(MetricRpcMethod(method.into()), true).map_result(|r| {
+        let client = http_client(MetricRpcMethod::from(method), true).map_result(|r| {
             match r?.into_body().into_result() {
                 Ok(value) => Ok(value),
                 Err(json_rpc_error) => Err(RpcError::JsonRpcError(JsonRpcError {
@@ -335,7 +336,7 @@ impl EthRpcClient {
 
     pub async fn eth_get_logs(&self, params: GetLogsParam) -> ReducedResult<Vec<LogEntry>> {
         self.parallel_call(
-            "eth_getLogs",
+            RpcMethod::EthGetLogs,
             vec![params],
             self.response_size_estimate(1024 + HEADER_SIZE_LIMIT),
         )
@@ -351,7 +352,7 @@ impl EthRpcClient {
         };
 
         self.parallel_call(
-            "eth_getBlockByNumber",
+            RpcMethod::EthGetBlockByNumber,
             GetBlockByNumberParams {
                 block,
                 include_full_transactions: false,
@@ -367,7 +368,7 @@ impl EthRpcClient {
         tx_hash: Hash,
     ) -> ReducedResult<Option<TransactionReceipt>> {
         self.parallel_call(
-            "eth_getTransactionReceipt",
+            RpcMethod::EthGetTransactionReceipt,
             vec![tx_hash],
             self.response_size_estimate(700 + HEADER_SIZE_LIMIT),
         )
@@ -378,7 +379,7 @@ impl EthRpcClient {
     pub async fn eth_fee_history(&self, params: FeeHistoryParams) -> ReducedResult<FeeHistory> {
         // A typical response is slightly above 300 bytes.
         self.parallel_call(
-            "eth_feeHistory",
+            RpcMethod::EthFeeHistory,
             params,
             self.response_size_estimate(512 + HEADER_SIZE_LIMIT),
         )
@@ -393,7 +394,7 @@ impl EthRpcClient {
         // A successful reply is under 256 bytes, but we expect most calls to end with an error
         // since we submit the same transaction from multiple nodes.
         self.parallel_call(
-            "eth_sendRawTransaction",
+            RpcMethod::EthSendRawTransaction,
             vec![raw_signed_transaction_hex],
             self.response_size_estimate(256 + HEADER_SIZE_LIMIT),
         )
@@ -406,7 +407,7 @@ impl EthRpcClient {
         params: GetTransactionCountParams,
     ) -> ReducedResult<TransactionCount> {
         self.parallel_call(
-            "eth_getTransactionCount",
+            RpcMethod::EthGetTransactionCount,
             params,
             self.response_size_estimate(50 + HEADER_SIZE_LIMIT),
         )
@@ -416,7 +417,7 @@ impl EthRpcClient {
 
     pub async fn eth_call(&self, params: EthCallParams) -> ReducedResult<Data> {
         self.parallel_call(
-            "eth_call",
+            RpcMethod::EthCall,
             params,
             self.response_size_estimate(256 + HEADER_SIZE_LIMIT),
         )
@@ -426,7 +427,7 @@ impl EthRpcClient {
 
     pub async fn multi_request(
         &self,
-        method: &str,
+        method: RpcMethod<'_>,
         params: Option<&Value>,
     ) -> ReducedResult<RawJson> {
         self.parallel_call(

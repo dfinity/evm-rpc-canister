@@ -194,7 +194,7 @@ impl CandidRpcClient {
                 is_manual_request: true,
             },
             self.client
-                .multi_request(request.method(), request.params())
+                .multi_request(RpcMethod::Custom(request.method()), request.params())
                 .await,
         )
         .map(String::from)

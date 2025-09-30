@@ -7,7 +7,6 @@ use crate::providers::SupportedRpcService;
 use crate::util::hostname_from_url;
 use crate::validate::validate_api_key;
 use candid::CandidType;
-use canhttp::http::json::JsonRpcRequest;
 use canlog::{LogFilter, RegexSubstitution};
 use derive_more::{From, Into};
 use evm_rpc_types::{LegacyRejectionCode, RpcApi, RpcError, ValidationError};
@@ -100,11 +99,11 @@ pub struct MetricRpcMethod {
     pub is_manual_request: bool,
 }
 
-impl From<RpcMethod> for MetricRpcMethod {
+impl From<RpcMethod<'_>> for MetricRpcMethod {
     fn from(method: RpcMethod) -> Self {
         MetricRpcMethod {
             method: method.name().to_string(),
-            is_manual_request: false,
+            is_manual_request: matches!(method, RpcMethod::Custom(_)),
         }
     }
 }
@@ -180,7 +179,7 @@ pub struct Metrics {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum RpcMethod {
+pub enum RpcMethod<'a> {
     EthCall,
     EthFeeHistory,
     EthGetLogs,
@@ -188,10 +187,11 @@ pub enum RpcMethod {
     EthGetTransactionCount,
     EthGetTransactionReceipt,
     EthSendRawTransaction,
+    Custom(&'a str),
 }
 
-impl RpcMethod {
-    fn name(self) -> &'static str {
+impl<'a> RpcMethod<'a> {
+    pub fn name(self) -> &'a str {
         match self {
             RpcMethod::EthCall => "eth_call",
             RpcMethod::EthFeeHistory => "eth_feeHistory",
@@ -200,6 +200,7 @@ impl RpcMethod {
             RpcMethod::EthGetTransactionCount => "eth_getTransactionCount",
             RpcMethod::EthGetTransactionReceipt => "eth_getTransactionReceipt",
             RpcMethod::EthSendRawTransaction => "eth_sendRawTransaction",
+            RpcMethod::Custom(name) => name,
         }
     }
 }
