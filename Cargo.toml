@@ -60,6 +60,7 @@ evm_rpc_client = { path = "evm_rpc_client" }
 ic-crypto-test-utils-reproducible-rng = { git = "https://github.com/dfinity/ic", rev = "release-2024-09-26_01-31-base" }
 ic-error-types = { workspace = true }
 ic-management-canister-types = { workspace = true }
+ic-metrics-assert = { workspace = true }
 ic-test-utilities-load-wasm = { git = "https://github.com/dfinity/ic", rev = "release-2024-09-26_01-31-base" }
 maplit = "1"
 pocket-ic = { workspace = true }
@@ -94,6 +95,7 @@ ic-cdk-macros = "0.17.2"
 ic-certified-map = "0.4"
 ic-error-types = "0.2"
 ic-management-canister-types = "0.3"
+ic-metrics-assert = { version = "0.1.1", features = ["pocket_ic"] }
 ic-metrics-encoder = "1.1"
 ic-stable-structures = "0.6.8"
 itertools = "0.14.0"

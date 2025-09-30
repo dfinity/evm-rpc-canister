@@ -1,22 +1,21 @@
 use candid::candid_method;
-use canhttp::multi::Timestamp;
-use canhttp::{CyclesChargingPolicy, CyclesCostEstimator};
+use canhttp::{multi::Timestamp, CyclesChargingPolicy, CyclesCostEstimator};
 use canlog::{Log, Sort};
-use evm_rpc::candid_rpc::CandidRpcClient;
-use evm_rpc::http::{service_request_builder, ChargingPolicyWithCollateral};
-use evm_rpc::logs::{Priority, INFO};
-use evm_rpc::memory::{
-    get_num_subnet_nodes, insert_api_key, is_api_key_principal, is_demo_active, remove_api_key,
-    set_api_key_principals, set_demo_active, set_log_filter, set_num_subnet_nodes,
-    set_override_provider,
-};
-use evm_rpc::metrics::encode_metrics;
-use evm_rpc::providers::{find_provider, resolve_rpc_service, PROVIDERS, SERVICE_PROVIDER_MAP};
-use evm_rpc::types::{OverrideProvider, Provider, ProviderId, RpcAccess, RpcAuth};
 use evm_rpc::{
-    http::{json_rpc_request, json_rpc_request_arg, transform_http_request},
-    memory::UNSTABLE_METRICS,
-    types::Metrics,
+    candid_rpc::CandidRpcClient,
+    http::{
+        json_rpc_request, json_rpc_request_arg, service_request_builder, transform_http_request,
+        ChargingPolicyWithCollateral,
+    },
+    logs::{Priority, INFO},
+    memory::{
+        get_num_subnet_nodes, insert_api_key, is_api_key_principal, is_demo_active, remove_api_key,
+        set_api_key_principals, set_demo_active, set_log_filter, set_num_subnet_nodes,
+        set_override_provider,
+    },
+    metrics::encode_metrics,
+    providers::{find_provider, resolve_rpc_service, PROVIDERS, SERVICE_PROVIDER_MAP},
+    types::{OverrideProvider, Provider, ProviderId, RpcAccess, RpcAuth},
 };
 use evm_rpc_types::{Hex32, HttpOutcallError, MultiRpcResult, RpcConfig, RpcResult};
 use ic_canister_log::log;
@@ -404,12 +403,6 @@ fn http_request(request: HttpRequest) -> HttpResponse {
         }
         _ => HttpResponseBuilder::not_found().build(),
     }
-}
-
-#[query(name = "getMetrics")]
-#[candid_method(query, rename = "getMetrics")]
-fn get_metrics() -> Metrics {
-    UNSTABLE_METRICS.with(|metrics| (*metrics.borrow()).clone())
 }
 
 fn now() -> Timestamp {
