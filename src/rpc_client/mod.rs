@@ -271,7 +271,7 @@ impl EthRpcClient {
     /// e.g., ethereum logs upon which ckETH will be minted.
     async fn parallel_call<I, O>(
         &self,
-        method: RpcMethod<'_>,
+        method: RpcMethod,
         params: I,
         response_size_estimate: ResponseSizeEstimate,
     ) -> MultiCallResults<O>
@@ -301,7 +301,7 @@ impl EthRpcClient {
                             "cleanup_response".to_owned(),
                             transform_op.clone(),
                         ))
-                        .body(JsonRpcRequest::new(method.name(), params.clone()))
+                        .body(JsonRpcRequest::new(method.clone().name(), params.clone()))
                         .expect("BUG: invalid request")
                 });
             requests.insert_once(provider.clone(), request);
@@ -427,7 +427,7 @@ impl EthRpcClient {
 
     pub async fn multi_request(
         &self,
-        method: RpcMethod<'_>,
+        method: RpcMethod,
         params: Option<&Value>,
     ) -> ReducedResult<RawJson> {
         self.parallel_call(

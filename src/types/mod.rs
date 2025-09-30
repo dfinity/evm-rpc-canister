@@ -99,10 +99,10 @@ pub struct MetricRpcMethod {
     pub is_manual_request: bool,
 }
 
-impl From<RpcMethod<'_>> for MetricRpcMethod {
+impl From<RpcMethod> for MetricRpcMethod {
     fn from(method: RpcMethod) -> Self {
         MetricRpcMethod {
-            method: method.name().to_string(),
+            method: method.clone().name(),
             is_manual_request: matches!(method, RpcMethod::Custom(_)),
         }
     }
@@ -178,8 +178,8 @@ pub struct Metrics {
     pub err_max_response_size_exceeded: HashMap<(MetricRpcMethod, MetricRpcHost), u64>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum RpcMethod<'a> {
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RpcMethod {
     EthCall,
     EthFeeHistory,
     EthGetLogs,
@@ -187,19 +187,19 @@ pub enum RpcMethod<'a> {
     EthGetTransactionCount,
     EthGetTransactionReceipt,
     EthSendRawTransaction,
-    Custom(&'a str),
+    Custom(String),
 }
 
-impl<'a> RpcMethod<'a> {
-    pub fn name(self) -> &'a str {
+impl RpcMethod {
+    pub fn name(self) -> String {
         match self {
-            RpcMethod::EthCall => "eth_call",
-            RpcMethod::EthFeeHistory => "eth_feeHistory",
-            RpcMethod::EthGetLogs => "eth_getLogs",
-            RpcMethod::EthGetBlockByNumber => "eth_getBlockByNumber",
-            RpcMethod::EthGetTransactionCount => "eth_getTransactionCount",
-            RpcMethod::EthGetTransactionReceipt => "eth_getTransactionReceipt",
-            RpcMethod::EthSendRawTransaction => "eth_sendRawTransaction",
+            RpcMethod::EthCall => "eth_call".to_string(),
+            RpcMethod::EthFeeHistory => "eth_feeHistory".to_string(),
+            RpcMethod::EthGetLogs => "eth_getLogs".to_string(),
+            RpcMethod::EthGetBlockByNumber => "eth_getBlockByNumber".to_string(),
+            RpcMethod::EthGetTransactionCount => "eth_getTransactionCount".to_string(),
+            RpcMethod::EthGetTransactionReceipt => "eth_getTransactionReceipt".to_string(),
+            RpcMethod::EthSendRawTransaction => "eth_sendRawTransaction".to_string(),
             RpcMethod::Custom(name) => name,
         }
     }
