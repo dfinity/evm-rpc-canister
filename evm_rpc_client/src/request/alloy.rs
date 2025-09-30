@@ -1,4 +1,4 @@
-use crate::request::{EvmRpcRequest, EvmRpcResponseConverter, JsonRequest};
+use crate::request::EvmRpcResponseConverter;
 use evm_rpc_types::MultiRpcResult;
 
 /// Defines [alloy](alloy.rs) response types.
