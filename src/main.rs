@@ -140,15 +140,15 @@ pub async fn eth_call(
     }
 }
 
-#[update(name = "json_request")]
-#[candid_method(rename = "json_request")]
-pub async fn json_request(
+#[update(name = "multi_request")]
+#[candid_method(rename = "multi_request")]
+pub async fn multi_request(
     source: RpcServices,
     config: Option<RpcConfig>,
     args: String,
 ) -> MultiRpcResult<String> {
     match CandidRpcClient::new(source, config, now()) {
-        Ok(source) => source.json_request(args).await,
+        Ok(source) => source.multi_request(args).await,
         Err(err) => Err(err).into(),
     }
 }

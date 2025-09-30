@@ -294,7 +294,7 @@ impl EvmRpcRequest for JsonRequest {
     type Output = MultiRpcResult<String>;
 
     fn endpoint(&self) -> EvmRpcEndpoint {
-        EvmRpcEndpoint::JsonRequest
+        EvmRpcEndpoint::MultiRequest
     }
 
     fn params(self) -> Self::Params {
@@ -370,8 +370,8 @@ pub enum EvmRpcEndpoint {
     GetTransactionCount,
     /// `eth_getTransactionReceipt` endpoint.
     GetTransactionReceipt,
-    /// `json_request` endpoint.
-    JsonRequest,
+    /// `multi_request` endpoint.
+    MultiRequest,
     /// `eth_sendRawTransaction` endpoint.
     SendRawTransaction,
 }
@@ -386,7 +386,7 @@ impl EvmRpcEndpoint {
             Self::GetLogs => "eth_getLogs",
             Self::GetTransactionCount => "eth_getTransactionCount",
             Self::GetTransactionReceipt => "eth_getTransactionReceipt",
-            Self::JsonRequest => "json_request",
+            Self::MultiRequest => "multi_request",
             Self::SendRawTransaction => "eth_sendRawTransaction",
         }
     }

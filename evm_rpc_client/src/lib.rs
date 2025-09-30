@@ -611,7 +611,7 @@ impl<R> EvmRpcClient<R> {
         )
     }
 
-    /// Call `json_request` on the EVM RPC canister.
+    /// Call `multi_request` on the EVM RPC canister.
     ///
     /// # Examples
     ///
@@ -629,7 +629,7 @@ impl<R> EvmRpcClient<R> {
     ///     .build();
     ///
     /// let result = client
-    ///     .json_request(json!({
+    ///     .multi_request(json!({
     ///         "jsonrpc": "2.0",
     ///         "id": 73,
     ///         "method": "eth_gasPrice",
@@ -644,7 +644,7 @@ impl<R> EvmRpcClient<R> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn json_request(&self, params: serde_json::Value) -> JsonRequestBuilder<R> {
+    pub fn multi_request(&self, params: serde_json::Value) -> JsonRequestBuilder<R> {
         RequestBuilder::new(
             self.clone(),
             JsonRequest::try_from(params).expect("Client error: invalid JSON request"),

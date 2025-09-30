@@ -421,7 +421,7 @@ impl EthRpcClient {
         .reduce(self.consensus_strategy())
     }
 
-    pub async fn json_request(
+    pub async fn multi_request(
         &self,
         method: &str,
         params: Option<&Value>,
