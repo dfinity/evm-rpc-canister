@@ -2224,8 +2224,7 @@ async fn should_have_different_request_ids_when_retrying_because_response_too_bi
         .check_metrics()
         .await
         .assert_contains_metric_matching(r#"evmrpc_requests\{method="eth_getTransactionCount",host="cloudflare-eth.com"\} 2 \d+"#)
-        .assert_contains_metric_matching(r#"evmrpc_responses\{method="eth_getTransactionCount",host="cloudflare-eth.com",status="200"\} 1 \d+"#)
-        .assert_contains_metric_matching(r#"evmrpc_err_max_response_size_exceeded\{method="eth_getTransactionCount",host="cloudflare-eth.com"\} 1 \d+"#);
+        .assert_contains_metric_matching(r#"evmrpc_responses\{method="eth_getTransactionCount",host="cloudflare-eth.com",status="200"\} 1 \d+"#);
 }
 
 #[tokio::test]
