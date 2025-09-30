@@ -94,17 +94,27 @@ impl<A: MetricLabels, B: MetricLabels, C: MetricLabels> MetricLabels for (A, B, 
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, CandidType, Deserialize)]
-pub struct MetricRpcMethod(pub String);
+pub struct MetricRpcMethod {
+    pub method: String,
+    pub is_manual_request: bool,
+}
 
 impl From<RpcMethod> for MetricRpcMethod {
     fn from(method: RpcMethod) -> Self {
-        MetricRpcMethod(method.name().to_string())
+        MetricRpcMethod {
+            method: method.clone().name(),
+            is_manual_request: matches!(method, RpcMethod::Custom(_)),
+        }
     }
 }
 
 impl MetricLabels for MetricRpcMethod {
     fn metric_labels(&self) -> Vec<(&str, &str)> {
-        vec![("method", &self.0)]
+        let mut labels = vec![("method", self.method.as_str())];
+        if self.is_manual_request {
+            labels.push(("is_manual_request", "true"));
+        }
+        labels
     }
 }
 
@@ -168,7 +178,7 @@ pub struct Metrics {
     pub err_max_response_size_exceeded: HashMap<(MetricRpcMethod, MetricRpcHost), u64>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RpcMethod {
     EthCall,
     EthFeeHistory,
@@ -177,18 +187,20 @@ pub enum RpcMethod {
     EthGetTransactionCount,
     EthGetTransactionReceipt,
     EthSendRawTransaction,
+    Custom(String),
 }
 
 impl RpcMethod {
-    fn name(self) -> &'static str {
+    pub fn name(self) -> String {
         match self {
-            RpcMethod::EthCall => "eth_call",
-            RpcMethod::EthFeeHistory => "eth_feeHistory",
-            RpcMethod::EthGetLogs => "eth_getLogs",
-            RpcMethod::EthGetBlockByNumber => "eth_getBlockByNumber",
-            RpcMethod::EthGetTransactionCount => "eth_getTransactionCount",
-            RpcMethod::EthGetTransactionReceipt => "eth_getTransactionReceipt",
-            RpcMethod::EthSendRawTransaction => "eth_sendRawTransaction",
+            RpcMethod::EthCall => "eth_call".to_string(),
+            RpcMethod::EthFeeHistory => "eth_feeHistory".to_string(),
+            RpcMethod::EthGetLogs => "eth_getLogs".to_string(),
+            RpcMethod::EthGetBlockByNumber => "eth_getBlockByNumber".to_string(),
+            RpcMethod::EthGetTransactionCount => "eth_getTransactionCount".to_string(),
+            RpcMethod::EthGetTransactionReceipt => "eth_getTransactionReceipt".to_string(),
+            RpcMethod::EthSendRawTransaction => "eth_sendRawTransaction".to_string(),
+            RpcMethod::Custom(name) => name,
         }
     }
 }

@@ -104,11 +104,6 @@ pub fn encode_metrics(w: &mut ic_metrics_encoder::MetricsEncoder<Vec<u8>>) -> st
             &m.err_http_outcall,
             "Number of unsuccessful HTTP outcalls",
         );
-        w.counter_entries(
-            "evmrpc_err_max_response_size_exceeded",
-            &m.err_max_response_size_exceeded,
-            "Number of HTTP outcalls with max response size exceeded",
-        );
 
         Ok(())
     })

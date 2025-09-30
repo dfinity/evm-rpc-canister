@@ -667,7 +667,10 @@ impl<R, C: EvmRpcResponseConverter> EvmRpcClient<R, C> {
         )
     }
 
-    /// Call `json_request` on the EVM RPC canister.
+    /// Call `multi_request` on the EVM RPC canister.
+    ///
+    /// Note: The EVM RPC canister overrides the `id` field in the JSON-RPC
+    /// request payload with the next value from its internal sequential counter.
     ///
     /// # Examples
     ///
@@ -685,8 +688,9 @@ impl<R, C: EvmRpcResponseConverter> EvmRpcClient<R, C> {
     ///     .build();
     ///
     /// let result = client
-    ///     .json_request(json!({
+    ///     .multi_request(json!({
     ///         "jsonrpc": "2.0",
+    ///         // This value is overwritten by the EVM RPC canister
     ///         "id": 73,
     ///         "method": "eth_gasPrice",
     ///     }))
@@ -700,7 +704,7 @@ impl<R, C: EvmRpcResponseConverter> EvmRpcClient<R, C> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn json_request(
+    pub fn multi_request(
         &self,
         params: serde_json::Value,
     ) -> JsonRequestBuilder<R, C, C::JsonRequestOutput> {

@@ -9,15 +9,13 @@ fn test_process_result_mapping() {
     use evm_rpc_types::{EthMainnetService, RpcService};
     type ReductionError = canhttp::multi::ReductionError<RpcService, u32, RpcError>;
 
-    let method = RpcMethod::EthGetTransactionCount;
-
     assert_eq!(
-        process_result(method, Ok(5)),
+        process_result(RpcMethod::EthGetTransactionCount, Ok(5)),
         MultiRpcResult::Consistent(Ok(5))
     );
     assert_eq!(
         process_result(
-            method,
+            RpcMethod::EthGetTransactionCount,
             Err(ReductionError::ConsistentError(RpcError::ProviderError(
                 ProviderError::MissingRequiredProvider
             )))
@@ -28,14 +26,14 @@ fn test_process_result_mapping() {
     );
     assert_eq!(
         process_result(
-            method,
+            RpcMethod::EthGetTransactionCount,
             Err(ReductionError::InconsistentResults(MultiResults::default()))
         ),
         MultiRpcResult::Inconsistent(vec![])
     );
     assert_eq!(
         process_result(
-            method,
+            RpcMethod::EthGetTransactionCount,
             Err(ReductionError::InconsistentResults(
                 MultiResults::from_non_empty_iter(vec![(
                     RpcService::EthMainnet(EthMainnetService::Ankr),
@@ -50,7 +48,7 @@ fn test_process_result_mapping() {
     );
     assert_eq!(
         process_result(
-            method,
+            RpcMethod::EthGetTransactionCount,
             Err(ReductionError::InconsistentResults(
                 MultiResults::from_non_empty_iter(vec![
                     (RpcService::EthMainnet(EthMainnetService::Ankr), Ok(5)),

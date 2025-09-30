@@ -125,7 +125,7 @@ async fn should_not_modify_json_rpc_request_from_request_endpoint() {
 }
 
 #[tokio::test]
-async fn json_request_should_succeed() {
+async fn multi_request_should_succeed() {
     let [response_0, response_1, response_2] = [
         r#"{"id":0,"jsonrpc":"2.0","result":"0x00112233"}"#,
         r#"{"result":"0x00112233","id":0,"jsonrpc":"2.0"}"#,
@@ -146,7 +146,7 @@ async fn json_request_should_succeed() {
             .client(mocks)
             .with_rpc_sources(source.clone())
             .build()
-            .json_request(json!({
+            .multi_request(json!({
                 "id": 0,
                 "jsonrpc": "2.0",
                 "method": "eth_gasPrice",
@@ -1533,15 +1533,15 @@ async fn should_have_metrics_for_request_endpoint() {
         .check_metrics()
         .await
         .assert_contains_metric_matching(
-            r#"evmrpc_requests\{method="request",host="cloudflare-eth.com"\} 1 \d+"#,
+            r#"evmrpc_requests\{method="request",is_manual_request="true",host="cloudflare-eth.com"\} 1 \d+"#,
         )
         .assert_contains_metric_matching(
-            r#"evmrpc_responses\{method="request",host="cloudflare-eth.com",status="200"\} 1 \d+"#,
+            r#"evmrpc_responses\{method="request",is_manual_request="true",host="cloudflare-eth.com",status="200"\} 1 \d+"#,
         );
 }
 
 #[tokio::test]
-async fn should_have_metrics_for_json_request_endpoint() {
+async fn should_have_metrics_for_multi_request_endpoint() {
     let mocks = MockHttpOutcallsBuilder::new()
         .given(JsonRpcRequestMatcher::with_method("eth_gasPrice").with_id(0_u64))
         .respond_with(JsonRpcResponse::from(MOCK_REQUEST_RESPONSE).with_id(0_u64));
@@ -1553,7 +1553,7 @@ async fn should_have_metrics_for_json_request_endpoint() {
             EthMainnetService::Cloudflare,
         ])))
         .build()
-        .json_request(json!({
+        .multi_request(json!({
             "id": 0,
             "jsonrpc": "2.0",
             "method": "eth_gasPrice",
@@ -1569,10 +1569,10 @@ async fn should_have_metrics_for_json_request_endpoint() {
         .check_metrics()
         .await
         .assert_contains_metric_matching(
-            r#"evmrpc_requests\{method="eth_gasPrice",host="cloudflare-eth.com"\} 1 \d+"#,
+            r#"evmrpc_requests\{method="eth_gasPrice",is_manual_request="true",host="cloudflare-eth.com"\} 1 \d+"#,
         )
         .assert_contains_metric_matching(
-            r#"evmrpc_responses\{method="eth_gasPrice",host="cloudflare-eth.com",status="200"\} 1 \d+"#,
+            r#"evmrpc_responses\{method="eth_gasPrice",is_manual_request="true",host="cloudflare-eth.com",status="200"\} 1 \d+"#,
         );
 }
 
@@ -2297,8 +2297,7 @@ async fn should_have_different_request_ids_when_retrying_because_response_too_bi
         .check_metrics()
         .await
         .assert_contains_metric_matching(r#"evmrpc_requests\{method="eth_getTransactionCount",host="cloudflare-eth.com"\} 2 \d+"#)
-        .assert_contains_metric_matching(r#"evmrpc_responses\{method="eth_getTransactionCount",host="cloudflare-eth.com",status="200"\} 1 \d+"#)
-        .assert_contains_metric_matching(r#"evmrpc_err_max_response_size_exceeded\{method="eth_getTransactionCount",host="cloudflare-eth.com"\} 1 \d+"#);
+        .assert_contains_metric_matching(r#"evmrpc_responses\{method="eth_getTransactionCount",host="cloudflare-eth.com",status="200"\} 1 \d+"#);
 }
 
 #[tokio::test]

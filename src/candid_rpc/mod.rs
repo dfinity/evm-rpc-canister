@@ -178,7 +178,7 @@ impl CandidRpcClient {
         .map(from_data)
     }
 
-    pub async fn json_request(&self, json_rpc_payload: String) -> MultiRpcResult<String> {
+    pub async fn multi_request(&self, json_rpc_payload: String) -> MultiRpcResult<String> {
         let request: JsonRpcRequest<serde_json::Value> =
             match serde_json::from_str(&json_rpc_payload) {
                 Ok(req) => req,
@@ -189,11 +189,18 @@ impl CandidRpcClient {
                 }
             };
         process_result(
-            MetricRpcMethod(request.method().to_string()),
+            MetricRpcMethod {
+                method: request.method().to_string(),
+                is_manual_request: true,
+            },
             self.client
-                .json_request(request.method(), request.params())
+                .multi_request(
+                    RpcMethod::Custom(request.method().to_string()),
+                    request.params(),
+                )
                 .await,
         )
+        .map(String::from)
     }
 }
 
