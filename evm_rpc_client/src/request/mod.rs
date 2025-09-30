@@ -632,11 +632,11 @@ impl<Config, Params, CandidOutput, Output> Request<Config, Params, CandidOutput,
 // a breaking change since it would add a new associated type to this trait.
 pub trait EvmRpcResponseConverter {
     type CallOutput;
+    type FeeHistoryOutput;
     type GetBlockByNumberOutput;
     type GetLogsOutput;
     type GetTransactionCountOutput;
     type GetTransactionReceiptOutput;
-    type FeeHistoryOutput;
     type JsonRequestOutput;
     type SendRawTransactionOutput;
 }
@@ -645,13 +645,12 @@ pub trait EvmRpcResponseConverter {
 pub struct CandidResponseConverter;
 
 impl EvmRpcResponseConverter for CandidResponseConverter {
-    type CallOutput = <CallRequest as EvmRpcRequest>::CandidOutput;
-    type GetBlockByNumberOutput = <GetBlockByNumberRequest as EvmRpcRequest>::CandidOutput;
-    type GetLogsOutput = <GetLogsRequest as EvmRpcRequest>::CandidOutput;
-    type GetTransactionCountOutput = <GetTransactionCountRequest as EvmRpcRequest>::CandidOutput;
-    type GetTransactionReceiptOutput =
-        <GetTransactionReceiptRequest as EvmRpcRequest>::CandidOutput;
-    type FeeHistoryOutput = <FeeHistoryRequest as EvmRpcRequest>::CandidOutput;
-    type JsonRequestOutput = <JsonRequest as EvmRpcRequest>::CandidOutput;
-    type SendRawTransactionOutput = <SendRawTransactionRequest as EvmRpcRequest>::CandidOutput;
+    type CallOutput = MultiRpcResult<Hex>;
+    type FeeHistoryOutput = MultiRpcResult<evm_rpc_types::FeeHistory>;
+    type GetBlockByNumberOutput = MultiRpcResult<evm_rpc_types::Block>;
+    type GetLogsOutput = MultiRpcResult<Vec<evm_rpc_types::LogEntry>>;
+    type GetTransactionCountOutput = MultiRpcResult<Nat256>;
+    type GetTransactionReceiptOutput = MultiRpcResult<Option<evm_rpc_types::TransactionReceipt>>;
+    type JsonRequestOutput = MultiRpcResult<String>;
+    type SendRawTransactionOutput = MultiRpcResult<evm_rpc_types::SendRawTransactionStatus>;
 }
