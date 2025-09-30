@@ -1,31 +1,34 @@
-use crate::http::http_client;
-use crate::memory::{get_override_provider, rank_providers, record_ok_result};
-use crate::providers::{resolve_rpc_service, SupportedRpcService};
-use crate::rpc_client::eth_rpc::{HttpResponsePayload, ResponseSizeEstimate, HEADER_SIZE_LIMIT};
-use crate::rpc_client::numeric::TransactionCount;
-use crate::types::MetricRpcMethod;
-use canhttp::multi::Timestamp;
+use crate::{
+    http::http_client,
+    memory::{get_override_provider, rank_providers, record_ok_result},
+    providers::{resolve_rpc_service, SupportedRpcService},
+    rpc_client::{
+        eth_rpc::{HttpResponsePayload, ResponseSizeEstimate, HEADER_SIZE_LIMIT},
+        json::responses::RawJson,
+        numeric::TransactionCount,
+    },
+    types::MetricRpcMethod,
+};
 use canhttp::{
     http::json::JsonRpcRequest,
-    multi::{MultiResults, Reduce, ReduceWithEquality, ReduceWithThreshold},
+    multi::{MultiResults, Reduce, ReduceWithEquality, ReduceWithThreshold, Timestamp},
     MaxResponseBytesRequestExtension, TransformContextRequestExtension,
 };
 use evm_rpc_types::{
     ConsensusStrategy, JsonRpcError, ProviderError, RpcConfig, RpcError, RpcService, RpcServices,
 };
 use ic_cdk::api::management_canister::http_request::TransformContext;
-use json::requests::{
-    BlockSpec, EthCallParams, FeeHistoryParams, GetBlockByNumberParams, GetLogsParam,
-    GetTransactionCountParams,
+use json::{
+    requests::{
+        BlockSpec, EthCallParams, FeeHistoryParams, GetBlockByNumberParams, GetLogsParam,
+        GetTransactionCountParams,
+    },
+    responses::{Block, Data, FeeHistory, LogEntry, SendRawTransactionResult, TransactionReceipt},
+    Hash,
 };
-use json::responses::{
-    Block, Data, FeeHistory, LogEntry, SendRawTransactionResult, TransactionReceipt,
-};
-use json::Hash;
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
-use std::collections::BTreeSet;
-use std::fmt::Debug;
+use std::{collections::BTreeSet, fmt::Debug};
 use tower::ServiceExt;
 
 pub mod amount;
@@ -425,7 +428,7 @@ impl EthRpcClient {
         &self,
         method: &str,
         params: Option<&Value>,
-    ) -> ReducedResult<String> {
+    ) -> ReducedResult<RawJson> {
         self.parallel_call(
             method,
             params,
