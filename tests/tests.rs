@@ -1533,10 +1533,10 @@ async fn should_have_metrics_for_request_endpoint() {
         .check_metrics()
         .await
         .assert_contains_metric_matching(
-            r#"evmrpc_requests\{method="request",host="cloudflare-eth.com"\} 1 \d+"#,
+            r#"evmrpc_requests\{method="request",is_manual_request="true",host="cloudflare-eth.com"\} 1 \d+"#,
         )
         .assert_contains_metric_matching(
-            r#"evmrpc_responses\{method="request",host="cloudflare-eth.com",status="200"\} 1 \d+"#,
+            r#"evmrpc_responses\{method="request",is_manual_request="true",host="cloudflare-eth.com",status="200"\} 1 \d+"#,
         );
 }
 
@@ -1569,10 +1569,10 @@ async fn should_have_metrics_for_multi_request_endpoint() {
         .check_metrics()
         .await
         .assert_contains_metric_matching(
-            r#"evmrpc_requests\{method="eth_gasPrice",host="cloudflare-eth.com"\} 1 \d+"#,
+            r#"evmrpc_requests\{method="eth_gasPrice",is_manual_request="true",host="cloudflare-eth.com"\} 1 \d+"#,
         )
         .assert_contains_metric_matching(
-            r#"evmrpc_responses\{method="eth_gasPrice",host="cloudflare-eth.com",status="200"\} 1 \d+"#,
+            r#"evmrpc_responses\{method="eth_gasPrice",is_manual_request="true",host="cloudflare-eth.com",status="200"\} 1 \d+"#,
         );
 }
 
