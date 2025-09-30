@@ -89,7 +89,7 @@ impl ResponseTransform {
             Self::SendRawTransaction => {
                 sanitize_send_raw_transaction_result(body_bytes, Parser::new())
             }
-            Self::Raw => redact_response::<Block>(body_bytes),
+            Self::Raw => redact_response::<serde_json::Value>(body_bytes),
         }
     }
 }
