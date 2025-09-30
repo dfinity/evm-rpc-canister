@@ -307,6 +307,9 @@ service : (InstallArgs) -> {
   eth_getTransactionReceipt : (RpcServices, opt RpcConfig, hash : text) -> (MultiGetTransactionReceiptResult);
   eth_sendRawTransaction : (RpcServices, opt RpcConfig, rawSignedTransactionHex : text) -> (MultiSendRawTransactionResult);
   eth_call : (RpcServices, opt RpcConfig, CallArgs) -> (MultiCallResult);
+  // This endpoint should be used instead of the `request` endpoint as it allows aggregating the responses from
+  // multiple providers. It also takes parameters consistent with `eth_*` endpoints, i.e. an `RpcServices` instead
+  // of an `RpcService`.
   multi_request : (RpcServices, opt RpcConfig, json : text) -> (MultiJsonRequestResult);
   // DEPRECATED: Use `multi_request` instead.
   request : (RpcService, json : text, maxResponseBytes : nat64) -> (RequestResult);
