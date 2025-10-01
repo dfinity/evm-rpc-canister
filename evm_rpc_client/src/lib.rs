@@ -511,9 +511,8 @@ impl<R, C: EvmRpcResponseConverter> EvmRpcClient<R, C> {
     /// use alloy_primitives::{address, b256, bytes};
     /// use alloy_rpc_types::Log;
     /// use evm_rpc_client::EvmRpcClient;
-    /// use evm_rpc_types::MultiRpcResult;
     ///
-    /// # use evm_rpc_types::{Hex, Hex20, Hex32};
+    /// # use evm_rpc_types::{Hex, Hex20, Hex32, MultiRpcResult};
     /// # use std::str::FromStr;
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -588,9 +587,8 @@ impl<R, C: EvmRpcResponseConverter> EvmRpcClient<R, C> {
     /// use alloy_primitives::{address, U256};
     /// use alloy_rpc_types::BlockNumberOrTag;
     /// use evm_rpc_client::EvmRpcClient;
-    /// use evm_rpc_types::MultiRpcResult;
     ///
-    /// # use evm_rpc_types::Nat256;
+    /// # use evm_rpc_types::{MultiRpcResult, Nat256};
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = EvmRpcClient::builder_for_ic()
@@ -630,9 +628,8 @@ impl<R, C: EvmRpcResponseConverter> EvmRpcClient<R, C> {
     /// use alloy_primitives::b256;
     /// use alloy_rpc_types::TransactionReceipt;
     /// use evm_rpc_client::EvmRpcClient;
-    /// use evm_rpc_types::MultiRpcResult;
     ///
-    /// # use evm_rpc_types::{Hex20, Hex32, Hex256, HexByte, Nat256};
+    /// # use evm_rpc_types::{Hex20, Hex32, Hex256, HexByte, MultiRpcResult, Nat256};
     /// # use std::str::FromStr;
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -735,9 +732,8 @@ impl<R, C: EvmRpcResponseConverter> EvmRpcClient<R, C> {
     /// ```rust
     /// use alloy_primitives::{b256, B256, bytes};
     /// use evm_rpc_client::EvmRpcClient;
-    /// use evm_rpc_types::MultiRpcResult;
     ///
-    /// # use evm_rpc_types::{Hex32, SendRawTransactionStatus};
+    /// # use evm_rpc_types::{Hex32, MultiRpcResult, SendRawTransactionStatus};
     /// # use std::str::FromStr;
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
