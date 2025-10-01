@@ -9,9 +9,7 @@ use evm_rpc::{
     providers::PROVIDERS,
     types::{ProviderId, RpcAccess},
 };
-use evm_rpc_client::{
-    AlloyResponseConverter, ClientBuilder, EvmRpcClient, Runtime,
-};
+use evm_rpc_client::{AlloyResponseConverter, ClientBuilder, EvmRpcClient, Runtime};
 use evm_rpc_types::{InstallArgs, Provider, RpcResult, RpcService};
 use ic_cdk::api::management_canister::main::CanisterId;
 use ic_http_types::{HttpRequest, HttpResponse};
