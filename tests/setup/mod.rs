@@ -9,7 +9,7 @@ use evm_rpc::{
     providers::PROVIDERS,
     types::{ProviderId, RpcAccess},
 };
-use evm_rpc_client::{ClientBuilder, EvmRpcClient, Runtime};
+use evm_rpc_client::{AlloyResponseConverter, ClientBuilder, EvmRpcClient, Runtime};
 use evm_rpc_types::{InstallArgs, Provider, RpcResult, RpcService};
 use ic_cdk::api::management_canister::main::CanisterId;
 use ic_http_types::{HttpRequest, HttpResponse};
@@ -107,8 +107,11 @@ impl EvmRpcSetup {
         panic!("Failed to upgrade canister after many trials!")
     }
 
-    pub fn client(&self, mocks: impl Into<MockHttpOutcalls>) -> ClientBuilder<MockHttpRuntime> {
-        EvmRpcClient::builder(self.new_mock_http_runtime(mocks), self.canister_id)
+    pub fn client(
+        &self,
+        mocks: impl Into<MockHttpOutcalls>,
+    ) -> ClientBuilder<MockHttpRuntime, AlloyResponseConverter> {
+        EvmRpcClient::builder(self.new_mock_http_runtime(mocks), self.canister_id).with_alloy()
     }
 
     pub fn new_mock_http_runtime(&self, mocks: impl Into<MockHttpOutcalls>) -> MockHttpRuntime {

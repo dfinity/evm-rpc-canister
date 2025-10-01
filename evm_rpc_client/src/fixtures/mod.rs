@@ -9,9 +9,9 @@ use ic_error_types::RejectCode;
 use serde::de::DeserializeOwned;
 use std::collections::BTreeMap;
 
-impl<R> ClientBuilder<R> {
+impl<R, C> ClientBuilder<R, C> {
     /// Set the runtime to a [`StubRuntime`].
-    pub fn with_stub_responses(self) -> ClientBuilder<StubRuntime> {
+    pub fn with_stub_responses(self) -> ClientBuilder<StubRuntime, C> {
         self.with_runtime(|_runtime| StubRuntime::default())
     }
 
@@ -19,18 +19,18 @@ impl<R> ClientBuilder<R> {
     pub fn with_default_stub_response<Out: CandidType>(
         self,
         stub_response: Out,
-    ) -> ClientBuilder<StubRuntime> {
+    ) -> ClientBuilder<StubRuntime, C> {
         self.with_stub_responses()
             .with_default_response(stub_response)
     }
 }
 
-impl ClientBuilder<StubRuntime> {
+impl<C> ClientBuilder<StubRuntime, C> {
     /// Change the runtime to return the given stub response for all calls.
     pub fn with_default_response<Out: CandidType>(
         self,
         stub_response: Out,
-    ) -> ClientBuilder<StubRuntime> {
+    ) -> ClientBuilder<StubRuntime, C> {
         self.with_runtime(|runtime| runtime.with_default_response(stub_response))
     }
 
@@ -39,7 +39,7 @@ impl ClientBuilder<StubRuntime> {
         self,
         method_name: &str,
         stub_response: Out,
-    ) -> ClientBuilder<StubRuntime> {
+    ) -> ClientBuilder<StubRuntime, C> {
         self.with_runtime(|runtime| runtime.with_response_for_method(method_name, stub_response))
     }
 }

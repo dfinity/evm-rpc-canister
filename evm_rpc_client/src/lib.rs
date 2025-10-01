@@ -21,6 +21,18 @@
 //!     .build();
 //! ```
 //!
+//! By default, the client will return Candid output types for all calls. It is also possible to
+//! customize the client so that it returns [alloy](alloy.rs) types instead. Note that this requires
+//! the `alloy` Cargo feature to be enabled.
+//!
+//! ```rust
+//! use evm_rpc_client::EvmRpcClient;
+//!
+//! let client = EvmRpcClient::builder_for_ic()
+//!     .with_alloy()
+//!     .build();
+//! ```
+//!
 //! ## Specifying the amount of cycles to send
 //!
 //! Every call made to the EVM RPC canister that triggers HTTPs outcalls (e.g., `eth_getLogs`)
@@ -34,11 +46,13 @@
 //! use alloy_primitives::{address, U256};
 //! use alloy_rpc_types::BlockNumberOrTag;
 //! use evm_rpc_client::EvmRpcClient;
+//! use evm_rpc_types::MultiRpcResult;
 //!
-//! # use evm_rpc_types::{MultiRpcResult, Nat256};
+//! # use evm_rpc_types::Nat256;
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let client = EvmRpcClient::builder_for_ic()
+//!     .with_alloy()
 //! #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(Nat256::from(1_u64))))
 //!     .build();
 //!
@@ -70,13 +84,14 @@
 //! use alloy_primitives::{address, U256};
 //! use alloy_rpc_types::BlockNumberOrTag;
 //! use evm_rpc_client::EvmRpcClient;
-//! use evm_rpc_types::{ConsensusStrategy, RpcServices};
+//! use evm_rpc_types::{ConsensusStrategy, MultiRpcResult, RpcServices};
 //!
-//! # use evm_rpc_types::{MultiRpcResult, Nat256};
+//! # use evm_rpc_types::Nat256;
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let client = EvmRpcClient::builder_for_ic()
 //! #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(Nat256::from(1_u64))))
+//!     .with_alloy()
 //!     .with_rpc_sources(RpcServices::EthMainnet(None))
 //!     .with_consensus_strategy(ConsensusStrategy::Threshold {
 //!         total: Some(3),
@@ -107,20 +122,23 @@ pub mod fixtures;
 mod request;
 mod runtime;
 
-use crate::request::{
-    CallRequest, CallRequestBuilder, FeeHistoryRequest, FeeHistoryRequestBuilder,
-    GetBlockByNumberRequest, GetBlockByNumberRequestBuilder, GetTransactionCountRequest,
-    GetTransactionCountRequestBuilder, GetTransactionReceiptRequest,
-    GetTransactionReceiptRequestBuilder, JsonRequest, JsonRequestBuilder, Request, RequestBuilder,
-    SendRawTransactionRequest, SendRawTransactionRequestBuilder,
-};
 use candid::{CandidType, Principal};
 use evm_rpc_types::{
     BlockTag, CallArgs, ConsensusStrategy, FeeHistoryArgs, GetLogsArgs, GetTransactionCountArgs,
     Hex, Hex32, RpcConfig, RpcServices,
 };
 use ic_error_types::RejectCode;
-use request::{GetLogsRequest, GetLogsRequestBuilder};
+#[cfg(feature = "alloy")]
+pub use request::alloy::AlloyResponseConverter;
+pub use request::CandidResponseConverter;
+use request::{
+    CallRequest, CallRequestBuilder, EvmRpcResponseConverter, FeeHistoryRequest,
+    FeeHistoryRequestBuilder, GetBlockByNumberRequest, GetBlockByNumberRequestBuilder,
+    GetLogsRequest, GetLogsRequestBuilder, GetTransactionCountRequest,
+    GetTransactionCountRequestBuilder, GetTransactionReceiptRequest,
+    GetTransactionReceiptRequestBuilder, JsonRequest, JsonRequestBuilder, Request, RequestBuilder,
+    SendRawTransactionRequest, SendRawTransactionRequestBuilder,
+};
 pub use runtime::{IcRuntime, Runtime};
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
@@ -137,18 +155,21 @@ pub const EVM_RPC_CANISTER: Principal = Principal::from_slice(&[0, 0, 0, 0, 2, 4
 
 /// Client to interact with the EVM RPC canister.
 #[derive(Debug)]
-pub struct EvmRpcClient<R> {
-    config: Arc<ClientConfig<R>>,
+pub struct EvmRpcClient<R, C> {
+    config: Arc<ClientConfig<R, C>>,
 }
 
-impl<R> EvmRpcClient<R> {
+impl<R> EvmRpcClient<R, CandidResponseConverter> {
     /// Creates a [`ClientBuilder`] to configure a [`EvmRpcClient`].
-    pub fn builder(runtime: R, evm_rpc_canister: Principal) -> ClientBuilder<R> {
+    pub fn builder(
+        runtime: R,
+        evm_rpc_canister: Principal,
+    ) -> ClientBuilder<R, CandidResponseConverter> {
         ClientBuilder::new(runtime, evm_rpc_canister)
     }
 }
 
-impl<R> Clone for EvmRpcClient<R> {
+impl<R, C> Clone for EvmRpcClient<R, C> {
     fn clone(&self) -> Self {
         Self {
             config: self.config.clone(),
@@ -156,30 +177,31 @@ impl<R> Clone for EvmRpcClient<R> {
     }
 }
 
-impl EvmRpcClient<IcRuntime> {
+impl EvmRpcClient<IcRuntime, CandidResponseConverter> {
     /// Creates a [`ClientBuilder`] to configure a [`EvmRpcClient`] targeting [`EVM_RPC_CANISTER`]
     /// running on the Internet Computer.
-    pub fn builder_for_ic() -> ClientBuilder<IcRuntime> {
+    pub fn builder_for_ic() -> ClientBuilder<IcRuntime, CandidResponseConverter> {
         ClientBuilder::new(IcRuntime, EVM_RPC_CANISTER)
     }
 }
 
 /// Configuration for the EVM RPC canister client.
 #[derive(Clone, Eq, PartialEq, Debug)]
-pub struct ClientConfig<R> {
+pub struct ClientConfig<R, C> {
     runtime: R,
     evm_rpc_canister: Principal,
     rpc_config: Option<RpcConfig>,
     rpc_services: RpcServices,
+    response_converter: C,
 }
 
 /// A [`ClientBuilder`] to create a [`EvmRpcClient`] with custom configuration.
 #[must_use]
-pub struct ClientBuilder<R> {
-    config: ClientConfig<R>,
+pub struct ClientBuilder<R, C> {
+    config: ClientConfig<R, C>,
 }
 
-impl<R: Clone> Clone for ClientBuilder<R> {
+impl<R: Clone, C: Clone> Clone for ClientBuilder<R, C> {
     fn clone(&self) -> Self {
         ClientBuilder {
             config: self.config.clone(),
@@ -187,28 +209,32 @@ impl<R: Clone> Clone for ClientBuilder<R> {
     }
 }
 
-impl<R> ClientBuilder<R> {
-    fn new(runtime: R, evm_rpc_canister: Principal) -> Self {
+impl<R> ClientBuilder<R, CandidResponseConverter> {
+    fn new(runtime: R, evm_rpc_canister: Principal) -> ClientBuilder<R, CandidResponseConverter> {
         Self {
             config: ClientConfig {
                 runtime,
                 evm_rpc_canister,
                 rpc_config: None,
                 rpc_services: RpcServices::EthMainnet(None),
+                response_converter: CandidResponseConverter,
             },
         }
     }
+}
 
+impl<R, C> ClientBuilder<R, C> {
     /// Modify the existing runtime by applying a transformation function.
     ///
     /// The transformation does not necessarily produce a runtime of the same type.
-    pub fn with_runtime<S, F: FnOnce(R) -> S>(self, other_runtime: F) -> ClientBuilder<S> {
+    pub fn with_runtime<S, F: FnOnce(R) -> S>(self, other_runtime: F) -> ClientBuilder<S, C> {
         ClientBuilder {
             config: ClientConfig {
                 runtime: other_runtime(self.config.runtime),
                 evm_rpc_canister: self.config.evm_rpc_canister,
                 rpc_config: self.config.rpc_config,
                 rpc_services: self.config.rpc_services,
+                response_converter: self.config.response_converter,
             },
         }
     }
@@ -243,15 +269,42 @@ impl<R> ClientBuilder<R> {
         self
     }
 
+    /// Mutates the builder to create a client with [alloy](https://alloy.rs/) response types.
+    #[cfg(feature = "alloy")]
+    pub fn with_alloy(self) -> ClientBuilder<R, AlloyResponseConverter> {
+        ClientBuilder {
+            config: ClientConfig {
+                runtime: self.config.runtime,
+                evm_rpc_canister: self.config.evm_rpc_canister,
+                rpc_config: self.config.rpc_config,
+                rpc_services: self.config.rpc_services,
+                response_converter: AlloyResponseConverter,
+            },
+        }
+    }
+
+    /// Mutates the builder to create a client with Candid response types.
+    pub fn with_candid(self) -> ClientBuilder<R, CandidResponseConverter> {
+        ClientBuilder {
+            config: ClientConfig {
+                runtime: self.config.runtime,
+                evm_rpc_canister: self.config.evm_rpc_canister,
+                rpc_config: self.config.rpc_config,
+                rpc_services: self.config.rpc_services,
+                response_converter: CandidResponseConverter,
+            },
+        }
+    }
+
     /// Creates a [`EvmRpcClient`] from the configuration specified in the [`ClientBuilder`].
-    pub fn build(self) -> EvmRpcClient<R> {
+    pub fn build(self) -> EvmRpcClient<R, C> {
         EvmRpcClient {
             config: Arc::new(self.config),
         }
     }
 }
 
-impl<R> EvmRpcClient<R> {
+impl<R, C: EvmRpcResponseConverter> EvmRpcClient<R, C> {
     /// Call `eth_call` on the EVM RPC canister.
     ///
     /// # Examples
@@ -261,7 +314,7 @@ impl<R> EvmRpcClient<R> {
     ///
     /// ```rust
     /// use alloy_dyn_abi::{DynSolType, DynSolValue};
-    /// use alloy_primitives::{address, bytes};
+    /// use alloy_primitives::{address, bytes, Bytes};
     /// use alloy_rpc_types::BlockNumberOrTag;
     /// use evm_rpc_client::EvmRpcClient;
     ///
@@ -270,6 +323,7 @@ impl<R> EvmRpcClient<R> {
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = EvmRpcClient::builder_for_ic()
+    ///     .with_alloy()
     /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(
     /// #       Hex::from_str("0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000045553444300000000000000000000000000000000000000000000000000000000").unwrap()
     /// #   )))
@@ -294,7 +348,7 @@ impl<R> EvmRpcClient<R> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn call<T>(&self, params: T) -> CallRequestBuilder<R>
+    pub fn call<T>(&self, params: T) -> CallRequestBuilder<R, C, C::CallOutput>
     where
         T: TryInto<CallArgs>,
         <T as TryInto<CallArgs>>::Error: std::fmt::Debug,
@@ -316,15 +370,16 @@ impl<R> EvmRpcClient<R> {
     ///
     /// ```rust
     /// use alloy_primitives::{address, b256, bytes};
-    /// use alloy_rpc_types::BlockNumberOrTag;
+    /// use alloy_rpc_types::{Block, BlockNumberOrTag};
     /// use evm_rpc_client::EvmRpcClient;
     ///
-    /// # use evm_rpc_types::{Block, Hex, Hex20, Hex32, Hex256, MultiRpcResult, Nat256};
+    /// # use evm_rpc_types::{Hex, Hex20, Hex32, Hex256, MultiRpcResult, Nat256};
     /// # use std::str::FromStr;
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = EvmRpcClient::builder_for_ic()
-    /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(Block {
+    ///     .with_alloy()
+    /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(evm_rpc_types::Block {
     /// #       base_fee_per_gas: None,
     /// #       number: Nat256::ZERO,
     /// #       difficulty: Some(Nat256::ZERO),
@@ -363,7 +418,7 @@ impl<R> EvmRpcClient<R> {
     pub fn get_block_by_number(
         &self,
         params: impl Into<BlockTag>,
-    ) -> GetBlockByNumberRequestBuilder<R> {
+    ) -> GetBlockByNumberRequestBuilder<R, C, C::GetBlockByNumberOutput> {
         RequestBuilder::new(
             self.clone(),
             GetBlockByNumberRequest::new(params.into()),
@@ -376,16 +431,16 @@ impl<R> EvmRpcClient<R> {
     /// # Examples
     ///
     /// ```rust
-    /// use alloy_rpc_types::BlockNumberOrTag;
+    /// use alloy_rpc_types::{BlockNumberOrTag, FeeHistory};
     /// use evm_rpc_client::EvmRpcClient;
     ///
-    /// # use alloy_primitives::b256;
-    /// # use evm_rpc_types::{FeeHistory, MultiRpcResult};
+    /// # use evm_rpc_types::MultiRpcResult;
     /// # use std::str::FromStr;
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = EvmRpcClient::builder_for_ic()
-    /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(FeeHistory {
+    ///     .with_alloy()
+    /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(evm_rpc_types::FeeHistory {
     /// #       oldest_block: 0x1627fb8_u64.into(),
     /// #       base_fee_per_gas: vec![
     /// #           0x2e9d4aab_u128.into(),
@@ -413,7 +468,7 @@ impl<R> EvmRpcClient<R> {
     ///     .expect_consistent()
     ///     .unwrap();
     ///
-    /// assert_eq!(result, alloy_rpc_types::FeeHistory {
+    /// assert_eq!(result, FeeHistory {
     ///     oldest_block: 0x1627fb8_u64.into(),
     ///     base_fee_per_gas: vec![
     ///         0x2e9d4aab_u128,
@@ -437,7 +492,10 @@ impl<R> EvmRpcClient<R> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn fee_history(&self, params: impl Into<FeeHistoryArgs>) -> FeeHistoryRequestBuilder<R> {
+    pub fn fee_history(
+        &self,
+        params: impl Into<FeeHistoryArgs>,
+    ) -> FeeHistoryRequestBuilder<R, C, C::FeeHistoryOutput> {
         RequestBuilder::new(
             self.clone(),
             FeeHistoryRequest::new(params.into()),
@@ -451,6 +509,7 @@ impl<R> EvmRpcClient<R> {
     ///
     /// ```rust
     /// use alloy_primitives::{address, b256, bytes};
+    /// use alloy_rpc_types::Log;
     /// use evm_rpc_client::EvmRpcClient;
     ///
     /// # use evm_rpc_types::{Hex, Hex20, Hex32, MultiRpcResult};
@@ -458,6 +517,7 @@ impl<R> EvmRpcClient<R> {
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = EvmRpcClient::builder_for_ic()
+    ///     .with_alloy()
     /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(vec![
     /// #       evm_rpc_types::LogEntry {
     /// #           address: Hex20::from_str("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48").unwrap(),
@@ -484,7 +544,7 @@ impl<R> EvmRpcClient<R> {
     ///     .expect_consistent();
     ///
     /// assert_eq!(result.unwrap().first(), Some(
-    ///     &alloy_rpc_types::Log {
+    ///     &Log {
     ///         inner: alloy_primitives::Log {
     ///             address: address!("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
     ///             data: alloy_primitives::LogData::new(
@@ -508,7 +568,10 @@ impl<R> EvmRpcClient<R> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn get_logs(&self, params: impl Into<GetLogsArgs>) -> GetLogsRequestBuilder<R> {
+    pub fn get_logs(
+        &self,
+        params: impl Into<GetLogsArgs>,
+    ) -> GetLogsRequestBuilder<R, C, C::GetLogsOutput> {
         RequestBuilder::new(
             self.clone(),
             GetLogsRequest::new(params.into()),
@@ -529,6 +592,7 @@ impl<R> EvmRpcClient<R> {
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = EvmRpcClient::builder_for_ic()
+    ///     .with_alloy()
     /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(Nat256::from(1_u64))))
     ///     .build();
     ///
@@ -548,7 +612,7 @@ impl<R> EvmRpcClient<R> {
     pub fn get_transaction_count(
         &self,
         params: impl Into<GetTransactionCountArgs>,
-    ) -> GetTransactionCountRequestBuilder<R> {
+    ) -> GetTransactionCountRequestBuilder<R, C, C::GetTransactionCountOutput> {
         RequestBuilder::new(
             self.clone(),
             GetTransactionCountRequest::new(params.into()),
@@ -562,6 +626,7 @@ impl<R> EvmRpcClient<R> {
     ///
     ///  ```rust
     /// use alloy_primitives::b256;
+    /// use alloy_rpc_types::TransactionReceipt;
     /// use evm_rpc_client::EvmRpcClient;
     ///
     /// # use evm_rpc_types::{Hex20, Hex32, Hex256, HexByte, MultiRpcResult, Nat256};
@@ -569,6 +634,7 @@ impl<R> EvmRpcClient<R> {
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = EvmRpcClient::builder_for_ic()
+    ///     .with_alloy()
     /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(evm_rpc_types::TransactionReceipt {
     /// #       block_hash: Hex32::from_str("0xf6084155ff2022773b22df3217d16e9df53cbc42689b27ca4789e06b6339beb2").unwrap(),
     /// #       block_number: Nat256::from(0x52a975_u64),
@@ -603,7 +669,7 @@ impl<R> EvmRpcClient<R> {
     pub fn get_transaction_receipt(
         &self,
         params: impl Into<Hex32>,
-    ) -> GetTransactionReceiptRequestBuilder<R> {
+    ) -> GetTransactionReceiptRequestBuilder<R, C, C::GetTransactionReceiptOutput> {
         RequestBuilder::new(
             self.clone(),
             GetTransactionReceiptRequest::new(params.into()),
@@ -648,7 +714,10 @@ impl<R> EvmRpcClient<R> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn multi_request(&self, params: serde_json::Value) -> JsonRequestBuilder<R> {
+    pub fn multi_request(
+        &self,
+        params: serde_json::Value,
+    ) -> JsonRequestBuilder<R, C, C::JsonRequestOutput> {
         RequestBuilder::new(
             self.clone(),
             JsonRequest::try_from(params).expect("Client error: invalid JSON request"),
@@ -661,14 +730,15 @@ impl<R> EvmRpcClient<R> {
     /// # Examples
     ///
     /// ```rust
-    /// use alloy_primitives::{b256, bytes};
+    /// use alloy_primitives::{b256, B256, bytes};
     /// use evm_rpc_client::EvmRpcClient;
     ///
-    /// # use evm_rpc_types::{MultiRpcResult, Hex32, SendRawTransactionStatus};
+    /// # use evm_rpc_types::{Hex32, MultiRpcResult, SendRawTransactionStatus};
     /// # use std::str::FromStr;
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = EvmRpcClient::builder_for_ic()
+    ///     .with_alloy()
     /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(SendRawTransactionStatus::Ok(Some(Hex32::from_str("0x33469b22e9f636356c4160a87eb19df52b7412e8eac32a4a55ffe88ea8350788").unwrap())))))
     ///     .build();
     ///
@@ -685,7 +755,7 @@ impl<R> EvmRpcClient<R> {
     pub fn send_raw_transaction(
         &self,
         params: impl Into<Hex>,
-    ) -> SendRawTransactionRequestBuilder<R> {
+    ) -> SendRawTransactionRequestBuilder<R, C, C::SendRawTransactionOutput> {
         RequestBuilder::new(
             self.clone(),
             SendRawTransactionRequest::new(params.into()),
@@ -694,7 +764,7 @@ impl<R> EvmRpcClient<R> {
     }
 }
 
-impl<R: Runtime> EvmRpcClient<R> {
+impl<R: Runtime, C> EvmRpcClient<R, C> {
     async fn execute_request<Config, Params, CandidOutput, Output>(
         &self,
         request: Request<Config, Params, CandidOutput, Output>,
