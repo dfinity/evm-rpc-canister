@@ -283,6 +283,19 @@ impl<R, C> ClientBuilder<R, C> {
         }
     }
 
+    /// Mutates the builder to create a client with Candid response types.
+    pub fn with_candid(self) -> ClientBuilder<R, CandidResponseConverter> {
+        ClientBuilder {
+            config: ClientConfig {
+                runtime: self.config.runtime,
+                evm_rpc_canister: self.config.evm_rpc_canister,
+                rpc_config: self.config.rpc_config,
+                rpc_services: self.config.rpc_services,
+                response_converter: CandidResponseConverter,
+            },
+        }
+    }
+
     /// Creates a [`EvmRpcClient`] from the configuration specified in the [`ClientBuilder`].
     pub fn build(self) -> EvmRpcClient<R, C> {
         EvmRpcClient {
