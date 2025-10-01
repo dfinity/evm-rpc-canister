@@ -111,8 +111,8 @@ use crate::request::{
     CallRequest, CallRequestBuilder, FeeHistoryRequest, FeeHistoryRequestBuilder,
     GetBlockByNumberRequest, GetBlockByNumberRequestBuilder, GetTransactionCountRequest,
     GetTransactionCountRequestBuilder, GetTransactionReceiptRequest,
-    GetTransactionReceiptRequestBuilder, Request, RequestBuilder, SendRawTransactionRequest,
-    SendRawTransactionRequestBuilder,
+    GetTransactionReceiptRequestBuilder, JsonRequest, JsonRequestBuilder, Request, RequestBuilder,
+    SendRawTransactionRequest, SendRawTransactionRequestBuilder,
 };
 use candid::{CandidType, Principal};
 use evm_rpc_types::{
@@ -607,6 +607,51 @@ impl<R> EvmRpcClient<R> {
         RequestBuilder::new(
             self.clone(),
             GetTransactionReceiptRequest::new(params.into()),
+            10_000_000_000,
+        )
+    }
+
+    /// Call `multi_request` on the EVM RPC canister.
+    ///
+    /// Note: The EVM RPC canister overrides the `id` field in the JSON-RPC
+    /// request payload with the next value from its internal sequential counter.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use alloy_primitives::U256;
+    /// use evm_rpc_client::EvmRpcClient;
+    /// use serde_json::json;
+    /// use std::str::FromStr;
+    ///
+    /// # use evm_rpc_types::MultiRpcResult;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = EvmRpcClient::builder_for_ic()
+    /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok("0x24604d0d".to_string())))
+    ///     .build();
+    ///
+    /// let result = client
+    ///     .multi_request(json!({
+    ///         "jsonrpc": "2.0",
+    ///         // This value is overwritten by the EVM RPC canister
+    ///         "id": 73,
+    ///         "method": "eth_gasPrice",
+    ///     }))
+    ///     .send()
+    ///     .await
+    ///     .expect_consistent()
+    ///     .map(|result| U256::from_str(&result).unwrap())
+    ///     .unwrap();
+    ///
+    /// assert_eq!(result, U256::from(0x24604d0d_u64));
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn multi_request(&self, params: serde_json::Value) -> JsonRequestBuilder<R> {
+        RequestBuilder::new(
+            self.clone(),
+            JsonRequest::try_from(params).expect("Client error: invalid JSON request"),
             10_000_000_000,
         )
     }

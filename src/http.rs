@@ -37,6 +37,7 @@ use ic_cdk::api::management_canister::http_request::{
 };
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::cmp::PartialEq;
 use std::fmt::Debug;
 use thiserror::Error;
 use tower::layer::util::{Identity, Stack};
@@ -76,9 +77,15 @@ pub async fn json_rpc_request(
     max_response_bytes: u64,
 ) -> RpcResult<HttpJsonRpcResponse<serde_json::Value>> {
     let request = json_rpc_request_arg(service, json_rpc_payload, max_response_bytes)?;
-    http_client(MetricRpcMethod("request".to_string()), false)
-        .call(request)
-        .await
+    http_client(
+        MetricRpcMethod {
+            method: "request".to_string(),
+            is_manual_request: true,
+        },
+        false,
+    )
+    .call(request)
+    .await
 }
 
 pub fn http_client<I, O>(

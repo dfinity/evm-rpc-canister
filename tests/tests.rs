@@ -62,7 +62,7 @@ const BLOCKPI_ETH_HOSTNAME: &str = "ethereum.blockpi.network";
 const PUBLICNODE_ETH_MAINNET_HOSTNAME: &str = "ethereum-rpc.publicnode.com";
 
 #[tokio::test]
-async fn should_canonicalize_json_response() {
+async fn should_canonicalize_request_endpoint_response() {
     let responses = [
         r#"{"id":1,"jsonrpc":"2.0","result":"0x00112233"}"#,
         r#"{"result":"0x00112233","id":1,"jsonrpc":"2.0"}"#,
@@ -122,6 +122,43 @@ async fn should_not_modify_json_rpc_request_from_request_endpoint() {
         .await;
 
     assert_eq!(response, Ok(mock_response.to_string()));
+}
+
+#[tokio::test]
+async fn multi_request_should_succeed() {
+    let [response_0, response_1, response_2] = [
+        r#"{"id":0,"jsonrpc":"2.0","result":"0x00112233"}"#,
+        r#"{"result":"0x00112233","id":0,"jsonrpc":"2.0"}"#,
+        r#"{"result":"0x00112233","jsonrpc":"2.0","id":0}"#,
+    ];
+
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
+    for (source, offset) in iter::zip(RPC_SERVICES, (0_u64..).step_by(3)) {
+        let mocks = MockHttpOutcallsBuilder::new()
+            .given(JsonRpcRequestMatcher::with_method("eth_gasPrice").with_id(offset))
+            .respond_with(JsonRpcResponse::from(response_0).with_id(offset))
+            .given(JsonRpcRequestMatcher::with_method("eth_gasPrice").with_id(offset + 1))
+            .respond_with(JsonRpcResponse::from(response_1).with_id(offset + 1))
+            .given(JsonRpcRequestMatcher::with_method("eth_gasPrice").with_id(offset + 2))
+            .respond_with(JsonRpcResponse::from(response_2).with_id(offset + 2));
+
+        let result = setup
+            .client(mocks)
+            .with_rpc_sources(source.clone())
+            .build()
+            .multi_request(json!({
+                "id": 0,
+                "jsonrpc": "2.0",
+                "method": "eth_gasPrice",
+            }))
+            .send()
+            .await;
+
+        assert_eq!(
+            result,
+            MultiRpcResult::Consistent(Ok("0x00112233".to_string()))
+        );
+    }
 }
 
 #[test]
@@ -1467,7 +1504,7 @@ async fn candid_rpc_should_return_inconsistent_results_with_consensus_error() {
 }
 
 #[tokio::test]
-async fn should_have_metrics_for_generic_request() {
+async fn should_have_metrics_for_request_endpoint() {
     let mocks = MockHttpOutcallsBuilder::new()
         .given(
             JsonRpcRequestMatcher::with_method(MOCK_REQUEST_METHOD)
@@ -1496,10 +1533,46 @@ async fn should_have_metrics_for_generic_request() {
         .check_metrics()
         .await
         .assert_contains_metric_matching(
-            r#"evmrpc_requests\{method="request",host="cloudflare-eth.com"\} 1 \d+"#,
+            r#"evmrpc_requests\{method="request",is_manual_request="true",host="cloudflare-eth.com"\} 1 \d+"#,
         )
         .assert_contains_metric_matching(
-            r#"evmrpc_responses\{method="request",host="cloudflare-eth.com",status="200"\} 1 \d+"#,
+            r#"evmrpc_responses\{method="request",is_manual_request="true",host="cloudflare-eth.com",status="200"\} 1 \d+"#,
+        );
+}
+
+#[tokio::test]
+async fn should_have_metrics_for_multi_request_endpoint() {
+    let mocks = MockHttpOutcallsBuilder::new()
+        .given(JsonRpcRequestMatcher::with_method("eth_gasPrice").with_id(0_u64))
+        .respond_with(JsonRpcResponse::from(MOCK_REQUEST_RESPONSE).with_id(0_u64));
+
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
+    let response = setup
+        .client(mocks)
+        .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
+            EthMainnetService::Cloudflare,
+        ])))
+        .build()
+        .multi_request(json!({
+            "id": 0,
+            "jsonrpc": "2.0",
+            "method": "eth_gasPrice",
+        }))
+        .send()
+        .await;
+    assert_eq!(
+        response,
+        MultiRpcResult::Consistent(Ok("0x00112233".into()))
+    );
+
+    setup
+        .check_metrics()
+        .await
+        .assert_contains_metric_matching(
+            r#"evmrpc_requests\{method="eth_gasPrice",is_manual_request="true",host="cloudflare-eth.com"\} 1 \d+"#,
+        )
+        .assert_contains_metric_matching(
+            r#"evmrpc_responses\{method="eth_gasPrice",is_manual_request="true",host="cloudflare-eth.com",status="200"\} 1 \d+"#,
         );
 }
 

@@ -44,6 +44,8 @@ pub enum ResponseTransform {
     FeeHistory,
     #[n(4)]
     SendRawTransaction,
+    #[n(5)]
+    Raw,
 }
 
 impl ResponseTransform {
@@ -87,6 +89,7 @@ impl ResponseTransform {
             Self::SendRawTransaction => {
                 sanitize_send_raw_transaction_result(body_bytes, Parser::new())
             }
+            Self::Raw => redact_response::<serde_json::Value>(body_bytes),
         }
     }
 }

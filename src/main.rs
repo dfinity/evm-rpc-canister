@@ -17,7 +17,7 @@ use evm_rpc::{
     providers::{find_provider, resolve_rpc_service, PROVIDERS, SERVICE_PROVIDER_MAP},
     types::{OverrideProvider, Provider, ProviderId, RpcAccess, RpcAuth},
 };
-use evm_rpc_types::{Hex32, HttpOutcallError, MultiRpcResult, RpcConfig, RpcResult};
+use evm_rpc_types::{Hex32, HttpOutcallError, MultiRpcResult, RpcConfig, RpcResult, RpcServices};
 use ic_canister_log::log;
 use ic_cdk::{
     api::{
@@ -46,7 +46,7 @@ pub fn require_api_key_principal_or_controller() -> Result<(), String> {
 #[update(name = "eth_getLogs")]
 #[candid_method(rename = "eth_getLogs")]
 pub async fn eth_get_logs(
-    source: evm_rpc_types::RpcServices,
+    source: RpcServices,
     config: Option<evm_rpc_types::GetLogsRpcConfig>,
     args: evm_rpc_types::GetLogsArgs,
 ) -> MultiRpcResult<Vec<evm_rpc_types::LogEntry>> {
@@ -61,8 +61,8 @@ pub async fn eth_get_logs(
 #[update(name = "eth_getBlockByNumber")]
 #[candid_method(rename = "eth_getBlockByNumber")]
 pub async fn eth_get_block_by_number(
-    source: evm_rpc_types::RpcServices,
-    config: Option<evm_rpc_types::RpcConfig>,
+    source: RpcServices,
+    config: Option<RpcConfig>,
     block: evm_rpc_types::BlockTag,
 ) -> MultiRpcResult<evm_rpc_types::Block> {
     match CandidRpcClient::new(source, config, now()) {
@@ -74,8 +74,8 @@ pub async fn eth_get_block_by_number(
 #[update(name = "eth_getTransactionReceipt")]
 #[candid_method(rename = "eth_getTransactionReceipt")]
 pub async fn eth_get_transaction_receipt(
-    source: evm_rpc_types::RpcServices,
-    config: Option<evm_rpc_types::RpcConfig>,
+    source: RpcServices,
+    config: Option<RpcConfig>,
     tx_hash: Hex32,
 ) -> MultiRpcResult<Option<evm_rpc_types::TransactionReceipt>> {
     match CandidRpcClient::new(source, config, now()) {
@@ -87,8 +87,8 @@ pub async fn eth_get_transaction_receipt(
 #[update(name = "eth_getTransactionCount")]
 #[candid_method(rename = "eth_getTransactionCount")]
 pub async fn eth_get_transaction_count(
-    source: evm_rpc_types::RpcServices,
-    config: Option<evm_rpc_types::RpcConfig>,
+    source: RpcServices,
+    config: Option<RpcConfig>,
     args: evm_rpc_types::GetTransactionCountArgs,
 ) -> MultiRpcResult<evm_rpc_types::Nat256> {
     match CandidRpcClient::new(source, config, now()) {
@@ -100,8 +100,8 @@ pub async fn eth_get_transaction_count(
 #[update(name = "eth_feeHistory")]
 #[candid_method(rename = "eth_feeHistory")]
 pub async fn eth_fee_history(
-    source: evm_rpc_types::RpcServices,
-    config: Option<evm_rpc_types::RpcConfig>,
+    source: RpcServices,
+    config: Option<RpcConfig>,
     args: evm_rpc_types::FeeHistoryArgs,
 ) -> MultiRpcResult<evm_rpc_types::FeeHistory> {
     match CandidRpcClient::new(source, config, now()) {
@@ -113,8 +113,8 @@ pub async fn eth_fee_history(
 #[update(name = "eth_sendRawTransaction")]
 #[candid_method(rename = "eth_sendRawTransaction")]
 pub async fn eth_send_raw_transaction(
-    source: evm_rpc_types::RpcServices,
-    config: Option<evm_rpc_types::RpcConfig>,
+    source: RpcServices,
+    config: Option<RpcConfig>,
     raw_signed_transaction_hex: evm_rpc_types::Hex,
 ) -> MultiRpcResult<evm_rpc_types::SendRawTransactionStatus> {
     match CandidRpcClient::new(source, config, now()) {
@@ -130,12 +130,25 @@ pub async fn eth_send_raw_transaction(
 #[update(name = "eth_call")]
 #[candid_method(rename = "eth_call")]
 pub async fn eth_call(
-    source: evm_rpc_types::RpcServices,
-    config: Option<evm_rpc_types::RpcConfig>,
+    source: RpcServices,
+    config: Option<RpcConfig>,
     args: evm_rpc_types::CallArgs,
 ) -> MultiRpcResult<evm_rpc_types::Hex> {
     match CandidRpcClient::new(source, config, now()) {
         Ok(source) => source.eth_call(args).await,
+        Err(err) => Err(err).into(),
+    }
+}
+
+#[update(name = "multi_request")]
+#[candid_method(rename = "multi_request")]
+pub async fn multi_request(
+    source: RpcServices,
+    config: Option<RpcConfig>,
+    args: String,
+) -> MultiRpcResult<String> {
+    match CandidRpcClient::new(source, config, now()) {
+        Ok(source) => source.multi_request(args).await,
         Err(err) => Err(err).into(),
     }
 }

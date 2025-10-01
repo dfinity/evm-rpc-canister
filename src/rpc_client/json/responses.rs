@@ -323,3 +323,19 @@ impl AsRef<[u8]> for Data {
         &self.0
     }
 }
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(transparent)]
+pub struct RawJson(pub String);
+
+impl HttpResponsePayload for RawJson {
+    fn response_transform() -> Option<ResponseTransform> {
+        Some(ResponseTransform::Raw)
+    }
+}
+
+impl From<RawJson> for String {
+    fn from(value: RawJson) -> Self {
+        value.0
+    }
+}

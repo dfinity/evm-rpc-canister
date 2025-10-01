@@ -3,17 +3,22 @@ mod cketh_conversion;
 mod tests;
 
 use crate::rpc_client::{EthRpcClient, ReducedResult};
+use crate::types::MetricRpcMethod;
 use crate::{
     add_metric_entry,
     providers::resolve_rpc_service,
     types::{MetricRpcHost, ResolvedRpcService, RpcMethod},
 };
 use candid::Nat;
+use canhttp::http::json::JsonRpcRequest;
 use canhttp::multi::{ReductionError, Timestamp};
 use ethers_core::{types::Transaction, utils::rlp};
-use evm_rpc_types::{Hex, Hex32, MultiRpcResult, Nat256, RpcResult, ValidationError};
+use evm_rpc_types::{Hex, Hex32, MultiRpcResult, Nat256, RpcError, RpcResult, ValidationError};
 
-fn process_result<T>(method: RpcMethod, result: ReducedResult<T>) -> MultiRpcResult<T> {
+fn process_result<T>(
+    method: impl Into<MetricRpcMethod> + Clone,
+    result: ReducedResult<T>,
+) -> MultiRpcResult<T> {
     match result {
         Ok(value) => MultiRpcResult::Consistent(Ok(value)),
         Err(err) => match err {
@@ -27,7 +32,7 @@ fn process_result<T>(method: RpcMethod, result: ReducedResult<T>) -> MultiRpcRes
                         add_metric_entry!(
                             inconsistent_responses,
                             (
-                                method.into(),
+                                method.clone().into(),
                                 MetricRpcHost(
                                     provider
                                         .hostname()
@@ -171,6 +176,31 @@ impl CandidRpcClient {
             self.client.eth_call(into_eth_call_params(args)).await,
         )
         .map(from_data)
+    }
+
+    pub async fn multi_request(&self, json_rpc_payload: String) -> MultiRpcResult<String> {
+        let request: JsonRpcRequest<serde_json::Value> =
+            match serde_json::from_str(&json_rpc_payload) {
+                Ok(req) => req,
+                Err(e) => {
+                    return MultiRpcResult::Consistent(Err(RpcError::ValidationError(
+                        ValidationError::Custom(format!("Invalid JSON RPC request: {e}")),
+                    )))
+                }
+            };
+        process_result(
+            MetricRpcMethod {
+                method: request.method().to_string(),
+                is_manual_request: true,
+            },
+            self.client
+                .multi_request(
+                    RpcMethod::Custom(request.method().to_string()),
+                    request.params(),
+                )
+                .await,
+        )
+        .map(String::from)
     }
 }
 
