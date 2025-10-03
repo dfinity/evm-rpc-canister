@@ -9,7 +9,7 @@ import Principal "mo:base/Principal";
 import Text "mo:base/Text";
 import Evm "mo:evm";
 
-shared ({ caller = installer }) actor class Main() {
+shared ({ caller = installer }) persistent actor class Main() {
     type TestCategory = { #staging; #production };
 
     // (`subnet name`, `nodes in subnet`, `expected cycles for JSON-RPC call`)
