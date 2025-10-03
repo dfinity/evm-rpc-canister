@@ -1,17 +1,17 @@
 //! This module contains definitions for communicating witEthereum API using the [JSON RPC](https://ethereum.org/en/developers/docs/apis/json-rpc/)
 //! interface.
 
-use crate::rpc_client::eth_rpc_error::{sanitize_send_raw_transaction_result, Parser};
-use crate::rpc_client::json::responses::{Block, FeeHistory, LogEntry, TransactionReceipt};
-use crate::rpc_client::numeric::{TransactionCount, Wei};
-use candid::candid_method;
+use crate::rpc_client::{
+    eth_rpc_error::{sanitize_send_raw_transaction_result, Parser},
+    json::responses::{Block, FeeHistory, LogEntry, TransactionReceipt},
+    numeric::{TransactionCount, Wei},
+};
 use canhttp::http::json::JsonRpcResponse;
-use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs};
-use ic_cdk_macros::query;
+use ic_cdk::query;
+use ic_management_canister_types::{HttpRequestResult, TransformArgs};
 use minicbor::{Decode, Encode};
 use serde::{de::DeserializeOwned, Serialize};
-use std::fmt;
-use std::fmt::Debug;
+use std::{fmt, fmt::Debug};
 
 #[cfg(test)]
 mod tests;
@@ -95,8 +95,8 @@ impl ResponseTransform {
 }
 
 #[query]
-#[candid_method(query)]
-fn cleanup_response(mut args: TransformArgs) -> HttpResponse {
+#[allow(unused_mut)] // Clearing the response header requires `args` to be `mut`
+fn cleanup_response(mut args: TransformArgs) -> HttpRequestResult {
     args.response.headers.clear();
     let status_ok = args.response.status >= 200u16 && args.response.status < 300u16;
     if status_ok && !args.context.is_empty() {

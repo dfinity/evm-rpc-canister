@@ -1,15 +1,15 @@
-use crate::constants::COLLATERAL_CYCLES_PER_NODE;
-use crate::logs::Priority;
-use crate::memory::{get_num_subnet_nodes, is_demo_active, next_request_id};
 use crate::{
     add_metric_entry,
-    constants::CONTENT_TYPE_VALUE,
-    memory::get_override_provider,
+    constants::{COLLATERAL_CYCLES_PER_NODE, CONTENT_TYPE_VALUE},
+    logs::Priority,
+    memory::{get_num_subnet_nodes, get_override_provider, is_demo_active, next_request_id},
     types::{MetricRpcHost, MetricRpcMethod, ResolvedRpcService},
     util::canonicalize_json,
 };
+use canhttp::cycles::ChargeCallerError;
 use canhttp::{
     convert::ConvertRequestLayer,
+    cycles::{ChargeCaller, CyclesAccounting},
     http::{
         json::{
             ConsistentResponseIdFilterError, CreateJsonRpcIdFilter, HttpJsonRpcRequest,
@@ -22,30 +22,29 @@ use canhttp::{
     },
     observability::ObservabilityLayer,
     retry::DoubleMaxResponseBytes,
-    ConvertServiceBuilder, CyclesAccounting, CyclesAccountingError, CyclesChargingPolicy,
-    HttpsOutcallError, IcError, MaxResponseBytesRequestExtension, TransformContextRequestExtension,
+    ConvertServiceBuilder, HttpsOutcallError, MaxResponseBytesRequestExtension,
+    TransformContextRequestExtension,
 };
 use canlog::log;
 use evm_rpc_types::{
     HttpOutcallError, LegacyRejectionCode, ProviderError, RpcError, RpcResult, ValidationError,
 };
-use http::header::CONTENT_TYPE;
-use http::HeaderValue;
-use ic_cdk::api::management_canister::http_request::{
-    CanisterHttpRequestArgument as IcHttpRequest, HttpResponse as IcHttpResponse, TransformArgs,
-    TransformContext,
+use http::{header::CONTENT_TYPE, HeaderValue};
+use ic_cdk::call::Error as IcError;
+use ic_management_canister_types::{
+    HttpRequestArgs as IcHttpRequest, HttpRequestResult as IcHttpResponse, TransformArgs,
+    TransformContext, TransformFunc,
 };
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use std::cmp::PartialEq;
+use serde::{de::DeserializeOwned, Serialize};
 use std::fmt::Debug;
 use thiserror::Error;
-use tower::layer::util::{Identity, Stack};
-use tower::retry::RetryLayer;
-use tower::util::MapRequestLayer;
-use tower::{Service, ServiceBuilder};
-use tower_http::set_header::SetRequestHeaderLayer;
-use tower_http::ServiceBuilderExt;
+use tower::{
+    layer::util::{Identity, Stack},
+    retry::RetryLayer,
+    util::MapRequestLayer,
+    Service, ServiceBuilder,
+};
+use tower_http::{set_header::SetRequestHeaderLayer, ServiceBuilderExt};
 
 pub fn json_rpc_request_arg(
     service: ResolvedRpcService,
@@ -61,10 +60,13 @@ pub fn json_rpc_request_arg(
     service
         .post(&get_override_provider())?
         .max_response_bytes(max_response_bytes)
-        .transform_context(TransformContext::from_name(
-            "__transform_json_rpc".to_string(),
-            vec![],
-        ))
+        .transform_context(TransformContext {
+            function: TransformFunc(candid::Func {
+                method: "__transform_json_rpc".to_string(),
+                principal: ic_cdk::api::canister_self(),
+            }),
+            context: vec![],
+        })
         .body(body)
         .map_err(|e| {
             RpcError::ValidationError(ValidationError::Custom(format!("Invalid request: {e}")))
@@ -142,7 +144,7 @@ where
                 })
                 .on_error(
                     |req_data: MetricData, error: &HttpClientError| match error {
-                        HttpClientError::IcError(IcError { code, message }) => {
+                        HttpClientError::IcError(error) => {
                             if error.is_response_too_large() {
                                 add_metric_entry!(
                                     err_max_response_size_exceeded,
@@ -150,20 +152,32 @@ where
                                     1
                                 );
                             } else {
-                                add_metric_entry!(
-                                    err_http_outcall,
-                                    (req_data.method, req_data.host, LegacyRejectionCode::from(*code)),
-                                    1
-                                );
                                 log!(
                                     Priority::TraceHttp,
-                                    "IC Error for request with id `{}` with code `{}` and message `{}`",
+                                    "IC error for request with id `{}`: {}",
                                     req_data.request_id,
-                                    code,
-                                    message,
+                                    error
                                 );
+                                match error {
+                                    IcError::CallRejected(error) => {
+                                        add_metric_entry!(
+                                            err_http_outcall,
+                                            (req_data.method, req_data.host, LegacyRejectionCode::from(error.raw_reject_code())),
+                                            1
+                                        );
+                                    }
+                                    IcError::CallPerformFailed(_) => {
+                                        add_metric_entry!(
+                                            err_http_outcall,
+                                            (req_data.method, req_data.host, LegacyRejectionCode::SysTransient),
+                                            1
+                                        );
+                                    }
+                                    IcError::InsufficientLiquidCycleBalance(_) | IcError::CandidDecodeFailed(_) => {}
+                                }
                             }
                         }
+
                         HttpClientError::UnsuccessfulHttpResponse(
                             FilterNonSuccessfulHttpResponseError::UnsuccessfulResponse(response),
                         ) => {
@@ -215,10 +229,7 @@ where
         .convert_response(JsonResponseConverter::new())
         .convert_response(FilterNonSuccessfulHttpResponse)
         .convert_response(HttpResponseConverter)
-        .convert_request(CyclesAccounting::new(
-            get_num_subnet_nodes(),
-            ChargingPolicyWithCollateral::default(),
-        ))
+        .convert_request(CyclesAccounting::new(charging_policy_with_collateral()))
         .service(canhttp::Client::new_with_error::<HttpClientError>())
 }
 
@@ -263,7 +274,7 @@ pub enum HttpClientError {
     #[error("unknown error (most likely sign of a bug): {0}")]
     NotHandledError(String),
     #[error("cycles accounting error: {0}")]
-    CyclesAccountingError(CyclesAccountingError),
+    CyclesAccountingError(ChargeCallerError),
     #[error("HTTP response was not successful: {0}")]
     UnsuccessfulHttpResponse(FilterNonSuccessfulHttpResponseError<Vec<u8>>),
     #[error("Error converting response to JSON: {0}")]
@@ -297,8 +308,8 @@ impl From<JsonResponseConversionError> for HttpClientError {
     }
 }
 
-impl From<CyclesAccountingError> for HttpClientError {
-    fn from(value: CyclesAccountingError) -> Self {
+impl From<ChargeCallerError> for HttpClientError {
+    fn from(value: ChargeCallerError) -> Self {
         HttpClientError::CyclesAccountingError(value)
     }
 }
@@ -324,17 +335,29 @@ impl From<ConsistentResponseIdFilterError> for HttpClientError {
 impl From<HttpClientError> for RpcError {
     fn from(error: HttpClientError) -> Self {
         match error {
-            HttpClientError::IcError(IcError { code, message }) => {
+            HttpClientError::IcError(IcError::CallRejected(e)) => {
                 RpcError::HttpOutcallError(HttpOutcallError::IcError {
-                    code: LegacyRejectionCode::from(code),
-                    message,
+                    code: LegacyRejectionCode::from(e.raw_reject_code()),
+                    message: e.reject_message().to_string(),
                 })
+            }
+            HttpClientError::IcError(IcError::CallPerformFailed(e)) => {
+                RpcError::HttpOutcallError(HttpOutcallError::IcError {
+                    code: LegacyRejectionCode::SysTransient,
+                    message: e.to_string(),
+                })
+            }
+            HttpClientError::IcError(IcError::CandidDecodeFailed(e)) => {
+                panic!("{}", e.to_string())
+            }
+            HttpClientError::IcError(IcError::InsufficientLiquidCycleBalance(e)) => {
+                panic!("{}", e.to_string())
             }
             HttpClientError::NotHandledError(e) => {
                 RpcError::ValidationError(ValidationError::Custom(e))
             }
             HttpClientError::CyclesAccountingError(
-                CyclesAccountingError::InsufficientCyclesError { expected, received },
+                ChargeCallerError::InsufficientCyclesError { expected, received },
             ) => RpcError::ProviderError(ProviderError::TooFewCycles { expected, received }),
             HttpClientError::InvalidJsonResponse(
                 JsonResponseConversionError::InvalidJsonResponse {
@@ -380,44 +403,18 @@ struct MetricData {
     request_id: Id,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct ChargingPolicyWithCollateral {
-    charge_user: bool,
-    collateral_cycles: u128,
-}
-
-impl ChargingPolicyWithCollateral {
-    pub fn new(
-        num_nodes_in_subnet: u32,
-        charge_user: bool,
-        collateral_cycles_per_node: u128,
-    ) -> Self {
-        let collateral_cycles =
-            collateral_cycles_per_node.saturating_mul(num_nodes_in_subnet as u128);
-        Self {
-            charge_user,
-            collateral_cycles,
+pub fn charging_policy_with_collateral(
+) -> ChargeCaller<impl Fn(&IcHttpRequest, u128) -> u128 + Clone> {
+    let charge_caller = if is_demo_active() {
+        |_request: &IcHttpRequest, _request_cost| 0
+    } else {
+        |_request: &IcHttpRequest, request_cost| {
+            let collateral_cycles =
+                COLLATERAL_CYCLES_PER_NODE.saturating_mul(get_num_subnet_nodes() as u128);
+            request_cost + collateral_cycles
         }
-    }
-}
-
-impl Default for ChargingPolicyWithCollateral {
-    fn default() -> Self {
-        Self::new(
-            get_num_subnet_nodes(),
-            !is_demo_active(),
-            COLLATERAL_CYCLES_PER_NODE,
-        )
-    }
-}
-
-impl CyclesChargingPolicy for ChargingPolicyWithCollateral {
-    fn cycles_to_charge(&self, _request: &IcHttpRequest, attached_cycles: u128) -> u128 {
-        if self.charge_user {
-            return attached_cycles.saturating_add(self.collateral_cycles);
-        }
-        0
-    }
+    };
+    ChargeCaller::new(charge_caller)
 }
 
 pub fn transform_http_request(args: TransformArgs) -> IcHttpResponse {

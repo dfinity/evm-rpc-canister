@@ -14,7 +14,7 @@ shared ({ caller = installer }) persistent actor class Main() {
 
     // (`subnet name`, `nodes in subnet`, `expected cycles for JSON-RPC call`)
     type SubnetTarget = (Text, Nat32, Nat);
-    transient let fiduciarySubnet : SubnetTarget = ("fiduciary", 34, 540_545_600);
+    transient let fiduciarySubnet : SubnetTarget = ("fiduciary", 34, 400_299_200);
 
     transient let testTargets = [
         // (`canister module`, `canister type`, `subnet`)

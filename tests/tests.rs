@@ -1016,71 +1016,6 @@ async fn candid_rpc_should_err_without_cycles() {
 }
 
 #[tokio::test]
-async fn candid_rpc_should_err_with_insufficient_cycles() {
-    let setup = EvmRpcSetup::with_args(InstallArgs {
-        demo: Some(true),
-        nodes_in_subnet: Some(33),
-        ..Default::default()
-    })
-    .await
-    .mock_api_keys()
-    .await;
-
-    let mut result = setup
-        .client(MockHttpOutcalls::NEVER)
-        .with_rpc_sources(RpcServices::EthMainnet(None))
-        .build()
-        .get_transaction_receipt(b256!(
-            "0xdd5d4b18923d7aae953c7996d791118102e889bea37b48a651157a4890e4746f"
-        ))
-        .send()
-        .await
-        .expect_inconsistent();
-    let regex = regex::Regex::new(
-        "http_request request sent with [0-9_]+ cycles, but [0-9_]+ cycles are required.",
-    )
-    .unwrap();
-    assert_matches!(
-        result.pop().unwrap(),
-        (
-            RpcService::EthMainnet(EthMainnetService::PublicNode),
-            Err(RpcError::HttpOutcallError(HttpOutcallError::IcError {
-                code: LegacyRejectionCode::CanisterReject,
-                message
-            }))
-        ) if regex.is_match(&message)
-    );
-
-    // Same request should succeed after upgrade to the expected node count
-    setup
-        .upgrade_canister(InstallArgs {
-            nodes_in_subnet: Some(34),
-            ..Default::default()
-        })
-        .await;
-
-    let mocks = MockHttpOutcallsBuilder::new()
-        .given(get_transaction_receipt_request().with_id(0_u64))
-        .respond_with(get_transaction_receipt_response().with_id(0_u64))
-        .given(get_transaction_receipt_request().with_id(1_u64))
-        .respond_with(get_transaction_receipt_response().with_id(1_u64))
-        .given(get_transaction_receipt_request().with_id(2_u64))
-        .respond_with(get_transaction_receipt_response().with_id(2_u64));
-    let result = setup
-        .client(mocks)
-        .with_rpc_sources(RpcServices::EthMainnet(None))
-        .build()
-        .get_transaction_receipt(b256!(
-            "0xdd5d4b18923d7aae953c7996d791118102e889bea37b48a651157a4890e4746f"
-        ))
-        .send()
-        .await
-        .expect_consistent()
-        .unwrap();
-    assert_matches!(result, Some(alloy_rpc_types::TransactionReceipt { .. }));
-}
-
-#[tokio::test]
 async fn candid_rpc_should_err_when_service_unavailable() {
     let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let mocks = MockHttpOutcallsBuilder::new()
@@ -2591,29 +2526,6 @@ fn get_logs_response() -> JsonRpcResponse {
 
 fn get_transaction_count_response() -> JsonRpcResponse {
     JsonRpcResponse::from(json!({ "jsonrpc" : "2.0", "id" : 0, "result" : "0x1" }))
-}
-
-fn get_transaction_receipt_response() -> JsonRpcResponse {
-    JsonRpcResponse::from(json!({
-        "jsonrpc": "2.0",
-        "id": 0,
-        "result": {
-            "blockHash": "0x5115c07eb1f20a9d6410db0916ed3df626cfdab161d3904f45c8c8b65c90d0be",
-            "blockNumber": "0x11a85ab",
-            "contractAddress": null,
-            "cumulativeGasUsed": "0xf02aed",
-            "effectiveGasPrice": "0x63c00ee76",
-            "from": "0x0aa8ebb6ad5a8e499e550ae2c461197624c6e667",
-            "gasUsed": "0x7d89",
-            "logs": [],
-            "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-            "status": "0x1",
-            "to": "0x356cfd6e6d0000400000003900b415f80669009e",
-            "transactionHash": "0xdd5d4b18923d7aae953c7996d791118102e889bea37b48a651157a4890e4746f",
-            "transactionIndex": "0xd9",
-            "type": "0x2"
-        }
-    }))
 }
 
 fn send_raw_transaction_response() -> JsonRpcResponse {
