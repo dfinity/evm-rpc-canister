@@ -1,8 +1,7 @@
 use async_trait::async_trait;
 use candid::utils::ArgumentEncoder;
 use candid::{CandidType, Principal};
-use ic_cdk::call::{Call, CallFailed, CallRejected, CandidDecodeFailed};
-use ic_error_types::RejectCode;
+use ic_cdk::call::{Call, Error};
 use serde::de::DeserializeOwned;
 
 /// Abstract the canister runtime so that the client code can be reused:
@@ -18,7 +17,7 @@ pub trait Runtime {
         method: &str,
         args: In,
         cycles: u128,
-    ) -> Result<Out, CallFailed>
+    ) -> Result<Out, Error>
     where
         In: ArgumentEncoder + Send,
         Out: CandidType + DeserializeOwned;
@@ -29,7 +28,7 @@ pub trait Runtime {
         id: Principal,
         method: &str,
         args: In,
-    ) -> Result<Out, CallFailed>
+    ) -> Result<Out, Error>
     where
         In: ArgumentEncoder + Send,
         Out: CandidType + DeserializeOwned;
@@ -47,7 +46,7 @@ impl Runtime for IcRuntime {
         method: &str,
         args: In,
         cycles: u128,
-    ) -> Result<Out, CallFailed>
+    ) -> Result<Out, Error>
     where
         In: ArgumentEncoder + Send,
         Out: CandidType + DeserializeOwned,
@@ -56,19 +55,11 @@ impl Runtime for IcRuntime {
             .with_cycles(cycles)
             .with_args(&args)
             .await
-            .and_then(|response| {
-                response
-                    .candid::<Out>()
-                    .map_err(decode_error_to_call_failed)
-            })
+            .map_err(Error::from)
+            .and_then(|response| response.candid::<Out>().map_err(Error::from))
     }
 
-    async fn query_call<In, Out>(
-        &self,
-        id: Principal,
-        method: &str,
-        args: In,
-    ) -> Result<Out, CallFailed>
+    async fn query_call<In, Out>(&self, id: Principal, method: &str, args: In) -> Result<Out, Error>
     where
         In: ArgumentEncoder + Send,
         Out: CandidType + DeserializeOwned,
@@ -76,17 +67,7 @@ impl Runtime for IcRuntime {
         Call::unbounded_wait(id, method)
             .with_args(&args)
             .await
-            .and_then(|response| {
-                response
-                    .candid::<Out>()
-                    .map_err(decode_error_to_call_failed)
-            })
+            .map_err(Error::from)
+            .and_then(|response| response.candid::<Out>().map_err(Error::from))
     }
-}
-
-fn decode_error_to_call_failed(err: CandidDecodeFailed) -> CallFailed {
-    CallFailed::CallRejected(CallRejected::with_rejection(
-        RejectCode::CanisterError as u32,
-        err.to_string(),
-    ))
 }

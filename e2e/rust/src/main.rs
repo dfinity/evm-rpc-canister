@@ -57,7 +57,7 @@ pub async fn test() {
     }
 
     // Call with expected number of cycles
-    let (result,): (Result<String, RpcError>,) =
+    let result: Result<String, RpcError> =
         ic_cdk::call::Call::unbounded_wait(canister_id, "request")
             .with_arg(params.clone())
             .with_cycles(cycles)
