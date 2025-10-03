@@ -76,7 +76,7 @@ alloy-rpc-types = "1.0.23"
 assert_matches = "1.5.0"
 async-trait = "0.1.88"
 candid = { version = "0.10.13" }
-canhttp = { version = "0.2.0", features = ["json", "multi"] }
+canhttp = { git = "https://github.com/dfinity/canhttp/", features = ["json", "multi"], rev = "685a34d13035eca271f2702ada7b48b6ce032828" }
 canlog = { version = "0.2.0", features = ["derive"] }
 candid_parser = { version = "0.1.4" }
 ciborium = "0.2.2"
@@ -89,7 +89,7 @@ getrandom = { version = "0.2", features = ["custom"] }
 hex = "0.4.3"
 http = "1.3.1"
 ic-canister-log = "0.2.0"
-ic-cdk = "0.17.2"
+ic-cdk = "0.18.7"
 ic-cdk-bindgen = "0.1"
 ic-cdk-macros = "0.17.2"
 ic-certified-map = "0.4"

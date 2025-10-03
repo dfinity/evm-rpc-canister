@@ -1,4 +1,3 @@
-use crate::types::RpcMethod;
 use crate::{
     http::http_client,
     memory::{get_override_provider, rank_providers, record_ok_result},
@@ -8,7 +7,7 @@ use crate::{
         json::responses::RawJson,
         numeric::TransactionCount,
     },
-    types::MetricRpcMethod,
+    types::{MetricRpcMethod, RpcMethod},
 };
 use canhttp::{
     http::json::JsonRpcRequest,
@@ -18,7 +17,7 @@ use canhttp::{
 use evm_rpc_types::{
     ConsensusStrategy, JsonRpcError, ProviderError, RpcConfig, RpcError, RpcService, RpcServices,
 };
-use ic_cdk::api::management_canister::http_request::TransformContext;
+use ic_management_canister_types::{TransformContext, TransformFunc};
 use json::{
     requests::{
         BlockSpec, EthCallParams, FeeHistoryParams, GetBlockByNumberParams, GetLogsParam,
@@ -297,10 +296,13 @@ impl EthRpcClient {
                 .map(|builder| {
                     builder
                         .max_response_bytes(effective_size_estimate)
-                        .transform_context(TransformContext::from_name(
-                            "cleanup_response".to_owned(),
-                            transform_op.clone(),
-                        ))
+                        .transform_context(TransformContext {
+                            function: TransformFunc(candid::Func {
+                                method: "cleanup_response".to_string(),
+                                principal: ic_cdk::api::canister_self(),
+                            }),
+                            context: transform_op.clone(),
+                        })
                         .body(JsonRpcRequest::new(method.clone().name(), params.clone()))
                         .expect("BUG: invalid request")
                 });

@@ -127,7 +127,7 @@ use evm_rpc_types::{
     BlockTag, CallArgs, ConsensusStrategy, FeeHistoryArgs, GetLogsArgs, GetTransactionCountArgs,
     Hex, Hex32, RpcConfig, RpcServices,
 };
-use ic_error_types::RejectCode;
+use ic_cdk::call::CallFailed;
 #[cfg(feature = "alloy")]
 pub use request::alloy::AlloyResponseConverter;
 pub use request::CandidResponseConverter;
@@ -783,7 +783,7 @@ impl<R: Runtime, C> EvmRpcClient<R, C> {
     async fn try_execute_request<Config, Params, CandidOutput, Output>(
         &self,
         request: Request<Config, Params, CandidOutput, Output>,
-    ) -> Result<Output, (RejectCode, String)>
+    ) -> Result<Output, CallFailed>
     where
         Config: CandidType + Send,
         Params: CandidType + Send,

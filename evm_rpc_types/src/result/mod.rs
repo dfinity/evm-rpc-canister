@@ -233,3 +233,16 @@ impl From<RejectCode> for LegacyRejectionCode {
         }
     }
 }
+
+impl From<u32> for LegacyRejectionCode {
+    fn from(value: u32) -> Self {
+        match value {
+            1 => LegacyRejectionCode::SysFatal,
+            2 => LegacyRejectionCode::SysTransient,
+            3 => LegacyRejectionCode::DestinationInvalid,
+            4 => LegacyRejectionCode::CanisterReject,
+            5 => LegacyRejectionCode::CanisterError,
+            _ => LegacyRejectionCode::Unknown,
+        }
+    }
+}
