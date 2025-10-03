@@ -48,8 +48,7 @@
       "dependencies": ["evm_rpc_staging"],
       "candid": "e2e/rust/e2e_rust.did",
       "type": "rust",
-      "package": "e2e",
-      "controllers": ["self"]
+      "package": "e2e"
     },
     "e2e_motoko": {
       "dependencies": [
@@ -58,8 +57,7 @@
         "evm_rpc_staging"
       ],
       "type": "motoko",
-      "main": "e2e/motoko/main.mo",
-      "controllers": ["self"]
+      "main": "e2e/motoko/main.mo"
     }
   },
   "defaults": {
