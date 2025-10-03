@@ -33,7 +33,7 @@ pub async fn test() {
 
     // Get cycles cost
     let cycles_result = Call::unbounded_wait(canister_id, "requestCost")
-        .with_arg(params.clone())
+        .with_args(&params)
         .await
         .unwrap()
         .candid::<Result<u128, RpcError>>()
@@ -43,7 +43,7 @@ pub async fn test() {
 
     // Call without sending cycles
     let result_without_cycles = Call::unbounded_wait(canister_id, "request")
-        .with_arg(params.clone())
+        .with_args(&params)
         .await
         .unwrap()
         .candid::<Result<String, RpcError>>()
@@ -58,7 +58,7 @@ pub async fn test() {
 
     // Call with expected number of cycles
     let result: Result<String, RpcError> = Call::unbounded_wait(canister_id, "request")
-        .with_arg(params.clone())
+        .with_args(&params)
         .with_cycles(cycles)
         .await
         .unwrap()
@@ -78,7 +78,7 @@ pub async fn test() {
 
     // Call a Candid-RPC method
     let results = Call::unbounded_wait(canister_id, "eth_getBlockByNumber")
-        .with_arg((
+        .with_args(&(
             RpcServices::EthMainnet(Some(vec![
                 // EthMainnetService::Ankr, // Need API key
                 EthMainnetService::BlockPi,

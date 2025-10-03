@@ -52,8 +52,8 @@ impl Runtime for IcRuntime {
         Out: CandidType + DeserializeOwned,
     {
         Call::unbounded_wait(id, method)
-            .with_cycles(cycles)
             .with_args(&args)
+            .with_cycles(cycles)
             .await
             .map_err(Error::from)
             .and_then(|response| response.candid::<Out>().map_err(Error::from))
