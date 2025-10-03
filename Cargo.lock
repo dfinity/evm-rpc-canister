@@ -856,7 +856,7 @@ dependencies = [
 [[package]]
 name = "canhttp"
 version = "0.2.1"
-source = "git+https://github.com/dfinity/canhttp/?rev=685a34d13035eca271f2702ada7b48b6ce032828#685a34d13035eca271f2702ada7b48b6ce032828"
+source = "git+https://github.com/dfinity/canhttp/?rev=0b935a2ba6defb0265bb94bbfb5c5675975531a3#0b935a2ba6defb0265bb94bbfb5c5675975531a3"
 dependencies = [
  "assert_matches",
  "ciborium",

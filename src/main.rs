@@ -200,21 +200,12 @@ async fn request_cost(
             .expect("Error: invalid request")
             .into_body();
 
-        let request_cost = ic_cdk::management_canister::cost_http_request(&request);
+        let request_cost_with_collateral = charging_policy_with_collateral().cycles_to_charge(
+            &request,
+            ic_cdk::management_canister::cost_http_request(&request),
+        );
 
-        let charging_policy = charging_policy_with_collateral();
-        // Since this is a query endpoint, we expect the cycles charging to fail
-        let request_collateral = charging_policy
-            .charge_cycles(&request, request_cost)
-            .map_err(
-                |ChargeCallerError::InsufficientCyclesError {
-                     expected,
-                     received: _,
-                 }| expected,
-            )
-            .unwrap_or_else(|collateral| collateral);
-
-        Ok(request_cost + request_collateral)
+        Ok(request_cost_with_collateral)
     }
 }
 
