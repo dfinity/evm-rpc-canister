@@ -17,7 +17,6 @@ alloy-rpc-types = { workspace = true, optional = true }
 candid = { workspace = true }
 canlog = { workspace = true }
 hex = { workspace = true }
-ic-cdk = { workspace = true }
 ic-error-types = { workspace = true }
 ic-management-canister-types = { workspace = true }
 num-bigint = { workspace = true }
