@@ -136,16 +136,6 @@ impl EvmRpcSetup {
     }
 
     pub async fn mock_api_keys(self) -> Self {
-        println!(
-            "Setup controller: {:?}, Canister controllers: {:?}",
-            self.controller.to_string(),
-            self.env
-                .get_controllers(self.canister_id)
-                .await
-                .iter()
-                .map(CanisterId::to_string)
-                .collect::<Vec<_>>()
-        );
         self.update_api_keys(
             &PROVIDERS
                 .iter()
