@@ -3,7 +3,7 @@ use evm_rpc_types::{
     Block, BlockTag, ConsensusStrategy, EthMainnetService, Hex32, MultiRpcResult, ProviderError,
     RpcConfig, RpcError, RpcResult, RpcService, RpcServices,
 };
-use ic_cdk::update;
+use ic_cdk::{call::Call, update};
 use std::str::FromStr;
 
 fn main() {}
@@ -32,7 +32,7 @@ pub async fn test() {
     );
 
     // Get cycles cost
-    let cycles_result = ic_cdk::call::Call::unbounded_wait(canister_id, "requestCost")
+    let cycles_result = Call::unbounded_wait(canister_id, "requestCost")
         .with_arg(params.clone())
         .await
         .unwrap()
@@ -42,7 +42,7 @@ pub async fn test() {
         .unwrap_or_else(|e| ic_cdk::trap(&format!("error in `request_cost`: {:?}", e)));
 
     // Call without sending cycles
-    let result_without_cycles = ic_cdk::call::Call::unbounded_wait(canister_id, "request")
+    let result_without_cycles = Call::unbounded_wait(canister_id, "request")
         .with_arg(params.clone())
         .await
         .unwrap()
@@ -57,14 +57,13 @@ pub async fn test() {
     }
 
     // Call with expected number of cycles
-    let result: Result<String, RpcError> =
-        ic_cdk::call::Call::unbounded_wait(canister_id, "request")
-            .with_arg(params.clone())
-            .with_cycles(cycles)
-            .await
-            .unwrap()
-            .candid::<Result<String, RpcError>>()
-            .unwrap();
+    let result: Result<String, RpcError> = Call::unbounded_wait(canister_id, "request")
+        .with_arg(params.clone())
+        .with_cycles(cycles)
+        .await
+        .unwrap()
+        .candid::<Result<String, RpcError>>()
+        .unwrap();
     match result {
         Ok(response) => {
             // Check response structure around gas price
@@ -78,7 +77,7 @@ pub async fn test() {
     }
 
     // Call a Candid-RPC method
-    let results = ic_cdk::call::Call::unbounded_wait(canister_id, "eth_getBlockByNumber")
+    let results = Call::unbounded_wait(canister_id, "eth_getBlockByNumber")
         .with_arg((
             RpcServices::EthMainnet(Some(vec![
                 // EthMainnetService::Ankr, // Need API key
