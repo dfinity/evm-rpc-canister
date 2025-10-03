@@ -30,7 +30,7 @@ use std::str::FromStr;
 use tower::Service;
 
 pub fn require_api_key_principal_or_controller() -> Result<(), String> {
-    let caller = ic_cdk::api::canister_self();
+    let caller = ic_cdk::api::msg_caller();
     if is_api_key_principal(&caller) || is_controller(&caller) {
         Ok(())
     } else {
@@ -284,7 +284,7 @@ async fn update_api_keys(api_keys: Vec<(ProviderId, Option<String>)>) {
     log!(
         INFO,
         "[{}] Updating API keys for providers: {}",
-        ic_cdk::api::canister_self(),
+        ic_cdk::api::msg_caller(),
         api_keys
             .iter()
             .map(|(id, _)| id.to_string())

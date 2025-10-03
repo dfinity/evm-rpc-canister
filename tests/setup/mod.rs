@@ -135,6 +135,16 @@ impl EvmRpcSetup {
     }
 
     pub async fn mock_api_keys(self) -> Self {
+        println!(
+            "Setup controller: {:?}, Canister controllers: {:?}",
+            self.controller.to_string(),
+            self.env
+                .get_controllers(self.canister_id)
+                .await
+                .iter()
+                .map(CanisterId::to_string)
+                .collect::<Vec<_>>()
+        );
         self.update_api_keys(
             &PROVIDERS
                 .iter()
@@ -238,12 +248,11 @@ impl EvmRpcSetup {
         input: Vec<u8>,
         caller: Principal,
     ) -> R {
-        let candid = &assert_reply(
+        decode_reply(
             self.env
                 .query_call(self.canister_id, caller, method, input)
                 .await,
-        );
-        Decode!(candid, R).expect("error while decoding Candid response from query call")
+        )
     }
 
     async fn call_update<R: CandidType + DeserializeOwned>(
@@ -252,12 +261,11 @@ impl EvmRpcSetup {
         input: Vec<u8>,
         caller: Principal,
     ) -> R {
-        let candid = &assert_reply(
+        decode_reply(
             self.env
                 .update_call(self.canister_id, caller, method, input)
                 .await,
-        );
-        Decode!(candid, R).expect("error while decoding Candid response from query call")
+        )
     }
 }
 
@@ -275,6 +283,10 @@ fn evm_rpc_wasm() -> Vec<u8> {
     load_wasm(std::env::var("CARGO_MANIFEST_DIR").unwrap(), "evm_rpc", &[])
 }
 
-fn assert_reply(result: Result<Vec<u8>, RejectResponse>) -> Vec<u8> {
-    result.unwrap_or_else(|e| panic!("Expected a successful reply, got error {e}"))
+fn decode_reply<R: CandidType + DeserializeOwned>(result: Result<Vec<u8>, RejectResponse>) -> R {
+    Decode!(
+        &result.unwrap_or_else(|e| panic!("Expected a successful reply, got error {e}")),
+        R
+    )
+    .unwrap_or_else(|e| panic!("Error while decoding Candid response: {e}"))
 }

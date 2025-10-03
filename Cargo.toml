@@ -31,9 +31,8 @@ ic-metrics-encoder = { workspace = true }
 ic-stable-structures = { workspace = true }
 ic-canister-log = { workspace = true }
 ic-cdk = { workspace = true }
-ic-cdk-macros = { workspace = true }
 ic-management-canister-types = { workspace = true }
-maplit = "1.0"
+maplit = { workspace = true }
 minicbor = { workspace = true }
 serde = { workspace = true }
 serde_bytes = { workspace = true }
@@ -62,11 +61,11 @@ ic-error-types = { workspace = true }
 ic-management-canister-types = { workspace = true }
 ic-metrics-assert = { workspace = true }
 ic-test-utilities-load-wasm = { git = "https://github.com/dfinity/ic", rev = "release-2024-09-26_01-31-base" }
-maplit = "1"
+maplit = { workspace = true }
 pocket-ic = { workspace = true }
 proptest = { workspace = true }
 rand = "0.8"
-tokio = "1.44.1"
+tokio = { workspace = true }
 
 [workspace.dependencies]
 alloy-consensus = "1.0.26"
@@ -79,12 +78,8 @@ candid = { version = "0.10.13" }
 canhttp = { git = "https://github.com/dfinity/canhttp/", features = ["json", "multi"], rev = "685a34d13035eca271f2702ada7b48b6ce032828" }
 canlog = { version = "0.2.0", features = ["derive"] }
 candid_parser = { version = "0.1.4" }
-ciborium = "0.2.2"
 derive_more = { version = "2.0.1", features = ["from", "into"] }
 ethnum = { version = "1.5.0", features = ["serde"] }
-futures = "0.3.31"
-futures-channel = "0.3.31"
-futures-util = "0.3.31"
 getrandom = { version = "0.2", features = ["custom"] }
 hex = "0.4.3"
 http = "1.3.1"
@@ -98,12 +93,9 @@ ic-management-canister-types = "0.3"
 ic-metrics-assert = { version = "0.1.1", features = ["pocket_ic"] }
 ic-metrics-encoder = "1.1"
 ic-stable-structures = "0.6.8"
-itertools = "0.14.0"
 maplit = "1.0.2"
 minicbor = { version = "1.0.0", features = ["alloc", "derive"] }
 num-bigint = "0.4.6"
-num-traits = "0.2.19"
-pin-project = "1.1.10"
 pocket-ic = "9.0.0"
 proptest = "1.6.0"
 serde = "1.0"
@@ -113,7 +105,6 @@ sha2 = "0.10.8"
 strum = { version = "0.27.1", features = ["derive"] }
 tokio = "1.44.1"
 tower = "0.5.2"
-tower-layer = "0.3.3"
 tower-http = "0.6.2"
 thiserror = "2.0.12"
 url = "2.5"
