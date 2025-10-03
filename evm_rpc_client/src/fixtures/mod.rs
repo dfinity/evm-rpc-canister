@@ -5,7 +5,7 @@
 use crate::{ClientBuilder, Runtime};
 use async_trait::async_trait;
 use candid::{utils::ArgumentEncoder, CandidType, Decode, Encode, Principal};
-use ic_error_types::RejectCode;
+use ic_cdk::call::Error;
 use serde::de::DeserializeOwned;
 use std::collections::BTreeMap;
 
@@ -82,7 +82,7 @@ impl StubRuntime {
         self
     }
 
-    fn call<Out>(&self, method: &str) -> Result<Out, (RejectCode, String)>
+    fn call<Out>(&self, method: &str) -> Result<Out, Error>
     where
         Out: CandidType + DeserializeOwned,
     {
@@ -109,7 +109,7 @@ impl Runtime for StubRuntime {
         method: &str,
         _args: In,
         _cycles: u128,
-    ) -> Result<Out, (RejectCode, String)>
+    ) -> Result<Out, Error>
     where
         In: ArgumentEncoder + Send,
         Out: CandidType + DeserializeOwned,
@@ -122,7 +122,7 @@ impl Runtime for StubRuntime {
         _id: Principal,
         method: &str,
         _args: In,
-    ) -> Result<Out, (RejectCode, String)>
+    ) -> Result<Out, Error>
     where
         In: ArgumentEncoder + Send,
         Out: CandidType + DeserializeOwned,

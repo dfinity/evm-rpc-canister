@@ -9,21 +9,21 @@ import Principal "mo:base/Principal";
 import Text "mo:base/Text";
 import Evm "mo:evm";
 
-shared ({ caller = installer }) actor class Main() {
+shared ({ caller = installer }) persistent actor class Main() {
     type TestCategory = { #staging; #production };
 
     // (`subnet name`, `nodes in subnet`, `expected cycles for JSON-RPC call`)
     type SubnetTarget = (Text, Nat32, Nat);
-    let fiduciarySubnet : SubnetTarget = ("fiduciary", 34, 540_545_600);
+    transient let fiduciarySubnet : SubnetTarget = ("fiduciary", 34, 540_545_600);
 
-    let testTargets = [
+    transient let testTargets = [
         // (`canister module`, `canister type`, `subnet`)
         (EvmRpc, #production, fiduciarySubnet),
         (EvmRpcStaging, #staging, fiduciarySubnet),
     ];
 
     // (`RPC service`, `method`)
-    let ignoredTests = [
+    transient let ignoredTests = [
         (#EthMainnet(#BlockPi), ?"eth_sendRawTransaction"), // "Private transaction replacement (same nonce) with gas price change lower than 10% is not allowed within 30 sec from the previous transaction."
         (#EthMainnet(#Llama), ?"eth_sendRawTransaction"), // Non-standard error message
         (#ArbitrumOne(#Ankr), null), // Need API key

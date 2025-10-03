@@ -11,8 +11,8 @@ use evm_rpc::{
 };
 use evm_rpc_client::{AlloyResponseConverter, ClientBuilder, EvmRpcClient, Runtime};
 use evm_rpc_types::{InstallArgs, Provider, RpcResult, RpcService};
-use ic_cdk::api::management_canister::main::CanisterId;
 use ic_http_types::{HttpRequest, HttpResponse};
+use ic_management_canister_types::CanisterId;
 use ic_management_canister_types::CanisterSettings;
 use ic_metrics_assert::{MetricsAssert, PocketIcAsyncHttpQuery};
 use ic_test_utilities_load_wasm::load_wasm;
@@ -239,12 +239,11 @@ impl EvmRpcSetup {
         input: Vec<u8>,
         caller: Principal,
     ) -> R {
-        let candid = &assert_reply(
+        decode_reply(
             self.env
                 .query_call(self.canister_id, caller, method, input)
                 .await,
-        );
-        Decode!(candid, R).expect("error while decoding Candid response from query call")
+        )
     }
 
     async fn call_update<R: CandidType + DeserializeOwned>(
@@ -253,12 +252,11 @@ impl EvmRpcSetup {
         input: Vec<u8>,
         caller: Principal,
     ) -> R {
-        let candid = &assert_reply(
+        decode_reply(
             self.env
                 .update_call(self.canister_id, caller, method, input)
                 .await,
-        );
-        Decode!(candid, R).expect("error while decoding Candid response from query call")
+        )
     }
 }
 
@@ -276,6 +274,10 @@ fn evm_rpc_wasm() -> Vec<u8> {
     load_wasm(std::env::var("CARGO_MANIFEST_DIR").unwrap(), "evm_rpc", &[])
 }
 
-fn assert_reply(result: Result<Vec<u8>, RejectResponse>) -> Vec<u8> {
-    result.unwrap_or_else(|e| panic!("Expected a successful reply, got error {e}"))
+fn decode_reply<R: CandidType + DeserializeOwned>(result: Result<Vec<u8>, RejectResponse>) -> R {
+    Decode!(
+        &result.unwrap_or_else(|e| panic!("Expected a successful reply, got error {e}")),
+        R
+    )
+    .unwrap_or_else(|e| panic!("Error while decoding Candid response: {e}"))
 }

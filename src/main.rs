@@ -1,11 +1,11 @@
 use candid::candid_method;
-use canhttp::{multi::Timestamp, CyclesChargingPolicy, CyclesCostEstimator};
+use canhttp::{cycles::CyclesChargingPolicy, multi::Timestamp};
 use canlog::{Log, Sort};
 use evm_rpc::{
     candid_rpc::CandidRpcClient,
     http::{
-        json_rpc_request, json_rpc_request_arg, service_request_builder, transform_http_request,
-        ChargingPolicyWithCollateral,
+        charging_policy_with_collateral, json_rpc_request, json_rpc_request_arg,
+        service_request_builder, transform_http_request,
     },
     logs::{Priority, INFO},
     memory::{
@@ -19,23 +19,17 @@ use evm_rpc::{
 };
 use evm_rpc_types::{Hex32, HttpOutcallError, MultiRpcResult, RpcConfig, RpcResult, RpcServices};
 use ic_canister_log::log;
-use ic_cdk::{
-    api::{
-        is_controller,
-        management_canister::http_request::{
-            CanisterHttpRequestArgument as IcHttpRequest, HttpResponse as IcHttpResponse,
-            TransformArgs,
-        },
-    },
-    query, update,
-};
+use ic_cdk::{api::is_controller, query, update};
 use ic_http_types::{HttpRequest, HttpResponse, HttpResponseBuilder};
+use ic_management_canister_types::{
+    HttpRequestArgs as IcHttpRequest, HttpRequestResult as IcHttpResponse, TransformArgs,
+};
 use ic_metrics_encoder::MetricsEncoder;
 use std::str::FromStr;
 use tower::Service;
 
 pub fn require_api_key_principal_or_controller() -> Result<(), String> {
-    let caller = ic_cdk::caller();
+    let caller = ic_cdk::api::msg_caller();
     if is_api_key_principal(&caller) || is_controller(&caller) {
         Ok(())
     } else {
@@ -153,8 +147,8 @@ pub async fn multi_request(
     }
 }
 
-#[update]
-#[candid_method]
+#[update(name = "request")]
+#[candid_method(rename = "request")]
 async fn request(
     service: evm_rpc_types::RpcService,
     json_rpc_payload: String,
@@ -205,12 +199,12 @@ async fn request_cost(
             .expect("Error: invalid request")
             .into_body();
 
-        let cycles_to_attach = {
-            let estimator = CyclesCostEstimator::new(get_num_subnet_nodes());
-            estimator.cost_of_http_request(&request)
-        };
-        let estimator = ChargingPolicyWithCollateral::default();
-        Ok(estimator.cycles_to_charge(&request, cycles_to_attach))
+        let request_cost_with_collateral = charging_policy_with_collateral().cycles_to_charge(
+            &request,
+            ic_cdk::management_canister::cost_http_request(&request),
+        );
+
+        Ok(request_cost_with_collateral)
     }
 }
 
@@ -280,7 +274,7 @@ async fn update_api_keys(api_keys: Vec<(ProviderId, Option<String>)>) {
     log!(
         INFO,
         "[{}] Updating API keys for providers: {}",
-        ic_cdk::caller(),
+        ic_cdk::api::msg_caller(),
         api_keys
             .iter()
             .map(|(id, _)| id.to_string())
