@@ -80,6 +80,27 @@ jobs:
           hash=`sha256sum evm_rpc.wasm.gz`
           echo "SHA-256 :hash: ${hash}" >> $GITHUB_STEP_SUMMARY
 
+  check-canister-wasm-endpoints:
+    needs: [ reproducible-build ]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: 'Checkout'
+        uses: actions/checkout@v4
+
+      - name: 'Download artifacts'
+        uses: actions/download-artifact@v4
+        with:
+          name: evm_rpc.wasm.gz
+
+      - name: 'Install `ic-wasm`'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: ic-wasm
+
+      - name: 'Check canister endpoints'
+        run: |
+          ic-wasm "$GITHUB_WORKSPACE/evm_rpc.wasm.gz" check-endpoints --hidden ./candid/hidden_endpoints.txt
+
   cargo-test:
     needs: [ reproducible-build ]
     runs-on: ubuntu-22.04
