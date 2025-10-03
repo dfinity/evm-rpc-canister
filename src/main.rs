@@ -148,8 +148,8 @@ pub async fn multi_request(
     }
 }
 
-#[update]
-#[candid_method]
+#[update(name = "request")]
+#[candid_method(rename = "request")]
 async fn request(
     service: evm_rpc_types::RpcService,
     json_rpc_payload: String,
