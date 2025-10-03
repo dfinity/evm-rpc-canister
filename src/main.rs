@@ -1,5 +1,4 @@
 use candid::candid_method;
-use canhttp::cycles::ChargeCallerError;
 use canhttp::{cycles::CyclesChargingPolicy, multi::Timestamp};
 use canlog::{Log, Sort};
 use evm_rpc::{
