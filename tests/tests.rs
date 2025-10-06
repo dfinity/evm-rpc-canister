@@ -829,49 +829,6 @@ async fn eth_get_transaction_receipt_should_succeed() {
 }
 
 #[tokio::test]
-async fn eth_get_transaction_receipt_should_succeed_with_candid_result() {
-    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
-
-    let mocks = MockHttpOutcallsBuilder::new()
-        .given(get_transaction_receipt_request().with_id(0_u64))
-        .respond_with(get_transaction_receipt_response().with_id(0_u64))
-        .given(get_transaction_receipt_request().with_id(1_u64))
-        .respond_with(get_transaction_receipt_response().with_id(1_u64))
-        .given(get_transaction_receipt_request().with_id(2_u64))
-        .respond_with(get_transaction_receipt_response().with_id(2_u64));
-
-    let response = setup
-        .client(mocks)
-        .with_candid()
-        .build()
-        .get_transaction_receipt(b256!(
-            "0xdd5d4b18923d7aae953c7996d791118102e889bea37b48a651157a4890e4746f"
-        ))
-        .send()
-        .await
-        .expect_consistent()
-        .unwrap();
-
-    assert_eq!(response, Some(evm_rpc_types::TransactionReceipt {
-        block_hash: b256!("0x5115c07eb1f20a9d6410db0916ed3df626cfdab161d3904f45c8c8b65c90d0be").into(),
-        block_number: 0x11a85ab_u64.into(),
-        effective_gas_price: 0x63c00ee76_u64.into(),
-        gas_used: 0x7d89_u64.into(),
-        cumulative_gas_used: 0xf02aed_u64.into(),
-        status: Some(0x1_u64.into()),
-        root: None,
-        transaction_hash: b256!("0xdd5d4b18923d7aae953c7996d791118102e889bea37b48a651157a4890e4746f").into(),
-        contract_address: None,
-        from: address!("0x0aa8ebb6ad5a8e499e550ae2c461197624c6e667").into(),
-        logs: vec![],
-        logs_bloom: bloom!("0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").into(),
-        to: Some(address!("0x356cfd6e6d0000400000003900b415f80669009e").into()),
-        transaction_index: 0xd9_u64.into(),
-        tx_type: 0x2_u8.into(),
-    }));
-}
-
-#[tokio::test]
 async fn eth_get_transaction_count_should_succeed() {
     fn mocks(offset: u64) -> MockHttpOutcallsBuilder {
         MockHttpOutcallsBuilder::new()
