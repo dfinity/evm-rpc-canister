@@ -1,0 +1,6 @@
+canister_query:__transform_json_rpc
+canister_query:cleanup_response
+canister_query:http_request
+canister_init
+canister_post_upgrade
+main
