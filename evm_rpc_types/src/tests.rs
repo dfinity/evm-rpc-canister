@@ -1,11 +1,11 @@
-use crate::{Hex, Hex20, Hex256, Hex32, HexByte, Nat256};
-use candid::{CandidType, Decode, Encode, Nat};
+use crate::{Hex, Hex20, Hex256, Hex32, HexByte, Nat256, TransactionReceipt};
+use candid::{CandidType, Decode, Deserialize, Encode, Nat};
 use num_bigint::BigUint;
 use proptest::{
     prelude::{any, Strategy, TestCaseError},
     prop_assert, prop_assert_eq, proptest,
 };
-use serde::de::DeserializeOwned;
+use serde::{de::DeserializeOwned, Serialize};
 use std::{ops::RangeInclusive, str::FromStr};
 
 mod nat256 {
@@ -180,6 +180,62 @@ mod hex_string {
         );
         Ok(())
     }
+}
+
+#[test]
+fn should_decode_renamed_field() {
+    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, CandidType)]
+    pub struct Struct {
+        #[serde(rename = "fieldName")]
+        pub field_name: u64,
+    }
+    let value = Struct { field_name: 123 };
+    assert_eq!(Decode!(&Encode!(&value).unwrap(), Struct).unwrap(), value);
+}
+
+#[test]
+fn should_decode_checked_amount() {
+    let value = Nat256::from(123_u32);
+    assert_eq!(Decode!(&Encode!(&value).unwrap(), Nat256).unwrap(), value);
+}
+
+#[test]
+fn should_decode_address() {
+    let value = Hex20::from_str("0xdAC17F958D2ee523a2206206994597C13D831ec7").unwrap();
+    assert_eq!(Decode!(&Encode!(&value).unwrap(), Hex20).unwrap(), value);
+}
+
+#[test]
+fn should_decode_transaction_receipt() {
+    let value = crate::TransactionReceipt {
+        status: Some(0x1_u8.into()),
+        root: None,
+        transaction_hash: "0xdd5d4b18923d7aae953c7996d791118102e889bea37b48a651157a4890e4746f"
+            .parse()
+            .unwrap(),
+        contract_address: None,
+        block_number: 18_515_371_u64.into(),
+        block_hash: "0x5115c07eb1f20a9d6410db0916ed3df626cfdab161d3904f45c8c8b65c90d0be"
+            .parse()
+            .unwrap(),
+        effective_gas_price: 26_776_497_782_u64.into(),
+        gas_used: 32_137_u32.into(),
+        from: "0x0aa8ebb6ad5a8e499e550ae2c461197624c6e667"
+            .parse()
+            .unwrap(),
+        logs: vec![],
+        logs_bloom: "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000".parse().unwrap(),
+        to: Some("0x356cfd6e6d0000400000003900b415f80669009e"
+            .parse()
+            .unwrap()),
+        transaction_index: 0xd9_u16.into(),
+        tx_type: "0x2".parse().unwrap(),
+        cumulative_gas_used: 0xf02aed_u64.into(),
+    };
+    assert_eq!(
+        Decode!(&Encode!(&value).unwrap(), TransactionReceipt).unwrap(),
+        value
+    );
 }
 
 #[cfg(feature = "alloy")]

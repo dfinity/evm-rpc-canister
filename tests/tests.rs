@@ -8,23 +8,22 @@ use crate::{
     },
     setup::EvmRpcSetup,
 };
-use alloy_primitives::{address, b256, bloom, bytes, Bytes, B256, U256};
+use alloy_primitives::{address, b256, bloom, bytes, Address, Bytes, FixedBytes, B256, B64, U256};
 use alloy_rpc_types::{BlockNumberOrTag, BlockTransactions};
 use assert_matches::assert_matches;
-use candid::{CandidType, Decode, Encode, Principal};
+use candid::{Encode, Principal};
 use canhttp::http::json::Id;
 use evm_rpc_types::{
-    BlockTag, ConsensusStrategy, EthMainnetService, EthSepoliaService, GetLogsRpcConfig, Hex20,
-    HttpOutcallError, InstallArgs, JsonRpcError, LegacyRejectionCode, MultiRpcResult, Nat256,
-    ProviderError, RpcApi, RpcError, RpcService, RpcServices, ValidationError,
+    BlockTag, ConsensusStrategy, EthMainnetService, EthSepoliaService, GetLogsRpcConfig, Hex,
+    Hex32, HttpOutcallError, InstallArgs, JsonRpcError, LegacyRejectionCode, MultiRpcResult,
+    Nat256, ProviderError, RpcApi, RpcError, RpcResult, RpcService, RpcServices, ValidationError,
 };
 use ic_error_types::RejectCode;
 use ic_http_types::HttpRequest;
 use pocket_ic::common::rest::CanisterHttpResponse;
 use pocket_ic::ErrorCode;
-use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::{iter, str::FromStr};
+use std::iter;
 
 const DEFAULT_CALLER_TEST_ID: Principal = Principal::from_slice(&[0x9d, 0xf7, 0x01]);
 const DEFAULT_CONTROLLER_TEST_ID: Principal = Principal::from_slice(&[0x9d, 0xf7, 0x02]);
@@ -47,6 +46,10 @@ const MOCK_API_KEY: &str = "mock-api-key";
 const MOCK_TRANSACTION: Bytes = bytes!("0xf86c098504a817c800825208943535353535353535353535353535353535353535880de0b6b3a76400008025a028ef61340bd939bc2195fe537567866003e1a15d3c71ff63e1590620aa636276a067cbe9d8997f761aecb703304b3800ccf555c9f3dc64214b297fb1966a3b6d83");
 const MOCK_TRANSACTION_HASH: B256 =
     b256!("0x33469b22e9f636356c4160a87eb19df52b7412e8eac32a4a55ffe88ea8350788");
+
+const ADDRESS: Address = address!("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
+const INPUT_DATA: Bytes =
+    bytes!("0x70a08231000000000000000000000000b25eA1D493B49a1DeD42aC5B1208cC618f9A9B80");
 
 const RPC_SERVICES: &[RpcServices] = &[
     RpcServices::EthMainnet(None),
@@ -126,24 +129,42 @@ async fn should_not_modify_json_rpc_request_from_request_endpoint() {
 
 #[tokio::test]
 async fn multi_request_should_succeed() {
-    let [response_0, response_1, response_2] = [
-        r#"{"id":0,"jsonrpc":"2.0","result":"0x00112233"}"#,
-        r#"{"result":"0x00112233","id":0,"jsonrpc":"2.0"}"#,
-        r#"{"result":"0x00112233","jsonrpc":"2.0","id":0}"#,
-    ];
-
-    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
-    for (source, offset) in iter::zip(RPC_SERVICES, (0_u64..).step_by(3)) {
-        let mocks = MockHttpOutcallsBuilder::new()
+    fn mocks(offset: u64) -> MockHttpOutcallsBuilder {
+        let [response_0, response_1, response_2] = [
+            r#"{"id":0,"jsonrpc":"2.0","result":"0x00112233"}"#,
+            r#"{"result":"0x00112233","id":0,"jsonrpc":"2.0"}"#,
+            r#"{"result":"0x00112233","jsonrpc":"2.0","id":0}"#,
+        ];
+        MockHttpOutcallsBuilder::new()
             .given(JsonRpcRequestMatcher::with_method("eth_gasPrice").with_id(offset))
             .respond_with(JsonRpcResponse::from(response_0).with_id(offset))
             .given(JsonRpcRequestMatcher::with_method("eth_gasPrice").with_id(offset + 1))
             .respond_with(JsonRpcResponse::from(response_1).with_id(offset + 1))
             .given(JsonRpcRequestMatcher::with_method("eth_gasPrice").with_id(offset + 2))
-            .respond_with(JsonRpcResponse::from(response_2).with_id(offset + 2));
+            .respond_with(JsonRpcResponse::from(response_2).with_id(offset + 2))
+    }
 
-        let result = setup
-            .client(mocks)
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
+    let mut offsets = (0_u64..).step_by(3);
+
+    for source in RPC_SERVICES {
+        let candid_result = setup
+            .client(mocks(offsets.next().unwrap()))
+            .with_rpc_sources(source.clone())
+            .with_candid()
+            .build()
+            .multi_request(json!({
+                "id": 0,
+                "jsonrpc": "2.0",
+                "method": "eth_gasPrice",
+            }))
+            .send()
+            .await
+            .expect_consistent();
+        assert_eq!(candid_result, Ok("0x00112233".to_string()));
+
+        let alloy_result = setup
+            .client(mocks(offsets.next().unwrap()))
             .with_rpc_sources(source.clone())
             .build()
             .multi_request(json!({
@@ -152,135 +173,62 @@ async fn multi_request_should_succeed() {
                 "method": "eth_gasPrice",
             }))
             .send()
-            .await;
-
-        assert_eq!(
-            result,
-            MultiRpcResult::Consistent(Ok("0x00112233".to_string()))
-        );
+            .await
+            .expect_consistent();
+        assert_eq!(alloy_result, Ok("0x00112233".to_string()));
     }
-}
-
-#[test]
-fn should_decode_renamed_field() {
-    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, CandidType)]
-    pub struct Struct {
-        #[serde(rename = "fieldName")]
-        pub field_name: u64,
-    }
-    let value = Struct { field_name: 123 };
-    assert_eq!(Decode!(&Encode!(&value).unwrap(), Struct).unwrap(), value);
-}
-
-#[test]
-fn should_decode_checked_amount() {
-    let value = Nat256::from(123_u32);
-    assert_eq!(Decode!(&Encode!(&value).unwrap(), Nat256).unwrap(), value);
-}
-
-#[test]
-fn should_decode_address() {
-    let value = Hex20::from_str("0xdAC17F958D2ee523a2206206994597C13D831ec7").unwrap();
-    assert_eq!(Decode!(&Encode!(&value).unwrap(), Hex20).unwrap(), value);
-}
-
-#[test]
-fn should_decode_transaction_receipt() {
-    let value = evm_rpc_types::TransactionReceipt {
-        status: Some(0x1_u8.into()),
-        root: None,
-        transaction_hash: "0xdd5d4b18923d7aae953c7996d791118102e889bea37b48a651157a4890e4746f"
-            .parse()
-            .unwrap(),
-        contract_address: None,
-        block_number: 18_515_371_u64.into(),
-        block_hash: "0x5115c07eb1f20a9d6410db0916ed3df626cfdab161d3904f45c8c8b65c90d0be"
-            .parse()
-            .unwrap(),
-        effective_gas_price: 26_776_497_782_u64.into(),
-        gas_used: 32_137_u32.into(),
-        from: "0x0aa8ebb6ad5a8e499e550ae2c461197624c6e667"
-            .parse()
-            .unwrap(),
-        logs: vec![],
-        logs_bloom: "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000".parse().unwrap(),
-        to: Some("0x356cfd6e6d0000400000003900b415f80669009e"
-            .parse()
-            .unwrap()),
-        transaction_index: 0xd9_u16.into(),
-        tx_type: "0x2".parse().unwrap(),
-        cumulative_gas_used: 0xf02aed_u64.into(),
-    };
-    assert_eq!(
-        Decode!(&Encode!(&value).unwrap(), evm_rpc_types::TransactionReceipt).unwrap(),
-        value
-    );
 }
 
 #[tokio::test]
 async fn eth_get_logs_should_succeed() {
-    fn mock_request(
+    fn mocks(
         from_block: BlockNumberOrTag,
         to_block: BlockNumberOrTag,
-    ) -> JsonRpcRequestMatcher {
-        JsonRpcRequestMatcher::with_method("eth_getLogs").with_params(json!([{
-            "address" : ["0xdac17f958d2ee523a2206206994597c13d831ec7"],
-            "fromBlock" : from_block,
-            "toBlock" : to_block,
-        }]))
+        offset: u64,
+    ) -> MockHttpOutcallsBuilder {
+        MockHttpOutcallsBuilder::new()
+            .given(get_logs_request(from_block, to_block).with_id(offset))
+            .respond_with(get_logs_response().with_id(offset))
+            .given(get_logs_request(from_block, to_block).with_id(1 + offset))
+            .respond_with(get_logs_response().with_id(1 + offset))
+            .given(get_logs_request(from_block, to_block).with_id(2 + offset))
+            .respond_with(get_logs_response().with_id(2 + offset))
     }
 
-    fn mock_response() -> JsonRpcResponse {
-        JsonRpcResponse::from(json!({
-            "id" : 0,
-            "jsonrpc" : "2.0",
-            "result" : [
-                {
-                    "address" : "0xdac17f958d2ee523a2206206994597c13d831ec7",
-                    "topics" : [
-                        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
-                        "0x000000000000000000000000a9d1e08c7793af67e9d92fe308d5697fb81d3e43",
-                        "0x00000000000000000000000078cccfb3d517cd4ed6d045e263e134712288ace2"
-                    ],
-                    "data" : "0x000000000000000000000000000000000000000000000000000000003b9c6433",
-                    "blockNumber" : "0x11dc77e",
-                    "transactionHash" : "0xf3ed91a03ddf964281ac7a24351573efd535b80fc460a5c2ad2b9d23153ec678",
-                    "transactionIndex" : "0x65",
-                    "blockHash" : "0xd5c72ad752b2f0144a878594faf8bd9f570f2f72af8e7f0940d3545a6388f629",
-                    "logIndex" : "0xe8",
-                    "removed" : false
-                }
-            ]
-        }))
-    }
-
-    fn expected_logs() -> Vec<alloy_rpc_types::Log> {
-        vec![alloy_rpc_types::Log {
-            inner: alloy_primitives::Log::new(
-                address!("0xdac17f958d2ee523a2206206994597c13d831ec7"),
-                vec![
-                    b256!("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"),
-                    b256!("0x000000000000000000000000a9d1e08c7793af67e9d92fe308d5697fb81d3e43"),
-                    b256!("0x00000000000000000000000078cccfb3d517cd4ed6d045e263e134712288ace2"),
-                ],
-                bytes!("0x000000000000000000000000000000000000000000000000000000003b9c6433"),
-            )
-            .unwrap(),
-            block_number: Some(0x11dc77e_u64),
-            transaction_hash: Some(b256!(
-                "0xf3ed91a03ddf964281ac7a24351573efd535b80fc460a5c2ad2b9d23153ec678"
-            )),
-            transaction_index: Some(0x65_u64),
-            block_hash: Some(b256!(
-                "0xd5c72ad752b2f0144a878594faf8bd9f570f2f72af8e7f0940d3545a6388f629"
-            )),
-            log_index: Some(0xe8_u64),
+    fn candid_expected_logs() -> Vec<evm_rpc_types::LogEntry> {
+        vec![evm_rpc_types::LogEntry {
+            address: address!("0xdac17f958d2ee523a2206206994597c13d831ec7").into(),
+            topics: vec![
+                b256!("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef").into(),
+                b256!("0x000000000000000000000000a9d1e08c7793af67e9d92fe308d5697fb81d3e43").into(),
+                b256!("0x00000000000000000000000078cccfb3d517cd4ed6d045e263e134712288ace2").into(),
+            ],
+            data: bytes!("0x000000000000000000000000000000000000000000000000000000003b9c6433")
+                .into(),
+            block_number: Some(0x11dc77e_u64.into()),
+            transaction_hash: Some(
+                b256!("0xf3ed91a03ddf964281ac7a24351573efd535b80fc460a5c2ad2b9d23153ec678").into(),
+            ),
+            transaction_index: Some(0x65_u64.into()),
+            block_hash: Some(
+                b256!("0xd5c72ad752b2f0144a878594faf8bd9f570f2f72af8e7f0940d3545a6388f629").into(),
+            ),
+            log_index: Some(0xe8_u64.into()),
             removed: false,
-            block_timestamp: None,
         }]
     }
+
+    fn alloy_expected_logs() -> Vec<alloy_rpc_types::Log> {
+        candid_expected_logs()
+            .into_iter()
+            .map(alloy_rpc_types::Log::try_from)
+            .collect::<RpcResult<Vec<alloy_rpc_types::Log>>>()
+            .unwrap()
+    }
+
     let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let mut offsets = (0_u64..).step_by(3);
+
     for source in RPC_SERVICES {
         for (config, from_block, to_block) in [
             // default block range
@@ -299,17 +247,22 @@ async fn eth_get_logs_should_succeed() {
                 BlockNumberOrTag::Number(501_u16.into()),
             ),
         ] {
-            let offset = offsets.next().unwrap();
-            let mocks = MockHttpOutcallsBuilder::new()
-                .given(mock_request(from_block, to_block).with_id(offset))
-                .respond_with(mock_response().with_id(offset))
-                .given(mock_request(from_block, to_block).with_id(1 + offset))
-                .respond_with(mock_response().with_id(1 + offset))
-                .given(mock_request(from_block, to_block).with_id(2 + offset))
-                .respond_with(mock_response().with_id(2 + offset));
+            let candid_result = setup
+                .client(mocks(from_block, to_block, offsets.next().unwrap()))
+                .with_rpc_sources(source.clone())
+                .with_candid()
+                .build()
+                .get_logs(vec![address!("0xdac17f958d2ee523a2206206994597c13d831ec7")])
+                .with_from_block(from_block)
+                .with_to_block(to_block)
+                .with_rpc_config(config.clone())
+                .send()
+                .await
+                .expect_consistent();
+            assert_eq!(candid_result, Ok(candid_expected_logs()));
 
-            let response = setup
-                .client(mocks)
+            let alloy_result = setup
+                .client(mocks(from_block, to_block, offsets.next().unwrap()))
                 .with_rpc_sources(source.clone())
                 .build()
                 .get_logs(vec![address!("0xdac17f958d2ee523a2206206994597c13d831ec7")])
@@ -318,10 +271,8 @@ async fn eth_get_logs_should_succeed() {
                 .with_rpc_config(config)
                 .send()
                 .await
-                .expect_consistent()
-                .unwrap();
-
-            assert_eq!(response, expected_logs());
+                .expect_consistent();
+            assert_eq!(alloy_result, Ok(alloy_expected_logs()));
         }
     }
 }
@@ -375,88 +326,70 @@ async fn eth_get_logs_should_fail_when_block_range_too_large() {
 
 #[tokio::test]
 async fn eth_get_block_by_number_should_succeed() {
-    fn mock_response() -> JsonRpcResponse {
-        JsonRpcResponse::from(json!({
-            "jsonrpc": "2.0",
-            "result": {
-                "baseFeePerGas": "0xd7232aa34",
-                "difficulty": "0x0",
-                "extraData": "0x546974616e2028746974616e6275696c6465722e78797a29",
-                "gasLimit": "0x1c9c380",
-                "gasUsed": "0xa768c4",
-                "hash": "0xc3674be7b9d95580d7f23c03d32e946f2b453679ee6505e3a778f003c5a3cfae",
-                "logsBloom": "0x3e6b8420e1a13038902c24d6c2a9720a7ad4860cdc870cd5c0490011e43631134f608935bd83171247407da2c15d85014f9984608c03684c74aad48b20bc24022134cdca5f2e9d2dee3b502a8ccd39eff8040b1d96601c460e119c408c620b44fa14053013220847045556ea70484e67ec012c322830cf56ef75e09bd0db28a00f238adfa587c9f80d7e30d3aba2863e63a5cad78954555966b1055a4936643366a0bb0b1bac68d0e6267fc5bf8304d404b0c69041125219aa70562e6a5a6362331a414a96d0716990a10161b87dd9568046a742d4280014975e232b6001a0360970e569d54404b27807d7a44c949ac507879d9d41ec8842122da6772101bc8b",
-                "miner": "0x388c818ca8b9251b393131c08a736a67ccb19297",
-                "mixHash": "0x516a58424d4883a3614da00a9c6f18cd5cd54335a08388229a993a8ecf05042f",
-                "nonce": "0x0000000000000000",
-                "number": "0x11db01d",
-                "parentHash": "0x43325027f6adf9befb223f8ae80db057daddcd7b48e41f60cd94bfa8877181ae",
-                "receiptsRoot": "0x66934c3fd9c547036fe0e56ad01bc43c84b170be7c4030a86805ddcdab149929",
-                "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
-                "size": "0xcd35",
-                "stateRoot": "0x13552447dd62f11ad885f21a583c4fa34144efe923c7e35fb018d6710f06b2b6",
-                "timestamp": "0x656f96f3",
-                "withdrawalsRoot": "0xecae44b2c53871003c5cc75285995764034c9b5978a904229d36c1280b141d48",
-                "transactionsRoot": "0x93a1ad3d067009259b508cc95fde63b5efd7e9d8b55754314c173fdde8c0826a",
-            },
-            "id": 0
-        }))
+    fn mocks(offset: u64) -> MockHttpOutcallsBuilder {
+        MockHttpOutcallsBuilder::new()
+            .given(get_block_by_number_request().with_id(offset))
+            .respond_with(get_block_by_number_response().with_id(offset))
+            .given(get_block_by_number_request().with_id(1 + offset))
+            .respond_with(get_block_by_number_response().with_id(1 + offset))
+            .given(get_block_by_number_request().with_id(2 + offset))
+            .respond_with(get_block_by_number_response().with_id(2 + offset))
+    }
+
+    fn candid_expected_block() -> evm_rpc_types::Block {
+        evm_rpc_types::Block {
+            base_fee_per_gas: Some(57_750_497_844_u64.into()),
+            number: 18_722_845_u64.into(),
+            difficulty: Some(Nat256::ZERO),
+            extra_data: bytes!("0x546974616e2028746974616e6275696c6465722e78797a29").into(),
+            gas_limit: 0x1c9c380_u64.into(),
+            gas_used: 0xa768c4_u64.into(),
+            hash: b256!("0xc3674be7b9d95580d7f23c03d32e946f2b453679ee6505e3a778f003c5a3cfae").into(),
+            logs_bloom: bloom!("0x3e6b8420e1a13038902c24d6c2a9720a7ad4860cdc870cd5c0490011e43631134f608935bd83171247407da2c15d85014f9984608c03684c74aad48b20bc24022134cdca5f2e9d2dee3b502a8ccd39eff8040b1d96601c460e119c408c620b44fa14053013220847045556ea70484e67ec012c322830cf56ef75e09bd0db28a00f238adfa587c9f80d7e30d3aba2863e63a5cad78954555966b1055a4936643366a0bb0b1bac68d0e6267fc5bf8304d404b0c69041125219aa70562e6a5a6362331a414a96d0716990a10161b87dd9568046a742d4280014975e232b6001a0360970e569d54404b27807d7a44c949ac507879d9d41ec8842122da6772101bc8b").into(),
+            miner: address!("0x388c818ca8b9251b393131c08a736a67ccb19297").into(),
+            mix_hash: b256!("0x516a58424d4883a3614da00a9c6f18cd5cd54335a08388229a993a8ecf05042f").into(),
+            nonce: Nat256::ZERO,
+            parent_hash: b256!("0x43325027f6adf9befb223f8ae80db057daddcd7b48e41f60cd94bfa8877181ae").into(),
+            receipts_root: b256!("0x66934c3fd9c547036fe0e56ad01bc43c84b170be7c4030a86805ddcdab149929").into(),
+            sha3_uncles: b256!("0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347").into(),
+            size: 0xcd35_u64.into(),
+            state_root: b256!("0x13552447dd62f11ad885f21a583c4fa34144efe923c7e35fb018d6710f06b2b6").into(),
+            timestamp: 0x656f96f3_u64.into(),
+            total_difficulty: None,
+            transactions: vec![],
+            transactions_root: Some(b256!("0x93a1ad3d067009259b508cc95fde63b5efd7e9d8b55754314c173fdde8c0826a").into()),
+            uncles: vec![],
+        }
+    }
+
+    fn alloy_expected_block() -> alloy_rpc_types::Block {
+        alloy_rpc_types::Block::try_from(candid_expected_block()).unwrap()
     }
 
     let setup = EvmRpcSetup::new().await.mock_api_keys().await;
+    let mut offsets = (0_u64..).step_by(3);
 
-    for (source, offset) in iter::zip(RPC_SERVICES, (0_u64..).step_by(3)) {
-        let mocks = MockHttpOutcallsBuilder::new()
-            .given(get_block_by_number_request().with_id(offset))
-            .respond_with(mock_response().with_id(offset))
-            .given(get_block_by_number_request().with_id(1 + offset))
-            .respond_with(mock_response().with_id(1 + offset))
-            .given(get_block_by_number_request().with_id(2 + offset))
-            .respond_with(mock_response().with_id(2 + offset));
+    for source in RPC_SERVICES {
+        let candid_result = setup
+            .client(mocks(offsets.next().unwrap()))
+            .with_rpc_sources(source.clone())
+            .with_candid()
+            .build()
+            .get_block_by_number(BlockNumberOrTag::Latest)
+            .send()
+            .await
+            .expect_consistent();
+        assert_eq!(candid_result, Ok(candid_expected_block()));
 
-        let response = setup
-            .client(mocks)
+        let alloy_result = setup
+            .client(mocks(offsets.next().unwrap()))
             .with_rpc_sources(source.clone())
             .build()
             .get_block_by_number(BlockNumberOrTag::Latest)
             .send()
             .await
-            .expect_consistent()
-            .unwrap();
-
-        assert_eq!(response, alloy_rpc_types::Block {
-            header: alloy_rpc_types::Header {
-                hash: b256!("0xc3674be7b9d95580d7f23c03d32e946f2b453679ee6505e3a778f003c5a3cfae"),
-                inner: alloy_consensus::Header {
-                    parent_hash: b256!("0x43325027f6adf9befb223f8ae80db057daddcd7b48e41f60cd94bfa8877181ae"),
-                    ommers_hash: b256!("0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"),
-                    beneficiary: address!("0x388c818ca8b9251b393131c08a736a67ccb19297"),
-                    state_root: b256!("0x13552447dd62f11ad885f21a583c4fa34144efe923c7e35fb018d6710f06b2b6"),
-                    transactions_root: b256!("0x93a1ad3d067009259b508cc95fde63b5efd7e9d8b55754314c173fdde8c0826a"),
-                    receipts_root: b256!("0x66934c3fd9c547036fe0e56ad01bc43c84b170be7c4030a86805ddcdab149929"),
-                    logs_bloom: bloom!("0x3e6b8420e1a13038902c24d6c2a9720a7ad4860cdc870cd5c0490011e43631134f608935bd83171247407da2c15d85014f9984608c03684c74aad48b20bc24022134cdca5f2e9d2dee3b502a8ccd39eff8040b1d96601c460e119c408c620b44fa14053013220847045556ea70484e67ec012c322830cf56ef75e09bd0db28a00f238adfa587c9f80d7e30d3aba2863e63a5cad78954555966b1055a4936643366a0bb0b1bac68d0e6267fc5bf8304d404b0c69041125219aa70562e6a5a6362331a414a96d0716990a10161b87dd9568046a742d4280014975e232b6001a0360970e569d54404b27807d7a44c949ac507879d9d41ec8842122da6772101bc8b"),
-                    difficulty: alloy_primitives::U256::ZERO,
-                    number: 18_722_845_u64,
-                    gas_limit: 0x1c9c380_u64,
-                    gas_used: 0xa768c4_u64,
-                    timestamp: 0x656f96f3_u64,
-                    extra_data: bytes!("0x546974616e2028746974616e6275696c6465722e78797a29"),
-                    mix_hash: b256!("0x516a58424d4883a3614da00a9c6f18cd5cd54335a08388229a993a8ecf05042f"),
-                    nonce: alloy_primitives::B64::ZERO,
-                    base_fee_per_gas: Some(57_750_497_844_u64),
-                    withdrawals_root: None,
-                    blob_gas_used: None,
-                    excess_blob_gas: None,
-                    parent_beacon_block_root: None,
-                    requests_hash: None,
-                },
-                total_difficulty: None,
-                size: Some(alloy_primitives::U256::from(0xcd35_u64)),
-            },
-            uncles: vec![],
-            transactions: BlockTransactions::Hashes(vec![]),
-            withdrawals: None,
-        });
+            .expect_consistent();
+        assert_eq!(alloy_result, Ok(alloy_expected_block()));
     }
 }
 
@@ -523,14 +456,14 @@ async fn eth_get_block_by_number_pre_london_fork_should_succeed() {
                     transactions_root: b256!("0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421"),
                     receipts_root: b256!("0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421"),
                     logs_bloom: bloom!("0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-                    difficulty: alloy_primitives::U256::from(0x400000000_u64),
+                    difficulty: U256::from(0x400000000_u64),
                     number: 0_u64,
                     gas_limit: 0x1388_u64,
                     gas_used: 0_u64,
                     timestamp: 0_u64,
                     extra_data: bytes!("0x11bbe8db4e347b4e8c937c1c8370e4b5ed33adb3db69cbdb7a38e1e50b1b82fa"),
                     mix_hash: b256!("0x0000000000000000000000000000000000000000000000000000000000000000"),
-                    nonce: alloy_primitives::B64::from(0x0000000000000042_u64),
+                    nonce: B64::from(0x0000000000000042_u64),
                     base_fee_per_gas: None,
                     withdrawals_root: None,
                     blob_gas_used: None,
@@ -539,7 +472,7 @@ async fn eth_get_block_by_number_pre_london_fork_should_succeed() {
                     requests_hash: None,
                 },
                 total_difficulty: None,
-                size: Some(alloy_primitives::U256::from(0x21c_u64)),
+                size: Some(U256::from(0x21c_u64)),
             },
             uncles: vec![],
             transactions: BlockTransactions::Hashes(vec![]),
@@ -610,9 +543,22 @@ async fn eth_get_block_by_number_should_be_consistent_when_total_difficulty_inco
 
 #[tokio::test]
 async fn eth_get_transaction_receipt_should_succeed() {
-    fn request(tx_hash: impl ToString) -> JsonRpcRequestMatcher {
-        JsonRpcRequestMatcher::with_method("eth_getTransactionReceipt")
-            .with_params(json!([tx_hash.to_string()]))
+    fn mocks(
+        tx_hash: FixedBytes<32>,
+        response: &JsonRpcResponse,
+        offset: u64,
+    ) -> MockHttpOutcallsBuilder {
+        fn request(tx_hash: impl ToString) -> JsonRpcRequestMatcher {
+            JsonRpcRequestMatcher::with_method("eth_getTransactionReceipt")
+                .with_params(json!([tx_hash.to_string()]))
+        }
+        MockHttpOutcallsBuilder::new()
+            .given(request(tx_hash).with_id(offset))
+            .respond_with(response.clone().with_id(offset))
+            .given(request(tx_hash).with_id(offset + 1))
+            .respond_with(response.clone().with_id(offset + 1))
+            .given(request(tx_hash).with_id(offset + 2))
+            .respond_with(response.clone().with_id(offset + 2))
     }
 
     let test_cases = [
@@ -638,26 +584,22 @@ async fn eth_get_transaction_receipt_should_succeed() {
                   "type":"0x2"
                }
             })),
-            alloy_rpc_types::TransactionReceipt {
-                inner: alloy_consensus::ReceiptEnvelope::Eip1559(alloy_consensus::ReceiptWithBloom {
-                    receipt: alloy_consensus::Receipt {
-                        status: alloy_consensus::Eip658Value::Eip658(true),
-                        cumulative_gas_used: 0xf02aed_u64,
-                        logs: vec![],
-                    },
-                    logs_bloom: bloom!("0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-                }),
-                transaction_hash: b256!("0xdd5d4b18923d7aae953c7996d791118102e889bea37b48a651157a4890e4746f"),
-                transaction_index: Some(0xd9_u64),
-                block_hash: Some(b256!("0x5115c07eb1f20a9d6410db0916ed3df626cfdab161d3904f45c8c8b65c90d0be")),
-                block_number: Some(0x11a85ab_u64),
-                gas_used: 0x7d89_u64,
-                effective_gas_price: 0x63c00ee76_u128,
-                blob_gas_used: None,
-                blob_gas_price: None,
-                from: address!("0x0aa8ebb6ad5a8e499e550ae2c461197624c6e667"),
-                to: Some(address!("0x356cfd6e6d0000400000003900b415f80669009e")),
+            evm_rpc_types::TransactionReceipt {
+                block_hash: b256!("0x5115c07eb1f20a9d6410db0916ed3df626cfdab161d3904f45c8c8b65c90d0be").into(),
+                block_number: 0x11a85ab_u64.into(),
+                effective_gas_price: 0x63c00ee76_u64.into(),
+                gas_used: 0x7d89_u64.into(),
+                cumulative_gas_used: 0xf02aed_u64.into(),
+                status: Some(0x1_u64.into()),
+                root: None,
+                transaction_hash: b256!("0xdd5d4b18923d7aae953c7996d791118102e889bea37b48a651157a4890e4746f").into(),
                 contract_address: None,
+                from: address!("0x0aa8ebb6ad5a8e499e550ae2c461197624c6e667").into(),
+                logs: vec![],
+                logs_bloom: bloom!("0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").into(),
+                to: Some(address!("0x356cfd6e6d0000400000003900b415f80669009e").into()),
+                transaction_index: 0xd9_u64.into(),
+                tx_type: 0x2_u8.into(),
             },
         ),
         // first transaction after genesis
@@ -683,26 +625,22 @@ async fn eth_get_transaction_receipt_should_succeed() {
                   "logs":[],
                }
             })),
-            alloy_rpc_types::TransactionReceipt {
-                inner: alloy_consensus::ReceiptEnvelope::Legacy(alloy_consensus::ReceiptWithBloom {
-                    receipt: alloy_consensus::Receipt {
-                        status: alloy_consensus::Eip658Value::PostState(b256!("0x96a8e009d2b88b1483e6941e6812e32263b05683fac202abc622a3e31aed1957")),
-                        cumulative_gas_used: 0x5208_u64,
-                        logs: vec![],
-                    },
-                    logs_bloom: bloom!("0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-                }),
-                transaction_hash: b256!("0x5c504ed432cb51138bcf09aa5e8a410dd4a1e204ef84bfed1be16dfba1b22060"),
-                transaction_index: Some(0x0_u64),
-                block_hash: Some(b256!("0x4e3a3754410177e6937ef1f84bba68ea139e8d1a2258c5f85db9f1cd715a1bdd")),
-                block_number: Some(0xb443_u64),
-                gas_used: 0x5208_u64,
-                effective_gas_price: 0x2d79883d2000_u128,
-                blob_gas_used: None,
-                blob_gas_price: None,
-                from: address!("0xa1e4380a3b1f749673e270229993ee55f35663b4"),
-                to: Some(address!("0x5df9b87991262f6ba471f09758cde1c0fc1de734")),
+            evm_rpc_types::TransactionReceipt {
+                block_hash: b256!("0x4e3a3754410177e6937ef1f84bba68ea139e8d1a2258c5f85db9f1cd715a1bdd").into(),
+                block_number: 0xb443_u64.into(),
+                effective_gas_price: 0x2d79883d2000_u64.into(),
+                gas_used: 0x5208_u64.into(),
+                cumulative_gas_used: 0x5208_u64.into(),
+                status: None,
+                root: Some(b256!("0x96a8e009d2b88b1483e6941e6812e32263b05683fac202abc622a3e31aed1957").into()),
+                transaction_hash: b256!("0x5c504ed432cb51138bcf09aa5e8a410dd4a1e204ef84bfed1be16dfba1b22060").into(),
                 contract_address: None,
+                from: address!("0xa1e4380a3b1f749673e270229993ee55f35663b4").into(),
+                logs: vec![],
+                logs_bloom: bloom!("0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").into(),
+                to: Some(address!("0x5df9b87991262f6ba471f09758cde1c0fc1de734").into()),
+                transaction_index: 0x0_u64.into(),
+                tx_type: 0x0_u8.into(),
             },
         ),
         // contract creation
@@ -728,73 +666,92 @@ async fn eth_get_transaction_receipt_should_succeed() {
                   "status":"0x1"
                }
             })),
-            alloy_rpc_types::TransactionReceipt {
-                inner: alloy_consensus::ReceiptEnvelope::Eip1559(alloy_consensus::ReceiptWithBloom {
-                    receipt: alloy_consensus::Receipt {
-                        status: alloy_consensus::Eip658Value::Eip658(true),
-                        cumulative_gas_used: 0x3009d2_u64,
-                        logs: vec![],
-                    },
-                    logs_bloom: bloom!("0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-                }),
-                transaction_hash: b256!("0x2b8e12d42a187ace19c64b47fae0955def8859bf966c345102c6d3a52f28308b"),
-                transaction_index: Some(0x17_u64),
-                block_hash: Some(b256!("0xd050426a753a7cc4833ba15a5dfcef761fd983f5277230ea8dc700eadd307363")),
-                block_number: Some(0x12e64fd_u64),
-                gas_used: 0x69892_u64,
-                effective_gas_price: 0x17c01a135_u128,
-                blob_gas_used: None,
-                blob_gas_price: None,
-                from: address!("0xe12e9a6661aeaf57abf95fd060bebb223fbee7dd"),
+            evm_rpc_types::TransactionReceipt {
+                block_hash: b256!("0xd050426a753a7cc4833ba15a5dfcef761fd983f5277230ea8dc700eadd307363").into(),
+                block_number: 0x12e64fd_u64.into(),
+                effective_gas_price: 0x17c01a135_u128.into(),
+                gas_used: 0x69892_u64.into(),
+                cumulative_gas_used: 0x3009d2_u64.into(),
+                status: Some(0x1_u64.into()),
+                root: None,
+                transaction_hash: b256!("0x2b8e12d42a187ace19c64b47fae0955def8859bf966c345102c6d3a52f28308b").into(),
+                contract_address: Some(address!("0x6abda0438307733fc299e9c229fd3cc074bd8cc0").into()),
+                from: address!("0xe12e9a6661aeaf57abf95fd060bebb223fbee7dd").into(),
+                logs: vec![],
+                logs_bloom: bloom!("0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").into(),
                 to: None,
-                contract_address: Some(address!("0x6abda0438307733fc299e9c229fd3cc074bd8cc0")),
+                transaction_index: 0x17_u64.into(),
+                tx_type: 0x2_u8.into(),
             },
         )
     ];
 
-    let mut offsets = (0_u64..).step_by(3);
     let setup = EvmRpcSetup::new().await.mock_api_keys().await;
-    for (tx_hash, response, expected) in test_cases {
-        for source in RPC_SERVICES {
-            let offset = offsets.next().unwrap();
-            let mocks = MockHttpOutcallsBuilder::new()
-                .given(request(tx_hash).with_id(offset))
-                .respond_with(response.clone().with_id(offset))
-                .given(request(tx_hash).with_id(offset + 1))
-                .respond_with(response.clone().with_id(offset + 1))
-                .given(request(tx_hash).with_id(offset + 2))
-                .respond_with(response.clone().with_id(offset + 2));
+    let mut offsets = (0_u64..).step_by(3);
 
-            let response = setup
-                .client(mocks)
+    for (tx_hash, response, candid_receipt) in test_cases {
+        for source in RPC_SERVICES {
+            let candid_result = setup
+                .client(mocks(tx_hash, &response, offsets.next().unwrap()))
+                .with_rpc_sources(source.clone())
+                .with_candid()
+                .build()
+                .get_transaction_receipt(tx_hash)
+                .send()
+                .await
+                .expect_consistent();
+            assert_eq!(candid_result, Ok(Some(candid_receipt.clone())));
+
+            let alloy_result = setup
+                .client(mocks(tx_hash, &response, offsets.next().unwrap()))
                 .with_rpc_sources(source.clone())
                 .build()
                 .get_transaction_receipt(tx_hash)
                 .send()
                 .await
-                .expect_consistent()
-                .unwrap();
-
-            assert_eq!(response, Some(expected.clone()));
+                .expect_consistent();
+            assert_eq!(
+                alloy_result,
+                Ok(Some(
+                    alloy_rpc_types::TransactionReceipt::try_from(candid_receipt.clone()).unwrap()
+                ))
+            );
         }
     }
 }
 
 #[tokio::test]
 async fn eth_get_transaction_count_should_succeed() {
-    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
-
-    for (source, offset) in iter::zip(RPC_SERVICES, (0_u64..).step_by(3)) {
-        let mocks = MockHttpOutcallsBuilder::new()
+    fn mocks(offset: u64) -> MockHttpOutcallsBuilder {
+        MockHttpOutcallsBuilder::new()
             .given(get_transaction_count_request().with_id(offset))
             .respond_with(get_transaction_count_response().with_id(offset))
             .given(get_transaction_count_request().with_id(offset + 1))
             .respond_with(get_transaction_count_response().with_id(offset + 1))
             .given(get_transaction_count_request().with_id(offset + 2))
-            .respond_with(get_transaction_count_response().with_id(offset + 2));
+            .respond_with(get_transaction_count_response().with_id(offset + 2))
+    }
 
-        let response = setup
-            .client(mocks)
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
+    let mut offsets = (0_u64..).step_by(3);
+
+    for source in RPC_SERVICES {
+        let candid_result = setup
+            .client(mocks(offsets.next().unwrap()))
+            .with_rpc_sources(source.clone())
+            .with_candid()
+            .build()
+            .get_transaction_count((
+                address!("0xdac17f958d2ee523a2206206994597c13d831ec7"),
+                BlockNumberOrTag::Latest,
+            ))
+            .send()
+            .await
+            .expect_consistent();
+        assert_eq!(candid_result, Ok(Nat256::from(1_u64)));
+
+        let alloy_result = setup
+            .client(mocks(offsets.next().unwrap()))
             .with_rpc_sources(source.clone())
             .build()
             .get_transaction_count((
@@ -804,150 +761,166 @@ async fn eth_get_transaction_count_should_succeed() {
             .send()
             .await
             .expect_consistent();
-
-        assert_eq!(response, Ok(U256::ONE));
+        assert_eq!(alloy_result, Ok(U256::ONE));
     }
 }
 
 #[tokio::test]
 async fn eth_fee_history_should_succeed() {
-    fn mock_response() -> JsonRpcResponse {
-        JsonRpcResponse::from(json!({
-            "id" : 0,
-            "jsonrpc" : "2.0",
-            "result" : {
-                "oldestBlock" : "0x11e57f5",
-                "baseFeePerGas" : ["0x9cf6c61b9", "0x97d853982", "0x9ba55a0b0", "0x9543bf98d"],
-                "reward" : [["0x0123"]]
-            }
-        }))
+    fn mocks(offset: u64) -> MockHttpOutcallsBuilder {
+        MockHttpOutcallsBuilder::new()
+            .given(fee_history_request().with_id(offset))
+            .respond_with(fee_history_response().with_id(offset))
+            .given(fee_history_request().with_id(1 + offset))
+            .respond_with(fee_history_response().with_id(1 + offset))
+            .given(fee_history_request().with_id(2 + offset))
+            .respond_with(fee_history_response().with_id(2 + offset))
+    }
+
+    fn candid_expected_fee_history() -> evm_rpc_types::FeeHistory {
+        evm_rpc_types::FeeHistory {
+            oldest_block: 0x11e57f5_u64.into(),
+            base_fee_per_gas: vec![
+                0x9cf6c61b9_u64.into(),
+                0x97d853982_u64.into(),
+                0x9ba55a0b0_u64.into(),
+                0x9543bf98d_u64.into(),
+            ],
+            gas_used_ratio: vec![],
+            reward: vec![vec![0x0123_u64.into()]],
+        }
     }
 
     let setup = EvmRpcSetup::new().await.mock_api_keys().await;
+    let mut offsets = (0_u64..).step_by(3);
 
-    for (source, offset) in iter::zip(RPC_SERVICES, (0_u64..).step_by(3)) {
-        let mocks = MockHttpOutcallsBuilder::new()
-            .given(fee_history_request().with_id(offset))
-            .respond_with(mock_response().with_id(offset))
-            .given(fee_history_request().with_id(1 + offset))
-            .respond_with(mock_response().with_id(1 + offset))
-            .given(fee_history_request().with_id(2 + offset))
-            .respond_with(mock_response().with_id(2 + offset));
+    for source in RPC_SERVICES {
+        let candid_result = setup
+            .client(mocks(offsets.next().unwrap()))
+            .with_rpc_sources(source.clone())
+            .with_candid()
+            .build()
+            .fee_history((3_u64, BlockNumberOrTag::Latest))
+            .send()
+            .await
+            .expect_consistent();
+        assert_eq!(candid_result, Ok(candid_expected_fee_history()));
 
-        let response = setup
-            .client(mocks)
+        let alloy_result = setup
+            .client(mocks(offsets.next().unwrap()))
             .with_rpc_sources(source.clone())
             .build()
             .fee_history((3_u64, BlockNumberOrTag::Latest))
             .send()
             .await
-            .expect_consistent()
-            .unwrap();
-
+            .expect_consistent();
         assert_eq!(
-            response,
-            alloy_rpc_types::FeeHistory {
-                oldest_block: 0x11e57f5_u64,
-                base_fee_per_gas: vec![0x9cf6c61b9_u128, 0x97d853982, 0x9ba55a0b0, 0x9543bf98d],
-                gas_used_ratio: vec![],
-                reward: Some(vec![vec![0x0123_u128]]),
-                base_fee_per_blob_gas: vec![],
-                blob_gas_used_ratio: vec![],
-            }
+            alloy_result,
+            Ok(alloy_rpc_types::FeeHistory::try_from(candid_expected_fee_history()).unwrap())
         );
     }
 }
 
 #[tokio::test]
 async fn eth_send_raw_transaction_should_succeed() {
-    fn mock_response() -> JsonRpcResponse {
-        JsonRpcResponse::from(json!({ "id": 0, "jsonrpc": "2.0", "result": MOCK_TRANSACTION_HASH }))
+    fn mocks(offset: u64) -> MockHttpOutcallsBuilder {
+        MockHttpOutcallsBuilder::new()
+            .given(send_raw_transaction_request().with_id(offset))
+            .respond_with(send_raw_transaction_response().with_id(offset))
+            .given(send_raw_transaction_request().with_id(1 + offset))
+            .respond_with(send_raw_transaction_response().with_id(1 + offset))
+            .given(send_raw_transaction_request().with_id(2 + offset))
+            .respond_with(send_raw_transaction_response().with_id(2 + offset))
     }
 
     let setup = EvmRpcSetup::new().await.mock_api_keys().await;
-    for (source, offset) in iter::zip(RPC_SERVICES, (0_u64..).step_by(3)) {
-        let mocks = MockHttpOutcallsBuilder::new()
-            .given(send_raw_transaction_request().with_id(offset))
-            .respond_with(mock_response().with_id(offset))
-            .given(send_raw_transaction_request().with_id(1 + offset))
-            .respond_with(mock_response().with_id(1 + offset))
-            .given(send_raw_transaction_request().with_id(2 + offset))
-            .respond_with(mock_response().with_id(2 + offset));
+    let mut offsets = (0_u64..).step_by(3);
 
-        let response = setup
-            .client(mocks)
+    for source in RPC_SERVICES {
+        let candid_result = setup
+            .client(mocks(offsets.next().unwrap()))
+            .with_rpc_sources(source.clone())
+            .with_candid()
+            .build()
+            .send_raw_transaction(MOCK_TRANSACTION)
+            .send()
+            .await
+            .expect_consistent();
+        assert_eq!(
+            candid_result,
+            Ok(evm_rpc_types::SendRawTransactionStatus::Ok(Some(
+                Hex32::from(MOCK_TRANSACTION_HASH)
+            )))
+        );
+
+        let alloy_result = setup
+            .client(mocks(offsets.next().unwrap()))
             .with_rpc_sources(source.clone())
             .build()
             .send_raw_transaction(MOCK_TRANSACTION)
             .send()
             .await
-            .expect_consistent()
-            .unwrap();
-
-        assert_eq!(response, MOCK_TRANSACTION_HASH);
+            .expect_consistent();
+        assert_eq!(alloy_result, Ok(MOCK_TRANSACTION_HASH));
     }
 }
 
 #[tokio::test]
 async fn eth_call_should_succeed() {
-    const ADDRESS: &str = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
-    const INPUT_DATA: &str =
-        "0x70a08231000000000000000000000000b25eA1D493B49a1DeD42aC5B1208cC618f9A9B80";
-
-    fn mock_request() -> JsonRpcRequestMatcher {
-        JsonRpcRequestMatcher::with_method("eth_call").with_params(json!( [ { "to": ADDRESS.to_lowercase(), "input": INPUT_DATA.to_lowercase(), }, "latest" ]))
+    fn mocks(offset: u64) -> MockHttpOutcallsBuilder {
+        MockHttpOutcallsBuilder::new()
+            .given(call_request().with_id(offset))
+            .respond_with(call_response().with_id(offset))
+            .given(call_request().with_id(offset + 1))
+            .respond_with(call_response().with_id(offset + 1))
+            .given(call_request().with_id(offset + 2))
+            .respond_with(call_response().with_id(offset + 2))
     }
 
-    fn mock_response() -> JsonRpcResponse {
-        JsonRpcResponse::from(
-            json!({ "jsonrpc": "2.0", "id": 0, "result": "0x0000000000000000000000000000000000000000000000000000013c3ee36e89" }),
-        )
+    fn expected_candid_call_result() -> Hex {
+        Hex::from(bytes!(
+            "0x0000000000000000000000000000000000000000000000000000013c3ee36e89"
+        ))
     }
 
     let setup = EvmRpcSetup::new().await.mock_api_keys().await;
-
     let mut offsets = (0_u64..).step_by(3);
-    for call_args in [
-        evm_rpc_types::CallArgs {
-            transaction: evm_rpc_types::TransactionRequest {
-                to: Some(ADDRESS.parse().unwrap()),
-                input: Some(INPUT_DATA.parse().unwrap()),
-                ..evm_rpc_types::TransactionRequest::default()
-            },
-            block: Some(BlockTag::Latest),
-        },
-        evm_rpc_types::CallArgs {
-            transaction: evm_rpc_types::TransactionRequest {
-                to: Some(ADDRESS.parse().unwrap()),
-                input: Some(INPUT_DATA.parse().unwrap()),
-                ..evm_rpc_types::TransactionRequest::default()
-            },
-            block: None, //should be same as specifying Latest
-        },
+
+    for block in [
+        Some(BlockTag::Latest),
+        None, //should be same as specifying Latest
     ] {
         for source in RPC_SERVICES {
-            let offset = offsets.next().unwrap();
-            let mocks = MockHttpOutcallsBuilder::new()
-                .given(mock_request().with_id(offset))
-                .respond_with(mock_response().with_id(offset))
-                .given(mock_request().with_id(offset + 1))
-                .respond_with(mock_response().with_id(offset + 1))
-                .given(mock_request().with_id(offset + 2))
-                .respond_with(mock_response().with_id(offset + 2));
+            let mut request = setup
+                .client(mocks(offsets.next().unwrap()))
+                .with_rpc_sources(source.clone())
+                .with_candid()
+                .build()
+                .call(
+                    alloy_rpc_types::TransactionRequest::default()
+                        .to(ADDRESS)
+                        .input(alloy_rpc_types::TransactionInput::from(INPUT_DATA)),
+                );
+            if let Some(block) = block.clone() {
+                request = request.with_block(block)
+            }
+            let candid_result = request.send().await.expect_consistent();
+            assert_eq!(candid_result, Ok(expected_candid_call_result()));
 
-            let response = setup
-                .client(mocks)
+            let mut request = setup
+                .client(mocks(offsets.next().unwrap()))
                 .with_rpc_sources(source.clone())
                 .build()
-                .call(call_args.clone())
-                .send()
-                .await
-                .expect_consistent()
-                .unwrap();
-            assert_eq!(
-                response,
-                bytes!("0x0000000000000000000000000000000000000000000000000000013c3ee36e89")
-            );
+                .call(
+                    alloy_rpc_types::TransactionRequest::default()
+                        .to(ADDRESS)
+                        .input(alloy_rpc_types::TransactionInput::from(INPUT_DATA)),
+                );
+            if let Some(block) = block.clone() {
+                request = request.with_block(block)
+            }
+            let alloy_result = request.send().await.expect_consistent();
+            assert_eq!(alloy_result, Ok(Bytes::from(expected_candid_call_result())));
         }
     }
 }
@@ -2339,23 +2312,11 @@ async fn should_fail_when_response_id_inconsistent_with_request_id() {
 
 #[tokio::test]
 async fn should_log_request() {
-    fn mock_response() -> JsonRpcResponse {
-        JsonRpcResponse::from(json!({
-            "id" : 0,
-            "jsonrpc" : "2.0",
-            "result" : {
-                "oldestBlock" : "0x11e57f5",
-                "baseFeePerGas" : ["0x9cf6c61b9", "0x97d853982", "0x9ba55a0b0", "0x9543bf98d"],
-                "reward" : [["0x0123"]]
-            }
-        }))
-    }
-
     let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     let mocks = MockHttpOutcallsBuilder::new()
         .given(fee_history_request())
-        .respond_with(mock_response());
+        .respond_with(fee_history_response());
 
     let response = setup
         .client(mocks)
@@ -2500,10 +2461,39 @@ async fn should_change_default_provider_when_one_keeps_failing() {
     assert_eq!(response, U256::ONE);
 }
 
+fn call_request() -> JsonRpcRequestMatcher {
+    JsonRpcRequestMatcher::with_method("eth_call")
+        .with_params(json!([
+            {
+                "to": ADDRESS,
+                "input": INPUT_DATA
+            },
+            "latest"
+        ]))
+        .with_id(0_u64)
+}
+
+fn fee_history_request() -> JsonRpcRequestMatcher {
+    JsonRpcRequestMatcher::with_method("eth_feeHistory")
+        .with_params(json!(["0x3", "latest", []]))
+        .with_id(0_u64)
+}
+
 fn get_block_by_number_request() -> JsonRpcRequestMatcher {
     JsonRpcRequestMatcher::with_method("eth_getBlockByNumber")
         .with_params(json!(["latest", false]))
         .with_id(0_u64)
+}
+
+fn get_logs_request(
+    from_block: BlockNumberOrTag,
+    to_block: BlockNumberOrTag,
+) -> JsonRpcRequestMatcher {
+    JsonRpcRequestMatcher::with_method("eth_getLogs").with_params(json!([{
+        "address" : ["0xdac17f958d2ee523a2206206994597c13d831ec7"],
+        "fromBlock" : from_block,
+        "toBlock" : to_block,
+    }]))
 }
 
 fn get_transaction_count_request() -> JsonRpcRequestMatcher {
@@ -2523,16 +2513,80 @@ fn get_transaction_receipt_request() -> JsonRpcRequestMatcher {
         .with_id(0_u64)
 }
 
-fn fee_history_request() -> JsonRpcRequestMatcher {
-    JsonRpcRequestMatcher::with_method("eth_feeHistory")
-        .with_params(json!(["0x3", "latest", []]))
-        .with_id(0_u64)
-}
-
 fn send_raw_transaction_request() -> JsonRpcRequestMatcher {
     JsonRpcRequestMatcher::with_method("eth_sendRawTransaction")
         .with_params(json!([MOCK_TRANSACTION.to_string()]))
         .with_id(0_u64)
+}
+
+fn call_response() -> JsonRpcResponse {
+    JsonRpcResponse::from(
+        json!({ "jsonrpc": "2.0", "id": 0, "result": "0x0000000000000000000000000000000000000000000000000000013c3ee36e89" }),
+    )
+}
+
+fn fee_history_response() -> JsonRpcResponse {
+    JsonRpcResponse::from(json!({
+        "id" : 0,
+        "jsonrpc" : "2.0",
+        "result" : {
+            "oldestBlock" : "0x11e57f5",
+            "baseFeePerGas" : ["0x9cf6c61b9", "0x97d853982", "0x9ba55a0b0", "0x9543bf98d"],
+            "reward" : [["0x0123"]]
+        }
+    }))
+}
+
+fn get_block_by_number_response() -> JsonRpcResponse {
+    JsonRpcResponse::from(json!({
+        "jsonrpc": "2.0",
+        "result": {
+            "baseFeePerGas": "0xd7232aa34",
+            "difficulty": "0x0",
+            "extraData": "0x546974616e2028746974616e6275696c6465722e78797a29",
+            "gasLimit": "0x1c9c380",
+            "gasUsed": "0xa768c4",
+            "hash": "0xc3674be7b9d95580d7f23c03d32e946f2b453679ee6505e3a778f003c5a3cfae",
+            "logsBloom": "0x3e6b8420e1a13038902c24d6c2a9720a7ad4860cdc870cd5c0490011e43631134f608935bd83171247407da2c15d85014f9984608c03684c74aad48b20bc24022134cdca5f2e9d2dee3b502a8ccd39eff8040b1d96601c460e119c408c620b44fa14053013220847045556ea70484e67ec012c322830cf56ef75e09bd0db28a00f238adfa587c9f80d7e30d3aba2863e63a5cad78954555966b1055a4936643366a0bb0b1bac68d0e6267fc5bf8304d404b0c69041125219aa70562e6a5a6362331a414a96d0716990a10161b87dd9568046a742d4280014975e232b6001a0360970e569d54404b27807d7a44c949ac507879d9d41ec8842122da6772101bc8b",
+            "miner": "0x388c818ca8b9251b393131c08a736a67ccb19297",
+            "mixHash": "0x516a58424d4883a3614da00a9c6f18cd5cd54335a08388229a993a8ecf05042f",
+            "nonce": "0x0000000000000000",
+            "number": "0x11db01d",
+            "parentHash": "0x43325027f6adf9befb223f8ae80db057daddcd7b48e41f60cd94bfa8877181ae",
+            "receiptsRoot": "0x66934c3fd9c547036fe0e56ad01bc43c84b170be7c4030a86805ddcdab149929",
+            "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+            "size": "0xcd35",
+            "stateRoot": "0x13552447dd62f11ad885f21a583c4fa34144efe923c7e35fb018d6710f06b2b6",
+            "timestamp": "0x656f96f3",
+            "withdrawalsRoot": "0xecae44b2c53871003c5cc75285995764034c9b5978a904229d36c1280b141d48",
+            "transactionsRoot": "0x93a1ad3d067009259b508cc95fde63b5efd7e9d8b55754314c173fdde8c0826a",
+        },
+        "id": 0
+    }))
+}
+
+fn get_logs_response() -> JsonRpcResponse {
+    JsonRpcResponse::from(json!({
+        "id" : 0,
+        "jsonrpc" : "2.0",
+        "result" : [
+            {
+                "address" : "0xdac17f958d2ee523a2206206994597c13d831ec7",
+                "topics" : [
+                    "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                    "0x000000000000000000000000a9d1e08c7793af67e9d92fe308d5697fb81d3e43",
+                    "0x00000000000000000000000078cccfb3d517cd4ed6d045e263e134712288ace2"
+                ],
+                "data" : "0x000000000000000000000000000000000000000000000000000000003b9c6433",
+                "blockNumber" : "0x11dc77e",
+                "transactionHash" : "0xf3ed91a03ddf964281ac7a24351573efd535b80fc460a5c2ad2b9d23153ec678",
+                "transactionIndex" : "0x65",
+                "blockHash" : "0xd5c72ad752b2f0144a878594faf8bd9f570f2f72af8e7f0940d3545a6388f629",
+                "logIndex" : "0xe8",
+                "removed" : false
+            }
+        ]
+    }))
 }
 
 fn get_transaction_count_response() -> JsonRpcResponse {
@@ -2560,6 +2614,10 @@ fn get_transaction_receipt_response() -> JsonRpcResponse {
             "type": "0x2"
         }
     }))
+}
+
+fn send_raw_transaction_response() -> JsonRpcResponse {
+    JsonRpcResponse::from(json!({ "id": 0, "jsonrpc": "2.0", "result": MOCK_TRANSACTION_HASH }))
 }
 
 pub fn multi_logs_for_single_transaction(num_logs: usize) -> serde_json::Value {
