@@ -6,10 +6,9 @@ use crate::{
     types::{MetricRpcHost, MetricRpcMethod, ResolvedRpcService},
     util::canonicalize_json,
 };
-use canhttp::cycles::ChargeCallerError;
 use canhttp::{
     convert::ConvertRequestLayer,
-    cycles::{ChargeCaller, CyclesAccounting},
+    cycles::{ChargeCaller, ChargeCallerError, CyclesAccounting},
     http::{
         json::{
             ConsistentResponseIdFilterError, CreateJsonRpcIdFilter, HttpJsonRpcRequest,
@@ -22,7 +21,7 @@ use canhttp::{
     },
     observability::ObservabilityLayer,
     retry::DoubleMaxResponseBytes,
-    ConvertServiceBuilder, HttpsOutcallError, MaxResponseBytesRequestExtension,
+    ConvertServiceBuilder, HttpsOutcallError, IcError, MaxResponseBytesRequestExtension,
     TransformContextRequestExtension,
 };
 use canlog::log;
@@ -30,7 +29,6 @@ use evm_rpc_types::{
     HttpOutcallError, LegacyRejectionCode, ProviderError, RpcError, RpcResult, ValidationError,
 };
 use http::{header::CONTENT_TYPE, HeaderValue};
-use ic_cdk::call::Error as IcError;
 use ic_management_canister_types::{
     HttpRequestArgs as IcHttpRequest, HttpRequestResult as IcHttpResponse, TransformArgs,
     TransformContext, TransformFunc,
@@ -159,21 +157,14 @@ where
                                     error
                                 );
                                 match error {
-                                    IcError::CallRejected(error) => {
+                                    IcError::CallRejected {code, ..} => {
                                         add_metric_entry!(
                                             err_http_outcall,
-                                            (req_data.method, req_data.host, LegacyRejectionCode::from(error.raw_reject_code())),
+                                            (req_data.method, req_data.host, LegacyRejectionCode::from(*code)),
                                             1
                                         );
                                     }
-                                    IcError::CallPerformFailed(_) => {
-                                        add_metric_entry!(
-                                            err_http_outcall,
-                                            (req_data.method, req_data.host, LegacyRejectionCode::SysTransient),
-                                            1
-                                        );
-                                    }
-                                    IcError::InsufficientLiquidCycleBalance(_) | IcError::CandidDecodeFailed(_) => {}
+                                    IcError::InsufficientLiquidCycleBalance {..} => {}
                                 }
                             }
                         }
@@ -335,22 +326,13 @@ impl From<ConsistentResponseIdFilterError> for HttpClientError {
 impl From<HttpClientError> for RpcError {
     fn from(error: HttpClientError) -> Self {
         match error {
-            HttpClientError::IcError(IcError::CallRejected(e)) => {
+            HttpClientError::IcError(IcError::CallRejected { code, message }) => {
                 RpcError::HttpOutcallError(HttpOutcallError::IcError {
-                    code: LegacyRejectionCode::from(e.raw_reject_code()),
-                    message: e.reject_message().to_string(),
+                    code: LegacyRejectionCode::from(code),
+                    message,
                 })
             }
-            HttpClientError::IcError(IcError::CallPerformFailed(e)) => {
-                RpcError::HttpOutcallError(HttpOutcallError::IcError {
-                    code: LegacyRejectionCode::SysTransient,
-                    message: e.to_string(),
-                })
-            }
-            HttpClientError::IcError(IcError::CandidDecodeFailed(e)) => {
-                panic!("{}", e.to_string())
-            }
-            HttpClientError::IcError(IcError::InsufficientLiquidCycleBalance(e)) => {
+            e @ HttpClientError::IcError { .. } => {
                 panic!("{}", e.to_string())
             }
             HttpClientError::NotHandledError(e) => {

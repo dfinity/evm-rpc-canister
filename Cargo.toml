@@ -75,7 +75,7 @@ alloy-rpc-types = "1.0.23"
 assert_matches = "1.5.0"
 async-trait = "0.1.88"
 candid = { version = "0.10.13" }
-canhttp = { git = "https://github.com/dfinity/canhttp/", features = ["json", "multi"], rev = "0b935a2ba6defb0265bb94bbfb5c5675975531a3" }
+canhttp = { git = "https://github.com/dfinity/canhttp/", features = ["json", "multi"], rev = "724e87719d2f5d43dc463ed8d881c0fc0f3a4541" }
 canlog = { version = "0.2.0", features = ["derive"] }
 candid_parser = { version = "0.1.4" }
 derive_more = { version = "2.0.1", features = ["from", "into"] }
