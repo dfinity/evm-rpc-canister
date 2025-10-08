@@ -95,8 +95,8 @@ impl ResponseTransform {
 }
 
 #[query]
-#[allow(unused_mut)] // Clearing the response header requires `args` to be `mut`
-fn cleanup_response(mut args: TransformArgs) -> HttpRequestResult {
+fn cleanup_response(args: TransformArgs) -> HttpRequestResult {
+    let mut args = args;
     args.response.headers.clear();
     let status_ok = args.response.status >= 200u16 && args.response.status < 300u16;
     if status_ok && !args.context.is_empty() {
