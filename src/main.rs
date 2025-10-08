@@ -1,4 +1,3 @@
-use candid::candid_method;
 use canhttp::{multi::Timestamp, CyclesChargingPolicy, CyclesCostEstimator};
 use canlog::{Log, Sort};
 use evm_rpc::{
