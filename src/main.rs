@@ -1,4 +1,3 @@
-use candid::candid_method;
 use canhttp::{cycles::CyclesChargingPolicy, multi::Timestamp};
 use canlog::{Log, Sort};
 use evm_rpc::{
@@ -38,7 +37,6 @@ pub fn require_api_key_principal_or_controller() -> Result<(), String> {
 }
 
 #[update(name = "eth_getLogs")]
-#[candid_method(rename = "eth_getLogs")]
 pub async fn eth_get_logs(
     source: RpcServices,
     config: Option<evm_rpc_types::GetLogsRpcConfig>,
@@ -53,7 +51,6 @@ pub async fn eth_get_logs(
 }
 
 #[update(name = "eth_getBlockByNumber")]
-#[candid_method(rename = "eth_getBlockByNumber")]
 pub async fn eth_get_block_by_number(
     source: RpcServices,
     config: Option<RpcConfig>,
@@ -66,7 +63,6 @@ pub async fn eth_get_block_by_number(
 }
 
 #[update(name = "eth_getTransactionReceipt")]
-#[candid_method(rename = "eth_getTransactionReceipt")]
 pub async fn eth_get_transaction_receipt(
     source: RpcServices,
     config: Option<RpcConfig>,
@@ -79,7 +75,6 @@ pub async fn eth_get_transaction_receipt(
 }
 
 #[update(name = "eth_getTransactionCount")]
-#[candid_method(rename = "eth_getTransactionCount")]
 pub async fn eth_get_transaction_count(
     source: RpcServices,
     config: Option<RpcConfig>,
@@ -92,7 +87,6 @@ pub async fn eth_get_transaction_count(
 }
 
 #[update(name = "eth_feeHistory")]
-#[candid_method(rename = "eth_feeHistory")]
 pub async fn eth_fee_history(
     source: RpcServices,
     config: Option<RpcConfig>,
@@ -105,7 +99,6 @@ pub async fn eth_fee_history(
 }
 
 #[update(name = "eth_sendRawTransaction")]
-#[candid_method(rename = "eth_sendRawTransaction")]
 pub async fn eth_send_raw_transaction(
     source: RpcServices,
     config: Option<RpcConfig>,
@@ -122,7 +115,6 @@ pub async fn eth_send_raw_transaction(
 }
 
 #[update(name = "eth_call")]
-#[candid_method(rename = "eth_call")]
 pub async fn eth_call(
     source: RpcServices,
     config: Option<RpcConfig>,
@@ -135,7 +127,6 @@ pub async fn eth_call(
 }
 
 #[update(name = "multi_request")]
-#[candid_method(rename = "multi_request")]
 pub async fn multi_request(
     source: RpcServices,
     config: Option<RpcConfig>,
@@ -147,8 +138,7 @@ pub async fn multi_request(
     }
 }
 
-#[update(name = "request")]
-#[candid_method(rename = "request")]
+#[update]
 async fn request(
     service: evm_rpc_types::RpcService,
     json_rpc_payload: String,
@@ -171,7 +161,6 @@ async fn request(
 }
 
 #[query(name = "requestCost")]
-#[candid_method(query, rename = "requestCost")]
 async fn request_cost(
     service: evm_rpc_types::RpcService,
     json_rpc_payload: String,
@@ -209,7 +198,6 @@ async fn request_cost(
 }
 
 #[query(name = "getProviders")]
-#[candid_method(query, rename = "getProviders")]
 fn get_providers() -> Vec<evm_rpc_types::Provider> {
     fn into_provider(provider: Provider) -> evm_rpc_types::Provider {
         evm_rpc_types::Provider {
@@ -244,7 +232,6 @@ fn get_providers() -> Vec<evm_rpc_types::Provider> {
 }
 
 #[query(name = "getServiceProviderMap")]
-#[candid_method(query, rename = "getServiceProviderMap")]
 fn get_service_provider_map() -> Vec<(evm_rpc_types::RpcService, ProviderId)> {
     SERVICE_PROVIDER_MAP.with(|map| {
         map.iter()
@@ -254,7 +241,6 @@ fn get_service_provider_map() -> Vec<(evm_rpc_types::RpcService, ProviderId)> {
 }
 
 #[query(name = "getNodesInSubnet")]
-#[candid_method(query, rename = "getNodesInSubnet")]
 fn get_nodes_in_subnet() -> u32 {
     get_num_subnet_nodes()
 }
@@ -263,7 +249,6 @@ fn get_nodes_in_subnet() -> u32 {
     name = "updateApiKeys",
     guard = "require_api_key_principal_or_controller"
 )]
-#[candid_method(rename = "updateApiKeys")]
 /// Inserts or removes RPC provider API keys.
 ///
 /// For each element of `api_keys`, passing `(id, Some(key))` corresponds to inserting or updating
