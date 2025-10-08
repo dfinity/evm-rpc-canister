@@ -138,7 +138,7 @@ use request::{
     GetTransactionReceiptRequestBuilder, JsonRequest, JsonRequestBuilder, Request, RequestBuilder,
     SendRawTransactionRequest, SendRawTransactionRequestBuilder,
 };
-pub use runtime::{IcRuntime, Runtime};
+pub use runtime::{IcError, IcRuntime, Runtime};
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
 
@@ -782,7 +782,7 @@ impl<R: Runtime, C> EvmRpcClient<R, C> {
     async fn try_execute_request<Config, Params, CandidOutput, Output>(
         &self,
         request: Request<Config, Params, CandidOutput, Output>,
-    ) -> Result<Output, ic_cdk::call::Error>
+    ) -> Result<Output, IcError>
     where
         Config: CandidType + Send,
         Params: CandidType + Send,

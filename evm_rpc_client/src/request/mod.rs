@@ -1,6 +1,7 @@
 #[cfg(feature = "alloy")]
 pub(crate) mod alloy;
 
+use crate::runtime::IcError;
 use crate::{EvmRpcClient, Runtime};
 use candid::CandidType;
 use evm_rpc_types::{
@@ -506,9 +507,8 @@ impl<R: Runtime, Converter, Config, Params, CandidOutput, Output>
     }
 
     /// Constructs the [`Request`] and sends it using the [`EvmRpcClient`]. This method returns
-    /// either the request response or any [`ic_cdk::call::Error`] that occurs while sending the
-    /// request.
-    pub async fn try_send(self) -> Result<Output, ic_cdk::call::Error>
+    /// either the request response or any error that occurs while sending the request.
+    pub async fn try_send(self) -> Result<Output, IcError>
     where
         Config: CandidType + Send,
         Params: CandidType + Send,

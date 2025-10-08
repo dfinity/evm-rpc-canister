@@ -2,10 +2,9 @@
 //!
 //! Types and methods for this module are only available for non-canister architecture (non `wasm32`).
 
-use crate::{ClientBuilder, Runtime};
+use crate::{ClientBuilder, IcError, Runtime};
 use async_trait::async_trait;
 use candid::{utils::ArgumentEncoder, CandidType, Decode, Encode, Principal};
-use ic_cdk::call::Error;
 use serde::de::DeserializeOwned;
 use std::collections::BTreeMap;
 
@@ -82,7 +81,7 @@ impl StubRuntime {
         self
     }
 
-    fn call<Out>(&self, method: &str) -> Result<Out, Error>
+    fn call<Out>(&self, method: &str) -> Result<Out, IcError>
     where
         Out: CandidType + DeserializeOwned,
     {
@@ -109,7 +108,7 @@ impl Runtime for StubRuntime {
         method: &str,
         _args: In,
         _cycles: u128,
-    ) -> Result<Out, Error>
+    ) -> Result<Out, IcError>
     where
         In: ArgumentEncoder + Send,
         Out: CandidType + DeserializeOwned,
@@ -122,7 +121,7 @@ impl Runtime for StubRuntime {
         _id: Principal,
         method: &str,
         _args: In,
-    ) -> Result<Out, Error>
+    ) -> Result<Out, IcError>
     where
         In: ArgumentEncoder + Send,
         Out: CandidType + DeserializeOwned,

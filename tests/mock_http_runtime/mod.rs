@@ -4,8 +4,8 @@ use crate::MAX_TICKS;
 use async_trait::async_trait;
 use candid::{decode_one, utils::ArgumentEncoder, CandidType, Principal};
 use evm_rpc::constants::DEFAULT_MAX_RESPONSE_BYTES;
-use evm_rpc_client::Runtime;
-use ic_cdk::call::{CallFailed, CallRejected, Error};
+use evm_rpc_client::{IcError, Runtime};
+use ic_cdk::call::{CallFailed, CallRejected};
 use ic_error_types::RejectCode;
 use mock::MockHttpOutcalls;
 use pocket_ic::{
@@ -35,7 +35,7 @@ impl Runtime for MockHttpRuntime {
         method: &str,
         args: In,
         _cycles: u128,
-    ) -> Result<Out, ic_cdk::call::Error>
+    ) -> Result<Out, IcError>
     where
         In: ArgumentEncoder + Send,
         Out: CandidType + DeserializeOwned,
@@ -59,7 +59,7 @@ impl Runtime for MockHttpRuntime {
         id: Principal,
         method: &str,
         args: In,
-    ) -> Result<Out, ic_cdk::call::Error>
+    ) -> Result<Out, IcError>
     where
         In: ArgumentEncoder + Send,
         Out: CandidType + DeserializeOwned,
@@ -121,7 +121,7 @@ fn check_response_size(
     response
 }
 
-fn parse_reject_response(response: RejectResponse) -> Error {
+fn parse_reject_response(response: RejectResponse) -> IcError {
     CallFailed::CallRejected(CallRejected::with_rejection(
         response.reject_code as u32,
         response.reject_message,
@@ -133,24 +133,17 @@ pub fn encode_args<In: ArgumentEncoder>(args: In) -> Vec<u8> {
     candid::encode_args(args).expect("Failed to encode arguments.")
 }
 
-pub fn decode_call_response<Out>(bytes: Vec<u8>) -> Result<Out, Error>
+pub fn decode_call_response<Out>(bytes: Vec<u8>) -> Result<Out, IcError>
 where
     Out: CandidType + DeserializeOwned,
 {
-    decode_one(&bytes)
-        .map_err(|e| {
-            // This would normally map to a `ic_cdk::call::CandidDecodeFailed`, but there is no
-            // way to instantiate this error from outside.
-            CallFailed::CallRejected(CallRejected::with_rejection(
-                RejectCode::CanisterError as u32,
-                format!(
-                    "failed to decode canister response as {}: {}",
-                    std::any::type_name::<Out>(),
-                    e
-                ),
-            ))
-        })
-        .map_err(Error::from)
+    decode_one(&bytes).map_err(|e| {
+        panic!(
+            "failed to decode canister response as {}: {}",
+            std::any::type_name::<Out>(),
+            e
+        )
+    })
 }
 
 async fn tick_until_http_requests(env: &PocketIc) -> Vec<CanisterHttpRequest> {
