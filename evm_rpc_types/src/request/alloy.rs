@@ -1,6 +1,6 @@
 use crate::{
-    AccessList, AccessListEntry, BlockTag, CallArgs, GetLogsArgs, Hex, Hex20, Hex32, HexByte,
-    Nat256, RpcError, TransactionRequest, ValidationError,
+    AccessList, AccessListEntry, BlockTag, CallArgs, Hex, Hex20, Hex32, HexByte, Nat256, RpcError,
+    TransactionRequest, ValidationError,
 };
 use alloy_primitives::TxKind;
 
