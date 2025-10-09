@@ -33,17 +33,6 @@ impl TryFrom<BlockTag> for alloy_rpc_types::BlockNumberOrTag {
     }
 }
 
-impl<T: IntoIterator<Item = S>, S: Into<Hex20>> From<T> for GetLogsArgs {
-    fn from(addresses: T) -> Self {
-        Self {
-            from_block: None,
-            to_block: None,
-            addresses: addresses.into_iter().map(Into::into).collect(),
-            topics: None,
-        }
-    }
-}
-
 impl TryFrom<alloy_rpc_types::TransactionRequest> for CallArgs {
     type Error = RpcError;
 
