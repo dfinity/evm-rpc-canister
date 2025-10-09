@@ -80,7 +80,15 @@ pub async fn eth_get_transaction_receipt(
     tx_hash: Hex32,
 ) -> MultiRpcResult<Option<evm_rpc_types::TransactionReceipt>> {
     match CandidRpcClient::new(source, config, now()) {
-        Ok(source) => source.eth_get_transaction_receipt(tx_hash).await,
+        Ok(source) => {
+            let tx_hash_str = tx_hash.to_string();
+            let result = source.eth_get_transaction_receipt(tx_hash).await;
+            log!(
+                INFO,
+                "eth_getTransactionReceipt({tx_hash_str}) result: {result:?})"
+            );
+            result
+        }
         Err(err) => Err(err).into(),
     }
 }
