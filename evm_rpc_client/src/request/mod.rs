@@ -4,8 +4,8 @@ pub(crate) mod alloy;
 use crate::{EvmRpcClient, Runtime};
 use candid::CandidType;
 use evm_rpc_types::{
-    BlockTag, CallArgs, FeeHistoryArgs, GetLogsArgs, GetLogsRpcConfig, GetTransactionCountArgs,
-    Hex, Hex20, Hex32, MultiRpcResult, Nat256, RpcConfig, RpcServices,
+    BlockTag, CallArgs, ConsensusStrategy, FeeHistoryArgs, GetLogsArgs, GetLogsRpcConfig,
+    GetTransactionCountArgs, Hex, Hex20, Hex32, MultiRpcResult, Nat256, RpcConfig, RpcServices,
 };
 use ic_error_types::RejectCode;
 use serde::de::DeserializeOwned;
@@ -527,6 +527,73 @@ impl<Runtime, Converter, Params, CandidOutput, Output>
     pub fn with_max_block_range(mut self, max_block_range: u32) -> Self {
         let config = self.request.rpc_config_mut().get_or_insert_default();
         config.max_block_range = Some(max_block_range);
+        self
+    }
+}
+
+/// Common behavior for the RPC config for EVM RPC canister endpoints.
+pub trait EvmRpcConfig {
+    /// Return a new RPC config with the given response size estimate.
+    fn with_response_size_estimate(self, response_size_estimate: u64) -> Self;
+
+    /// Return a new RPC config with the given response consensys.
+    fn with_response_consensus(self, response_consensus: ConsensusStrategy) -> Self;
+}
+
+impl EvmRpcConfig for RpcConfig {
+    fn with_response_size_estimate(self, response_size_estimate: u64) -> Self {
+        Self {
+            response_size_estimate: Some(response_size_estimate),
+            ..self
+        }
+    }
+
+    fn with_response_consensus(self, response_consensus: ConsensusStrategy) -> Self {
+        Self {
+            response_consensus: Some(response_consensus),
+            ..self
+        }
+    }
+}
+
+impl EvmRpcConfig for GetLogsRpcConfig {
+    fn with_response_size_estimate(self, response_size_estimate: u64) -> Self {
+        Self {
+            response_size_estimate: Some(response_size_estimate),
+            ..self
+        }
+    }
+
+    fn with_response_consensus(self, response_consensus: ConsensusStrategy) -> Self {
+        Self {
+            response_consensus: Some(response_consensus),
+            ..self
+        }
+    }
+}
+
+impl<Runtime, Converter, Config: EvmRpcConfig + Default, Params, CandidOutput, Output>
+    RequestBuilder<Runtime, Converter, Config, Params, CandidOutput, Output>
+{
+    /// Change the response size estimate to use for that request.
+    pub fn with_response_size_estimate(mut self, response_size_estimate: u64) -> Self {
+        self.request.rpc_config = Some(
+            self.request
+                .rpc_config
+                .unwrap_or_default()
+                .with_response_size_estimate(response_size_estimate),
+        );
+        self
+    }
+
+    /// Change the consensus strategy to use for that request.
+    pub fn with_response_consensus(mut self, response_consensus: ConsensusStrategy) -> Self {
+        self.request.rpc_config = Some(
+            self.request
+                .rpc_config
+                .unwrap_or_default()
+                .with_response_consensus(response_consensus),
+        );
         self
     }
 }

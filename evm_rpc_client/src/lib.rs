@@ -130,7 +130,6 @@ use evm_rpc_types::{
 use ic_error_types::RejectCode;
 #[cfg(feature = "alloy")]
 pub use request::alloy::AlloyResponseConverter;
-pub use request::CandidResponseConverter;
 use request::{
     CallRequest, CallRequestBuilder, EvmRpcResponseConverter, FeeHistoryRequest,
     FeeHistoryRequestBuilder, GetBlockByNumberRequest, GetBlockByNumberRequestBuilder,
@@ -139,6 +138,7 @@ use request::{
     GetTransactionReceiptRequestBuilder, JsonRequest, JsonRequestBuilder, Request, RequestBuilder,
     SendRawTransactionRequest, SendRawTransactionRequestBuilder,
 };
+pub use request::{CandidResponseConverter, EvmRpcConfig};
 pub use runtime::{IcRuntime, Runtime};
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
