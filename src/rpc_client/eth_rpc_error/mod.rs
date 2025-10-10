@@ -1,8 +1,9 @@
-use crate::logs::DEBUG;
-use crate::rpc_client::json::responses::SendRawTransactionResult;
-use crate::rpc_client::json::Hash;
+use crate::{
+    logs::Priority,
+    rpc_client::json::{responses::SendRawTransactionResult, Hash},
+};
 use canhttp::http::json::{JsonRpcError, JsonRpcResponse};
-use ic_canister_log::log;
+use canlog::log;
 
 #[cfg(test)]
 mod tests;
@@ -184,7 +185,7 @@ pub fn sanitize_send_raw_transaction_result<T: ErrorParser>(body_bytes: &mut Vec
     let response: JsonRpcResponse<Hash> = match serde_json::from_slice(body_bytes) {
         Ok(response) => response,
         Err(e) => {
-            log!(DEBUG, "Error deserializing: {:?}", e);
+            log!(Priority::Debug, "Error deserializing: {:?}", e);
             return;
         }
     };
