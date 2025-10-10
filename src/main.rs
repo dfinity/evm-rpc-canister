@@ -1,12 +1,12 @@
 use canhttp::{multi::Timestamp, CyclesChargingPolicy, CyclesCostEstimator};
-use canlog::{Log, Sort};
+use canlog::{log, Log, Sort};
 use evm_rpc::{
     candid_rpc::CandidRpcClient,
     http::{
         json_rpc_request, json_rpc_request_arg, service_request_builder, transform_http_request,
         ChargingPolicyWithCollateral,
     },
-    logs::{Priority, INFO},
+    logs::Priority,
     memory::{
         get_num_subnet_nodes, insert_api_key, is_api_key_principal, is_demo_active, remove_api_key,
         set_api_key_principals, set_demo_active, set_log_filter, set_num_subnet_nodes,
@@ -17,7 +17,6 @@ use evm_rpc::{
     types::{OverrideProvider, Provider, ProviderId, RpcAccess, RpcAuth},
 };
 use evm_rpc_types::{Hex32, HttpOutcallError, MultiRpcResult, RpcConfig, RpcResult, RpcServices};
-use ic_canister_log::log;
 use ic_cdk::{
     api::{
         is_controller,
@@ -263,7 +262,7 @@ fn get_nodes_in_subnet() -> u32 {
 /// Panics if the list of provider IDs includes a nonexistent or "unauthenticated" (fully public) provider.
 async fn update_api_keys(api_keys: Vec<(ProviderId, Option<String>)>) {
     log!(
-        INFO,
+        Priority::Info,
         "[{}] Updating API keys for providers: {}",
         ic_cdk::caller(),
         api_keys
