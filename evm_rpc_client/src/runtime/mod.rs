@@ -1,9 +1,9 @@
 use async_trait::async_trait;
-use candid::utils::ArgumentEncoder;
-use candid::{CandidType, Principal};
-use ic_cdk::api::call::RejectionCode as IcCdkRejectionCode;
+use candid::{utils::ArgumentEncoder, CandidType, Principal};
+use ic_cdk::call::{Call, CallFailed};
 use ic_error_types::RejectCode;
 use serde::de::DeserializeOwned;
+use thiserror::Error;
 
 /// Abstract the canister runtime so that the client code can be reused:
 /// * in production using `ic_cdk`,
@@ -18,7 +18,7 @@ pub trait Runtime {
         method: &str,
         args: In,
         cycles: u128,
-    ) -> Result<Out, (RejectCode, String)>
+    ) -> Result<Out, IcError>
     where
         In: ArgumentEncoder + Send,
         Out: CandidType + DeserializeOwned;
@@ -29,7 +29,7 @@ pub trait Runtime {
         id: Principal,
         method: &str,
         args: In,
-    ) -> Result<Out, (RejectCode, String)>
+    ) -> Result<Out, IcError>
     where
         In: ArgumentEncoder + Send,
         Out: CandidType + DeserializeOwned;
@@ -47,15 +47,21 @@ impl Runtime for IcRuntime {
         method: &str,
         args: In,
         cycles: u128,
-    ) -> Result<Out, (RejectCode, String)>
+    ) -> Result<Out, IcError>
     where
         In: ArgumentEncoder + Send,
         Out: CandidType + DeserializeOwned,
     {
-        ic_cdk::api::call::call_with_payment128(id, method, args, cycles)
+        Call::unbounded_wait(id, method)
+            .with_args(&args)
+            .with_cycles(cycles)
             .await
-            .map(|(res,)| res)
-            .map_err(|(code, message)| (convert_reject_code(code), message))
+            .map_err(IcError::from)
+            .map(|response| {
+                response
+                    .candid::<Out>()
+                    .unwrap_or_else(|e| panic!("Failed to decode result: {e}"))
+            })
     }
 
     async fn query_call<In, Out>(
@@ -63,34 +69,77 @@ impl Runtime for IcRuntime {
         id: Principal,
         method: &str,
         args: In,
-    ) -> Result<Out, (RejectCode, String)>
+    ) -> Result<Out, IcError>
     where
         In: ArgumentEncoder + Send,
         Out: CandidType + DeserializeOwned,
     {
-        ic_cdk::api::call::call(id, method, args)
+        Call::unbounded_wait(id, method)
+            .with_args(&args)
             .await
-            .map(|(res,)| res)
-            .map_err(|(code, message)| (convert_reject_code(code), message))
+            .map_err(IcError::from)
+            .map(|response| {
+                response
+                    .candid::<Out>()
+                    .unwrap_or_else(|e| panic!("Failed to decode result: {e}"))
+            })
     }
 }
 
-fn convert_reject_code(code: IcCdkRejectionCode) -> RejectCode {
-    match code {
-        IcCdkRejectionCode::SysFatal => RejectCode::SysFatal,
-        IcCdkRejectionCode::SysTransient => RejectCode::SysTransient,
-        IcCdkRejectionCode::DestinationInvalid => RejectCode::DestinationInvalid,
-        IcCdkRejectionCode::CanisterReject => RejectCode::CanisterReject,
-        IcCdkRejectionCode::CanisterError => RejectCode::CanisterError,
-        IcCdkRejectionCode::Unknown => {
-            // This can only happen if there is a new error code on ICP that the CDK is not aware of.
-            // We map it to SysFatal since none of the other error codes apply.
-            // In particular, note that RejectCode::SysUnknown is only applicable to inter-canister
-            // calls that used ic0.call_with_best_effort_response.
-            RejectCode::SysFatal
-        }
-        IcCdkRejectionCode::NoError => {
-            unreachable!("inter-canister calls should never produce a RejectionCode::NoError error")
+/// Error returned by the Internet Computer when making an inter-canister call.
+#[derive(Error, Clone, Debug, PartialEq, Eq)]
+pub enum IcError {
+    /// The inter-canister call is rejected.
+    ///
+    /// Note that [`ic_cdk::call::Error::CallPerformFailed`] errors are also mapped to this variant
+    /// with an [`ic_error_types::RejectCode::SysFatal`] error code.
+    #[error("Error from ICP: (code {code:?}, message {message})")]
+    CallRejected {
+        /// Rejection code as specified [here](https://internetcomputer.org/docs/current/references/ic-interface-spec#reject-codes)
+        code: RejectCode,
+        /// Associated helper message.
+        message: String,
+    },
+    /// The liquid cycle balance is insufficient to perform the call.
+    #[error("Insufficient liquid cycles balance, available: {available}, required: {required}")]
+    InsufficientLiquidCycleBalance {
+        /// The liquid cycle balance available in the canister.
+        available: u128,
+        /// The required cycles to perform the call.
+        required: u128,
+    },
+}
+
+impl From<CallFailed> for IcError {
+    fn from(err: CallFailed) -> Self {
+        match err {
+            CallFailed::CallRejected(e) => {
+                IcError::CallRejected {
+                    // `CallRejected::reject_code()` can only return an error result if there is a
+                    // new error code on ICP that the CDK is not aware of. We map it to `SysFatal`
+                    // since none of the other error codes apply.
+                    // In particular, note that `RejectCode::SysUnknown` is only applicable to
+                    // inter-canister calls that used `ic0.call_with_best_effort_response`.
+                    code: e.reject_code().unwrap_or(RejectCode::SysFatal),
+                    message: e.reject_message().to_string(),
+                }
+            }
+            CallFailed::CallPerformFailed(e) => {
+                IcError::CallRejected {
+                    // This error indicates that the `ic0.call_perform` system API returned a non-zero code.
+                    // The only possible non-zero value (2) has the same semantics as `RejectCode::SysFatal`.
+                    // See the IC specifications here:
+                    // https://internetcomputer.org/docs/references/ic-interface-spec#system-api-call
+                    code: RejectCode::SysFatal,
+                    message: e.to_string(),
+                }
+            }
+            CallFailed::InsufficientLiquidCycleBalance(e) => {
+                IcError::InsufficientLiquidCycleBalance {
+                    available: e.available,
+                    required: e.required,
+                }
+            }
         }
     }
 }
