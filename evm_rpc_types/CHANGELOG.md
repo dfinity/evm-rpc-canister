@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file.
 
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [3.0.0] - 2025-10-20
+
+### Added
+
+- Add `alloy` feature flag to `evm_rpc_client` ([#484](https://github.com/dfinity/evm-rpc-canister/pull/484))
+- Add client support for `eth_getTransactionReceipt` ([#476](https://github.com/dfinity/evm-rpc-canister/pull/476))
+- Add `eth_sendRawTransaction` client support ([#467](https://github.com/dfinity/evm-rpc-canister/pull/467))
+- Add support for `eth_getTransactionReceipt` response fields ([#474](https://github.com/dfinity/evm-rpc-canister/pull/474))
+- Add client support for `eth_call` ([#466](https://github.com/dfinity/evm-rpc-canister/pull/466))
+- Add client support for `eth_getTransactionCount` ([#465](https://github.com/dfinity/evm-rpc-canister/pull/465))
+
+### Changed
+
+- Merge branch 'main' into lpahlavi/XC-502-update-ic-cdk
+
+### Fixed
+
+- Move non-alloy conversion from behind alloy feature ([#493](https://github.com/dfinity/evm-rpc-canister/pull/493))
+
+[3.0.0]: https://github.com/dfinity/sol-rpc-canister/compare/2.1.0..3.0.0
+
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
