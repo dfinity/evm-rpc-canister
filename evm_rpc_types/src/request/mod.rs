@@ -74,6 +74,17 @@ pub struct GetLogsArgs {
     pub topics: Option<Vec<Vec<Hex32>>>,
 }
 
+impl<T: IntoIterator<Item = S>, S: Into<Hex20>> From<T> for GetLogsArgs {
+    fn from(addresses: T) -> Self {
+        Self {
+            from_block: None,
+            to_block: None,
+            addresses: addresses.into_iter().map(Into::into).collect(),
+            topics: None,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, CandidType, Deserialize)]
 pub struct GetTransactionCountArgs {
     pub address: Hex20,

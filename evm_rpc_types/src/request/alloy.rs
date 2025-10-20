@@ -1,6 +1,6 @@
 use crate::{
-    AccessList, AccessListEntry, BlockTag, CallArgs, GetLogsArgs, Hex, Hex20, Hex32, HexByte,
-    Nat256, RpcError, TransactionRequest, ValidationError,
+    AccessList, AccessListEntry, BlockTag, CallArgs, Hex, Hex20, Hex32, HexByte, Nat256, RpcError,
+    TransactionRequest, ValidationError,
 };
 use alloy_primitives::TxKind;
 
@@ -30,17 +30,6 @@ impl TryFrom<BlockTag> for alloy_rpc_types::BlockNumberOrTag {
             BlockTag::Pending => Self::Pending,
             BlockTag::Number(n) => Self::Number(u64::try_from(n)?),
         })
-    }
-}
-
-impl<T: IntoIterator<Item = S>, S: Into<Hex20>> From<T> for GetLogsArgs {
-    fn from(addresses: T) -> Self {
-        Self {
-            from_block: None,
-            to_block: None,
-            addresses: addresses.into_iter().map(Into::into).collect(),
-            topics: None,
-        }
     }
 }
 

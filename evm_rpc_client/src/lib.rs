@@ -129,7 +129,6 @@ use evm_rpc_types::{
 };
 #[cfg(feature = "alloy")]
 pub use request::alloy::AlloyResponseConverter;
-pub use request::CandidResponseConverter;
 use request::{
     CallRequest, CallRequestBuilder, EvmRpcResponseConverter, FeeHistoryRequest,
     FeeHistoryRequestBuilder, GetBlockByNumberRequest, GetBlockByNumberRequestBuilder,
@@ -138,6 +137,7 @@ use request::{
     GetTransactionReceiptRequestBuilder, JsonRequest, JsonRequestBuilder, Request, RequestBuilder,
     SendRawTransactionRequest, SendRawTransactionRequestBuilder,
 };
+pub use request::{CandidResponseConverter, EvmRpcConfig};
 pub use runtime::{IcError, IcRuntime, Runtime};
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
