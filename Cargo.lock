@@ -855,9 +855,9 @@ dependencies = [
 
 [[package]]
 name = "canhttp"
-version = "0.2.1"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b30b89e93857ec22d9b5f11b1647cdf9bb28c328e1d5ae871ecba2d94e38f8fb"
+checksum = "33a904573d46c342d81fc9d07e9f5dad0af53ece2831cb9651bd5fe8dee673ea"
 dependencies = [
  "assert_matches",
  "ciborium",
@@ -866,6 +866,7 @@ dependencies = [
  "http",
  "ic-cdk",
  "ic-error-types",
+ "ic-management-canister-types",
  "num-traits",
  "pin-project",
  "serde",
@@ -885,7 +886,7 @@ dependencies = [
  "candid",
  "canlog_derive",
  "ic-canister-log",
- "ic0 1.0.1",
+ "ic0",
  "regex",
  "serde",
  "serde_json",
@@ -1358,7 +1359,7 @@ dependencies = [
  "evm_rpc_types",
  "ic-cdk",
  "ic-cdk-bindgen",
- "ic-cdk-macros",
+ "ic-cdk-macros 0.17.2",
  "ic-certified-map",
  "serde",
  "serde_bytes",
@@ -1559,7 +1560,6 @@ dependencies = [
  "hex",
  "http",
  "ic-cdk",
- "ic-cdk-macros",
  "ic-crypto-test-utils-reproducible-rng",
  "ic-error-types",
  "ic-ethereum-types",
@@ -1603,6 +1603,7 @@ dependencies = [
  "serde",
  "serde_json",
  "strum 0.27.2",
+ "thiserror 2.0.16",
  "tokio",
 ]
 
@@ -2078,16 +2079,20 @@ dependencies = [
 
 [[package]]
 name = "ic-cdk"
-version = "0.17.2"
+version = "0.18.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95a7344f41493cbf591f13ae9f90181076f808a83af799815c3074b19c693d2e"
+checksum = "4efb278f5d3ef033b3eed7f01f1096eaf67701896aa5ef69f5eddf5a84833dc0"
 dependencies = [
  "candid",
  "ic-cdk-executor",
- "ic-cdk-macros",
- "ic0 0.23.0",
+ "ic-cdk-macros 0.18.7",
+ "ic-error-types",
+ "ic-management-canister-types",
+ "ic0",
  "serde",
  "serde_bytes",
+ "slotmap",
+ "thiserror 2.0.16",
 ]
 
 [[package]]
@@ -2101,9 +2106,13 @@ dependencies = [
 
 [[package]]
 name = "ic-cdk-executor"
-version = "0.1.0"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "903057edd3d4ff4b3fe44a64eaee1ceb73f579ba29e3ded372b63d291d7c16c2"
+checksum = "99f4ee8930fd2e491177e2eb7fff53ee1c407c13b9582bdc7d6920cf83109a2d"
+dependencies = [
+ "ic0",
+ "slotmap",
+]
 
 [[package]]
 name = "ic-cdk-macros"
@@ -2116,6 +2125,19 @@ dependencies = [
  "quote",
  "serde",
  "serde_tokenstream",
+ "syn 2.0.106",
+]
+
+[[package]]
+name = "ic-cdk-macros"
+version = "0.18.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7eb14c5d691cc9d72bb95459b4761e3a4b3444b85a63d17555d5ddd782969a1e"
+dependencies = [
+ "candid",
+ "darling 0.20.11",
+ "proc-macro2",
+ "quote",
  "syn 2.0.106",
 ]
 
@@ -2264,12 +2286,6 @@ dependencies = [
  "sha2",
  "thiserror 2.0.16",
 ]
-
-[[package]]
-name = "ic0"
-version = "0.23.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8de254dd67bbd58073e23dc1c8553ba12fa1dc610a19de94ad2bbcd0460c067f"
 
 [[package]]
 name = "ic0"
@@ -4170,6 +4186,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8347046d4ebd943127157b94d63abb990fcf729dc4e9978927fdf4ac3c998d06"
 dependencies = [
  "erased-serde",
+]
+
+[[package]]
+name = "slotmap"
+version = "1.0.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dbff4acf519f630b3a3ddcfaea6c06b42174d9a44bc70c620e9ed1649d58b82a"
+dependencies = [
+ "version_check",
 ]
 
 [[package]]

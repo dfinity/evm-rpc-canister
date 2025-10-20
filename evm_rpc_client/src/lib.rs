@@ -127,7 +127,6 @@ use evm_rpc_types::{
     BlockTag, CallArgs, ConsensusStrategy, FeeHistoryArgs, GetLogsArgs, GetTransactionCountArgs,
     Hex, Hex32, RpcConfig, RpcServices,
 };
-use ic_error_types::RejectCode;
 #[cfg(feature = "alloy")]
 pub use request::alloy::AlloyResponseConverter;
 use request::{
@@ -139,7 +138,7 @@ use request::{
     SendRawTransactionRequest, SendRawTransactionRequestBuilder,
 };
 pub use request::{CandidResponseConverter, EvmRpcConfig};
-pub use runtime::{IcRuntime, Runtime};
+pub use runtime::{IcError, IcRuntime, Runtime};
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
 
@@ -783,7 +782,7 @@ impl<R: Runtime, C> EvmRpcClient<R, C> {
     async fn try_execute_request<Config, Params, CandidOutput, Output>(
         &self,
         request: Request<Config, Params, CandidOutput, Output>,
-    ) -> Result<Output, (RejectCode, String)>
+    ) -> Result<Output, IcError>
     where
         Config: CandidType + Send,
         Params: CandidType + Send,

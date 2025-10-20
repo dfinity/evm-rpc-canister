@@ -2,9 +2,10 @@ pub mod mock;
 
 use crate::MAX_TICKS;
 use async_trait::async_trait;
-use candid::{decode_args, utils::ArgumentEncoder, CandidType, Principal};
+use candid::{decode_one, utils::ArgumentEncoder, CandidType, Principal};
 use evm_rpc::constants::DEFAULT_MAX_RESPONSE_BYTES;
-use evm_rpc_client::Runtime;
+use evm_rpc_client::{IcError, Runtime};
+use ic_cdk::call::{CallFailed, CallRejected};
 use ic_error_types::RejectCode;
 use mock::MockHttpOutcalls;
 use pocket_ic::{
@@ -34,7 +35,7 @@ impl Runtime for MockHttpRuntime {
         method: &str,
         args: In,
         _cycles: u128,
-    ) -> Result<Out, (RejectCode, String)>
+    ) -> Result<Out, IcError>
     where
         In: ArgumentEncoder + Send,
         Out: CandidType + DeserializeOwned,
@@ -58,7 +59,7 @@ impl Runtime for MockHttpRuntime {
         id: Principal,
         method: &str,
         args: In,
-    ) -> Result<Out, (RejectCode, String)>
+    ) -> Result<Out, IcError>
     where
         In: ArgumentEncoder + Send,
         Out: CandidType + DeserializeOwned,
@@ -120,35 +121,27 @@ fn check_response_size(
     response
 }
 
-fn parse_reject_response(response: RejectResponse) -> (RejectCode, String) {
-    use pocket_ic::RejectCode as PocketIcRejectCode;
-    let rejection_code = match response.reject_code {
-        PocketIcRejectCode::SysFatal => RejectCode::SysFatal,
-        PocketIcRejectCode::SysTransient => RejectCode::SysTransient,
-        PocketIcRejectCode::DestinationInvalid => RejectCode::DestinationInvalid,
-        PocketIcRejectCode::CanisterReject => RejectCode::CanisterReject,
-        PocketIcRejectCode::CanisterError => RejectCode::CanisterError,
-        PocketIcRejectCode::SysUnknown => RejectCode::SysUnknown,
-    };
-    (rejection_code, response.reject_message)
+fn parse_reject_response(response: RejectResponse) -> IcError {
+    CallFailed::CallRejected(CallRejected::with_rejection(
+        response.reject_code as u32,
+        response.reject_message,
+    ))
+    .into()
 }
 
 pub fn encode_args<In: ArgumentEncoder>(args: In) -> Vec<u8> {
     candid::encode_args(args).expect("Failed to encode arguments.")
 }
 
-pub fn decode_call_response<Out>(bytes: Vec<u8>) -> Result<Out, (RejectCode, String)>
+pub fn decode_call_response<Out>(bytes: Vec<u8>) -> Result<Out, IcError>
 where
     Out: CandidType + DeserializeOwned,
 {
-    decode_args(&bytes).map(|(res,)| res).map_err(|e| {
-        (
-            RejectCode::CanisterError,
-            format!(
-                "failed to decode canister response as {}: {}",
-                std::any::type_name::<Out>(),
-                e
-            ),
+    decode_one(&bytes).map_err(|e| {
+        panic!(
+            "failed to decode canister response as {}: {}",
+            std::any::type_name::<Out>(),
+            e
         )
     })
 }

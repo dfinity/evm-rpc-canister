@@ -60,7 +60,7 @@ pub fn encode_metrics(w: &mut ic_metrics_encoder::MetricsEncoder<Vec<u8>>) -> st
         w.gauge_vec("cycle_balance", "Cycle balance of this canister")?
             .value(
                 &[("canister", "evmrpc")],
-                ic_cdk::api::canister_balance128().metric_value(),
+                ic_cdk::api::canister_cycle_balance().metric_value(),
             )?;
         w.encode_gauge(
             "evmrpc_canister_version",
@@ -69,7 +69,7 @@ pub fn encode_metrics(w: &mut ic_metrics_encoder::MetricsEncoder<Vec<u8>>) -> st
         )?;
         w.encode_gauge(
             "stable_memory_bytes",
-            ic_cdk::api::stable::stable_size() as f64 * WASM_PAGE_SIZE_IN_BYTES,
+            ic_cdk::stable::stable_size() as f64 * WASM_PAGE_SIZE_IN_BYTES,
             "Size of the stable memory allocated by this canister.",
         )?;
 
