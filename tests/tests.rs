@@ -1270,15 +1270,15 @@ async fn candid_rpc_should_return_3_out_of_4_transaction_count() {
         setup
             .client(mocks)
             .with_rpc_sources(RpcServices::EthMainnet(None))
-            .with_consensus_strategy(ConsensusStrategy::Threshold {
-                total: Some(4),
-                min: 3,
-            })
             .build()
             .get_transaction_count((
                 address!("0xdac17f958d2ee523a2206206994597c13d831ec7"),
                 BlockNumberOrTag::Latest,
             ))
+            .with_response_consensus(ConsensusStrategy::Threshold {
+                total: Some(4),
+                min: 3,
+            })
             .send()
             .await
     }
@@ -1432,15 +1432,15 @@ async fn candid_rpc_should_return_inconsistent_results_with_consensus_error() {
     let result = setup
         .client(mocks)
         .with_rpc_sources(RpcServices::EthMainnet(None))
-        .with_consensus_strategy(ConsensusStrategy::Threshold {
-            total: Some(3),
-            min: 2,
-        })
         .build()
         .get_transaction_count((
             address!("0xdac17f958d2ee523a2206206994597c13d831ec7"),
             BlockNumberOrTag::Latest,
         ))
+        .with_response_consensus(ConsensusStrategy::Threshold {
+            total: Some(3),
+            min: 2,
+        })
         .send()
         .await
         .expect_inconsistent();
@@ -1683,31 +1683,40 @@ async fn candid_rpc_should_recognize_rate_limit() {
 #[tokio::test]
 async fn should_use_custom_response_size_estimate() {
     let setup = EvmRpcSetup::new().await.mock_api_keys().await;
-    let max_response_bytes = 1234;
-    let expected_response = r#"{"id":0,"jsonrpc":"2.0","result":[{"address":"0xdac17f958d2ee523a2206206994597c13d831ec7","topics":["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef","0x000000000000000000000000a9d1e08c7793af67e9d92fe308d5697fb81d3e43","0x00000000000000000000000078cccfb3d517cd4ed6d045e263e134712288ace2"],"data":"0x000000000000000000000000000000000000000000000000000000003b9c6433","blockNumber":"0x11dc77e","transactionHash":"0xf3ed91a03ddf964281ac7a24351573efd535b80fc460a5c2ad2b9d23153ec678","transactionIndex":"0x65","blockHash":"0xd5c72ad752b2f0144a878594faf8bd9f570f2f72af8e7f0940d3545a6388f629","logIndex":"0xe8","removed":false}]}"#;
+    let [max_response_bytes_1, max_response_bytes_2] = [1234_u64, 5678];
 
     let mocks = MockHttpOutcallsBuilder::new()
         .given(
-            JsonRpcRequestMatcher::with_method("eth_getLogs")
-                .with_id(0_u64)
-                .with_params(json!([{
-                    "address" : ["0xdac17f958d2ee523a2206206994597c13d831ec7"],
-                    "fromBlock": "latest",
-                    "toBlock": "latest",
-                }]))
-                .with_max_response_bytes(max_response_bytes),
+            get_logs_request(BlockNumberOrTag::Latest, BlockNumberOrTag::Latest)
+                .with_max_response_bytes(max_response_bytes_1)
+                .with_id(0_u64),
         )
-        .respond_with(JsonRpcResponse::from(expected_response));
+        .respond_with(get_logs_response().with_id(0_u64))
+        .given(
+            get_logs_request(BlockNumberOrTag::Latest, BlockNumberOrTag::Latest)
+                .with_max_response_bytes(max_response_bytes_2)
+                .with_id(1_u64),
+        )
+        .respond_with(get_logs_response().with_id(1_u64));
 
     let client = setup
         .client(mocks)
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
             EthMainnetService::Cloudflare,
         ])))
-        .with_response_size_estimate(max_response_bytes)
+        .with_response_size_estimate(max_response_bytes_1)
         .build();
+
     let response = client
         .get_logs(vec![address!("0xdAC17F958D2ee523a2206206994597C13D831ec7")])
+        .send()
+        .await
+        .expect_consistent();
+    assert_matches!(response, Ok(_));
+
+    let response = client
+        .get_logs(vec![address!("0xdAC17F958D2ee523a2206206994597C13D831ec7")])
+        .with_response_size_estimate(max_response_bytes_2)
         .send()
         .await
         .expect_consistent();
