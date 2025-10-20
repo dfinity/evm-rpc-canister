@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use candid::{utils::ArgumentEncoder, CandidType, Principal};
-use ic_cdk::call::{Call, CallFailed};
+use ic_cdk::call::{Call, CallFailed, CandidDecodeFailed};
 use ic_error_types::RejectCode;
 use serde::de::DeserializeOwned;
 use thiserror::Error;
@@ -57,11 +57,7 @@ impl Runtime for IcRuntime {
             .with_cycles(cycles)
             .await
             .map_err(IcError::from)
-            .map(|response| {
-                response
-                    .candid::<Out>()
-                    .unwrap_or_else(|e| panic!("Failed to decode result: {e}"))
-            })
+            .and_then(|response| response.candid::<Out>().map_err(IcError::from))
     }
 
     async fn query_call<In, Out>(
@@ -78,28 +74,13 @@ impl Runtime for IcRuntime {
             .with_args(&args)
             .await
             .map_err(IcError::from)
-            .map(|response| {
-                response
-                    .candid::<Out>()
-                    .unwrap_or_else(|e| panic!("Failed to decode result: {e}"))
-            })
+            .and_then(|response| response.candid::<Out>().map_err(IcError::from))
     }
 }
 
 /// Error returned by the Internet Computer when making an inter-canister call.
 #[derive(Error, Clone, Debug, PartialEq, Eq)]
 pub enum IcError {
-    /// The inter-canister call is rejected.
-    ///
-    /// Note that [`ic_cdk::call::Error::CallPerformFailed`] errors are also mapped to this variant
-    /// with an [`ic_error_types::RejectCode::SysFatal`] error code.
-    #[error("Error from ICP: (code {code:?}, message {message})")]
-    CallRejected {
-        /// Rejection code as specified [here](https://internetcomputer.org/docs/current/references/ic-interface-spec#reject-codes)
-        code: RejectCode,
-        /// Associated helper message.
-        message: String,
-    },
     /// The liquid cycle balance is insufficient to perform the call.
     #[error("Insufficient liquid cycles balance, available: {available}, required: {required}")]
     InsufficientLiquidCycleBalance {
@@ -108,11 +89,32 @@ pub enum IcError {
         /// The required cycles to perform the call.
         required: u128,
     },
+
+    /// The `ic0.call_perform` operation failed when performing the inter-canister call.
+    #[error("Inter-canister call perform failed")]
+    CallPerformFailed,
+
+    /// The inter-canister call is rejected.
+    #[error("Inter-canister call rejected: {code:?} - {message})")]
+    CallRejected {
+        /// Rejection code as specified [here](https://internetcomputer.org/docs/current/references/ic-interface-spec#reject-codes)
+        code: RejectCode,
+        /// Associated helper message.
+        message: String,
+    },
+
+    /// The response from the inter-canister call could not be decoded as Candid.
+    #[error("The inter-canister call response could not be decoded: {message}")]
+    CandidDecodeFailed {
+        /// The specific Candid error that occurred.
+        message: String,
+    },
 }
 
 impl From<CallFailed> for IcError {
     fn from(err: CallFailed) -> Self {
         match err {
+            CallFailed::CallPerformFailed(_) => IcError::CallPerformFailed,
             CallFailed::CallRejected(e) => {
                 IcError::CallRejected {
                     // `CallRejected::reject_code()` can only return an error result if there is a
@@ -124,22 +126,20 @@ impl From<CallFailed> for IcError {
                     message: e.reject_message().to_string(),
                 }
             }
-            CallFailed::CallPerformFailed(e) => {
-                IcError::CallRejected {
-                    // This error indicates that the `ic0.call_perform` system API returned a non-zero code.
-                    // The only possible non-zero value (2) has the same semantics as `RejectCode::SysFatal`.
-                    // See the IC specifications here:
-                    // https://internetcomputer.org/docs/references/ic-interface-spec#system-api-call
-                    code: RejectCode::SysFatal,
-                    message: e.to_string(),
-                }
-            }
             CallFailed::InsufficientLiquidCycleBalance(e) => {
                 IcError::InsufficientLiquidCycleBalance {
                     available: e.available,
                     required: e.required,
                 }
             }
+        }
+    }
+}
+
+impl From<CandidDecodeFailed> for IcError {
+    fn from(err: CandidDecodeFailed) -> Self {
+        IcError::CandidDecodeFailed {
+            message: err.to_string(),
         }
     }
 }

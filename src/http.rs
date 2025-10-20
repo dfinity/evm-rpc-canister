@@ -332,7 +332,7 @@ impl From<HttpClientError> for RpcError {
                     message,
                 })
             }
-            e @ HttpClientError::IcError { .. } => {
+            e @ HttpClientError::IcError(IcError::InsufficientLiquidCycleBalance { .. }) => {
                 panic!("{}", e.to_string())
             }
             HttpClientError::NotHandledError(e) => {
