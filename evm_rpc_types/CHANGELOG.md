@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add conversions between several types in this crate and the corresponding `alloy` types ([#465](https://github.com/dfinity/evm-rpc-canister/pull/465), [#466](https://github.com/dfinity/evm-rpc-canister/pull/466), [#467](https://github.com/dfinity/evm-rpc-canister/pull/467), [#476](https://github.com/dfinity/evm-rpc-canister/pull/476))
-- **Breaking:** Add `root` and `cumulativeGasUsed` fields to `TransactionsReceipt` type ([#474](https://github.com/dfinity/evm-rpc-canister/pull/474))
+- Add conversions between several types in this crate and the corresponding `alloy` types. These conversions are only available with the `alloy` feature ([#465](https://github.com/dfinity/evm-rpc-canister/pull/465), [#466](https://github.com/dfinity/evm-rpc-canister/pull/466), [#467](https://github.com/dfinity/evm-rpc-canister/pull/467), [#476](https://github.com/dfinity/evm-rpc-canister/pull/476)).
+- **Breaking:** Add `root` and `cumulativeGasUsed` fields to `TransactionsReceipt` type ([#474](https://github.com/dfinity/evm-rpc-canister/pull/474)).
 
 [3.0.0]: https://github.com/dfinity/evm-rpc-canister/compare/evm_rpc_types-v2.1.0..evm_rpc_types-v3.0.0
 

@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Add support for `root` and `cumulativeGasUsed` fields in `eth_getTransactionReceipt` response ([#474](https://github.com/dfinity/evm-rpc-canister/pull/474))
 - Update `ic-cdk` to `v0.18.7` ([#489](https://github.com/dfinity/evm-rpc-canister/pull/489))
 - Update `dfx` to `v0.29.0` ([#490](https://github.com/dfinity/evm-rpc-canister/pull/490))
 - Cleanup unused dependencies ([#491](https://github.com/dfinity/evm-rpc-canister/pull/491))
