@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.0] - 2025-10-21
+
+### Added
+
+- Add new `json_request` endpoint and deprecate existing `request` endpoint ([#477](https://github.com/dfinity/evm-rpc-canister/pull/477))
+
+### Changed
+
+- Update `ic-cdk` to `v0.18.7` ([#489](https://github.com/dfinity/evm-rpc-canister/pull/489))
+- Update `dfx` to `v0.29.0` ([#490](https://github.com/dfinity/evm-rpc-canister/pull/490))
+- Cleanup unused dependencies ([#491](https://github.com/dfinity/evm-rpc-canister/pull/491))
+
+### Removed
+
+- **Breaking**: Remove `getMetrics` endpoint, this is acceptable since it was a debugging endpoint ([#479](https://github.com/dfinity/evm-rpc-canister/pull/479))
+
+### Fixed
+
+- Add `err_max_response_size_exceeded` to Prometheus metrics ([#487](https://github.com/dfinity/evm-rpc-canister/pull/487))
+
+[2.6.0]: https://github.com/dfinity/evm-rpc-canister/compare/v2.5.0...v2.6.0
+
 ## [2.5.0] - 2025-09-12
 
 ### Changed

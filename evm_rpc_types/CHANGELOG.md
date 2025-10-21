@@ -9,29 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add `alloy` feature flag to `evm_rpc_client` ([#484](https://github.com/dfinity/evm-rpc-canister/pull/484))
-- Add client support for `eth_getTransactionReceipt` ([#476](https://github.com/dfinity/evm-rpc-canister/pull/476))
-- Add `eth_sendRawTransaction` client support ([#467](https://github.com/dfinity/evm-rpc-canister/pull/467))
-- Add support for `eth_getTransactionReceipt` response fields ([#474](https://github.com/dfinity/evm-rpc-canister/pull/474))
-- Add client support for `eth_call` ([#466](https://github.com/dfinity/evm-rpc-canister/pull/466))
-- Add client support for `eth_getTransactionCount` ([#465](https://github.com/dfinity/evm-rpc-canister/pull/465))
+- Add conversions between several types in this crate and the corresponding `alloy` types ([#465](https://github.com/dfinity/evm-rpc-canister/pull/465), [#466](https://github.com/dfinity/evm-rpc-canister/pull/466), [#467](https://github.com/dfinity/evm-rpc-canister/pull/467), [#476](https://github.com/dfinity/evm-rpc-canister/pull/476))
+- **Breaking:** Add `root` and `cumulativeGasUsed` fields to `TransactionsReceipt` type ([#474](https://github.com/dfinity/evm-rpc-canister/pull/474))
 
-### Changed
-
-- Update `ic-cdk` to `v0.18.7` ([#489](https://github.com/dfinity/evm-rpc-canister/pull/489))
-
-### Fixed
-
-- Move non-alloy conversion from behind alloy feature ([#493](https://github.com/dfinity/evm-rpc-canister/pull/493))
-
-[3.0.0]: https://github.com/dfinity/sol-rpc-canister/compare/2.1.0..3.0.0
-
-# Changelog
-
-All notable changes to this project will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+[3.0.0]: https://github.com/dfinity/evm-rpc-canister/compare/evm_rpc_types-v2.1.0..evm_rpc_types-v3.0.0
 
 ## [2.1.0] - 2025-09-12
 
