@@ -20,4 +20,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add support for `eth_getBlockByNumber` to client ([#459](https://github.com/dfinity/evm-rpc-canister/pull/459))
 - Add EVM RPC canister client ([#447](https://github.com/dfinity/evm-rpc-canister/pull/447))
 
-[0.1.0]: https://github.com/dfinity/evm_rpc_canister/releases/tag/evm_rpc_client-v0.1.0
+[0.1.0]: https://github.com/dfinity/evm-rpc-canister/releases/tag/evm_rpc_client-v0.1.0
