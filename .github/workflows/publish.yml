@@ -29,7 +29,7 @@ jobs:
             const allArtifacts = await github.paginate(github.rest.actions.listArtifactsForRepo, {
               owner: context.repo.owner,
               repo: context.repo.repo,
-              name: "evm_rpc_canister.wasm.gz",
+              name: "evm_rpc.wasm.gz",
             });
             const artifactsByBranch = {};
             const mainArtifacts = allArtifacts
@@ -60,8 +60,8 @@ jobs:
       - name: "SHA256 of release asset"
         run: |
           set -e
-          SHA256=$(shasum -a 256 ./evm_rpc_canister.wasm.gz | cut -d ' ' -f1)
-          echo "SHA256 of evm_rpc_canister.wasm.gz: $SHA256"
+          SHA256=$(shasum -a 256 ./evm_rpc.wasm.gz | cut -d ' ' -f1)
+          echo "SHA256 of evm_rpc.wasm.gz: $SHA256"
           echo "EVM_RPC_CANISTER_WASM_GZ_SHA256=$SHA256" >> "$GITHUB_ENV"
 
       - name: "Install parse-changelog"
@@ -105,5 +105,5 @@ jobs:
           tag_name: ${{ env.RELEASE_TAG}}
           body_path: ${{ github.workspace }}-RELEASE.txt
           files: |
-            evm_rpc_canister.wasm.gz
-            canister/evm_rpc_canister.did
+            evm_rpc.wasm.gz
+            canister/evm_rpc.did
