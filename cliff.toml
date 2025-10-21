@@ -31,11 +31,11 @@ footer = """
     {% if release.version -%}
         {% if release.previous.version -%}
             [{{ release.version | trim_start_matches(pat="v") }}]: \
-                https://github.com/dfinity/sol-rpc-canister\
+                https://github.com/dfinity/evm-rpc-canister\
                     /compare/{{ release.previous.version }}..{{ release.version }}
         {% endif -%}
     {% else -%}
-        [unreleased]: https://github.com/dfinity/sol-rpc-canister\
+        [unreleased]: https://github.com/dfinity/evm-rpc-canister\
             /compare/{{ release.previous.version }}..HEAD
     {% endif -%}
 {% endfor %}
