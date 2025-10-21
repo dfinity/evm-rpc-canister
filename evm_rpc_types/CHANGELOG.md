@@ -2,8 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [3.0.0] - 2025-10-20
+
+### Added
+
+- Add conversions between several types in this crate and the corresponding `alloy` types. These conversions are only available with the `alloy` feature ([#465](https://github.com/dfinity/evm-rpc-canister/pull/465), [#466](https://github.com/dfinity/evm-rpc-canister/pull/466), [#467](https://github.com/dfinity/evm-rpc-canister/pull/467), [#476](https://github.com/dfinity/evm-rpc-canister/pull/476)).
+- **Breaking:** Add `root` and `cumulativeGasUsed` fields to `TransactionsReceipt` type ([#474](https://github.com/dfinity/evm-rpc-canister/pull/474)).
+
+[3.0.0]: https://github.com/dfinity/evm-rpc-canister/compare/evm_rpc_types-v2.1.0..evm_rpc_types-v3.0.0
 
 ## [2.1.0] - 2025-09-12
 
