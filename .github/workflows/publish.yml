@@ -86,11 +86,11 @@ jobs:
           echo "releases: $RELEASES" # example: [{"package_name":"my-package","prs":[{"html_url":"https://github.com/user/proj/pull/1439","number":1439}],"tag":"v0.1.0","version":"0.1.0"}]
           echo "releases_created: $RELEASES_CREATED" # example: true
 
-          release_tag=$(echo "$RELEASES" | jq -r '.[] | select(.package_name == "evm_rpc_canister") | .tag')
+          release_tag=$(echo "$RELEASES" | jq -r '.[] | select(.package_name == "evm_rpc") | .tag')
           echo "release_tag: $release_tag"
           echo "RELEASE_TAG=$release_tag" >> "$GITHUB_ENV"
           
-          release_version=$(echo "$RELEASES" | jq -r '.[] | select(.package_name == "evm_rpc_canister") | .version')
+          release_version=$(echo "$RELEASES" | jq -r '.[] | select(.package_name == "evm_rpc") | .version')
           echo "release_version: $release_version"
           echo "RELEASE_VERSION=$release_version" >> "$GITHUB_ENV"
           
@@ -106,4 +106,4 @@ jobs:
           body_path: ${{ github.workspace }}-RELEASE.txt
           files: |
             evm_rpc.wasm.gz
-            canister/evm_rpc.did
+            candid/evm_rpc.did
