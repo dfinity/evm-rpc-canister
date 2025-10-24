@@ -52,6 +52,24 @@ pub async fn eth_get_logs(
     }
 }
 
+#[update(name = "eth_getLogsRequestCost")]
+pub async fn eth_get_logs_request_cost(
+    source: RpcServices,
+    config: Option<evm_rpc_types::GetLogsRpcConfig>,
+    args: evm_rpc_types::GetLogsArgs,
+) -> RpcResult<u128> {
+    let config = config.unwrap_or_default();
+    let max_block_range = config.max_block_range_or_default();
+    validate_get_logs_block_range(&args, max_block_range)?;
+    if is_demo_active() {
+        return Ok(0);
+    }
+    match CandidRpcClient::new(source, Some(RpcConfig::from(config)), now()) {
+        Ok(source) => source.eth_get_logs_request_cost(args).await,
+        Err(err) => Err(err),
+    }
+}
+
 #[update(name = "eth_getBlockByNumber")]
 pub async fn eth_get_block_by_number(
     source: RpcServices,
