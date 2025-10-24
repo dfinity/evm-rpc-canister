@@ -1,3 +1,9 @@
-# EVM RPC Client
+[![Internet Computer portal](https://img.shields.io/badge/InternetComputer-grey?logo=internet%20computer&style=for-the-badge)](https://internetcomputer.org)
+[![DFinity Forum](https://img.shields.io/badge/help-post%20on%20forum.dfinity.org-blue?style=for-the-badge)](https://forum.dfinity.org/t/sol-rpc-canister/41896)
+[![GitHub license](https://img.shields.io/badge/license-Apache%202.0-blue.svg?logo=apache&style=for-the-badge)](LICENSE)
 
-This crate defines a client for interacting with the EVM RPC canister.
+# Crate `evm_rpc_client`
+
+Library to interact with the [EVM RPC canister](https://github.com/dfinity/evm-rpc-canister/) from a canister running on
+the Internet Computer.
+See the Rust [documentation](https://docs.rs/evm_rpc_client) for more details.
