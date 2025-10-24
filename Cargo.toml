@@ -61,9 +61,11 @@ ic-management-canister-types = { workspace = true }
 ic-metrics-assert = { workspace = true }
 ic-test-utilities-load-wasm = { git = "https://github.com/dfinity/ic", rev = "release-2024-09-26_01-31-base" }
 maplit = { workspace = true }
+num-traits = { workspace = true }
 pocket-ic = { workspace = true }
 proptest = { workspace = true }
 rand = { workspace = true }
+strum = { workspace = true }
 tokio = { workspace = true }
 
 [workspace.dependencies]
@@ -97,6 +99,7 @@ ic-stable-structures = "0.6.8"
 maplit = "1.0.2"
 minicbor = { version = "1.0.0", features = ["alloc", "derive"] }
 num-bigint = "0.4.6"
+num-traits = "0.2.19"
 pocket-ic = "9.0.0"
 proptest = "1.6.0"
 rand = "0.8.0"

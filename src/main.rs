@@ -52,6 +52,24 @@ pub async fn eth_get_logs(
     }
 }
 
+#[query(name = "eth_getLogsCyclesCost")]
+pub async fn eth_get_logs_cycles_cost(
+    source: RpcServices,
+    config: Option<evm_rpc_types::GetLogsRpcConfig>,
+    args: evm_rpc_types::GetLogsArgs,
+) -> RpcResult<u128> {
+    let config = config.unwrap_or_default();
+    let max_block_range = config.max_block_range_or_default();
+    validate_get_logs_block_range(&args, max_block_range)?;
+    if is_demo_active() {
+        return Ok(0);
+    }
+    match CandidRpcClient::new(source, Some(RpcConfig::from(config)), now()) {
+        Ok(source) => source.eth_get_logs_cycles_cost(args).await,
+        Err(err) => Err(err),
+    }
+}
+
 #[update(name = "eth_getBlockByNumber")]
 pub async fn eth_get_block_by_number(
     source: RpcServices,
@@ -61,6 +79,18 @@ pub async fn eth_get_block_by_number(
     match CandidRpcClient::new(source, config, now()) {
         Ok(source) => source.eth_get_block_by_number(block).await,
         Err(err) => Err(err).into(),
+    }
+}
+
+#[query(name = "eth_getBlockByNumberCyclesCost")]
+pub async fn eth_get_block_by_number_cycles_cost(
+    source: RpcServices,
+    config: Option<RpcConfig>,
+    block: evm_rpc_types::BlockTag,
+) -> RpcResult<u128> {
+    match CandidRpcClient::new(source, config, now()) {
+        Ok(source) => source.eth_get_block_by_number_cycles_cost(block).await,
+        Err(err) => Err(err),
     }
 }
 
@@ -76,6 +106,22 @@ pub async fn eth_get_transaction_receipt(
     }
 }
 
+#[query(name = "eth_getTransactionReceiptCyclesCost")]
+pub async fn eth_get_transaction_receipt_cycles_cost(
+    source: RpcServices,
+    config: Option<RpcConfig>,
+    tx_hash: Hex32,
+) -> RpcResult<u128> {
+    match CandidRpcClient::new(source, config, now()) {
+        Ok(source) => {
+            source
+                .eth_get_transaction_receipt_cycles_cost(tx_hash)
+                .await
+        }
+        Err(err) => Err(err),
+    }
+}
+
 #[update(name = "eth_getTransactionCount")]
 pub async fn eth_get_transaction_count(
     source: RpcServices,
@@ -88,6 +134,18 @@ pub async fn eth_get_transaction_count(
     }
 }
 
+#[query(name = "eth_getTransactionCountCyclesCost")]
+pub async fn eth_get_transaction_count_cycles_cost(
+    source: RpcServices,
+    config: Option<RpcConfig>,
+    args: evm_rpc_types::GetTransactionCountArgs,
+) -> RpcResult<u128> {
+    match CandidRpcClient::new(source, config, now()) {
+        Ok(source) => source.eth_get_transaction_count_cycles_cost(args).await,
+        Err(err) => Err(err),
+    }
+}
+
 #[update(name = "eth_feeHistory")]
 pub async fn eth_fee_history(
     source: RpcServices,
@@ -97,6 +155,18 @@ pub async fn eth_fee_history(
     match CandidRpcClient::new(source, config, now()) {
         Ok(source) => source.eth_fee_history(args).await,
         Err(err) => Err(err).into(),
+    }
+}
+
+#[query(name = "eth_feeHistoryCyclesCost")]
+pub async fn eth_fee_history_cycles_cost(
+    source: RpcServices,
+    config: Option<RpcConfig>,
+    args: evm_rpc_types::FeeHistoryArgs,
+) -> RpcResult<u128> {
+    match CandidRpcClient::new(source, config, now()) {
+        Ok(source) => source.eth_fee_history_cycles_cost(args).await,
+        Err(err) => Err(err),
     }
 }
 
@@ -116,6 +186,22 @@ pub async fn eth_send_raw_transaction(
     }
 }
 
+#[query(name = "eth_sendRawTransactionCyclesCost")]
+pub async fn eth_send_raw_transaction_cycles_cost(
+    source: RpcServices,
+    config: Option<RpcConfig>,
+    raw_signed_transaction_hex: evm_rpc_types::Hex,
+) -> RpcResult<u128> {
+    match CandidRpcClient::new(source, config, now()) {
+        Ok(source) => {
+            source
+                .eth_send_raw_transaction_cycles_cost(raw_signed_transaction_hex)
+                .await
+        }
+        Err(err) => Err(err),
+    }
+}
+
 #[update(name = "eth_call")]
 pub async fn eth_call(
     source: RpcServices,
@@ -128,6 +214,18 @@ pub async fn eth_call(
     }
 }
 
+#[query(name = "eth_callCyclesCost")]
+pub async fn eth_call_cycles_cost(
+    source: RpcServices,
+    config: Option<RpcConfig>,
+    args: evm_rpc_types::CallArgs,
+) -> RpcResult<u128> {
+    match CandidRpcClient::new(source, config, now()) {
+        Ok(source) => source.eth_call_cycles_cost(args).await,
+        Err(err) => Err(err),
+    }
+}
+
 #[update(name = "multi_request")]
 pub async fn multi_request(
     source: RpcServices,
@@ -137,6 +235,18 @@ pub async fn multi_request(
     match CandidRpcClient::new(source, config, now()) {
         Ok(source) => source.multi_request(args).await,
         Err(err) => Err(err).into(),
+    }
+}
+
+#[query(name = "multi_requestCyclesCost")]
+pub async fn multi_cycles_cost(
+    source: RpcServices,
+    config: Option<RpcConfig>,
+    args: String,
+) -> RpcResult<u128> {
+    match CandidRpcClient::new(source, config, now()) {
+        Ok(source) => source.multi_cycles_cost(args).await,
+        Err(err) => Err(err),
     }
 }
 
