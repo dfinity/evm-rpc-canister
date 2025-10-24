@@ -47,7 +47,7 @@ pub async fn eth_get_logs(
         return MultiRpcResult::Consistent(Err(err));
     }
     match CandidRpcClient::new(source, Some(RpcConfig::from(config)), now()) {
-        Ok(source) => source.eth_get_logs(args, max_block_range).await,
+        Ok(source) => source.eth_get_logs(args).await,
         Err(err) => Err(err).into(),
     }
 }
