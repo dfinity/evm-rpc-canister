@@ -38,7 +38,7 @@ impl CandidRpcClient {
             .map(from_log_entries)
     }
 
-    pub async fn eth_get_logs_request_cost(
+    pub async fn eth_get_logs_cycles_cost(
         &self,
         args: evm_rpc_types::GetLogsArgs,
     ) -> RpcResult<u128> {
@@ -61,7 +61,7 @@ impl CandidRpcClient {
             .map(from_block)
     }
 
-    pub async fn eth_get_block_by_number_request_cost(&self, block: BlockTag) -> RpcResult<u128> {
+    pub async fn eth_get_block_by_number_cycles_cost(&self, block: BlockTag) -> RpcResult<u128> {
         use cketh_conversion::into_block_spec;
         self.client
             .eth_get_block_by_number(into_block_spec(block))
@@ -81,7 +81,7 @@ impl CandidRpcClient {
             .map(|option| option.map(from_transaction_receipt))
     }
 
-    pub async fn eth_get_transaction_receipt_request_cost(&self, hash: Hex32) -> RpcResult<u128> {
+    pub async fn eth_get_transaction_receipt_cycles_cost(&self, hash: Hex32) -> RpcResult<u128> {
         use cketh_conversion::into_hash;
         self.client
             .eth_get_transaction_receipt(into_hash(hash))
@@ -101,7 +101,7 @@ impl CandidRpcClient {
             .map(Nat256::from)
     }
 
-    pub async fn eth_get_transaction_count_request_cost(
+    pub async fn eth_get_transaction_count_cycles_cost(
         &self,
         args: evm_rpc_types::GetTransactionCountArgs,
     ) -> RpcResult<u128> {
@@ -124,7 +124,7 @@ impl CandidRpcClient {
             .map(from_fee_history)
     }
 
-    pub async fn eth_fee_history_request_cost(
+    pub async fn eth_fee_history_cycles_cost(
         &self,
         args: evm_rpc_types::FeeHistoryArgs,
     ) -> RpcResult<u128> {
@@ -148,7 +148,7 @@ impl CandidRpcClient {
             .map(|result| from_send_raw_transaction_result(transaction_hash.clone(), result))
     }
 
-    pub async fn eth_send_raw_transaction_request_cost(
+    pub async fn eth_send_raw_transaction_cycles_cost(
         &self,
         raw_signed_transaction_hex: Hex,
     ) -> RpcResult<u128> {
@@ -170,7 +170,7 @@ impl CandidRpcClient {
             .map(from_data)
     }
 
-    pub async fn eth_call_request_cost(&self, args: evm_rpc_types::CallArgs) -> RpcResult<u128> {
+    pub async fn eth_call_cycles_cost(&self, args: evm_rpc_types::CallArgs) -> RpcResult<u128> {
         use cketh_conversion::into_eth_call_params;
         self.client
             .eth_call(into_eth_call_params(args))
@@ -193,7 +193,7 @@ impl CandidRpcClient {
             .map(String::from)
     }
 
-    pub async fn multi_request_cost(&self, json_rpc_payload: String) -> RpcResult<u128> {
+    pub async fn multi_cycles_cost(&self, json_rpc_payload: String) -> RpcResult<u128> {
         let request = into_json_request(json_rpc_payload)?;
         self.client
             .multi_request(
