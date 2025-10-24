@@ -13,7 +13,9 @@ use candid::Nat;
 use canhttp::http::json::JsonRpcRequest;
 use canhttp::multi::{ReductionError, Timestamp};
 use ethers_core::{types::Transaction, utils::rlp};
-use evm_rpc_types::{Hex, Hex32, MultiRpcResult, Nat256, RpcError, RpcResult, ValidationError};
+use evm_rpc_types::{
+    BlockTag, GetLogsArgs, Hex, Hex32, MultiRpcResult, Nat256, RpcError, RpcResult, ValidationError,
+};
 
 fn process_result<T>(
     method: impl Into<MetricRpcMethod> + Clone,
@@ -71,23 +73,6 @@ impl CandidRpcClient {
         max_block_range: u32,
     ) -> MultiRpcResult<Vec<evm_rpc_types::LogEntry>> {
         use crate::candid_rpc::cketh_conversion::{from_log_entries, into_get_logs_param};
-
-        if let (
-            Some(evm_rpc_types::BlockTag::Number(from)),
-            Some(evm_rpc_types::BlockTag::Number(to)),
-        ) = (&args.from_block, &args.to_block)
-        {
-            let from = Nat::from(from.clone());
-            let to = Nat::from(to.clone());
-            let block_count = if to > from { to - from } else { from - to };
-            if block_count > max_block_range {
-                return MultiRpcResult::Consistent(Err(ValidationError::Custom(format!(
-                    "Requested {} blocks; limited to {} when specifying a start and end block",
-                    block_count, max_block_range
-                ))
-                .into()));
-            }
-        }
         process_result(
             RpcMethod::EthGetLogs,
             self.client.eth_get_logs(into_get_logs_param(args)).await,
@@ -97,7 +82,7 @@ impl CandidRpcClient {
 
     pub async fn eth_get_block_by_number(
         &self,
-        block: evm_rpc_types::BlockTag,
+        block: BlockTag,
     ) -> MultiRpcResult<evm_rpc_types::Block> {
         use crate::candid_rpc::cketh_conversion::{from_block, into_block_spec};
         process_result(
@@ -207,4 +192,22 @@ impl CandidRpcClient {
 fn get_transaction_hash(raw_signed_transaction_hex: &Hex) -> Option<Hex32> {
     let transaction: Transaction = rlp::decode(raw_signed_transaction_hex.as_ref()).ok()?;
     Some(Hex32::from(transaction.hash.0))
+}
+
+pub fn validate_get_logs_block_range(args: &GetLogsArgs, max_block_range: u32) -> RpcResult<()> {
+    if let (Some(BlockTag::Number(from)), Some(BlockTag::Number(to))) =
+        (&args.from_block, &args.to_block)
+    {
+        let from = Nat::from(from.clone());
+        let to = Nat::from(to.clone());
+        let block_count = if to > from { to - from } else { from - to };
+        if block_count > max_block_range {
+            return Err(ValidationError::Custom(format!(
+                "Requested {} blocks; limited to {} when specifying a start and end block",
+                block_count, max_block_range
+            ))
+            .into());
+        }
+    }
+    Ok(())
 }
