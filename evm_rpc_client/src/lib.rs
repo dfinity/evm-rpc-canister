@@ -146,10 +146,10 @@ use request::{
     FeeHistoryRequestBuilder, GetBlockByNumberRequest, GetBlockByNumberRequestBuilder,
     GetLogsRequest, GetLogsRequestBuilder, GetTransactionCountRequest,
     GetTransactionCountRequestBuilder, GetTransactionReceiptRequest,
-    GetTransactionReceiptRequestBuilder, JsonRequest, JsonRequestBuilder, Request, RequestBuilder,
+    GetTransactionReceiptRequestBuilder, JsonRequest, JsonRequestBuilder,
     SendRawTransactionRequest, SendRawTransactionRequestBuilder,
 };
-pub use request::{CandidResponseConverter, EvmRpcConfig};
+pub use request::{CandidResponseConverter, EvmRpcConfig, EvmRpcEndpoint, Request, RequestBuilder};
 pub use runtime::{IcError, IcRuntime, Runtime};
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
