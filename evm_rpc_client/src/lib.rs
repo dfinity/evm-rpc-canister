@@ -120,6 +120,7 @@
 #[cfg(not(target_arch = "wasm32"))]
 pub mod fixtures;
 mod request;
+mod retry;
 mod runtime;
 
 use candid::{CandidType, Principal};
@@ -138,6 +139,8 @@ use request::{
     SendRawTransactionRequest, SendRawTransactionRequestBuilder,
 };
 pub use request::{CandidResponseConverter, EvmRpcConfig};
+use retry::EvmRpcResult;
+pub use retry::EvmRpcRetryStrategy;
 pub use runtime::{IcError, IcRuntime, Runtime};
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
@@ -192,6 +195,7 @@ pub struct ClientConfig<R, C> {
     rpc_config: Option<RpcConfig>,
     rpc_services: RpcServices,
     response_converter: C,
+    retry_strategy: EvmRpcRetryStrategy,
 }
 
 /// A [`ClientBuilder`] to create a [`EvmRpcClient`] with custom configuration.
@@ -217,6 +221,7 @@ impl<R> ClientBuilder<R, CandidResponseConverter> {
                 rpc_config: None,
                 rpc_services: RpcServices::EthMainnet(None),
                 response_converter: CandidResponseConverter,
+                retry_strategy: Default::default(),
             },
         }
     }
@@ -234,6 +239,7 @@ impl<R, C> ClientBuilder<R, C> {
                 rpc_config: self.config.rpc_config,
                 rpc_services: self.config.rpc_services,
                 response_converter: self.config.response_converter,
+                retry_strategy: self.config.retry_strategy,
             },
         }
     }
@@ -278,6 +284,7 @@ impl<R, C> ClientBuilder<R, C> {
                 rpc_config: self.config.rpc_config,
                 rpc_services: self.config.rpc_services,
                 response_converter: AlloyResponseConverter,
+                retry_strategy: self.config.retry_strategy,
             },
         }
     }
@@ -291,8 +298,15 @@ impl<R, C> ClientBuilder<R, C> {
                 rpc_config: self.config.rpc_config,
                 rpc_services: self.config.rpc_services,
                 response_converter: CandidResponseConverter,
+                retry_strategy: self.config.retry_strategy,
             },
         }
+    }
+
+    /// Mutates the builder to use the given retry strategy.
+    pub fn with_retry_strategy(mut self, retry_strategy: EvmRpcRetryStrategy) -> Self {
+        self.config.retry_strategy = retry_strategy;
+        self
     }
 
     /// Creates a [`EvmRpcClient`] from the configuration specified in the [`ClientBuilder`].
@@ -763,15 +777,16 @@ impl<R, C: EvmRpcResponseConverter> EvmRpcClient<R, C> {
     }
 }
 
-impl<R: Runtime, C> EvmRpcClient<R, C> {
+impl<Runtime: runtime::Runtime, Converter> EvmRpcClient<Runtime, Converter> {
     async fn execute_request<Config, Params, CandidOutput, Output>(
         &self,
         request: Request<Config, Params, CandidOutput, Output>,
     ) -> Output
     where
-        Config: CandidType + Send,
-        Params: CandidType + Send,
+        Config: CandidType + Clone + Send,
+        Params: CandidType + Clone + Send,
         CandidOutput: Into<Output> + CandidType + DeserializeOwned,
+        Output: EvmRpcResult,
     {
         let rpc_method = request.endpoint.rpc_method();
         self.try_execute_request(request)
@@ -784,9 +799,58 @@ impl<R: Runtime, C> EvmRpcClient<R, C> {
         request: Request<Config, Params, CandidOutput, Output>,
     ) -> Result<Output, IcError>
     where
+        Config: CandidType + Clone + Send,
+        Params: CandidType + Clone + Send,
+        CandidOutput: Into<Output> + CandidType + DeserializeOwned,
+        Output: EvmRpcResult,
+    {
+        fn retry_request<Config, Params, CandidOutput, Output>(
+            strategy: &EvmRpcRetryStrategy,
+            request: Request<Config, Params, CandidOutput, Output>,
+            result: &Output,
+            num_retries: u32,
+        ) -> Option<Request<Config, Params, CandidOutput, Output>>
+        where
+            Output: EvmRpcResult,
+        {
+            match strategy {
+                EvmRpcRetryStrategy::NoRetry => None,
+                EvmRpcRetryStrategy::DoubleCycles { max_num_retries } => {
+                    if num_retries < *max_num_retries && result.is_too_few_cycles_error() {
+                        let request = Request {
+                            cycles: request.cycles.saturating_mul(2),
+                            ..request
+                        };
+                        Some(request)
+                    } else {
+                        None
+                    }
+                }
+            }
+        }
+
+        let mut request = request;
+        let mut num_retries = 0;
+        loop {
+            let result = self.try_execute_request_once(request.clone()).await?;
+            request =
+                match retry_request(&self.config.retry_strategy, request, &result, num_retries) {
+                    Some(request) => request,
+                    None => return Ok(result),
+                };
+            num_retries += 1;
+        }
+    }
+
+    async fn try_execute_request_once<Config, Params, CandidOutput, Output>(
+        &self,
+        request: Request<Config, Params, CandidOutput, Output>,
+    ) -> Result<Output, IcError>
+    where
         Config: CandidType + Send,
         Params: CandidType + Send,
         CandidOutput: Into<Output> + CandidType + DeserializeOwned,
+        Output: EvmRpcResult,
     {
         self.config
             .runtime

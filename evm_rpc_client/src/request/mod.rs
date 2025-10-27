@@ -1,6 +1,7 @@
 #[cfg(feature = "alloy")]
 pub(crate) mod alloy;
 
+use crate::retry::EvmRpcResult;
 use crate::runtime::IcError;
 use crate::{EvmRpcClient, Runtime};
 use candid::CandidType;
@@ -497,9 +498,10 @@ impl<R: Runtime, Converter, Config, Params, CandidOutput, Output>
     /// If the request was not successful.
     pub async fn send(self) -> Output
     where
-        Config: CandidType + Send,
-        Params: CandidType + Send,
+        Config: CandidType + Clone + Send,
+        Params: CandidType + Clone + Send,
         CandidOutput: Into<Output> + CandidType + DeserializeOwned,
+        Output: EvmRpcResult,
     {
         self.client
             .execute_request::<Config, Params, CandidOutput, Output>(self.request)
@@ -510,9 +512,10 @@ impl<R: Runtime, Converter, Config, Params, CandidOutput, Output>
     /// either the request response or any error that occurs while sending the request.
     pub async fn try_send(self) -> Result<Output, IcError>
     where
-        Config: CandidType + Send,
-        Params: CandidType + Send,
+        Config: CandidType + Clone + Send,
+        Params: CandidType + Clone + Send,
         CandidOutput: Into<Output> + CandidType + DeserializeOwned,
+        Output: EvmRpcResult,
     {
         self.client
             .try_execute_request::<Config, Params, CandidOutput, Output>(self.request)
