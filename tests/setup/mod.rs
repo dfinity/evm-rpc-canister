@@ -1,6 +1,7 @@
-use crate::mock_http_runtime::wallet::MockHttpRuntimeWithWallet;
 use crate::{
-    mock_http_runtime::{mock::MockHttpOutcalls, MockHttpRuntime},
+    mock_http_runtime::{
+        mock::MockHttpOutcalls, wallet::MockHttpRuntimeWithWallet, MockHttpRuntime,
+    },
     DEFAULT_CALLER_TEST_ID, DEFAULT_CONTROLLER_TEST_ID, INITIAL_CYCLES, MOCK_API_KEY,
 };
 use candid::{CandidType, Decode, Encode, Nat, Principal};
@@ -17,6 +18,7 @@ use ic_management_canister_types::CanisterId;
 use ic_management_canister_types::CanisterSettings;
 use ic_metrics_assert::{MetricsAssert, PocketIcAsyncHttpQuery};
 use ic_test_utilities_load_wasm::load_wasm;
+use num_traits::ToPrimitive;
 use pocket_ic::{nonblocking::PocketIc, ErrorCode, PocketIcBuilder, RejectResponse};
 use serde::de::DeserializeOwned;
 use std::{
@@ -31,7 +33,7 @@ pub struct EvmRpcSetup {
     pub env: Arc<PocketIc>,
     pub caller: Principal,
     pub controller: Principal,
-    pub evm_canister_id: CanisterId,
+    pub evm_rpc_canister_id: CanisterId,
     pub wallet_canister_id: CanisterId,
 }
 
@@ -55,7 +57,7 @@ impl EvmRpcSetup {
         let env = Arc::new(pocket_ic);
 
         let controller = DEFAULT_CONTROLLER_TEST_ID;
-        let evm_canister_id = env
+        let evm_rpc_canister_id = env
             .create_canister_with_settings(
                 None,
                 Some(CanisterSettings {
@@ -64,9 +66,9 @@ impl EvmRpcSetup {
                 }),
             )
             .await;
-        env.add_cycles(evm_canister_id, INITIAL_CYCLES).await;
+        env.add_cycles(evm_rpc_canister_id, INITIAL_CYCLES).await;
         env.install_canister(
-            evm_canister_id,
+            evm_rpc_canister_id,
             evm_rpc_wasm(),
             Encode!(&args).unwrap(),
             Some(controller),
@@ -95,7 +97,7 @@ impl EvmRpcSetup {
             env,
             caller,
             controller,
-            evm_canister_id,
+            evm_rpc_canister_id,
             wallet_canister_id,
         }
     }
@@ -109,7 +111,7 @@ impl EvmRpcSetup {
             match self
                 .env
                 .upgrade_canister(
-                    self.evm_canister_id,
+                    self.evm_rpc_canister_id,
                     evm_rpc_wasm(),
                     Encode!(&args).unwrap(),
                     Some(self.controller),
@@ -128,10 +130,14 @@ impl EvmRpcSetup {
         &self,
         mocks: impl Into<MockHttpOutcalls>,
     ) -> ClientBuilder<MockHttpRuntimeWithWallet, AlloyResponseConverter> {
-        EvmRpcClient::builder(self.new_mock_http_runtime(mocks), self.evm_canister_id).with_alloy()
+        EvmRpcClient::builder(
+            self.new_mock_http_runtime_with_wallet(mocks),
+            self.evm_rpc_canister_id,
+        )
+        .with_alloy()
     }
 
-    pub fn new_mock_http_runtime(
+    pub fn new_mock_http_runtime_with_wallet(
         &self,
         mocks: impl Into<MockHttpOutcalls>,
     ) -> MockHttpRuntimeWithWallet {
@@ -144,6 +150,17 @@ impl EvmRpcSetup {
             },
             wallet_canister_id: self.wallet_canister_id,
         }
+    }
+
+    pub async fn evm_rpc_canister_cycles_balance(&self) -> u128 {
+        self.env
+            .canister_status(self.evm_rpc_canister_id, Some(self.controller))
+            .await
+            .unwrap()
+            .cycles
+            .0
+            .to_u128()
+            .unwrap()
     }
 
     pub async fn update_api_keys(
@@ -234,7 +251,7 @@ impl EvmRpcSetup {
     ) -> RpcResult<String> {
         runtime
             .update_call(
-                self.evm_canister_id,
+                self.evm_rpc_canister_id,
                 "request",
                 (source, json_rpc_payload, max_response_bytes),
                 cycles, // dummy value
@@ -249,13 +266,14 @@ impl EvmRpcSetup {
         source: RpcService,
         json_rpc_payload: &str,
         max_response_bytes: u64,
-    ) -> RpcResult<Nat> {
-        self.call_query(
+    ) -> RpcResult<u128> {
+        self.call_query::<RpcResult<Nat>>(
             "requestCost",
             Encode!(&source, &json_rpc_payload, &max_response_bytes).unwrap(),
             Principal::anonymous(),
         )
         .await
+        .map(|cycles_cost| cycles_cost.0.to_u128().unwrap())
     }
 
     async fn call_query<R: CandidType + DeserializeOwned>(
@@ -266,7 +284,7 @@ impl EvmRpcSetup {
     ) -> R {
         decode_reply(
             self.env
-                .query_call(self.evm_canister_id, caller, method, input)
+                .query_call(self.evm_rpc_canister_id, caller, method, input)
                 .await,
         )
     }
@@ -279,7 +297,7 @@ impl EvmRpcSetup {
     ) -> R {
         decode_reply(
             self.env
-                .update_call(self.evm_canister_id, caller, method, input)
+                .update_call(self.evm_rpc_canister_id, caller, method, input)
                 .await,
         )
     }
@@ -291,7 +309,7 @@ impl PocketIcAsyncHttpQuery for EvmRpcSetup {
     }
 
     fn get_canister_id(&self) -> CanisterId {
-        self.evm_canister_id
+        self.evm_rpc_canister_id
     }
 }
 

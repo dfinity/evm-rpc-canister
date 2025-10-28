@@ -91,7 +91,7 @@ async fn should_canonicalize_request_endpoint_response() {
             .respond_with(JsonRpcResponse::from(response));
         let result = setup
             .request(
-                &setup.new_mock_http_runtime(mocks),
+                &setup.new_mock_http_runtime_with_wallet(mocks),
                 (
                     RpcService::Custom(RpcApi {
                         url: MOCK_REQUEST_URL.to_string(),
@@ -126,7 +126,7 @@ async fn should_not_modify_json_rpc_request_from_request_endpoint() {
     .await;
     let response = setup
         .request(
-            &setup.new_mock_http_runtime(mocks),
+            &setup.new_mock_http_runtime_with_wallet(mocks),
             (
                 RpcService::Custom(RpcApi {
                     url: MOCK_REQUEST_URL.to_string(),
@@ -1445,7 +1445,7 @@ async fn should_have_metrics_for_request_endpoint() {
     .await;
     let response = setup
         .request(
-            &setup.new_mock_http_runtime(mocks),
+            &setup.new_mock_http_runtime_with_wallet(mocks),
             (
                 RpcService::Custom(RpcApi {
                     url: MOCK_REQUEST_URL.to_string(),
@@ -1980,7 +1980,7 @@ async fn upgrade_should_keep_demo() {
             )
             .await
             .unwrap(),
-        0_u32
+        0_u128
     );
     setup.upgrade_canister(InstallArgs::default()).await;
     assert_eq!(
@@ -1992,7 +1992,7 @@ async fn upgrade_should_keep_demo() {
             )
             .await
             .unwrap(),
-        0_u32
+        0_u128
     );
 }
 
@@ -2012,7 +2012,7 @@ async fn upgrade_should_change_demo() {
             )
             .await
             .unwrap(),
-        0_u32
+        0_u128
     );
     setup
         .upgrade_canister(InstallArgs {
@@ -2029,7 +2029,7 @@ async fn upgrade_should_change_demo() {
             )
             .await
             .unwrap(),
-        0_u32
+        0_u128
     );
 }
 
@@ -2089,7 +2089,7 @@ async fn should_reject_http_request_in_replicated_mode() {
         setup
         .env
         .update_call(
-            setup.evm_canister_id,
+            setup.evm_rpc_canister_id,
             Principal::anonymous(),
             "http_request",
             Encode!(&request).unwrap(),
@@ -2439,6 +2439,143 @@ fn call_request() -> JsonRpcRequestMatcher {
         .with_id(0_u64)
 }
 
+mod request_cost_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn should_be_idempotent() {
+        let setup = EvmRpcSetup::new().await.mock_api_keys().await;
+
+        let cycles_cost_1 = setup
+            .request_cost(
+                RpcService::EthMainnet(EthMainnetService::PublicNode),
+                MOCK_REQUEST_PAYLOAD,
+                MOCK_REQUEST_RESPONSE_BYTES,
+            )
+            .await
+            .unwrap();
+
+        let cycles_cost_2 = setup
+            .request_cost(
+                RpcService::EthMainnet(EthMainnetService::PublicNode),
+                MOCK_REQUEST_PAYLOAD,
+                MOCK_REQUEST_RESPONSE_BYTES,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(cycles_cost_1, cycles_cost_2);
+        assert!(cycles_cost_1 > 0_u128);
+    }
+
+    #[tokio::test]
+    async fn should_be_zero_when_in_demo_mode() {
+        let setup = EvmRpcSetup::with_args(InstallArgs {
+            demo: Some(true),
+            ..Default::default()
+        })
+        .await
+        .mock_api_keys()
+        .await;
+
+        let cycles_cost = setup
+            .request_cost(
+                RpcService::EthMainnet(EthMainnetService::PublicNode),
+                MOCK_REQUEST_PAYLOAD,
+                MOCK_REQUEST_RESPONSE_BYTES,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(cycles_cost, 0_u128);
+    }
+
+    #[tokio::test]
+    async fn should_get_exact_cycles_cost() {
+        const EXPECTED_CYCLES_COST: u128 = 540_518_400;
+
+        let five_percents = 5_u8;
+        let setup = EvmRpcSetup::new().await.mock_api_keys().await;
+        let mocks = MockHttpOutcallsBuilder::new()
+            .given(
+                JsonRpcRequestMatcher::with_method(MOCK_REQUEST_METHOD)
+                    .with_params(MOCK_REQUEST_PARAMS)
+                    .with_id(MOCK_REQUEST_ID),
+            )
+            .respond_with(JsonRpcResponse::from(MOCK_REQUEST_RESPONSE));
+
+        let cycles_cost = setup
+            .request_cost(
+                RpcService::EthMainnet(EthMainnetService::PublicNode),
+                MOCK_REQUEST_PAYLOAD,
+                MOCK_REQUEST_RESPONSE_BYTES,
+            )
+            .await
+            .unwrap();
+        assert_within(cycles_cost, EXPECTED_CYCLES_COST, five_percents);
+
+        let cycles_before = setup.evm_rpc_canister_cycles_balance().await;
+        // Request with exact cycles amount should succeed
+        let result = setup
+            .request(
+                &setup.new_mock_http_runtime_with_wallet(mocks),
+                (
+                    RpcService::EthMainnet(EthMainnetService::PublicNode),
+                    MOCK_REQUEST_PAYLOAD,
+                    MOCK_REQUEST_RESPONSE_BYTES,
+                ),
+                cycles_cost,
+            )
+            .await;
+        if let Err(RpcError::ProviderError(ProviderError::TooFewCycles { .. })) = result {
+            panic!("BUG: estimated cycles cost was insufficient!: {result:?}");
+        }
+        let cycles_after = setup.evm_rpc_canister_cycles_balance().await;
+        let cycles_consumed = cycles_before + cycles_cost - cycles_after;
+
+        assert!(
+            cycles_after > cycles_before,
+            "BUG: not enough cycles requested. Requested {cycles_cost} cycles, but consumed {cycles_consumed} cycles"
+        );
+
+        // Same request with fewer cycles should fail.
+        let result = setup
+            .request(
+                &setup.new_mock_http_runtime_with_wallet(MockHttpOutcalls::NEVER),
+                (
+                    RpcService::EthMainnet(EthMainnetService::PublicNode),
+                    MOCK_REQUEST_PAYLOAD,
+                    MOCK_REQUEST_RESPONSE_BYTES,
+                ),
+                cycles_cost - 1,
+            )
+            .await;
+
+        assert_matches!(
+            result,
+            Err(RpcError::ProviderError(ProviderError::TooFewCycles {
+                expected: _,
+                received: _
+            })),
+            "BUG: Expected TooFewCycles error, but got {result:?}"
+        );
+    }
+
+    fn assert_within(actual: u128, expected: u128, percentage_error: u8) {
+        assert!(percentage_error <= 100);
+        let error_margin = expected.saturating_mul(percentage_error as u128) / 100;
+        let lower_bound = expected.saturating_sub(error_margin);
+        let upper_bound = expected.saturating_add(error_margin);
+        assert!(
+            lower_bound <= actual && actual <= upper_bound,
+            "Expected {} <= {} <= {}",
+            lower_bound,
+            actual,
+            upper_bound
+        );
+    }
+}
+
 fn fee_history_request() -> JsonRpcRequestMatcher {
     JsonRpcRequestMatcher::with_method("eth_feeHistory")
         .with_params(json!(["0x3", "latest", []]))
@@ -2563,7 +2700,7 @@ fn send_raw_transaction_response() -> JsonRpcResponse {
     JsonRpcResponse::from(json!({ "id": 0, "jsonrpc": "2.0", "result": MOCK_TRANSACTION_HASH }))
 }
 
-pub fn multi_logs_for_single_transaction(num_logs: usize) -> serde_json::Value {
+pub fn multi_logs_for_single_transaction(num_logs: usize) -> Value {
     let mut logs = Vec::with_capacity(num_logs);
     for log_index in 0..num_logs {
         let mut log = single_log();
