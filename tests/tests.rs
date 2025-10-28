@@ -2204,9 +2204,7 @@ async fn should_retry_with_increasingly_more_cycles() {
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
             EthMainnetService::Cloudflare,
         ])))
-        .with_retry_strategy(EvmRpcRetryStrategy::DoubleCycles {
-            max_num_retries: 5,
-        })
+        .with_retry_strategy(EvmRpcRetryStrategy::DoubleCycles { max_num_retries: 5 })
         .build()
         .get_transaction_count((
             address!("0xdAC17F958D2ee523a2206206994597C13D831ec7"),
