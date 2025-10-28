@@ -7,7 +7,7 @@ use crate::{
             json::{JsonRpcRequestMatcher, JsonRpcResponse},
             CanisterHttpReject, CanisterHttpReply, MockHttpOutcalls, MockHttpOutcallsBuilder,
         },
-        MockHttpRuntime,
+        wallet::MockHttpRuntimeWithWallet,
     },
     setup::EvmRpcSetup,
 };
@@ -2408,7 +2408,7 @@ mod cycles_cost_tests {
     async fn should_be_idempotent() {
         async fn check<Converter, Config, Params, CandidOutput, Output>(
             request: RequestBuilder<
-                MockHttpRuntime,
+                MockHttpRuntimeWithWallet,
                 Converter,
                 Config,
                 Params,
@@ -2479,7 +2479,7 @@ mod cycles_cost_tests {
     async fn should_be_zero_when_in_demo_mode() {
         async fn check<Converter, Config, Params, CandidOutput, Output>(
             request: RequestBuilder<
-                MockHttpRuntime,
+                MockHttpRuntimeWithWallet,
                 Converter,
                 Config,
                 Params,
