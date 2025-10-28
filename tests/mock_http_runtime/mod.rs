@@ -1,4 +1,5 @@
 pub mod mock;
+pub mod wallet;
 
 use crate::MAX_TICKS;
 use async_trait::async_trait;
@@ -40,7 +41,6 @@ impl Runtime for MockHttpRuntime {
         In: ArgumentEncoder + Send,
         Out: CandidType + DeserializeOwned,
     {
-        // Forward the call through the wallet canister to attach cycles
         let message_id = self
             .env
             .submit_call(id, self.caller, method, encode_args(args))

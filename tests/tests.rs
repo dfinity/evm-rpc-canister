@@ -2067,7 +2067,7 @@ async fn should_reject_http_request_in_replicated_mode() {
         setup
         .env
         .update_call(
-            setup.canister_id,
+            setup.evm_canister_id,
             Principal::anonymous(),
             "http_request",
             Encode!(&request).unwrap(),

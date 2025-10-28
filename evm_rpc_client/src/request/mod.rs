@@ -536,7 +536,7 @@ pub trait EvmRpcConfig {
     /// Return a new RPC config with the given response size estimate.
     fn with_response_size_estimate(self, response_size_estimate: u64) -> Self;
 
-    /// Return a new RPC config with the given response consensys.
+    /// Return a new RPC config with the given response consensus.
     fn with_response_consensus(self, response_consensus: ConsensusStrategy) -> Self;
 }
 

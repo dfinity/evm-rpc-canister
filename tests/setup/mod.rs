@@ -1,3 +1,4 @@
+use crate::mock_http_runtime::wallet::MockHttpRuntimeWithWallet;
 use crate::{
     mock_http_runtime::{mock::MockHttpOutcalls, MockHttpRuntime},
     DEFAULT_CALLER_TEST_ID, DEFAULT_CONTROLLER_TEST_ID, INITIAL_CYCLES, MOCK_API_KEY,
@@ -19,6 +20,8 @@ use ic_test_utilities_load_wasm::load_wasm;
 use pocket_ic::{nonblocking::PocketIc, ErrorCode, PocketIcBuilder, RejectResponse};
 use serde::de::DeserializeOwned;
 use std::{
+    env::{set_var, var},
+    path::PathBuf,
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -28,16 +31,13 @@ pub struct EvmRpcSetup {
     pub env: Arc<PocketIc>,
     pub caller: Principal,
     pub controller: Principal,
-    pub canister_id: CanisterId,
+    pub evm_canister_id: CanisterId,
+    pub wallet_canister_id: CanisterId,
 }
 
 impl EvmRpcSetup {
     pub async fn new() -> Self {
-        Self::with_args(InstallArgs {
-            demo: Some(true),
-            ..Default::default()
-        })
-        .await
+        Self::with_args(InstallArgs::default()).await
     }
 
     pub async fn with_args(args: InstallArgs) -> Self {
@@ -55,7 +55,7 @@ impl EvmRpcSetup {
         let env = Arc::new(pocket_ic);
 
         let controller = DEFAULT_CONTROLLER_TEST_ID;
-        let canister_id = env
+        let evm_canister_id = env
             .create_canister_with_settings(
                 None,
                 Some(CanisterSettings {
@@ -64,14 +64,30 @@ impl EvmRpcSetup {
                 }),
             )
             .await;
-        env.add_cycles(canister_id, INITIAL_CYCLES).await;
+        env.add_cycles(evm_canister_id, INITIAL_CYCLES).await;
         env.install_canister(
-            canister_id,
+            evm_canister_id,
             evm_rpc_wasm(),
             Encode!(&args).unwrap(),
             Some(controller),
         )
         .await;
+
+        let wallet = DEFAULT_CALLER_TEST_ID;
+        let wallet_canister_id = env
+            .create_canister_with_id(
+                None,
+                Some(CanisterSettings {
+                    controllers: Some(vec![controller]),
+                    ..CanisterSettings::default()
+                }),
+                wallet,
+            )
+            .await
+            .unwrap();
+        env.add_cycles(wallet_canister_id, u64::MAX as u128).await;
+        env.install_canister(wallet_canister_id, wallet_wasm(), vec![], Some(controller))
+            .await;
 
         let caller = DEFAULT_CALLER_TEST_ID;
 
@@ -79,7 +95,8 @@ impl EvmRpcSetup {
             env,
             caller,
             controller,
-            canister_id,
+            evm_canister_id,
+            wallet_canister_id,
         }
     }
 
@@ -92,7 +109,7 @@ impl EvmRpcSetup {
             match self
                 .env
                 .upgrade_canister(
-                    self.canister_id,
+                    self.evm_canister_id,
                     evm_rpc_wasm(),
                     Encode!(&args).unwrap(),
                     Some(self.controller),
@@ -110,8 +127,12 @@ impl EvmRpcSetup {
     pub fn client(
         &self,
         mocks: impl Into<MockHttpOutcalls>,
-    ) -> ClientBuilder<MockHttpRuntime, AlloyResponseConverter> {
-        EvmRpcClient::builder(self.new_mock_http_runtime(mocks), self.canister_id).with_alloy()
+    ) -> ClientBuilder<MockHttpRuntimeWithWallet, AlloyResponseConverter> {
+        EvmRpcClient::builder(
+            self.new_mock_http_runtime_with_wallet(mocks),
+            self.evm_canister_id,
+        )
+        .with_alloy()
     }
 
     pub fn new_mock_http_runtime(&self, mocks: impl Into<MockHttpOutcalls>) -> MockHttpRuntime {
@@ -119,6 +140,16 @@ impl EvmRpcSetup {
             env: self.env.clone(),
             caller: self.caller,
             mocks: Mutex::new(mocks.into()),
+        }
+    }
+
+    pub fn new_mock_http_runtime_with_wallet(
+        &self,
+        mocks: impl Into<MockHttpOutcalls>,
+    ) -> MockHttpRuntimeWithWallet {
+        MockHttpRuntimeWithWallet {
+            mock_http_runtime: self.new_mock_http_runtime(mocks),
+            wallet_canister_id: self.wallet_canister_id,
         }
     }
 
@@ -209,7 +240,7 @@ impl EvmRpcSetup {
     ) -> RpcResult<String> {
         runtime
             .update_call(
-                self.canister_id,
+                self.evm_canister_id,
                 "request",
                 (source, json_rpc_payload, max_response_bytes),
                 0, // dummy value
@@ -241,7 +272,7 @@ impl EvmRpcSetup {
     ) -> R {
         decode_reply(
             self.env
-                .query_call(self.canister_id, caller, method, input)
+                .query_call(self.evm_canister_id, caller, method, input)
                 .await,
         )
     }
@@ -254,7 +285,7 @@ impl EvmRpcSetup {
     ) -> R {
         decode_reply(
             self.env
-                .update_call(self.canister_id, caller, method, input)
+                .update_call(self.evm_canister_id, caller, method, input)
                 .await,
         )
     }
@@ -265,13 +296,23 @@ impl PocketIcAsyncHttpQuery for EvmRpcSetup {
         &self.env
     }
 
-    fn get_canister_id(&self) -> ic_management_canister_types::CanisterId {
-        self.canister_id
+    fn get_canister_id(&self) -> CanisterId {
+        self.evm_canister_id
     }
 }
 
 fn evm_rpc_wasm() -> Vec<u8> {
-    load_wasm(std::env::var("CARGO_MANIFEST_DIR").unwrap(), "evm_rpc", &[])
+    load_wasm(var("CARGO_MANIFEST_DIR").unwrap(), "evm_rpc", &[])
+}
+
+fn wallet_wasm() -> Vec<u8> {
+    if var("WALLET_WASM_PATH").is_err() {
+        set_var(
+            "WALLET_WASM_PATH",
+            PathBuf::from(var("CARGO_MANIFEST_DIR").unwrap()).join("wallet.wasm.gz"),
+        )
+    };
+    load_wasm(PathBuf::new(), "wallet", &[])
 }
 
 fn decode_reply<R: CandidType + DeserializeOwned>(result: Result<Vec<u8>, RejectResponse>) -> R {
