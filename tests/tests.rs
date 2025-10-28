@@ -73,13 +73,7 @@ async fn should_canonicalize_request_endpoint_response() {
         r#"{"result":"0x00112233","jsonrpc":"2.0","id":1}"#,
     ];
 
-    let setup = EvmRpcSetup::with_args(InstallArgs {
-        demo: Some(true),
-        ..Default::default()
-    })
-    .await
-    .mock_api_keys()
-    .await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let mut results = Vec::with_capacity(3);
     for response in responses {
         let mocks = MockHttpOutcallsBuilder::new()
@@ -100,7 +94,7 @@ async fn should_canonicalize_request_endpoint_response() {
                     MOCK_REQUEST_PAYLOAD,
                     MOCK_REQUEST_RESPONSE_BYTES,
                 ),
-                0,
+                1_000_000_000,
             )
             .await;
         results.push(result);
@@ -117,13 +111,7 @@ async fn should_not_modify_json_rpc_request_from_request_endpoint() {
         .given(JsonRpcRequestMatcher::with_method("eth_gasPrice").with_id(123_u64))
         .respond_with(JsonRpcResponse::from(mock_response));
 
-    let setup = EvmRpcSetup::with_args(InstallArgs {
-        demo: Some(true),
-        ..Default::default()
-    })
-    .await
-    .mock_api_keys()
-    .await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let response = setup
         .request(
             &setup.new_mock_http_runtime_with_wallet(mocks),
@@ -135,7 +123,7 @@ async fn should_not_modify_json_rpc_request_from_request_endpoint() {
                 mock_request,
                 MOCK_REQUEST_RESPONSE_BYTES,
             ),
-            0,
+            1_000_000_000,
         )
         .await;
 
@@ -998,13 +986,7 @@ async fn candid_rpc_should_allow_unexpected_response_fields() {
 
 #[tokio::test]
 async fn candid_rpc_should_err_without_cycles() {
-    let setup = EvmRpcSetup::with_args(InstallArgs {
-        demo: None,
-        ..Default::default()
-    })
-    .await
-    .mock_api_keys()
-    .await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     let result = setup
         .client(MockHttpOutcalls::NEVER)
@@ -1436,13 +1418,7 @@ async fn should_have_metrics_for_request_endpoint() {
         )
         .respond_with(JsonRpcResponse::from(MOCK_REQUEST_RESPONSE));
 
-    let setup = EvmRpcSetup::with_args(InstallArgs {
-        demo: Some(true),
-        ..Default::default()
-    })
-    .await
-    .mock_api_keys()
-    .await;
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let response = setup
         .request(
             &setup.new_mock_http_runtime_with_wallet(mocks),
@@ -1454,7 +1430,7 @@ async fn should_have_metrics_for_request_endpoint() {
                 MOCK_REQUEST_PAYLOAD,
                 MOCK_REQUEST_RESPONSE_BYTES,
             ),
-            0,
+            1_000_000_000,
         )
         .await;
     assert_eq!(response, Ok(MOCK_REQUEST_RESPONSE.to_string()));
@@ -1705,7 +1681,6 @@ async fn should_use_fallback_public_url() {
 #[tokio::test]
 async fn should_insert_api_keys() {
     let setup = EvmRpcSetup::with_args(InstallArgs {
-        demo: Some(true),
         manage_api_keys: Some(vec![DEFAULT_CALLER_TEST_ID]),
         ..Default::default()
     })
@@ -1740,7 +1715,6 @@ async fn should_insert_api_keys() {
 #[tokio::test]
 async fn should_update_api_key() {
     let setup = EvmRpcSetup::with_args(InstallArgs {
-        demo: Some(true),
         manage_api_keys: Some(vec![DEFAULT_CALLER_TEST_ID]),
         ..Default::default()
     })
@@ -1804,7 +1778,6 @@ async fn should_update_api_key() {
 #[tokio::test]
 async fn should_update_bearer_token() {
     let setup = EvmRpcSetup::with_args(InstallArgs {
-        demo: Some(true),
         manage_api_keys: Some(vec![DEFAULT_CALLER_TEST_ID]),
         ..Default::default()
     })
@@ -1908,7 +1881,6 @@ async fn should_get_providers_and_get_service_provider_map_be_consistent() {
 #[tokio::test]
 async fn upgrade_should_keep_api_keys() {
     let setup = EvmRpcSetup::with_args(InstallArgs {
-        demo: Some(true),
         manage_api_keys: Some(vec![DEFAULT_CALLER_TEST_ID]),
         ..Default::default()
     })
@@ -2100,12 +2072,7 @@ async fn should_reject_http_request_in_replicated_mode() {
 
 #[tokio::test]
 async fn should_retrieve_logs() {
-    let setup = EvmRpcSetup::with_args(InstallArgs {
-        demo: None,
-        manage_api_keys: None,
-        ..Default::default()
-    })
-    .await;
+    let setup = EvmRpcSetup::new().await;
     assert_eq!(setup.http_get_logs("DEBUG").await, vec![]);
     assert_eq!(setup.http_get_logs("INFO").await, vec![]);
 
@@ -2152,6 +2119,7 @@ async fn should_retry_when_response_too_large() {
         .with_response_size_estimate(1)
         .build()
         .get_logs(vec![address!("0xdAC17F958D2ee523a2206206994597C13D831ec7")])
+        .with_cycles(1_000_000_000_000)
         .send()
         .await
         .expect_consistent();
@@ -2187,6 +2155,7 @@ async fn should_retry_when_response_too_large() {
         .with_response_size_estimate(1)
         .build()
         .get_logs(vec![address!("0xdAC17F958D2ee523a2206206994597C13D831ec7")])
+        .with_cycles(1_000_000_000_000)
         .send()
         .await
         .expect_consistent();
