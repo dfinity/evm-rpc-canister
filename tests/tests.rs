@@ -2119,7 +2119,7 @@ async fn should_retry_when_response_too_large() {
         .with_response_size_estimate(1)
         .build()
         .get_logs(vec![address!("0xdAC17F958D2ee523a2206206994597C13D831ec7")])
-        .with_cycles(10_000_000_000_000)
+        .with_cycles(1_000_000_000_000)
         .send()
         .await
         .expect_consistent();
@@ -2155,7 +2155,7 @@ async fn should_retry_when_response_too_large() {
         .with_response_size_estimate(1)
         .build()
         .get_logs(vec![address!("0xdAC17F958D2ee523a2206206994597C13D831ec7")])
-        .with_cycles(10_000_000_000_000)
+        .with_cycles(1_000_000_000_000)
         .send()
         .await
         .expect_consistent();
