@@ -51,9 +51,8 @@
 //! use alloy_primitives::{address, U256};
 //! use alloy_rpc_types::BlockNumberOrTag;
 //! use evm_rpc_client::EvmRpcClient;
-//! use evm_rpc_types::MultiRpcResult;
 //!
-//! # use evm_rpc_types::{Nat256, RpcError};
+//! # use evm_rpc_types::{MultiRpcResult, Nat256, RpcError};
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let client = EvmRpcClient::builder_for_ic()
@@ -95,9 +94,9 @@
 //! use alloy_primitives::{address, U256};
 //! use alloy_rpc_types::BlockNumberOrTag;
 //! use evm_rpc_client::EvmRpcClient;
-//! use evm_rpc_types::{ConsensusStrategy, MultiRpcResult, RpcServices};
+//! use evm_rpc_types::{ConsensusStrategy, RpcServices};
 //!
-//! # use evm_rpc_types::Nat256;
+//! # use evm_rpc_types::{MultiRpcResult, Nat256};
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let client = EvmRpcClient::builder_for_ic()

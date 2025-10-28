@@ -116,6 +116,14 @@ jobs:
       - name: Set EVM_RPC_WASM_PATH for load_wasm
         run: |
           echo "EVM_RPC_WASM_PATH=$GITHUB_WORKSPACE/evm_rpc.wasm.gz" >> "$GITHUB_ENV"
+
+      - name: Download wallet canister
+        run: |
+          wget https://github.com/dfinity/sdk/raw/0a82e042adec6f24ba53665312713923bf276a34/src/distributed/wallet.wasm.gz
+
+      - name: Set WALLET_WASM_PATH for load_wasm
+        run: |
+          echo "WALLET_WASM_PATH=$GITHUB_WORKSPACE/wallet.wasm.gz" >> "$GITHUB_ENV"
  
       - name: Install PocketIC server
         uses: dfinity/pocketic@main
