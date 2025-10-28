@@ -25,7 +25,8 @@ use pocket_ic::ErrorCode;
 use serde_json::{json, Value};
 use std::iter;
 
-const DEFAULT_CALLER_TEST_ID: Principal = Principal::from_slice(&[0x9d, 0xf7, 0x01]);
+const DEFAULT_CALLER_TEST_ID: Principal =
+    Principal::from_slice(&[0x0, 0x0, 0x0, 0x0, 0x3, 0x31, 0x1, 0x8, 0x2, 0x2]);
 const DEFAULT_CONTROLLER_TEST_ID: Principal = Principal::from_slice(&[0x9d, 0xf7, 0x02]);
 const ADDITIONAL_TEST_ID: Principal = Principal::from_slice(&[0x9d, 0xf7, 0x03]);
 
@@ -72,7 +73,13 @@ async fn should_canonicalize_request_endpoint_response() {
         r#"{"result":"0x00112233","jsonrpc":"2.0","id":1}"#,
     ];
 
-    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::with_args(InstallArgs {
+        demo: Some(true),
+        ..Default::default()
+    })
+    .await
+    .mock_api_keys()
+    .await;
     let mut results = Vec::with_capacity(3);
     for response in responses {
         let mocks = MockHttpOutcallsBuilder::new()
@@ -93,6 +100,7 @@ async fn should_canonicalize_request_endpoint_response() {
                     MOCK_REQUEST_PAYLOAD,
                     MOCK_REQUEST_RESPONSE_BYTES,
                 ),
+                0,
             )
             .await;
         results.push(result);
@@ -109,7 +117,13 @@ async fn should_not_modify_json_rpc_request_from_request_endpoint() {
         .given(JsonRpcRequestMatcher::with_method("eth_gasPrice").with_id(123_u64))
         .respond_with(JsonRpcResponse::from(mock_response));
 
-    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::with_args(InstallArgs {
+        demo: Some(true),
+        ..Default::default()
+    })
+    .await
+    .mock_api_keys()
+    .await;
     let response = setup
         .request(
             &setup.new_mock_http_runtime(mocks),
@@ -121,6 +135,7 @@ async fn should_not_modify_json_rpc_request_from_request_endpoint() {
                 mock_request,
                 MOCK_REQUEST_RESPONSE_BYTES,
             ),
+            0,
         )
         .await;
 
@@ -1421,7 +1436,13 @@ async fn should_have_metrics_for_request_endpoint() {
         )
         .respond_with(JsonRpcResponse::from(MOCK_REQUEST_RESPONSE));
 
-    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
+    let setup = EvmRpcSetup::with_args(InstallArgs {
+        demo: Some(true),
+        ..Default::default()
+    })
+    .await
+    .mock_api_keys()
+    .await;
     let response = setup
         .request(
             &setup.new_mock_http_runtime(mocks),
@@ -1433,6 +1454,7 @@ async fn should_have_metrics_for_request_endpoint() {
                 MOCK_REQUEST_PAYLOAD,
                 MOCK_REQUEST_RESPONSE_BYTES,
             ),
+            0,
         )
         .await;
     assert_eq!(response, Ok(MOCK_REQUEST_RESPONSE.to_string()));

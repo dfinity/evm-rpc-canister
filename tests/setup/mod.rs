@@ -128,27 +128,20 @@ impl EvmRpcSetup {
         &self,
         mocks: impl Into<MockHttpOutcalls>,
     ) -> ClientBuilder<MockHttpRuntimeWithWallet, AlloyResponseConverter> {
-        EvmRpcClient::builder(
-            self.new_mock_http_runtime_with_wallet(mocks),
-            self.evm_canister_id,
-        )
-        .with_alloy()
+        EvmRpcClient::builder(self.new_mock_http_runtime(mocks), self.evm_canister_id).with_alloy()
     }
 
-    pub fn new_mock_http_runtime(&self, mocks: impl Into<MockHttpOutcalls>) -> MockHttpRuntime {
-        MockHttpRuntime {
-            env: self.env.clone(),
-            caller: self.caller,
-            mocks: Mutex::new(mocks.into()),
-        }
-    }
-
-    pub fn new_mock_http_runtime_with_wallet(
+    pub fn new_mock_http_runtime(
         &self,
         mocks: impl Into<MockHttpOutcalls>,
     ) -> MockHttpRuntimeWithWallet {
         MockHttpRuntimeWithWallet {
-            mock_http_runtime: self.new_mock_http_runtime(mocks),
+            mock_http_runtime: MockHttpRuntime {
+                env: self.env.clone(),
+                // Call the cycles wallet as controller so we are allowed to attach cycles
+                caller: self.controller,
+                mocks: Mutex::new(mocks.into()),
+            },
             wallet_canister_id: self.wallet_canister_id,
         }
     }
@@ -235,15 +228,16 @@ impl EvmRpcSetup {
     // Legacy endpoint, not supported by the `evm_rpc_client::EvmRpcClient`
     pub async fn request(
         &self,
-        runtime: &MockHttpRuntime,
+        runtime: &MockHttpRuntimeWithWallet,
         (source, json_rpc_payload, max_response_bytes): (RpcService, &str, u64),
+        cycles: u128,
     ) -> RpcResult<String> {
         runtime
             .update_call(
                 self.evm_canister_id,
                 "request",
                 (source, json_rpc_payload, max_response_bytes),
-                0, // dummy value
+                cycles, // dummy value
             )
             .await
             .unwrap()
