@@ -1,5 +1,6 @@
 use crate::mock_http_runtime::mock::{json::JsonRpcRequestMatcher, CanisterHttpRequestMatcher};
 use candid::Principal;
+use canhttp::http::json::Id;
 use evm_rpc::constants::{CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE};
 use pocket_ic::common::rest::{CanisterHttpHeader, CanisterHttpMethod, CanisterHttpRequest};
 use serde_json::{json, Value};
@@ -31,7 +32,7 @@ mod json_rpc_request_matcher_tests {
 
     #[test]
     fn should_not_match_wrong_id() {
-        assert!(!request_matcher().with_id(999_u64).matches(&request()));
+        assert!(!request_matcher().with_id(Id::Null).matches(&request()));
     }
 
     #[test]
