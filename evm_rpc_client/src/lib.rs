@@ -138,8 +138,7 @@ use request::{
     SendRawTransactionRequest, SendRawTransactionRequestBuilder,
 };
 pub use request::{CandidResponseConverter, EvmRpcConfig};
-use retry::EvmRpcResult;
-pub use retry::EvmRpcRetryStrategy;
+pub use retry::{DoubleCycles, EvmRpcRetryPolicy, NoRetry};
 pub use runtime::{IcError, IcRuntime, Runtime};
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
@@ -156,21 +155,21 @@ pub const EVM_RPC_CANISTER: Principal = Principal::from_slice(&[0, 0, 0, 0, 2, 4
 
 /// Client to interact with the EVM RPC canister.
 #[derive(Debug)]
-pub struct EvmRpcClient<R, C> {
-    config: Arc<ClientConfig<R, C>>,
+pub struct EvmRpcClient<R, C, P> {
+    config: Arc<ClientConfig<R, C, P>>,
 }
 
-impl<R> EvmRpcClient<R, CandidResponseConverter> {
+impl<R> EvmRpcClient<R, CandidResponseConverter, NoRetry> {
     /// Creates a [`ClientBuilder`] to configure a [`EvmRpcClient`].
     pub fn builder(
         runtime: R,
         evm_rpc_canister: Principal,
-    ) -> ClientBuilder<R, CandidResponseConverter> {
+    ) -> ClientBuilder<R, CandidResponseConverter, NoRetry> {
         ClientBuilder::new(runtime, evm_rpc_canister)
     }
 }
 
-impl<R, C> Clone for EvmRpcClient<R, C> {
+impl<R, C, P> Clone for EvmRpcClient<R, C, P> {
     fn clone(&self) -> Self {
         Self {
             config: self.config.clone(),
@@ -178,32 +177,32 @@ impl<R, C> Clone for EvmRpcClient<R, C> {
     }
 }
 
-impl EvmRpcClient<IcRuntime, CandidResponseConverter> {
+impl EvmRpcClient<IcRuntime, CandidResponseConverter, NoRetry> {
     /// Creates a [`ClientBuilder`] to configure a [`EvmRpcClient`] targeting [`EVM_RPC_CANISTER`]
     /// running on the Internet Computer.
-    pub fn builder_for_ic() -> ClientBuilder<IcRuntime, CandidResponseConverter> {
+    pub fn builder_for_ic() -> ClientBuilder<IcRuntime, CandidResponseConverter, NoRetry> {
         ClientBuilder::new(IcRuntime, EVM_RPC_CANISTER)
     }
 }
 
 /// Configuration for the EVM RPC canister client.
 #[derive(Clone, Eq, PartialEq, Debug)]
-pub struct ClientConfig<R, C> {
+pub struct ClientConfig<R, C, P> {
     runtime: R,
     evm_rpc_canister: Principal,
     rpc_config: Option<RpcConfig>,
     rpc_services: RpcServices,
     response_converter: C,
-    retry_strategy: EvmRpcRetryStrategy,
+    retry_policy: P,
 }
 
 /// A [`ClientBuilder`] to create a [`EvmRpcClient`] with custom configuration.
 #[must_use]
-pub struct ClientBuilder<R, C> {
-    config: ClientConfig<R, C>,
+pub struct ClientBuilder<R, C, P> {
+    config: ClientConfig<R, C, P>,
 }
 
-impl<R: Clone, C: Clone> Clone for ClientBuilder<R, C> {
+impl<R: Clone, C: Clone, P: Clone> Clone for ClientBuilder<R, C, P> {
     fn clone(&self) -> Self {
         ClientBuilder {
             config: self.config.clone(),
@@ -211,8 +210,11 @@ impl<R: Clone, C: Clone> Clone for ClientBuilder<R, C> {
     }
 }
 
-impl<R> ClientBuilder<R, CandidResponseConverter> {
-    fn new(runtime: R, evm_rpc_canister: Principal) -> ClientBuilder<R, CandidResponseConverter> {
+impl<R> ClientBuilder<R, CandidResponseConverter, NoRetry> {
+    fn new(
+        runtime: R,
+        evm_rpc_canister: Principal,
+    ) -> ClientBuilder<R, CandidResponseConverter, NoRetry> {
         Self {
             config: ClientConfig {
                 runtime,
@@ -220,17 +222,17 @@ impl<R> ClientBuilder<R, CandidResponseConverter> {
                 rpc_config: None,
                 rpc_services: RpcServices::EthMainnet(None),
                 response_converter: CandidResponseConverter,
-                retry_strategy: Default::default(),
+                retry_policy: NoRetry,
             },
         }
     }
 }
 
-impl<R, C> ClientBuilder<R, C> {
+impl<R, C, P> ClientBuilder<R, C, P> {
     /// Modify the existing runtime by applying a transformation function.
     ///
     /// The transformation does not necessarily produce a runtime of the same type.
-    pub fn with_runtime<S, F: FnOnce(R) -> S>(self, other_runtime: F) -> ClientBuilder<S, C> {
+    pub fn with_runtime<S, F: FnOnce(R) -> S>(self, other_runtime: F) -> ClientBuilder<S, C, P> {
         ClientBuilder {
             config: ClientConfig {
                 runtime: other_runtime(self.config.runtime),
@@ -238,7 +240,7 @@ impl<R, C> ClientBuilder<R, C> {
                 rpc_config: self.config.rpc_config,
                 rpc_services: self.config.rpc_services,
                 response_converter: self.config.response_converter,
-                retry_strategy: self.config.retry_strategy,
+                retry_policy: self.config.retry_policy,
             },
         }
     }
@@ -275,7 +277,7 @@ impl<R, C> ClientBuilder<R, C> {
 
     /// Mutates the builder to create a client with [alloy](https://alloy.rs/) response types.
     #[cfg(feature = "alloy")]
-    pub fn with_alloy(self) -> ClientBuilder<R, AlloyResponseConverter> {
+    pub fn with_alloy(self) -> ClientBuilder<R, AlloyResponseConverter, P> {
         ClientBuilder {
             config: ClientConfig {
                 runtime: self.config.runtime,
@@ -283,13 +285,13 @@ impl<R, C> ClientBuilder<R, C> {
                 rpc_config: self.config.rpc_config,
                 rpc_services: self.config.rpc_services,
                 response_converter: AlloyResponseConverter,
-                retry_strategy: self.config.retry_strategy,
+                retry_policy: self.config.retry_policy,
             },
         }
     }
 
     /// Mutates the builder to create a client with Candid response types.
-    pub fn with_candid(self) -> ClientBuilder<R, CandidResponseConverter> {
+    pub fn with_candid(self) -> ClientBuilder<R, CandidResponseConverter, P> {
         ClientBuilder {
             config: ClientConfig {
                 runtime: self.config.runtime,
@@ -297,26 +299,34 @@ impl<R, C> ClientBuilder<R, C> {
                 rpc_config: self.config.rpc_config,
                 rpc_services: self.config.rpc_services,
                 response_converter: CandidResponseConverter,
-                retry_strategy: self.config.retry_strategy,
+                retry_policy: self.config.retry_policy,
             },
         }
     }
 
     /// Mutates the builder to use the given retry strategy.
-    pub fn with_retry_strategy(mut self, retry_strategy: EvmRpcRetryStrategy) -> Self {
-        self.config.retry_strategy = retry_strategy;
-        self
+    pub fn with_retry_strategy<U>(self, retry_strategy: U) -> ClientBuilder<R, C, U> {
+        ClientBuilder {
+            config: ClientConfig {
+                runtime: self.config.runtime,
+                evm_rpc_canister: self.config.evm_rpc_canister,
+                rpc_config: self.config.rpc_config,
+                rpc_services: self.config.rpc_services,
+                response_converter: self.config.response_converter,
+                retry_policy: retry_strategy,
+            },
+        }
     }
 
     /// Creates a [`EvmRpcClient`] from the configuration specified in the [`ClientBuilder`].
-    pub fn build(self) -> EvmRpcClient<R, C> {
+    pub fn build(self) -> EvmRpcClient<R, C, P> {
         EvmRpcClient {
             config: Arc::new(self.config),
         }
     }
 }
 
-impl<R, C: EvmRpcResponseConverter> EvmRpcClient<R, C> {
+impl<R, C: EvmRpcResponseConverter, P> EvmRpcClient<R, C, P> {
     /// Call `eth_call` on the EVM RPC canister.
     ///
     /// # Examples
@@ -360,7 +370,7 @@ impl<R, C: EvmRpcResponseConverter> EvmRpcClient<R, C> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn call<T>(&self, params: T) -> CallRequestBuilder<R, C, C::CallOutput>
+    pub fn call<T>(&self, params: T) -> CallRequestBuilder<R, C, P, C::CallOutput>
     where
         T: TryInto<CallArgs>,
         <T as TryInto<CallArgs>>::Error: std::fmt::Debug,
@@ -430,7 +440,7 @@ impl<R, C: EvmRpcResponseConverter> EvmRpcClient<R, C> {
     pub fn get_block_by_number(
         &self,
         params: impl Into<BlockTag>,
-    ) -> GetBlockByNumberRequestBuilder<R, C, C::GetBlockByNumberOutput> {
+    ) -> GetBlockByNumberRequestBuilder<R, C, P, C::GetBlockByNumberOutput> {
         RequestBuilder::new(
             self.clone(),
             GetBlockByNumberRequest::new(params.into()),
@@ -507,7 +517,7 @@ impl<R, C: EvmRpcResponseConverter> EvmRpcClient<R, C> {
     pub fn fee_history(
         &self,
         params: impl Into<FeeHistoryArgs>,
-    ) -> FeeHistoryRequestBuilder<R, C, C::FeeHistoryOutput> {
+    ) -> FeeHistoryRequestBuilder<R, C, P, C::FeeHistoryOutput> {
         RequestBuilder::new(
             self.clone(),
             FeeHistoryRequest::new(params.into()),
@@ -583,7 +593,7 @@ impl<R, C: EvmRpcResponseConverter> EvmRpcClient<R, C> {
     pub fn get_logs(
         &self,
         params: impl Into<GetLogsArgs>,
-    ) -> GetLogsRequestBuilder<R, C, C::GetLogsOutput> {
+    ) -> GetLogsRequestBuilder<R, C, P, C::GetLogsOutput> {
         RequestBuilder::new(
             self.clone(),
             GetLogsRequest::new(params.into()),
@@ -624,7 +634,7 @@ impl<R, C: EvmRpcResponseConverter> EvmRpcClient<R, C> {
     pub fn get_transaction_count(
         &self,
         params: impl Into<GetTransactionCountArgs>,
-    ) -> GetTransactionCountRequestBuilder<R, C, C::GetTransactionCountOutput> {
+    ) -> GetTransactionCountRequestBuilder<R, C, P, C::GetTransactionCountOutput> {
         RequestBuilder::new(
             self.clone(),
             GetTransactionCountRequest::new(params.into()),
@@ -681,7 +691,7 @@ impl<R, C: EvmRpcResponseConverter> EvmRpcClient<R, C> {
     pub fn get_transaction_receipt(
         &self,
         params: impl Into<Hex32>,
-    ) -> GetTransactionReceiptRequestBuilder<R, C, C::GetTransactionReceiptOutput> {
+    ) -> GetTransactionReceiptRequestBuilder<R, C, P, C::GetTransactionReceiptOutput> {
         RequestBuilder::new(
             self.clone(),
             GetTransactionReceiptRequest::new(params.into()),
@@ -729,7 +739,7 @@ impl<R, C: EvmRpcResponseConverter> EvmRpcClient<R, C> {
     pub fn multi_request(
         &self,
         params: serde_json::Value,
-    ) -> JsonRequestBuilder<R, C, C::JsonRequestOutput> {
+    ) -> JsonRequestBuilder<R, C, P, C::JsonRequestOutput> {
         RequestBuilder::new(
             self.clone(),
             JsonRequest::try_from(params).expect("Client error: invalid JSON request"),
@@ -767,7 +777,7 @@ impl<R, C: EvmRpcResponseConverter> EvmRpcClient<R, C> {
     pub fn send_raw_transaction(
         &self,
         params: impl Into<Hex>,
-    ) -> SendRawTransactionRequestBuilder<R, C, C::SendRawTransactionOutput> {
+    ) -> SendRawTransactionRequestBuilder<R, C, P, C::SendRawTransactionOutput> {
         RequestBuilder::new(
             self.clone(),
             SendRawTransactionRequest::new(params.into()),
@@ -776,16 +786,18 @@ impl<R, C: EvmRpcResponseConverter> EvmRpcClient<R, C> {
     }
 }
 
-impl<Runtime: runtime::Runtime, Converter> EvmRpcClient<Runtime, Converter> {
+impl<Runtime: runtime::Runtime, Converter, RetryPolicy>
+    EvmRpcClient<Runtime, Converter, RetryPolicy>
+{
     async fn execute_request<Config, Params, CandidOutput, Output>(
         &self,
         request: Request<Config, Params, CandidOutput, Output>,
     ) -> Output
     where
-        Config: CandidType + Clone + Send,
-        Params: CandidType + Clone + Send,
+        Config: CandidType + Send,
+        Params: CandidType + Send,
         CandidOutput: Into<Output> + CandidType + DeserializeOwned,
-        Output: EvmRpcResult,
+        RetryPolicy: EvmRpcRetryPolicy<Config, Params, CandidOutput, Output> + Clone,
     {
         let rpc_method = request.endpoint.rpc_method();
         self.try_execute_request(request)
@@ -798,46 +810,25 @@ impl<Runtime: runtime::Runtime, Converter> EvmRpcClient<Runtime, Converter> {
         request: Request<Config, Params, CandidOutput, Output>,
     ) -> Result<Output, IcError>
     where
-        Config: CandidType + Clone + Send,
-        Params: CandidType + Clone + Send,
+        Config: CandidType + Send,
+        Params: CandidType + Send,
         CandidOutput: Into<Output> + CandidType + DeserializeOwned,
-        Output: EvmRpcResult,
+        RetryPolicy: EvmRpcRetryPolicy<Config, Params, CandidOutput, Output> + Clone,
     {
-        fn retry_request<Config, Params, CandidOutput, Output>(
-            strategy: &EvmRpcRetryStrategy,
-            request: Request<Config, Params, CandidOutput, Output>,
-            result: &Output,
-            num_retries: u32,
-        ) -> Option<Request<Config, Params, CandidOutput, Output>>
-        where
-            Output: EvmRpcResult,
-        {
-            match strategy {
-                EvmRpcRetryStrategy::NoRetry => None,
-                EvmRpcRetryStrategy::DoubleCycles { max_num_retries } => {
-                    if num_retries < *max_num_retries && result.is_too_few_cycles_error() {
-                        let request = Request {
-                            cycles: request.cycles.saturating_mul(2),
-                            ..request
-                        };
-                        Some(request)
-                    } else {
-                        None
-                    }
-                }
-            }
-        }
-
+        let mut retry_policy = self.config.retry_policy.clone();
         let mut request = request;
-        let mut num_retries = 0;
         loop {
-            let result = self.try_execute_request_once(request.clone()).await?;
-            request =
-                match retry_request(&self.config.retry_strategy, request, &result, num_retries) {
-                    Some(request) => request,
-                    None => return Ok(result),
-                };
-            num_retries += 1;
+            let mut maybe_retry_request = retry_policy.clone_request(&request);
+            let mut result = self.try_execute_request_once(request).await;
+            match maybe_retry_request {
+                Some(ref mut retry_request) => {
+                    request = match retry_policy.retry(retry_request, &mut result) {
+                        Some(request) => request,
+                        None => return result,
+                    };
+                }
+                None => return result,
+            }
         }
     }
 
@@ -849,7 +840,6 @@ impl<Runtime: runtime::Runtime, Converter> EvmRpcClient<Runtime, Converter> {
         Config: CandidType + Send,
         Params: CandidType + Send,
         CandidOutput: Into<Output> + CandidType + DeserializeOwned,
-        Output: EvmRpcResult,
     {
         self.config
             .runtime
