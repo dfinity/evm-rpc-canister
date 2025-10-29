@@ -57,7 +57,9 @@ pub struct DoubleCycles {
 impl DoubleCycles {
     /// Create a [`DoubleCycles`] policy with the given maximum number of retries.
     pub fn with_max_num_retries(max_num_retries: u32) -> Self {
-        DoubleCycles { num_retries: max_num_retries }
+        DoubleCycles {
+            num_retries: max_num_retries
+        }
     }
 }
 
