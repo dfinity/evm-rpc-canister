@@ -114,7 +114,7 @@ async fn should_not_modify_json_rpc_request_from_request_endpoint() {
     let mock_request = r#"{"id":123,"jsonrpc":"2.0","method":"eth_gasPrice"}"#;
     let mock_response = r#"{"jsonrpc":"2.0","id":123,"result":"0x00112233"}"#;
     let mocks = MockHttpOutcallsBuilder::new()
-        .given(JsonRpcRequestMatcher::with_method("eth_gasPrice").with_id(123_u64))
+        .given(JsonRpcRequestMatcher::with_method("eth_gasPrice").with_id(Id::Number(123)))
         .respond_with(JsonRpcResponse::from(mock_response));
 
     let setup = EvmRpcSetup::new().await.mock_api_keys().await;
