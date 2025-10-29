@@ -15,7 +15,6 @@ use alloy_primitives::{address, b256, bloom, bytes, Address, Bytes, FixedBytes, 
 use alloy_rpc_types::{BlockNumberOrTag, BlockTransactions};
 use assert_matches::assert_matches;
 use candid::{CandidType, Encode, Principal};
-use canhttp::http::json::Id;
 use evm_rpc_client::{EvmRpcEndpoint, RequestBuilder};
 use evm_rpc_types::{
     BlockTag, ConsensusStrategy, EthMainnetService, EthSepoliaService, GetLogsRpcConfig, Hex,
@@ -26,8 +25,9 @@ use ic_error_types::RejectCode;
 use ic_http_types::HttpRequest;
 use pocket_ic::common::rest::CanisterHttpResponse;
 use pocket_ic::ErrorCode;
+use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
-use std::iter;
+use std::{fmt::Debug, iter};
 use strum::IntoEnumIterator;
 
 const DEFAULT_CALLER_TEST_ID: Principal =
@@ -40,7 +40,7 @@ const INITIAL_CYCLES: u128 = 100_000_000_000_000_000;
 const MAX_TICKS: usize = 10;
 
 const MOCK_REQUEST_METHOD: &str = "eth_gasPrice";
-const MOCK_REQUEST_ID: Id = Id::Number(1);
+const MOCK_REQUEST_ID: u64 = 1;
 const MOCK_REQUEST_PARAMS: Value = Value::Array(vec![]);
 const MOCK_REQUEST_URL: &str = "https://cloudflare-eth.com";
 const MOCK_REQUEST_PAYLOAD: &str =
@@ -2545,11 +2545,165 @@ mod cycles_cost_tests {
     }
 
     #[tokio::test]
-    async fn should_get_exact_cycles_cost() {
-        // TODO: Test that requests are successful with the estimated number of cycles, but
-        //  unsuccessful with 1 less cycle.
-        //  This requires setting up a wallet canister to attach cycles to the requests to the
-        //  EVM RPC canister and will be done in a follow-up PR.
+    async fn should_get_exact_cycles_cost_() {
+        async fn check<Config, Converter, Params, CandidOutput, Output>(
+            setup: &EvmRpcSetup,
+            request: RequestBuilder<
+                MockHttpRuntimeWithWallet,
+                Converter,
+                Config,
+                Params,
+                MultiRpcResult<CandidOutput>,
+                MultiRpcResult<Output>,
+            >,
+            expected_cycles_cost: u128,
+        ) where
+            Config: CandidType + Clone + Send,
+            Params: CandidType + Clone + Send,
+            CandidOutput: CandidType + DeserializeOwned,
+            Output: Debug,
+            MultiRpcResult<CandidOutput>: Into<MultiRpcResult<Output>>,
+        {
+            let five_percents = 5_u8;
+
+            let cycles_cost = request.clone().request_cost().send().await.unwrap();
+            assert_within(cycles_cost, expected_cycles_cost, five_percents);
+
+            let cycles_before = setup.evm_rpc_canister_cycles_balance().await;
+            // Request with exact cycles amount should succeed
+            let result = request
+                .clone()
+                .with_cycles(cycles_cost)
+                .send()
+                .await
+                .expect_consistent();
+            if let Err(RpcError::ProviderError(ProviderError::TooFewCycles { .. })) = result {
+                panic!("BUG: estimated cycles cost was insufficient!: {result:?}");
+            }
+            let cycles_after = setup.evm_rpc_canister_cycles_balance().await;
+            let cycles_consumed = cycles_before + cycles_cost - cycles_after;
+
+            assert!(
+                cycles_after > cycles_before,
+                "BUG: not enough cycles requested. Requested {cycles_cost} cycles, but consumed {cycles_consumed} cycles"
+            );
+
+            // The same request with fewer cycles should fail.
+            let results = request
+                .with_cycles(cycles_cost - 1)
+                .send()
+                .await
+                .expect_inconsistent();
+
+            assert!(
+                results.iter().any(|(_provider, result)| matches!(
+                    result,
+                    &Err(RpcError::ProviderError(ProviderError::TooFewCycles {
+                        expected: _,
+                        received: _
+                    }))
+                )),
+                "BUG: Expected at least one TooFewCycles error, but got {results:?}"
+            );
+        }
+
+        let setup = EvmRpcSetup::new().await.mock_api_keys().await;
+        // The exact cycles cost of an HTTPs outcall is independent of the response,
+        // so we always return a dummy response so that individual responses
+        // do not need to be mocked.
+        let mut mocks = MockHttpOutcallsBuilder::new();
+        let mut ids = 0_u64..;
+        for endpoint in EvmRpcEndpoint::iter() {
+            let rpc_method = if endpoint == EvmRpcEndpoint::MultiRequest {
+                MOCK_REQUEST_METHOD
+            } else {
+                endpoint.rpc_method()
+            };
+            for id in ids.by_ref().take(5) {
+                mocks = mocks
+                    .given(JsonRpcRequestMatcher::with_method(rpc_method).with_id(id))
+                    .respond_with(CanisterHttpReply::with_status(403));
+            }
+            // Advance ID by 1 to account for the call with insufficient cycles, for which only the
+            // call to the last provider does not result in an HTTP outcall
+            for _ in ids.by_ref().take(1) {}
+        }
+
+        let client = setup.client(mocks).build();
+
+        for endpoint in EvmRpcEndpoint::iter() {
+            // To find out the expected_cycles_cost for a new endpoint, set the amount to 0
+            // and run the test. It should fail and report the amount of cycles needed.
+            match endpoint {
+                EvmRpcEndpoint::Call => {
+                    check(
+                        &setup,
+                        client.call(
+                            alloy_rpc_types::TransactionRequest::default()
+                                .to(MOCK_ADDRESS)
+                                .input(alloy_rpc_types::TransactionInput::from(MOCK_INPUT_DATA)),
+                        ),
+                        1_734_639_200,
+                    )
+                    .await;
+                }
+                EvmRpcEndpoint::FeeHistory => {
+                    check(
+                        &setup,
+                        client.fee_history((3_u64, BlockNumberOrTag::Latest)),
+                        1_750_673_600,
+                    )
+                    .await
+                }
+                EvmRpcEndpoint::GetBlockByNumber => {
+                    check(
+                        &setup,
+                        client.get_block_by_number(BlockNumberOrTag::Latest),
+                        3_714_418_400,
+                    )
+                    .await
+                }
+                EvmRpcEndpoint::GetLogs => {
+                    check(&setup, client.get_logs(vec![MOCK_ADDRESS]), 1_795_635_200).await
+                }
+                EvmRpcEndpoint::GetTransactionCount => {
+                    check(
+                        &setup,
+                        client.get_transaction_count((MOCK_ADDRESS, BlockNumberOrTag::Latest)),
+                        1_714_688_000,
+                    )
+                    .await
+                }
+                EvmRpcEndpoint::GetTransactionReceipt => {
+                    check(
+                        &setup,
+                        client.get_transaction_receipt(MOCK_TRANSACTION_HASH),
+                        1_768_421_600,
+                    )
+                    .await
+                }
+                EvmRpcEndpoint::MultiRequest => {
+                    check(
+                        &setup,
+                        client.multi_request(json!({
+                            "id": 0,
+                            "jsonrpc": "2.0",
+                            "method": "eth_gasPrice",
+                        })),
+                        1_729_090_400,
+                    )
+                    .await
+                }
+                EvmRpcEndpoint::SendRawTransaction => {
+                    check(
+                        &setup,
+                        client.send_raw_transaction(MOCK_TRANSACTION),
+                        1_738_556_000,
+                    )
+                    .await
+                }
+            }
+        }
     }
 }
 
@@ -2686,20 +2840,20 @@ mod request_cost_tests {
             "BUG: Expected TooFewCycles error, but got {result:?}"
         );
     }
+}
 
-    fn assert_within(actual: u128, expected: u128, percentage_error: u8) {
-        assert!(percentage_error <= 100);
-        let error_margin = expected.saturating_mul(percentage_error as u128) / 100;
-        let lower_bound = expected.saturating_sub(error_margin);
-        let upper_bound = expected.saturating_add(error_margin);
-        assert!(
-            lower_bound <= actual && actual <= upper_bound,
-            "Expected {} <= {} <= {}",
-            lower_bound,
-            actual,
-            upper_bound
-        );
-    }
+fn assert_within(actual: u128, expected: u128, percentage_error: u8) {
+    assert!(percentage_error <= 100);
+    let error_margin = expected.saturating_mul(percentage_error as u128) / 100;
+    let lower_bound = expected.saturating_sub(error_margin);
+    let upper_bound = expected.saturating_add(error_margin);
+    assert!(
+        lower_bound <= actual && actual <= upper_bound,
+        "Expected {} <= {} <= {}",
+        lower_bound,
+        actual,
+        upper_bound
+    );
 }
 
 fn fee_history_request() -> JsonRpcRequestMatcher {

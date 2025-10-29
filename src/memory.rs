@@ -4,7 +4,7 @@ use crate::{
     types::{ApiKey, Metrics, OverrideProvider, ProviderId, StorableLogFilter},
 };
 use candid::Principal;
-use canhttp::http::json::Id;
+use canhttp::http::json::{ConstantSizeId, Id};
 use canhttp::multi::Timestamp;
 use canlog::LogFilter;
 use ic_stable_structures::memory_manager::VirtualMemory;
@@ -117,7 +117,7 @@ pub fn next_request_id() -> Id {
         // overflow is not an issue here because we only use `next_request_id` to correlate
         // requests and responses in logs.
         *counter = counter.wrapping_add(1);
-        Id::from(current_request_id)
+        Id::from(ConstantSizeId::from(current_request_id))
     })
 }
 

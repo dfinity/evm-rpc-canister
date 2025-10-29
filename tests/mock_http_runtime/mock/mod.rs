@@ -107,15 +107,6 @@ pub trait CanisterHttpRequestMatcher: Send + Debug {
     fn matches(&self, request: &CanisterHttpRequest) -> bool;
 }
 
-#[derive(Debug)]
-pub struct AnyRequestMatcher;
-
-impl CanisterHttpRequestMatcher for AnyRequestMatcher {
-    fn matches(&self, _request: &CanisterHttpRequest) -> bool {
-        true
-    }
-}
-
 pub struct CanisterHttpReply(pocket_ic::common::rest::CanisterHttpReply);
 
 impl CanisterHttpReply {
