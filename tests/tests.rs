@@ -15,6 +15,7 @@ use alloy_primitives::{address, b256, bloom, bytes, Address, Bytes, FixedBytes, 
 use alloy_rpc_types::{BlockNumberOrTag, BlockTransactions};
 use assert_matches::assert_matches;
 use candid::{CandidType, Encode, Principal};
+use canhttp::http::json::Id;
 use evm_rpc_client::{EvmRpcEndpoint, RequestBuilder};
 use evm_rpc_types::{
     BlockTag, ConsensusStrategy, EthMainnetService, EthSepoliaService, GetLogsRpcConfig, Hex,
@@ -40,7 +41,7 @@ const INITIAL_CYCLES: u128 = 100_000_000_000_000_000;
 const MAX_TICKS: usize = 10;
 
 const MOCK_REQUEST_METHOD: &str = "eth_gasPrice";
-const MOCK_REQUEST_ID: u64 = 1;
+const MOCK_REQUEST_ID: Id = Id::Number(1);
 const MOCK_REQUEST_PARAMS: Value = Value::Array(vec![]);
 const MOCK_REQUEST_URL: &str = "https://cloudflare-eth.com";
 const MOCK_REQUEST_PAYLOAD: &str =
@@ -2545,7 +2546,7 @@ mod cycles_cost_tests {
     }
 
     #[tokio::test]
-    async fn should_get_exact_cycles_cost_() {
+    async fn should_get_exact_cycles_cost() {
         async fn check<Config, Converter, Params, CandidOutput, Output>(
             setup: &EvmRpcSetup,
             request: RequestBuilder<

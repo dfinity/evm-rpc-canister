@@ -3,6 +3,7 @@ mod tests;
 
 use crate::mock_http_runtime::mock::CanisterHttpRequestMatcher;
 use canhttp::http::json::{ConstantSizeId, Id, JsonRpcRequest};
+use derive_more::{From, Into};
 use pocket_ic::common::rest::{
     CanisterHttpHeader, CanisterHttpMethod, CanisterHttpReply, CanisterHttpRequest,
     CanisterHttpResponse,
@@ -10,6 +11,15 @@ use pocket_ic::common::rest::{
 use serde_json::Value;
 use std::{collections::BTreeSet, str::FromStr};
 use url::{Host, Url};
+
+#[derive(From, Into)]
+pub struct JsonRpcRequestId(Id);
+
+impl From<u64> for JsonRpcRequestId {
+    fn from(id: u64) -> Self {
+        Self(Id::from(ConstantSizeId::from(id)))
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct JsonRpcRequestMatcher {
@@ -35,7 +45,7 @@ impl JsonRpcRequestMatcher {
         }
     }
 
-    pub fn with_id(self, id: impl Into<ConstantSizeId>) -> Self {
+    pub fn with_id(self, id: impl Into<JsonRpcRequestId>) -> Self {
         Self {
             id: Some(Id::from(id.into())),
             ..self
