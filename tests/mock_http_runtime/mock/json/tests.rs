@@ -1,6 +1,6 @@
 use crate::mock_http_runtime::mock::{json::JsonRpcRequestMatcher, CanisterHttpRequestMatcher};
 use candid::Principal;
-use canhttp::http::json::Id;
+use canhttp::http::json::{ConstantSizeId, Id};
 use evm_rpc::constants::{CONTENT_TYPE_HEADER_LOWERCASE, CONTENT_TYPE_VALUE};
 use pocket_ic::common::rest::{CanisterHttpHeader, CanisterHttpMethod, CanisterHttpRequest};
 use serde_json::{json, Value};
@@ -128,7 +128,7 @@ fn request() -> CanisterHttpRequest {
         body: serde_json::to_vec(&json!({
             "jsonrpc": "2.0",
             "method": DEFAULT_RPC_METHOD,
-            "id": DEFAULT_RPC_ID,
+            "id": ConstantSizeId::from(DEFAULT_RPC_ID).to_string(),
             "params": DEFAULT_RPC_PARAMS,
         }))
         .unwrap(),

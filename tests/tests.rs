@@ -12,7 +12,7 @@ use alloy_primitives::{address, b256, bloom, bytes, Address, Bytes, FixedBytes, 
 use alloy_rpc_types::{BlockNumberOrTag, BlockTransactions};
 use assert_matches::assert_matches;
 use candid::{Encode, Principal};
-use canhttp::http::json::Id;
+use canhttp::http::json::{ConstantSizeId, Id};
 use evm_rpc_types::{
     BlockTag, ConsensusStrategy, EthMainnetService, EthSepoliaService, GetLogsRpcConfig, Hex,
     Hex32, HttpOutcallError, InstallArgs, JsonRpcError, LegacyRejectionCode, MultiRpcResult,
@@ -157,7 +157,7 @@ async fn multi_request_should_succeed() {
             .with_candid()
             .build()
             .multi_request(json!({
-                "id": 0,
+                "id" : ConstantSizeId::from(0_u64).to_string(),
                 "jsonrpc": "2.0",
                 "method": "eth_gasPrice",
             }))
@@ -171,7 +171,7 @@ async fn multi_request_should_succeed() {
             .with_rpc_sources(source.clone())
             .build()
             .multi_request(json!({
-                "id": 0,
+                "id" : ConstantSizeId::from(0_u64).to_string(),
                 "jsonrpc": "2.0",
                 "method": "eth_gasPrice",
             }))
@@ -933,7 +933,7 @@ async fn candid_rpc_should_allow_unexpected_response_fields() {
     fn mock_response() -> JsonRpcResponse {
         JsonRpcResponse::from(json!({
             "jsonrpc":"2.0",
-            "id": 0,
+            "id" : ConstantSizeId::from(0_u64).to_string(),
             "result":{
                 "unexpectedKey":"unexpectedValue",
                 "blockHash": "0x5115c07eb1f20a9d6410db0916ed3df626cfdab161d3904f45c8c8b65c90d0be",
@@ -1126,13 +1126,17 @@ async fn candid_rpc_should_reject_empty_service_list() {
 async fn candid_rpc_should_return_inconsistent_results() {
     let mocks = MockHttpOutcallsBuilder::new()
         .given(send_raw_transaction_request().with_id(0_u64))
-        .respond_with(JsonRpcResponse::from(
-            json!({ "id": 0, "jsonrpc": "2.0", "result": MOCK_TRANSACTION_HASH }),
-        ))
+        .respond_with(JsonRpcResponse::from(json!({
+                "id": ConstantSizeId::from(0_u64).to_string(),
+                "jsonrpc": "2.0",
+                "result": MOCK_TRANSACTION_HASH
+        })))
         .given(send_raw_transaction_request().with_id(1_u64))
-        .respond_with(JsonRpcResponse::from(
-            json!({ "id": 1, "jsonrpc": "2.0", "result": "NonceTooLow" }),
-        ));
+        .respond_with(JsonRpcResponse::from(json!({
+            "id": ConstantSizeId::from(1_u64).to_string(),
+            "jsonrpc": "2.0",
+            "result": "NonceTooLow"
+        })));
 
     let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let results = setup
@@ -1177,9 +1181,11 @@ async fn candid_rpc_should_return_inconsistent_results() {
 #[tokio::test]
 async fn candid_rpc_should_return_3_out_of_4_transaction_count() {
     fn get_transaction_count_response(result: u64) -> JsonRpcResponse {
-        JsonRpcResponse::from(
-            json!({ "jsonrpc" : "2.0", "id" : 0, "result" : format!("0x{result:x}") }),
-        )
+        JsonRpcResponse::from(json!({
+            "jsonrpc": "2.0",
+            "id" : ConstantSizeId::ZERO.to_string(),
+            "result" : format!("0x{result:x}")
+        }))
     }
 
     let setup = EvmRpcSetup::new().await.mock_api_keys().await;
@@ -1293,9 +1299,11 @@ async fn candid_rpc_should_return_inconsistent_results_with_error() {
         .given(get_transaction_count_request().with_id(0_u64))
         .respond_with(get_transaction_count_response().with_id(0_u64))
         .given(get_transaction_count_request().with_id(1_u64))
-        .respond_with(JsonRpcResponse::from(
-            json!({"jsonrpc": "2.0", "id": 1, "error" : { "code": 123, "message": "Unexpected"} }),
-        ));
+        .respond_with(JsonRpcResponse::from(json!({
+            "jsonrpc": "2.0",
+            "id": ConstantSizeId::from(1_u64).to_string(),
+            "error" : { "code": 123, "message": "Unexpected"}
+        })));
 
     let result = setup
         .client(mocks)
@@ -1460,7 +1468,7 @@ async fn should_have_metrics_for_multi_request_endpoint() {
         ])))
         .build()
         .multi_request(json!({
-            "id": 0,
+            "id" : ConstantSizeId::from(0_u64).to_string(),
             "jsonrpc": "2.0",
             "method": "eth_gasPrice",
         }))
@@ -1540,14 +1548,18 @@ async fn candid_rpc_should_return_inconsistent_results_with_unexpected_http_stat
 #[tokio::test]
 async fn candid_rpc_should_handle_already_known() {
     let mocks = MockHttpOutcallsBuilder::new()
-        .given(send_raw_transaction_request().with_id(0_u64))
-        .respond_with(JsonRpcResponse::from(
-            json!({ "id": 0, "jsonrpc": "2.0", "result": MOCK_TRANSACTION_HASH }),
-        ))
-        .given(send_raw_transaction_request().with_id(1_u64))
-        .respond_with(JsonRpcResponse::from(
-            json!({ "id": 1, "jsonrpc": "2.0", "error": {"code": -32000, "message": "already known"} }),
-        ));
+        .given(send_raw_transaction_request().with_id(0))
+        .respond_with(JsonRpcResponse::from(json!({
+            "id": ConstantSizeId::from(0_u64).to_string(),
+            "jsonrpc": "2.0",
+            "result": MOCK_TRANSACTION_HASH
+        })))
+        .given(send_raw_transaction_request().with_id(1))
+        .respond_with(JsonRpcResponse::from(json!({
+            "id": ConstantSizeId::from(1_u64).to_string(),
+            "jsonrpc": "2.0",
+            "error": {"code": -32000, "message": "already known"}
+        })));
 
     let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let result = setup
@@ -2279,8 +2291,8 @@ async fn should_log_request() {
 
     let logs = setup.http_get_logs("TRACE_HTTP").await;
     assert_eq!(logs.len(), 2, "Unexpected amount of logs {logs:?}");
-    assert!(logs[0].message.contains("JSON-RPC request with id `0` to eth-mainnet.g.alchemy.com: JsonRpcRequest { jsonrpc: V2, method: \"eth_feeHistory\""));
-    assert!(logs[1].message.contains("response for request with id `0`. Response with status 200 OK: JsonRpcResponse { jsonrpc: V2, id: Number(0), result: Ok(FeeHistory"));
+    assert!(logs[0].message.contains("JSON-RPC request with id `00000000000000000000` to eth-mainnet.g.alchemy.com: JsonRpcRequest { jsonrpc: V2, method: \"eth_feeHistory\""));
+    assert!(logs[1].message.contains("response for request with id `00000000000000000000`. Response with status 200 OK: JsonRpcResponse { jsonrpc: V2, id: String(\"00000000000000000000\"), result: Ok(FeeHistory"));
 }
 
 #[tokio::test]
@@ -2592,14 +2604,16 @@ fn send_raw_transaction_request() -> JsonRpcRequestMatcher {
 }
 
 fn call_response() -> JsonRpcResponse {
-    JsonRpcResponse::from(
-        json!({ "jsonrpc": "2.0", "id": 0, "result": "0x0000000000000000000000000000000000000000000000000000013c3ee36e89" }),
-    )
+    JsonRpcResponse::from(json!({
+        "jsonrpc": "2.0",
+        "id" : ConstantSizeId::from(0_u64).to_string(),
+        "result": "0x0000000000000000000000000000000000000000000000000000013c3ee36e89"
+    }))
 }
 
 fn fee_history_response() -> JsonRpcResponse {
     JsonRpcResponse::from(json!({
-        "id" : 0,
+        "id" : ConstantSizeId::from(0_u64).to_string(),
         "jsonrpc" : "2.0",
         "result" : {
             "oldestBlock" : "0x11e57f5",
@@ -2633,13 +2647,13 @@ fn get_block_by_number_response() -> JsonRpcResponse {
             "withdrawalsRoot": "0xecae44b2c53871003c5cc75285995764034c9b5978a904229d36c1280b141d48",
             "transactionsRoot": "0x93a1ad3d067009259b508cc95fde63b5efd7e9d8b55754314c173fdde8c0826a",
         },
-        "id": 0
+        "id" : ConstantSizeId::from(0_u64).to_string(),
     }))
 }
 
 fn get_logs_response() -> JsonRpcResponse {
     JsonRpcResponse::from(json!({
-        "id" : 0,
+        "id" : ConstantSizeId::from(0_u64).to_string(),
         "jsonrpc" : "2.0",
         "result" : [
             {
@@ -2662,11 +2676,19 @@ fn get_logs_response() -> JsonRpcResponse {
 }
 
 fn get_transaction_count_response() -> JsonRpcResponse {
-    JsonRpcResponse::from(json!({ "jsonrpc" : "2.0", "id" : 0, "result" : "0x1" }))
+    JsonRpcResponse::from(json!({
+        "jsonrpc": "2.0",
+        "id": ConstantSizeId::ZERO.to_string(),
+        "result": "0x1"
+    }))
 }
 
 fn send_raw_transaction_response() -> JsonRpcResponse {
-    JsonRpcResponse::from(json!({ "id": 0, "jsonrpc": "2.0", "result": MOCK_TRANSACTION_HASH }))
+    JsonRpcResponse::from(json!({
+        "jsonrpc": "2.0",
+        "id": ConstantSizeId::ZERO.to_string(),
+        "result": MOCK_TRANSACTION_HASH
+    }))
 }
 
 pub fn multi_logs_for_single_transaction(num_logs: usize) -> Value {
