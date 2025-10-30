@@ -8,9 +8,9 @@ use candid::{utils::ArgumentEncoder, CandidType, Decode, Encode, Principal};
 use serde::de::DeserializeOwned;
 use std::collections::BTreeMap;
 
-impl<R, C> ClientBuilder<R, C> {
+impl<R, C, P> ClientBuilder<R, C, P> {
     /// Set the runtime to a [`StubRuntime`].
-    pub fn with_stub_responses(self) -> ClientBuilder<StubRuntime, C> {
+    pub fn with_stub_responses(self) -> ClientBuilder<StubRuntime, C, P> {
         self.with_runtime(|_runtime| StubRuntime::default())
     }
 
@@ -18,18 +18,18 @@ impl<R, C> ClientBuilder<R, C> {
     pub fn with_default_stub_response<Out: CandidType>(
         self,
         stub_response: Out,
-    ) -> ClientBuilder<StubRuntime, C> {
+    ) -> ClientBuilder<StubRuntime, C, P> {
         self.with_stub_responses()
             .with_default_response(stub_response)
     }
 }
 
-impl<C> ClientBuilder<StubRuntime, C> {
+impl<C, P> ClientBuilder<StubRuntime, C, P> {
     /// Change the runtime to return the given stub response for all calls.
     pub fn with_default_response<Out: CandidType>(
         self,
         stub_response: Out,
-    ) -> ClientBuilder<StubRuntime, C> {
+    ) -> ClientBuilder<StubRuntime, C, P> {
         self.with_runtime(|runtime| runtime.with_default_response(stub_response))
     }
 
@@ -38,7 +38,7 @@ impl<C> ClientBuilder<StubRuntime, C> {
         self,
         method_name: &str,
         stub_response: Out,
-    ) -> ClientBuilder<StubRuntime, C> {
+    ) -> ClientBuilder<StubRuntime, C, P> {
         self.with_runtime(|runtime| runtime.with_response_for_method(method_name, stub_response))
     }
 }
