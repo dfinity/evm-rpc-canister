@@ -13,6 +13,7 @@ use alloy_rpc_types::{BlockNumberOrTag, BlockTransactions};
 use assert_matches::assert_matches;
 use candid::{Encode, Principal};
 use canhttp::http::json::Id;
+use evm_rpc_client::{DoubleCycles, NoRetry};
 use evm_rpc_types::{
     BlockTag, ConsensusStrategy, EthMainnetService, EthSepoliaService, GetLogsRpcConfig, Hex,
     Hex32, HttpOutcallError, InstallArgs, JsonRpcError, LegacyRejectionCode, MultiRpcResult,
@@ -2164,6 +2165,56 @@ async fn should_retry_when_response_too_large() {
         response,
         Ok(logs) if logs.len() == 1_000
     );
+}
+
+#[tokio::test]
+async fn should_retry_with_increasingly_more_cycles() {
+    const INITIAL_NUM_CYCLES: u128 = 100_000_000;
+
+    let setup = EvmRpcSetup::new().await;
+
+    // Should fail without retrying
+    let response = setup
+        .client(MockHttpOutcalls::NEVER)
+        .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
+            EthMainnetService::Cloudflare,
+        ])))
+        .with_retry_strategy(NoRetry)
+        .build()
+        .get_transaction_count((
+            address!("0xdAC17F958D2ee523a2206206994597C13D831ec7"),
+            BlockNumberOrTag::Latest,
+        ))
+        .with_cycles(INITIAL_NUM_CYCLES)
+        .send()
+        .await
+        .expect_consistent();
+    assert_matches!(
+        response,
+        Err(RpcError::ProviderError(ProviderError::TooFewCycles { .. }))
+    );
+
+    let response = setup
+        .client(
+            // This mock must have the correct ID for the retry with sufficiently many cycles
+            MockHttpOutcallsBuilder::new()
+                .given(get_transaction_count_request().with_id(4_u64))
+                .respond_with(get_transaction_count_response().with_id(4_u64)),
+        )
+        .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
+            EthMainnetService::Cloudflare,
+        ])))
+        .with_retry_strategy(DoubleCycles::with_max_num_retries(5))
+        .build()
+        .get_transaction_count((
+            address!("0xdAC17F958D2ee523a2206206994597C13D831ec7"),
+            BlockNumberOrTag::Latest,
+        ))
+        .with_cycles(INITIAL_NUM_CYCLES)
+        .send()
+        .await
+        .expect_consistent();
+    assert_eq!(response, Ok(U256::ONE));
 }
 
 #[tokio::test]
