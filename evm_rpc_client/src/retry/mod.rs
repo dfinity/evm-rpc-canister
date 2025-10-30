@@ -1,22 +1,39 @@
 use crate::{request::Request, IcError};
 use evm_rpc_types::{MultiRpcResult, ProviderError, RpcError, RpcResult};
 
-/// A retry policy for the [`EvmRpcClient`].
+/// Defines how and when requests made by [`EvmRpcClient`] should be retried.
+///
+/// A retry policy decides whether a failed request should be retried, and if so,
+/// it can modify the request or the result before the next attempt.
+/// This allows for flexible strategies such as adding more cycles,
+/// or adjusting parameters based on previous failures.
 ///
 /// [`EvmRpcClient`]: crate::EvmRpcClient
 pub trait RetryPolicy<Config, Params, CandidOutput, Output> {
-    /// If the request should be retried, this method returns an optional containing the (possibly
-    /// mutated) request to retry.
-    /// If the request should not be retried, it returns [`None`].
+    /// Called after a request fails to decide whether it should be retried.
+    ///
+    /// If the policy decides to retry, it returns the (potentially mutated) request
+    /// that will be sent again.
+    /// Returning [`None`] means no further retries should be attempted.
+    ///
+    /// This method _may_ mutate:
+    /// - the **request**, for example to add cycles, change parameters, or adjust
+    ///   the expected response size.
+    /// - the **result**, for example to record retry information or attach metadata.
+    /// - the **policy itself**, if it is stateful, e.g., keeping count of the number of attempts.
+    ///
+    /// Because the policy may be stateful, it should generally be cloned before the first call to
+    /// [`RetryPolicy::retry`] if it will be reused.
     fn retry(
         &mut self,
         request: &mut Request<Config, Params, CandidOutput, Output>,
         result: &mut Result<Output, IcError>,
     ) -> Option<Request<Config, Params, CandidOutput, Output>>;
 
-    /// Clones a request before sending it.
-    /// If the request cannot be cloned, or if it does not need to be (e.g., if the policy never
-    /// retries), this method returns [`None`].
+    /// Optionally clones a request before sending it.
+    ///
+    /// The result of this method will be passed to [`RetryPolicy::retry`] in case of failure.
+    /// If it returns [`None`], no retries will be performed.
     fn clone_request(
         &mut self,
         request: &Request<Config, Params, CandidOutput, Output>,
