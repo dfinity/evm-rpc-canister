@@ -4,7 +4,7 @@ use evm_rpc_types::{MultiRpcResult, ProviderError, RpcError, RpcResult};
 /// A retry policy for the [`EvmRpcClient`].
 ///
 /// [`EvmRpcClient`]: crate::EvmRpcClient
-pub trait EvmRpcRetryPolicy<Config, Params, CandidOutput, Output> {
+pub trait RetryPolicy<Config, Params, CandidOutput, Output> {
     /// If the request should be retried, this method returns an optional containing the (possibly
     /// mutated) request to retry.
     /// If the request should not be retried, it returns [`None`].
@@ -27,7 +27,7 @@ pub trait EvmRpcRetryPolicy<Config, Params, CandidOutput, Output> {
 #[derive(Debug, Clone)]
 pub struct NoRetry;
 
-impl<Config, Params, CandidOutput, Output> EvmRpcRetryPolicy<Config, Params, CandidOutput, Output>
+impl<Config, Params, CandidOutput, Output> RetryPolicy<Config, Params, CandidOutput, Output>
     for NoRetry
 {
     fn retry(
@@ -64,7 +64,7 @@ impl DoubleCycles {
 }
 
 impl<Config, Params, CandidOutput, Output>
-    EvmRpcRetryPolicy<Config, Params, CandidOutput, MultiRpcResult<Output>> for DoubleCycles
+    RetryPolicy<Config, Params, CandidOutput, MultiRpcResult<Output>> for DoubleCycles
 where
     Request<Config, Params, CandidOutput, MultiRpcResult<Output>>: Clone,
 {

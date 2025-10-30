@@ -138,7 +138,7 @@ use request::{
     SendRawTransactionRequest, SendRawTransactionRequestBuilder,
 };
 pub use request::{CandidResponseConverter, EvmRpcConfig};
-pub use retry::{DoubleCycles, EvmRpcRetryPolicy, NoRetry};
+pub use retry::{DoubleCycles, NoRetry, RetryPolicy};
 pub use runtime::{IcError, IcRuntime, Runtime};
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
@@ -797,7 +797,7 @@ impl<Runtime: runtime::Runtime, Converter, RetryPolicy>
         Config: CandidType + Send,
         Params: CandidType + Send,
         CandidOutput: Into<Output> + CandidType + DeserializeOwned,
-        RetryPolicy: EvmRpcRetryPolicy<Config, Params, CandidOutput, Output> + Clone,
+        RetryPolicy: retry::RetryPolicy<Config, Params, CandidOutput, Output> + Clone,
     {
         let rpc_method = request.endpoint.rpc_method();
         self.try_execute_request(request)
@@ -813,7 +813,7 @@ impl<Runtime: runtime::Runtime, Converter, RetryPolicy>
         Config: CandidType + Send,
         Params: CandidType + Send,
         CandidOutput: Into<Output> + CandidType + DeserializeOwned,
-        RetryPolicy: EvmRpcRetryPolicy<Config, Params, CandidOutput, Output> + Clone,
+        RetryPolicy: retry::RetryPolicy<Config, Params, CandidOutput, Output> + Clone,
     {
         let mut retry_policy = self.config.retry_policy.clone();
         let mut request = request;

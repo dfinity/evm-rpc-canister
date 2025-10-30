@@ -1,7 +1,7 @@
 #[cfg(feature = "alloy")]
 pub(crate) mod alloy;
 
-use crate::{retry::EvmRpcRetryPolicy, runtime::IcError, EvmRpcClient, Runtime};
+use crate::{retry, runtime::IcError, EvmRpcClient, Runtime};
 use candid::CandidType;
 use evm_rpc_types::{
     BlockTag, CallArgs, ConsensusStrategy, FeeHistoryArgs, GetLogsArgs, GetLogsRpcConfig,
@@ -515,7 +515,7 @@ impl<R: Runtime, Converter, RetryPolicy, Config, Params, CandidOutput, Output>
         Config: CandidType + Clone + Send,
         Params: CandidType + Clone + Send,
         CandidOutput: Into<Output> + CandidType + DeserializeOwned,
-        RetryPolicy: EvmRpcRetryPolicy<Config, Params, CandidOutput, Output> + Clone,
+        RetryPolicy: retry::RetryPolicy<Config, Params, CandidOutput, Output> + Clone,
     {
         self.client
             .execute_request::<Config, Params, CandidOutput, Output>(self.request)
@@ -529,7 +529,7 @@ impl<R: Runtime, Converter, RetryPolicy, Config, Params, CandidOutput, Output>
         Config: CandidType + Clone + Send,
         Params: CandidType + Clone + Send,
         CandidOutput: Into<Output> + CandidType + DeserializeOwned,
-        RetryPolicy: EvmRpcRetryPolicy<Config, Params, CandidOutput, Output> + Clone,
+        RetryPolicy: retry::RetryPolicy<Config, Params, CandidOutput, Output> + Clone,
     {
         self.client
             .try_execute_request::<Config, Params, CandidOutput, Output>(self.request)
