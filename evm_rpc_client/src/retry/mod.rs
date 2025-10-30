@@ -73,8 +73,24 @@ where
         request: &mut Request<Config, Params, CandidOutput, MultiRpcResult<Output>>,
         result: &mut Result<MultiRpcResult<Output>, IcError>,
     ) -> Option<Request<Config, Params, CandidOutput, MultiRpcResult<Output>>> {
+        fn is_too_few_cycles_result<T>(result: &MultiRpcResult<T>) -> bool {
+            fn is_too_few_cycles_error<T>(result: &RpcResult<T>) -> bool {
+                matches!(
+                    result,
+                    Err(RpcError::ProviderError(ProviderError::TooFewCycles { .. }))
+                )
+            }
+
+            match result {
+                MultiRpcResult::Consistent(result) => is_too_few_cycles_error(result),
+                MultiRpcResult::Inconsistent(results) => results
+                    .iter()
+                    .any(|(_, result)| is_too_few_cycles_error(result)),
+            }
+        }
+
         match result {
-            Ok(result) if result.is_too_few_cycles_error() => {
+            Ok(result) if is_too_few_cycles_result(result) => {
                 if self.num_retries > 0 {
                     self.num_retries = self.num_retries.saturating_sub(1);
                     request.cycles = request.cycles.saturating_mul(2);
@@ -92,32 +108,5 @@ where
         request: &Request<Config, Params, CandidOutput, MultiRpcResult<Output>>,
     ) -> Option<Request<Config, Params, CandidOutput, MultiRpcResult<Output>>> {
         Some(request.clone())
-    }
-}
-
-trait IsTooFewCyclesError {
-    fn is_too_few_cycles_error(&self) -> bool;
-}
-
-impl<T> IsTooFewCyclesError for MultiRpcResult<T> {
-    fn is_too_few_cycles_error(&self) -> bool {
-        match self {
-            MultiRpcResult::Consistent(result) => result.is_too_few_cycles_error(),
-            MultiRpcResult::Inconsistent(results) => results
-                .iter()
-                .any(|(_, result)| result.is_too_few_cycles_error()),
-        }
-    }
-}
-
-impl<T> IsTooFewCyclesError for RpcResult<T> {
-    fn is_too_few_cycles_error(&self) -> bool {
-        match self {
-            Err(err) => matches!(
-                err,
-                RpcError::ProviderError(ProviderError::TooFewCycles { .. })
-            ),
-            _ => false,
-        }
     }
 }
