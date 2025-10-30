@@ -11,7 +11,7 @@ use evm_rpc::{
     providers::PROVIDERS,
     types::{ProviderId, RpcAccess},
 };
-use evm_rpc_client::{AlloyResponseConverter, ClientBuilder, EvmRpcClient, Runtime};
+use evm_rpc_client::{AlloyResponseConverter, ClientBuilder, EvmRpcClient, NoRetry, Runtime};
 use evm_rpc_types::{InstallArgs, Provider, RpcResult, RpcService};
 use ic_http_types::{HttpRequest, HttpResponse};
 use ic_management_canister_types::CanisterId;
@@ -129,7 +129,7 @@ impl EvmRpcSetup {
     pub fn client(
         &self,
         mocks: impl Into<MockHttpOutcalls>,
-    ) -> ClientBuilder<MockHttpRuntimeWithWallet, AlloyResponseConverter> {
+    ) -> ClientBuilder<MockHttpRuntimeWithWallet, AlloyResponseConverter, NoRetry> {
         EvmRpcClient::builder(
             self.new_mock_http_runtime_with_wallet(mocks),
             self.evm_rpc_canister_id,

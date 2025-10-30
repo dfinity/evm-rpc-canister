@@ -1,8 +1,7 @@
 #[cfg(feature = "alloy")]
 pub(crate) mod alloy;
 
-use crate::runtime::IcError;
-use crate::{EvmRpcClient, Runtime};
+use crate::{retry, runtime::IcError, EvmRpcClient, Runtime};
 use candid::CandidType;
 use evm_rpc_types::{
     BlockTag, CallArgs, ConsensusStrategy, FeeHistoryArgs, GetLogsArgs, GetLogsRpcConfig,
@@ -36,16 +35,17 @@ impl EvmRpcRequest for CallRequest {
     }
 }
 
-pub type CallRequestBuilder<R, C, Output> = RequestBuilder<
+pub type CallRequestBuilder<R, C, P, Output> = RequestBuilder<
     R,
     C,
+    P,
     <CallRequest as EvmRpcRequest>::Config,
     <CallRequest as EvmRpcRequest>::Params,
     <CallRequest as EvmRpcRequest>::CandidOutput,
     Output,
 >;
 
-impl<R, C, Output> CallRequestBuilder<R, C, Output> {
+impl<R, C, P, Output> CallRequestBuilder<R, C, P, Output> {
     /// Change the `block` parameter for an `eth_call` request.
     pub fn with_block(mut self, block: impl Into<BlockTag>) -> Self {
         self.request.params.block = Some(block.into());
@@ -76,16 +76,17 @@ impl EvmRpcRequest for FeeHistoryRequest {
     }
 }
 
-pub type FeeHistoryRequestBuilder<R, C, Output> = RequestBuilder<
+pub type FeeHistoryRequestBuilder<R, C, P, Output> = RequestBuilder<
     R,
     C,
+    P,
     <FeeHistoryRequest as EvmRpcRequest>::Config,
     <FeeHistoryRequest as EvmRpcRequest>::Params,
     <FeeHistoryRequest as EvmRpcRequest>::CandidOutput,
     Output,
 >;
 
-impl<R, C, Output> FeeHistoryRequestBuilder<R, C, Output> {
+impl<R, C, P, Output> FeeHistoryRequestBuilder<R, C, P, Output> {
     /// Change the `block_count` parameter for an `eth_feeHistory` request.
     pub fn with_block_count(mut self, block_count: impl Into<Nat256>) -> Self {
         self.request.params.block_count = block_count.into();
@@ -128,9 +129,10 @@ impl EvmRpcRequest for GetBlockByNumberRequest {
     }
 }
 
-pub type GetBlockByNumberRequestBuilder<R, C, Output> = RequestBuilder<
+pub type GetBlockByNumberRequestBuilder<R, C, P, Output> = RequestBuilder<
     R,
     C,
+    P,
     <GetBlockByNumberRequest as EvmRpcRequest>::Config,
     <GetBlockByNumberRequest as EvmRpcRequest>::Params,
     <GetBlockByNumberRequest as EvmRpcRequest>::CandidOutput,
@@ -160,16 +162,17 @@ impl EvmRpcRequest for GetLogsRequest {
     }
 }
 
-pub type GetLogsRequestBuilder<R, C, Output> = RequestBuilder<
+pub type GetLogsRequestBuilder<R, C, P, Output> = RequestBuilder<
     R,
     C,
+    P,
     <GetLogsRequest as EvmRpcRequest>::Config,
     <GetLogsRequest as EvmRpcRequest>::Params,
     <GetLogsRequest as EvmRpcRequest>::CandidOutput,
     Output,
 >;
 
-impl<R, C, Output> GetLogsRequestBuilder<R, C, Output> {
+impl<R, C, P, Output> GetLogsRequestBuilder<R, C, P, Output> {
     /// Change the `from_block` parameter for an `eth_getLogs` request.
     pub fn with_from_block(mut self, from_block: impl Into<BlockTag>) -> Self {
         self.request.params.from_block = Some(from_block.into());
@@ -223,16 +226,17 @@ impl EvmRpcRequest for GetTransactionCountRequest {
     }
 }
 
-pub type GetTransactionCountRequestBuilder<R, C, Output> = RequestBuilder<
+pub type GetTransactionCountRequestBuilder<R, C, P, Output> = RequestBuilder<
     R,
     C,
+    P,
     <GetTransactionCountRequest as EvmRpcRequest>::Config,
     <GetTransactionCountRequest as EvmRpcRequest>::Params,
     <GetTransactionCountRequest as EvmRpcRequest>::CandidOutput,
     Output,
 >;
 
-impl<R, C, Output> GetTransactionCountRequestBuilder<R, C, Output> {
+impl<R, C, P, Output> GetTransactionCountRequestBuilder<R, C, P, Output> {
     /// Change the `address` parameter for an `eth_getTransactionCount` request.
     pub fn with_address(mut self, address: impl Into<Hex20>) -> Self {
         self.request.params.address = address.into();
@@ -269,9 +273,10 @@ impl EvmRpcRequest for GetTransactionReceiptRequest {
     }
 }
 
-pub type GetTransactionReceiptRequestBuilder<R, C, Output> = RequestBuilder<
+pub type GetTransactionReceiptRequestBuilder<R, C, P, Output> = RequestBuilder<
     R,
     C,
+    P,
     <GetTransactionReceiptRequest as EvmRpcRequest>::Config,
     <GetTransactionReceiptRequest as EvmRpcRequest>::Params,
     <GetTransactionReceiptRequest as EvmRpcRequest>::CandidOutput,
@@ -305,9 +310,10 @@ impl EvmRpcRequest for JsonRequest {
     }
 }
 
-pub type JsonRequestBuilder<R, C, Output> = RequestBuilder<
+pub type JsonRequestBuilder<R, C, P, Output> = RequestBuilder<
     R,
     C,
+    P,
     <JsonRequest as EvmRpcRequest>::Config,
     <JsonRequest as EvmRpcRequest>::Params,
     <JsonRequest as EvmRpcRequest>::CandidOutput,
@@ -337,9 +343,10 @@ impl EvmRpcRequest for SendRawTransactionRequest {
     }
 }
 
-pub type SendRawTransactionRequestBuilder<R, C, Output> = RequestBuilder<
+pub type SendRawTransactionRequestBuilder<R, C, P, Output> = RequestBuilder<
     R,
     C,
+    P,
     <SendRawTransactionRequest as EvmRpcRequest>::Config,
     <SendRawTransactionRequest as EvmRpcRequest>::Params,
     <SendRawTransactionRequest as EvmRpcRequest>::CandidOutput,
@@ -417,13 +424,13 @@ impl EvmRpcEndpoint {
 ///
 /// To construct a [`RequestBuilder`], refer to the [`EvmRpcClient`] documentation.
 #[must_use = "RequestBuilder does nothing until you 'send' it"]
-pub struct RequestBuilder<Runtime, Converter, Config, Params, CandidOutput, Output> {
-    client: EvmRpcClient<Runtime, Converter>,
+pub struct RequestBuilder<Runtime, Converter, RetryPolicy, Config, Params, CandidOutput, Output> {
+    client: EvmRpcClient<Runtime, Converter, RetryPolicy>,
     request: Request<Config, Params, CandidOutput, Output>,
 }
 
-impl<Runtime, Converter, Config: Clone, Params: Clone, CandidOutput, Output> Clone
-    for RequestBuilder<Runtime, Converter, Config, Params, CandidOutput, Output>
+impl<Runtime, Converter, RetryPolicy, Config: Clone, Params: Clone, CandidOutput, Output> Clone
+    for RequestBuilder<Runtime, Converter, RetryPolicy, Config, Params, CandidOutput, Output>
 {
     fn clone(&self) -> Self {
         Self {
@@ -433,8 +440,16 @@ impl<Runtime, Converter, Config: Clone, Params: Clone, CandidOutput, Output> Clo
     }
 }
 
-impl<Runtime: Debug, Converter: Debug, Config: Debug, Params: Debug, CandidOutput, Output> Debug
-    for RequestBuilder<Runtime, Converter, Config, Params, CandidOutput, Output>
+impl<
+        Runtime: Debug,
+        Converter: Debug,
+        RetryPolicy: Debug,
+        Config: Debug,
+        Params: Debug,
+        CandidOutput,
+        Output,
+    > Debug
+    for RequestBuilder<Runtime, Converter, RetryPolicy, Config, Params, CandidOutput, Output>
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let RequestBuilder { client, request } = &self;
@@ -445,11 +460,11 @@ impl<Runtime: Debug, Converter: Debug, Config: Debug, Params: Debug, CandidOutpu
     }
 }
 
-impl<Runtime, Converter, Config, Params, CandidOutput, Output>
-    RequestBuilder<Runtime, Converter, Config, Params, CandidOutput, Output>
+impl<Runtime, Converter, RetryPolicy, Config, Params, CandidOutput, Output>
+    RequestBuilder<Runtime, Converter, RetryPolicy, Config, Params, CandidOutput, Output>
 {
     pub(super) fn new<RpcRequest>(
-        client: EvmRpcClient<Runtime, Converter>,
+        client: EvmRpcClient<Runtime, Converter, RetryPolicy>,
         rpc_request: RpcRequest,
         cycles: u128,
     ) -> Self
@@ -468,14 +483,16 @@ impl<Runtime, Converter, Config, Params, CandidOutput, Output>
             _candid_marker: Default::default(),
             _output_marker: Default::default(),
         };
-        RequestBuilder::<Runtime, Converter, Config, Params, CandidOutput, Output> {
+        RequestBuilder::<Runtime, Converter, RetryPolicy, Config, Params, CandidOutput, Output> {
             client,
             request,
         }
     }
 
     /// Query the cycles cost for that request
-    pub fn request_cost(self) -> RequestCostBuilder<Runtime, Converter, Config, Params> {
+    pub fn request_cost(
+        self,
+    ) -> RequestCostBuilder<Runtime, Converter, RetryPolicy, Config, Params> {
         RequestCostBuilder {
             client: self.client,
             request: RequestCost {
@@ -518,8 +535,8 @@ impl<Runtime, Converter, Config, Params, CandidOutput, Output>
     }
 }
 
-impl<R: Runtime, Converter, Config, Params, CandidOutput, Output>
-    RequestBuilder<R, Converter, Config, Params, CandidOutput, Output>
+impl<R: Runtime, Converter, RetryPolicy, Config, Params, CandidOutput, Output>
+    RequestBuilder<R, Converter, RetryPolicy, Config, Params, CandidOutput, Output>
 {
     /// Constructs the [`Request`] and sends it using the [`EvmRpcClient`] returning the response.
     ///
@@ -528,9 +545,10 @@ impl<R: Runtime, Converter, Config, Params, CandidOutput, Output>
     /// If the request was not successful.
     pub async fn send(self) -> Output
     where
-        Config: CandidType + Send,
-        Params: CandidType + Send,
+        Config: CandidType + Clone + Send,
+        Params: CandidType + Clone + Send,
         CandidOutput: Into<Output> + CandidType + DeserializeOwned,
+        RetryPolicy: retry::RetryPolicy<Config, Params, CandidOutput, Output> + Clone,
     {
         self.client
             .execute_request::<Config, Params, CandidOutput, Output>(self.request)
@@ -541,9 +559,10 @@ impl<R: Runtime, Converter, Config, Params, CandidOutput, Output>
     /// either the request response or any error that occurs while sending the request.
     pub async fn try_send(self) -> Result<Output, IcError>
     where
-        Config: CandidType + Send,
-        Params: CandidType + Send,
+        Config: CandidType + Clone + Send,
+        Params: CandidType + Clone + Send,
         CandidOutput: Into<Output> + CandidType + DeserializeOwned,
+        RetryPolicy: retry::RetryPolicy<Config, Params, CandidOutput, Output> + Clone,
     {
         self.client
             .try_execute_request::<Config, Params, CandidOutput, Output>(self.request)
@@ -551,8 +570,8 @@ impl<R: Runtime, Converter, Config, Params, CandidOutput, Output>
     }
 }
 
-impl<Runtime, Converter, Params, CandidOutput, Output>
-    RequestBuilder<Runtime, Converter, GetLogsRpcConfig, Params, CandidOutput, Output>
+impl<Runtime, Converter, RetryPolicy, Params, CandidOutput, Output>
+    RequestBuilder<Runtime, Converter, RetryPolicy, GetLogsRpcConfig, Params, CandidOutput, Output>
 {
     /// Change the max block range error for `eth_getLogs` request.
     pub fn with_max_block_range(mut self, max_block_range: u32) -> Self {
@@ -603,8 +622,15 @@ impl EvmRpcConfig for GetLogsRpcConfig {
     }
 }
 
-impl<Runtime, Converter, Config: EvmRpcConfig + Default, Params, CandidOutput, Output>
-    RequestBuilder<Runtime, Converter, Config, Params, CandidOutput, Output>
+impl<
+        Runtime,
+        Converter,
+        RetryPolicy,
+        Config: EvmRpcConfig + Default,
+        Params,
+        CandidOutput,
+        Output,
+    > RequestBuilder<Runtime, Converter, RetryPolicy, Config, Params, CandidOutput, Output>
 {
     /// Change the response size estimate to use for that request.
     pub fn with_response_size_estimate(mut self, response_size_estimate: u64) -> Self {
@@ -729,12 +755,12 @@ impl<Config, Params, CandidOutput, Output> Request<Config, Params, CandidOutput,
 pub type RequestCost<Config, Params> = Request<Config, Params, RpcResult<u128>, RpcResult<u128>>;
 
 #[must_use = "RequestCostBuilder does nothing until you 'send' it"]
-pub struct RequestCostBuilder<Runtime, Converter, Config, Params> {
-    client: EvmRpcClient<Runtime, Converter>,
+pub struct RequestCostBuilder<Runtime, Converter, RetryPolicy, Config, Params> {
+    client: EvmRpcClient<Runtime, Converter, RetryPolicy>,
     request: RequestCost<Config, Params>,
 }
 
-impl<R: Runtime, C, Config, Params> RequestCostBuilder<R, C, Config, Params> {
+impl<R: Runtime, C, P, Config, Params> RequestCostBuilder<R, C, P, Config, Params> {
     /// Constructs the [`Request`] and send it using the [`SolRpcClient`].
     pub async fn send(self) -> RpcResult<u128>
     where
