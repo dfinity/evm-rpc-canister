@@ -24,6 +24,7 @@ strum = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+alloy = { workspace = true }
 alloy-dyn-abi = { workspace = true }
 alloy-primitives = { workspace = true }
 alloy-rpc-types = { workspace = true }
