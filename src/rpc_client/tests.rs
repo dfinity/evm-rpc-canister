@@ -39,7 +39,7 @@ mod eth_rpc_client {
             RpcServices::OptimismMainnet(None),
         ] {
             let client = EthRpcClient::new(empty_source, None, Timestamp::default()).unwrap();
-            assert!(!client.providers().is_empty());
+            assert!(!client.providers.services.is_empty());
         }
     }
 
@@ -56,8 +56,8 @@ mod eth_rpc_client {
         .unwrap();
 
         assert_eq!(
-            client.providers(),
-            &btreeset! {
+            client.providers.services,
+            btreeset! {
                 RpcService::EthMainnet(provider1),
                 RpcService::EthMainnet(provider2)
             }

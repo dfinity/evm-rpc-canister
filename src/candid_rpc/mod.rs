@@ -6,9 +6,7 @@ use crate::{
 use candid::Nat;
 use canhttp::multi::Timestamp;
 use ethers_core::{types::Transaction, utils::rlp};
-use evm_rpc_types::{
-    BlockTag, GetLogsArgs, Hex, Hex32, MultiRpcResult, Nat256, RpcResult, ValidationError,
-};
+use evm_rpc_types::{BlockTag, Hex, Hex32, MultiRpcResult, Nat256, RpcResult, ValidationError};
 
 /// Adapt the `EthRpcClient` to the `Candid` interface used by the EVM-RPC canister.
 pub struct CandidRpcClient {
@@ -27,7 +25,7 @@ impl CandidRpcClient {
     }
 
     pub async fn eth_get_logs(
-        &self,
+        self,
         args: evm_rpc_types::GetLogsArgs,
     ) -> MultiRpcResult<Vec<evm_rpc_types::LogEntry>> {
         use cketh_conversion::{from_log_entries, into_get_logs_param};
@@ -50,7 +48,7 @@ impl CandidRpcClient {
     }
 
     pub async fn eth_get_block_by_number(
-        &self,
+        self,
         block: BlockTag,
     ) -> MultiRpcResult<evm_rpc_types::Block> {
         use cketh_conversion::{from_block, into_block_spec};
@@ -70,7 +68,7 @@ impl CandidRpcClient {
     }
 
     pub async fn eth_get_transaction_receipt(
-        &self,
+        self,
         hash: Hex32,
     ) -> MultiRpcResult<Option<evm_rpc_types::TransactionReceipt>> {
         use cketh_conversion::{from_transaction_receipt, into_hash};
@@ -90,7 +88,7 @@ impl CandidRpcClient {
     }
 
     pub async fn eth_get_transaction_count(
-        &self,
+        self,
         args: evm_rpc_types::GetTransactionCountArgs,
     ) -> MultiRpcResult<Nat256> {
         use cketh_conversion::into_get_transaction_count_params;
@@ -113,7 +111,7 @@ impl CandidRpcClient {
     }
 
     pub async fn eth_fee_history(
-        &self,
+        self,
         args: evm_rpc_types::FeeHistoryArgs,
     ) -> MultiRpcResult<evm_rpc_types::FeeHistory> {
         use cketh_conversion::{from_fee_history, into_fee_history_params};
@@ -136,7 +134,7 @@ impl CandidRpcClient {
     }
 
     pub async fn eth_send_raw_transaction(
-        &self,
+        self,
         raw_signed_transaction_hex: Hex,
     ) -> MultiRpcResult<evm_rpc_types::SendRawTransactionStatus> {
         use cketh_conversion::from_send_raw_transaction_result;
@@ -158,10 +156,7 @@ impl CandidRpcClient {
             .await
     }
 
-    pub async fn eth_call(
-        &self,
-        args: evm_rpc_types::CallArgs,
-    ) -> MultiRpcResult<evm_rpc_types::Hex> {
+    pub async fn eth_call(self, args: evm_rpc_types::CallArgs) -> MultiRpcResult<Hex> {
         use cketh_conversion::{from_data, into_eth_call_params};
         self.client
             .eth_call(into_eth_call_params(args))
@@ -178,7 +173,7 @@ impl CandidRpcClient {
             .await
     }
 
-    pub async fn multi_request(&self, json_rpc_payload: String) -> MultiRpcResult<String> {
+    pub async fn multi_request(self, json_rpc_payload: String) -> MultiRpcResult<String> {
         let request = match into_json_request(json_rpc_payload) {
             Ok(request) => request,
             Err(err) => return MultiRpcResult::Consistent(Err(err)),
@@ -210,7 +205,10 @@ fn get_transaction_hash(raw_signed_transaction_hex: &Hex) -> Option<Hex32> {
     Some(Hex32::from(transaction.hash.0))
 }
 
-pub fn validate_get_logs_block_range(args: &GetLogsArgs, max_block_range: u32) -> RpcResult<()> {
+pub fn validate_get_logs_block_range(
+    args: &evm_rpc_types::GetLogsArgs,
+    max_block_range: u32,
+) -> RpcResult<()> {
     if let (Some(BlockTag::Number(from)), Some(BlockTag::Number(to))) =
         (&args.from_block, &args.to_block)
     {
