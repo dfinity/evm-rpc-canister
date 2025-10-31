@@ -3,7 +3,6 @@ mod tests;
 
 use crate::mock_http_runtime::mock::CanisterHttpRequestMatcher;
 use canhttp::http::json::{ConstantSizeId, Id, JsonRpcRequest};
-use derive_more::{From, Into};
 use pocket_ic::common::rest::{
     CanisterHttpHeader, CanisterHttpMethod, CanisterHttpReply, CanisterHttpRequest,
     CanisterHttpResponse,
@@ -42,7 +41,7 @@ impl JsonRpcRequestMatcher {
 
     pub fn with_raw_id(self, id: Id) -> Self {
         Self {
-            id: Some(Id::from(id)),
+            id: Some(id),
             ..self
         }
     }

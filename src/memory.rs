@@ -114,7 +114,7 @@ pub fn set_override_provider(provider: OverrideProvider) {
 pub fn next_request_id() -> Id {
     UNSTABLE_HTTP_REQUEST_COUNTER.with_borrow_mut(|counter| {
         let current_request_id = counter.get_and_increment();
-        Id::from(ConstantSizeId::from(current_request_id))
+        Id::from(current_request_id)
     })
 }
 
