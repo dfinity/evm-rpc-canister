@@ -1,7 +1,8 @@
-use crate::types::{MetricRpcHost, ResolvedRpcService};
 use crate::{
     add_metric_entry,
-    http::http_client,
+    http::{
+        charging_policy_with_collateral, http_client, service_request_builder, HttpClientError,
+    },
     memory::{get_override_provider, rank_providers, record_ok_result},
     providers::{resolve_rpc_service, SupportedRpcService},
     rpc_client::{
@@ -9,9 +10,10 @@ use crate::{
         json::responses::RawJson,
         numeric::TransactionCount,
     },
-    types::{MetricRpcMethod, RpcMethod},
+    types::{MetricRpcHost, MetricRpcMethod, ResolvedRpcService, RpcMethod},
 };
 use canhttp::{
+    cycles::CyclesChargingPolicy,
     http::json::{HttpJsonRpcResponse, JsonRpcRequest},
     multi::{
         MultiResults, Reduce, ReduceWithEquality, ReduceWithThreshold, ReducedResult,
@@ -23,8 +25,10 @@ use evm_rpc_types::{
     ConsensusStrategy, JsonRpcError, MultiRpcResult, ProviderError, RpcConfig, RpcError, RpcResult,
     RpcService, RpcServices,
 };
-use http::Request;
-use ic_management_canister_types::{TransformContext, TransformFunc};
+use http::{Request, Response};
+use ic_management_canister_types::{
+    HttpRequestArgs as IcHttpRequest, TransformContext, TransformFunc,
+};
 use json::{
     requests::{
         BlockSpec, EthCallParams, FeeHistoryParams, GetBlockByNumberParams, GetLogsParam,
@@ -465,6 +469,56 @@ impl<Params, Output> MultiRpcRequest<Params, Output> {
             "BUG: expected 1 result per provider"
         );
         results
+    }
+
+    /// Estimate the exact cycles cost for the given request.
+    ///
+    /// *IMPORTANT*: the method is *synchronous* in a canister environment.
+    pub async fn cycles_cost(&self) -> RpcResult<u128>
+    where
+        Params: Serialize + Clone + Debug,
+        Output: HttpResponsePayload,
+    {
+        async fn extract_request(
+            request: IcHttpRequest,
+        ) -> Result<Response<IcHttpRequest>, HttpClientError> {
+            Ok(Response::new(request))
+        }
+
+        let requests = self.create_json_rpc_requests();
+
+        let client = service_request_builder()
+            .service_fn(extract_request)
+            .map_err(RpcError::from)
+            .map_response(Response::into_body);
+
+        let (requests, errors) = requests.into_inner();
+        if let Some(error) = errors.into_values().next() {
+            return Err(error);
+        }
+
+        let (_client, results) = canhttp::multi::parallel_call(client, requests).await;
+        let (requests, errors) = results.into_inner();
+        if !errors.is_empty() {
+            return Err(errors
+                .into_values()
+                .next()
+                .expect("BUG: errors is not empty"));
+        }
+        assert_eq!(
+            requests.len(),
+            self.providers.len(),
+            "BUG: expected 1 result per provider"
+        );
+
+        let mut cycles_to_attach = 0_u128;
+
+        let policy = charging_policy_with_collateral();
+        for request in requests.into_values() {
+            let request_cycles_cost = ic_cdk::management_canister::cost_http_request(&request);
+            cycles_to_attach += policy.cycles_to_charge(&request, request_cycles_cost)
+        }
+        Ok(cycles_to_attach)
     }
 
     fn create_json_rpc_requests(

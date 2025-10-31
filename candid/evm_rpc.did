@@ -300,19 +300,44 @@ type MultiJsonRequestResult = variant {
   Inconsistent : vec record { RpcService; JsonRequestResult };
 };
 service : (InstallArgs) -> {
+  // Call the `eth_feeHistory` RPC method and return the resulting fee history.
   eth_feeHistory : (RpcServices, opt RpcConfig, FeeHistoryArgs) -> (MultiFeeHistoryResult);
+  eth_feeHistoryCyclesCost : (RpcServices, opt RpcConfig, FeeHistoryArgs) -> (RequestCostResult) query;
+
+  // Call the `eth_getBlockByNumber` RPC method and return the resulting block.
   eth_getBlockByNumber : (RpcServices, opt RpcConfig, BlockTag) -> (MultiGetBlockByNumberResult);
+  eth_getBlockByNumberCyclesCost : (RpcServices, opt RpcConfig, BlockTag) -> (RequestCostResult) query;
+
+  // Call the `eth_getLogs` RPC method and return the resulting logs.
   eth_getLogs : (RpcServices, opt GetLogsRpcConfig, GetLogsArgs) -> (MultiGetLogsResult);
+  eth_getLogsCyclesCost : (RpcServices, opt GetLogsRpcConfig, GetLogsArgs) -> (RequestCostResult) query;
+
+  // Call the `eth_getTransactionCount` RPC method and return the resulting transaction count.
   eth_getTransactionCount : (RpcServices, opt RpcConfig, GetTransactionCountArgs) -> (MultiGetTransactionCountResult);
+  eth_getTransactionCountCyclesCost : (RpcServices, opt RpcConfig, GetTransactionCountArgs) -> (RequestCostResult) query;
+
+  // Call the `eth_getTransactionReceipt` RPC method and return the resulting transaction receipt.
   eth_getTransactionReceipt : (RpcServices, opt RpcConfig, hash : text) -> (MultiGetTransactionReceiptResult);
+  eth_getTransactionReceiptCyclesCost : (RpcServices, opt RpcConfig, hash : text) -> (RequestCostResult) query;
+
+  // Call the `eth_sendRawTransaction` RPC method and return the resulting transaction hash.
   eth_sendRawTransaction : (RpcServices, opt RpcConfig, rawSignedTransactionHex : text) -> (MultiSendRawTransactionResult);
+  eth_sendRawTransactionCyclesCost : (RpcServices, opt RpcConfig, rawSignedTransactionHex : text) -> (RequestCostResult) query;
+
+  // Call the `eth_call` RPC method and return the resulting output.
   eth_call : (RpcServices, opt RpcConfig, CallArgs) -> (MultiCallResult);
+  eth_callCyclesCost : (RpcServices, opt RpcConfig, CallArgs) -> (RequestCostResult) query;
+
+  // Make a raw JSON-RPC request that sends the given JSON-RPC payload.
   // This endpoint should be used instead of the `request` endpoint as it allows aggregating the responses from
   // multiple providers. It also takes parameters consistent with `eth_*` endpoints, i.e. an `RpcServices` instead
   // of an `RpcService`.
   multi_request : (RpcServices, opt RpcConfig, json : text) -> (MultiJsonRequestResult);
+  multi_requestCyclesCost : (RpcServices, opt RpcConfig, json : text) -> (RequestCostResult) query;
+
   // DEPRECATED: Use `multi_request` instead.
   request : (RpcService, json : text, maxResponseBytes : nat64) -> (RequestResult);
+  // DEPRECATED: Use the specific `*RequestCost` endpoints instead (e.g. `eth_feeHistoryRequestCost`).
   requestCost : (RpcService, json : text, maxResponseBytes : nat64) -> (RequestCostResult) query;
 
   getNodesInSubnet : () -> (numberOfNodes : nat32) query;
