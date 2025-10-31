@@ -12,15 +12,6 @@ use serde_json::{json, Value};
 use std::{collections::BTreeSet, str::FromStr};
 use url::{Host, Url};
 
-#[derive(From, Into)]
-pub struct JsonRpcId(Id);
-
-impl From<u64> for JsonRpcId {
-    fn from(id: u64) -> Self {
-        Self(Id::from(ConstantSizeId::from(id)))
-    }
-}
-
 #[derive(Clone, Debug)]
 pub struct JsonRpcRequestMatcher {
     pub method: String,
@@ -180,7 +171,7 @@ impl From<Value> for JsonRpcResponse {
 impl JsonRpcResponse {
     pub fn with_id(self, id: u64) -> JsonRpcResponse {
         self.with_raw_id(Id::from(ConstantSizeId::from(id)))
-    }   
+    }
 
     pub fn with_raw_id(mut self, id: Id) -> JsonRpcResponse {
         self.body["id"] = serde_json::to_value(id).expect("BUG: cannot serialize ID");
