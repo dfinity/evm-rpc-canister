@@ -32,7 +32,7 @@ mod json_rpc_request_matcher_tests {
 
     #[test]
     fn should_not_match_wrong_id() {
-        assert!(!request_matcher().with_id(Id::Null).matches(&request()));
+        assert!(!request_matcher().with_raw_id(Id::Null).matches(&request()));
     }
 
     #[test]
