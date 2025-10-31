@@ -8,7 +8,6 @@ use crate::util::hostname_from_url;
 use crate::validate::validate_api_key;
 use candid::CandidType;
 use canlog::{LogFilter, RegexSubstitution};
-use derive_more::{From, Into};
 use evm_rpc_types::{LegacyRejectionCode, RpcApi, RpcError, ValidationError};
 use ic_management_canister_types::HttpHeader;
 use ic_stable_structures::storable::Bound;
