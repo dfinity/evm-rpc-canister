@@ -1,7 +1,7 @@
 use canhttp::{cycles::CyclesChargingPolicy, multi::Timestamp};
 use canlog::{log, Log, Sort};
 use evm_rpc::{
-    candid_rpc::CandidRpcClient,
+    candid_rpc::{validate_get_logs_block_range, CandidRpcClient},
     http::{
         charging_policy_with_collateral, json_rpc_request, json_rpc_request_arg,
         service_request_builder, transform_http_request,
@@ -43,8 +43,11 @@ pub async fn eth_get_logs(
 ) -> MultiRpcResult<Vec<evm_rpc_types::LogEntry>> {
     let config = config.unwrap_or_default();
     let max_block_range = config.max_block_range_or_default();
+    if let Err(err) = validate_get_logs_block_range(&args, max_block_range) {
+        return MultiRpcResult::Consistent(Err(err));
+    }
     match CandidRpcClient::new(source, Some(RpcConfig::from(config)), now()) {
-        Ok(source) => source.eth_get_logs(args, max_block_range).await,
+        Ok(source) => source.eth_get_logs(args).await,
         Err(err) => Err(err).into(),
     }
 }

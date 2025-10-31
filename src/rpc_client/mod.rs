@@ -1,4 +1,6 @@
+use crate::types::{MetricRpcHost, ResolvedRpcService};
 use crate::{
+    add_metric_entry,
     http::http_client,
     memory::{get_override_provider, rank_providers, record_ok_result},
     providers::{resolve_rpc_service, SupportedRpcService},
@@ -10,13 +12,18 @@ use crate::{
     types::{MetricRpcMethod, RpcMethod},
 };
 use canhttp::{
-    http::json::JsonRpcRequest,
-    multi::{MultiResults, Reduce, ReduceWithEquality, ReduceWithThreshold, Timestamp},
+    http::json::{HttpJsonRpcResponse, JsonRpcRequest},
+    multi::{
+        MultiResults, Reduce, ReduceWithEquality, ReduceWithThreshold, ReducedResult,
+        ReductionError, Timestamp,
+    },
     MaxResponseBytesRequestExtension, TransformContextRequestExtension,
 };
 use evm_rpc_types::{
-    ConsensusStrategy, JsonRpcError, ProviderError, RpcConfig, RpcError, RpcService, RpcServices,
+    ConsensusStrategy, JsonRpcError, MultiRpcResult, ProviderError, RpcConfig, RpcError, RpcResult,
+    RpcService, RpcServices,
 };
+use http::Request;
 use ic_management_canister_types::{TransformContext, TransformFunc};
 use json::{
     requests::{
@@ -245,15 +252,11 @@ impl EthRpcClient {
         self.providers.chain
     }
 
-    fn providers(&self) -> &BTreeSet<RpcService> {
-        &self.providers.services
-    }
-
     fn response_size_estimate(&self, estimate: u64) -> ResponseSizeEstimate {
         ResponseSizeEstimate::new(self.config.response_size_estimate.unwrap_or(estimate))
     }
 
-    fn consensus_strategy(&self) -> ReductionStrategy {
+    fn reduction_strategy(&self) -> ReductionStrategy {
         ReductionStrategy::from(
             self.config
                 .response_consensus
@@ -263,23 +266,215 @@ impl EthRpcClient {
         )
     }
 
+    pub fn eth_get_logs(
+        self,
+        params: GetLogsParam,
+    ) -> MultiRpcRequest<(GetLogsParam,), Vec<LogEntry>> {
+        let response_size_estimate = self.response_size_estimate(1024 + HEADER_SIZE_LIMIT);
+        let reduction = self.reduction_strategy();
+        MultiRpcRequest::new(
+            self.providers.services,
+            RpcMethod::EthGetLogs,
+            (params,),
+            response_size_estimate,
+            reduction,
+        )
+    }
+
+    pub fn eth_get_block_by_number(
+        self,
+        block: BlockSpec,
+    ) -> MultiRpcRequest<GetBlockByNumberParams, Block> {
+        let expected_block_size = match self.chain() {
+            EthereumNetwork::SEPOLIA => 12 * 1024,
+            EthereumNetwork::MAINNET => 24 * 1024,
+            _ => 24 * 1024, // Default for unknown networks
+        };
+        let response_size_estimate =
+            self.response_size_estimate(expected_block_size + HEADER_SIZE_LIMIT);
+        let reduction_strategy = self.reduction_strategy();
+        MultiRpcRequest::new(
+            self.providers.services,
+            RpcMethod::EthGetBlockByNumber,
+            GetBlockByNumberParams {
+                block,
+                include_full_transactions: false,
+            },
+            response_size_estimate,
+            reduction_strategy,
+        )
+    }
+
+    pub fn eth_get_transaction_receipt(
+        self,
+        tx_hash: Hash,
+    ) -> MultiRpcRequest<(Hash,), Option<TransactionReceipt>> {
+        let response_size_estimate = self.response_size_estimate(700 + HEADER_SIZE_LIMIT);
+        let reduction_strategy = self.reduction_strategy();
+        MultiRpcRequest::new(
+            self.providers.services,
+            RpcMethod::EthGetTransactionReceipt,
+            (tx_hash,),
+            response_size_estimate,
+            reduction_strategy,
+        )
+    }
+
+    pub fn eth_fee_history(
+        self,
+        params: FeeHistoryParams,
+    ) -> MultiRpcRequest<FeeHistoryParams, FeeHistory> {
+        // A typical response is slightly above 300 bytes.
+        let response_size_estimate = self.response_size_estimate(512 + HEADER_SIZE_LIMIT);
+        let reduction_strategy = self.reduction_strategy();
+        MultiRpcRequest::new(
+            self.providers.services,
+            RpcMethod::EthFeeHistory,
+            params,
+            response_size_estimate,
+            reduction_strategy,
+        )
+    }
+
+    pub fn eth_send_raw_transaction(
+        self,
+        raw_signed_transaction_hex: String,
+    ) -> MultiRpcRequest<(String,), SendRawTransactionResult> {
+        // A successful reply is under 256 bytes, but we expect most calls to end with an error
+        // since we submit the same transaction from multiple nodes.
+        let response_size_estimate = self.response_size_estimate(256 + HEADER_SIZE_LIMIT);
+        let reduction_strategy = self.reduction_strategy();
+        MultiRpcRequest::new(
+            self.providers.services,
+            RpcMethod::EthSendRawTransaction,
+            (raw_signed_transaction_hex,),
+            response_size_estimate,
+            reduction_strategy,
+        )
+    }
+
+    pub fn eth_get_transaction_count(
+        self,
+        params: GetTransactionCountParams,
+    ) -> MultiRpcRequest<GetTransactionCountParams, TransactionCount> {
+        let response_size_estimate = self.response_size_estimate(50 + HEADER_SIZE_LIMIT);
+        let reduction_strategy = self.reduction_strategy();
+        MultiRpcRequest::new(
+            self.providers.services,
+            RpcMethod::EthGetTransactionCount,
+            params,
+            response_size_estimate,
+            reduction_strategy,
+        )
+    }
+
+    pub fn eth_call(self, params: EthCallParams) -> MultiRpcRequest<EthCallParams, Data> {
+        let response_size_estimate = self.response_size_estimate(256 + HEADER_SIZE_LIMIT);
+        let reduction_strategy = self.reduction_strategy();
+        MultiRpcRequest::new(
+            self.providers.services,
+            RpcMethod::EthCall,
+            params,
+            response_size_estimate,
+            reduction_strategy,
+        )
+    }
+
+    pub fn multi_request(
+        self,
+        method: RpcMethod,
+        params: Option<&Value>,
+    ) -> MultiRpcRequest<Option<&Value>, RawJson> {
+        let response_size_estimate = self.response_size_estimate(256 + HEADER_SIZE_LIMIT);
+        let reduction_strategy = self.reduction_strategy();
+        MultiRpcRequest::new(
+            self.providers.services,
+            method,
+            params,
+            response_size_estimate,
+            reduction_strategy,
+        )
+    }
+}
+
+pub struct MultiRpcRequest<Params, Output> {
+    providers: BTreeSet<RpcService>,
+    method: RpcMethod,
+    params: Params,
+    response_size_estimate: ResponseSizeEstimate,
+    reduction_strategy: ReductionStrategy,
+    _marker: std::marker::PhantomData<Output>,
+}
+
+impl<Params, Output> MultiRpcRequest<Params, Output> {
+    pub fn new(
+        providers: BTreeSet<RpcService>,
+        method: RpcMethod,
+        params: Params,
+        response_size_estimate: ResponseSizeEstimate,
+        reduction_strategy: ReductionStrategy,
+    ) -> MultiRpcRequest<Params, Output> {
+        MultiRpcRequest {
+            providers,
+            method,
+            params,
+            response_size_estimate,
+            reduction_strategy,
+            _marker: Default::default(),
+        }
+    }
+}
+
+impl<Params, Output> MultiRpcRequest<Params, Output> {
+    pub async fn send_and_reduce(self) -> MultiRpcResult<Output>
+    where
+        Params: Serialize + Clone + Debug,
+        Output: Debug + Serialize + DeserializeOwned + HttpResponsePayload + PartialEq,
+    {
+        let result = self.parallel_call().await.reduce(self.reduction_strategy);
+        process_result(self.method, result)
+    }
+
     /// Query all providers in parallel and return all results.
     /// It's up to the caller to decide how to handle the results, which could be inconsistent
     /// (e.g., if different providers gave different responses).
     /// This method is useful for querying data that is critical for the system to ensure that there is no single point of failure,
     /// e.g., ethereum logs upon which ckETH will be minted.
-    async fn parallel_call<I, O>(
-        &self,
-        method: RpcMethod,
-        params: I,
-        response_size_estimate: ResponseSizeEstimate,
-    ) -> MultiCallResults<O>
+    async fn parallel_call(&self) -> MultiResults<RpcService, Output, RpcError>
     where
-        I: Serialize + Clone + Debug,
-        O: Debug + DeserializeOwned + HttpResponsePayload,
+        Params: Serialize + Clone + Debug,
+        Output: Debug + DeserializeOwned + HttpResponsePayload,
     {
-        let providers = self.providers();
-        let transform_op = O::response_transform()
+        let requests = self.create_json_rpc_requests();
+
+        let client = http_client(MetricRpcMethod::from(self.method.clone()), true)
+            .map_result(extract_json_rpc_response);
+
+        let (requests, errors) = requests.into_inner();
+        let (_client, mut results) = canhttp::multi::parallel_call(client, requests).await;
+        results.add_errors(errors);
+        let now = Timestamp::from_nanos_since_unix_epoch(ic_cdk::api::time());
+        results
+            .ok_results()
+            .keys()
+            .filter_map(SupportedRpcService::new)
+            .for_each(|service| record_ok_result(service, now));
+        assert_eq!(
+            results.len(),
+            self.providers.len(),
+            "BUG: expected 1 result per provider"
+        );
+        results
+    }
+
+    fn create_json_rpc_requests(
+        &self,
+    ) -> MultiResults<RpcService, Request<JsonRpcRequest<Params>>, RpcError>
+    where
+        Params: Clone,
+        Output: HttpResponsePayload,
+    {
+        let transform_op = Output::response_transform()
             .as_ref()
             .map(|t| {
                 let mut buf = vec![];
@@ -287,9 +482,9 @@ impl EthRpcClient {
                 buf
             })
             .unwrap_or_default();
-        let effective_size_estimate = response_size_estimate.get();
+        let effective_size_estimate = self.response_size_estimate.get();
         let mut requests = MultiResults::default();
-        for provider in providers {
+        for provider in self.providers.iter() {
             let request = resolve_rpc_service(provider.clone())
                 .map_err(RpcError::from)
                 .and_then(|rpc_service| rpc_service.post(&get_override_provider()))
@@ -303,142 +498,25 @@ impl EthRpcClient {
                             }),
                             context: transform_op.clone(),
                         })
-                        .body(JsonRpcRequest::new(method.clone().name(), params.clone()))
+                        .body(JsonRpcRequest::new(
+                            self.method.clone().name(),
+                            self.params.clone(),
+                        ))
                         .expect("BUG: invalid request")
                 });
             requests.insert_once(provider.clone(), request);
         }
-
-        let client = http_client(MetricRpcMethod::from(method), true).map_result(|r| {
-            match r?.into_body().into_result() {
-                Ok(value) => Ok(value),
-                Err(json_rpc_error) => Err(RpcError::JsonRpcError(JsonRpcError {
-                    code: json_rpc_error.code,
-                    message: json_rpc_error.message,
-                })),
-            }
-        });
-
-        let (requests, errors) = requests.into_inner();
-        let (_client, mut results) = canhttp::multi::parallel_call(client, requests).await;
-        results.add_errors(errors);
-        let now = Timestamp::from_nanos_since_unix_epoch(ic_cdk::api::time());
-        results
-            .ok_results()
-            .keys()
-            .filter_map(SupportedRpcService::new)
-            .for_each(|service| record_ok_result(service, now));
-        assert_eq!(
-            results.len(),
-            providers.len(),
-            "BUG: expected 1 result per provider"
-        );
-        results
+        requests
     }
+}
 
-    pub async fn eth_get_logs(&self, params: GetLogsParam) -> ReducedResult<Vec<LogEntry>> {
-        self.parallel_call(
-            RpcMethod::EthGetLogs,
-            vec![params],
-            self.response_size_estimate(1024 + HEADER_SIZE_LIMIT),
-        )
-        .await
-        .reduce(self.consensus_strategy())
-    }
-
-    pub async fn eth_get_block_by_number(&self, block: BlockSpec) -> ReducedResult<Block> {
-        let expected_block_size = match self.chain() {
-            EthereumNetwork::SEPOLIA => 12 * 1024,
-            EthereumNetwork::MAINNET => 24 * 1024,
-            _ => 24 * 1024, // Default for unknown networks
-        };
-
-        self.parallel_call(
-            RpcMethod::EthGetBlockByNumber,
-            GetBlockByNumberParams {
-                block,
-                include_full_transactions: false,
-            },
-            self.response_size_estimate(expected_block_size + HEADER_SIZE_LIMIT),
-        )
-        .await
-        .reduce(self.consensus_strategy())
-    }
-
-    pub async fn eth_get_transaction_receipt(
-        &self,
-        tx_hash: Hash,
-    ) -> ReducedResult<Option<TransactionReceipt>> {
-        self.parallel_call(
-            RpcMethod::EthGetTransactionReceipt,
-            vec![tx_hash],
-            self.response_size_estimate(700 + HEADER_SIZE_LIMIT),
-        )
-        .await
-        .reduce(self.consensus_strategy())
-    }
-
-    pub async fn eth_fee_history(&self, params: FeeHistoryParams) -> ReducedResult<FeeHistory> {
-        // A typical response is slightly above 300 bytes.
-        self.parallel_call(
-            RpcMethod::EthFeeHistory,
-            params,
-            self.response_size_estimate(512 + HEADER_SIZE_LIMIT),
-        )
-        .await
-        .reduce(self.consensus_strategy())
-    }
-
-    pub async fn eth_send_raw_transaction(
-        &self,
-        raw_signed_transaction_hex: String,
-    ) -> ReducedResult<SendRawTransactionResult> {
-        // A successful reply is under 256 bytes, but we expect most calls to end with an error
-        // since we submit the same transaction from multiple nodes.
-        self.parallel_call(
-            RpcMethod::EthSendRawTransaction,
-            vec![raw_signed_transaction_hex],
-            self.response_size_estimate(256 + HEADER_SIZE_LIMIT),
-        )
-        .await
-        .reduce(self.consensus_strategy())
-    }
-
-    pub async fn eth_get_transaction_count(
-        &self,
-        params: GetTransactionCountParams,
-    ) -> ReducedResult<TransactionCount> {
-        self.parallel_call(
-            RpcMethod::EthGetTransactionCount,
-            params,
-            self.response_size_estimate(50 + HEADER_SIZE_LIMIT),
-        )
-        .await
-        .reduce(self.consensus_strategy())
-    }
-
-    pub async fn eth_call(&self, params: EthCallParams) -> ReducedResult<Data> {
-        self.parallel_call(
-            RpcMethod::EthCall,
-            params,
-            self.response_size_estimate(256 + HEADER_SIZE_LIMIT),
-        )
-        .await
-        .reduce(self.consensus_strategy())
-    }
-
-    pub async fn multi_request(
-        &self,
-        method: RpcMethod,
-        params: Option<&Value>,
-    ) -> ReducedResult<RawJson> {
-        self.parallel_call(
-            method,
-            params,
-            self.response_size_estimate(256 + HEADER_SIZE_LIMIT),
-        )
-        .await
-        .reduce(self.consensus_strategy())
+fn extract_json_rpc_response<O>(result: RpcResult<HttpJsonRpcResponse<O>>) -> RpcResult<O> {
+    match result?.into_body().into_result() {
+        Ok(value) => Ok(value),
+        Err(json_rpc_error) => Err(RpcError::JsonRpcError(JsonRpcError {
+            code: json_rpc_error.code,
+            message: json_rpc_error.message,
+        })),
     }
 }
 
@@ -459,7 +537,10 @@ impl From<ConsensusStrategy> for ReductionStrategy {
 }
 
 impl<T: PartialEq + Serialize> Reduce<RpcService, T, RpcError> for ReductionStrategy {
-    fn reduce(&self, results: MultiResults<RpcService, T, RpcError>) -> ReducedResult<T> {
+    fn reduce(
+        &self,
+        results: MultiResults<RpcService, T, RpcError>,
+    ) -> ReducedResult<RpcService, T, RpcError> {
         match self {
             ReductionStrategy::ByEquality(r) => r.reduce(results),
             ReductionStrategy::ByThreshold(r) => r.reduce(results),
@@ -467,5 +548,36 @@ impl<T: PartialEq + Serialize> Reduce<RpcService, T, RpcError> for ReductionStra
     }
 }
 
-pub type MultiCallResults<T> = MultiResults<RpcService, T, RpcError>;
-pub type ReducedResult<T> = canhttp::multi::ReducedResult<RpcService, T, RpcError>;
+fn process_result<T>(
+    method: impl Into<MetricRpcMethod> + Clone,
+    result: ReducedResult<RpcService, T, RpcError>,
+) -> MultiRpcResult<T> {
+    match result {
+        Ok(value) => MultiRpcResult::Consistent(Ok(value)),
+        Err(err) => match err {
+            ReductionError::ConsistentError(err) => MultiRpcResult::Consistent(Err(err)),
+            ReductionError::InconsistentResults(multi_call_results) => {
+                let results: Vec<_> = multi_call_results.into_iter().collect();
+                results.iter().for_each(|(service, _service_result)| {
+                    if let Ok(ResolvedRpcService::Provider(provider)) =
+                        resolve_rpc_service(service.clone())
+                    {
+                        add_metric_entry!(
+                            inconsistent_responses,
+                            (
+                                method.clone().into(),
+                                MetricRpcHost(
+                                    provider
+                                        .hostname()
+                                        .unwrap_or_else(|| "(unknown)".to_string())
+                                )
+                            ),
+                            1
+                        )
+                    }
+                });
+                MultiRpcResult::Inconsistent(results)
+            }
+        },
+    }
+}
