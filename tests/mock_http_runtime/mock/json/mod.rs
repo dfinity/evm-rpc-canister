@@ -2,7 +2,7 @@
 mod tests;
 
 use crate::mock_http_runtime::mock::CanisterHttpRequestMatcher;
-use canhttp::http::json::{Id, JsonRpcRequest};
+use canhttp::http::json::{ConstantSizeId, Id, JsonRpcRequest};
 use pocket_ic::common::rest::{
     CanisterHttpHeader, CanisterHttpMethod, CanisterHttpReply, CanisterHttpRequest,
     CanisterHttpResponse,
@@ -35,9 +35,13 @@ impl JsonRpcRequestMatcher {
         }
     }
 
-    pub fn with_id(self, id: impl Into<Id>) -> Self {
+    pub fn with_id(self, id: u64) -> Self {
+        self.with_raw_id(Id::from(ConstantSizeId::from(id)))
+    }
+
+    pub fn with_raw_id(self, id: Id) -> Self {
         Self {
-            id: Some(id.into()),
+            id: Some(id),
             ..self
         }
     }
@@ -164,8 +168,12 @@ impl From<Value> for JsonRpcResponse {
 }
 
 impl JsonRpcResponse {
-    pub fn with_id(mut self, id: impl Into<Id>) -> JsonRpcResponse {
-        self.body["id"] = serde_json::to_value(id.into()).expect("BUG: cannot serialize ID");
+    pub fn with_id(self, id: u64) -> JsonRpcResponse {
+        self.with_raw_id(Id::from(ConstantSizeId::from(id)))
+    }
+
+    pub fn with_raw_id(mut self, id: Id) -> JsonRpcResponse {
+        self.body["id"] = serde_json::to_value(id).expect("BUG: cannot serialize ID");
         self
     }
 }
