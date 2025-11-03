@@ -43,7 +43,7 @@ pub async fn eth_get_logs(
 ) -> MultiRpcResult<Vec<evm_rpc_types::LogEntry>> {
     let config = match eth_get_logs_rpc_config(config, &args) {
         Ok(config) => config,
-        Err(err) => return MultiRpcResult::from(err),
+        Err(err) => return MultiRpcResult::from(Err(err)),
     };
     match CandidRpcClient::new(source, Some(RpcConfig::from(config)), now()) {
         Ok(source) => source.eth_get_logs(args).await,
