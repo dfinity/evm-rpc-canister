@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add `.request_cost()` method to `RequestBuilder` to compute the cycles cost of a request via the new `CyclesCost` query endpoints ([#509](https://github.com/dfinity/evm-rpc-canister/pull/509))
-- Add the option to configure a retry strategy in the EVM RPC client to e.g., try a request with increasingly many cycles if it fails to to insufficient cycles ([#512](https://github.com/dfinity/evm-rpc-canister/pull/512))
+- Add the option to configure a retry strategy in the EVM RPC client to e.g., try a request with increasingly many cycles if it fails due to insufficient cycles ([#512](https://github.com/dfinity/evm-rpc-canister/pull/512))
 
 [0.2.0]: https://github.com/dfinity/evm-rpc-canister/compare/evm_rpc_client-v0.1.0...evm_rpc_client-v0.2.0
 
