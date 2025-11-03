@@ -41,11 +41,10 @@ pub async fn eth_get_logs(
     config: Option<evm_rpc_types::GetLogsRpcConfig>,
     args: evm_rpc_types::GetLogsArgs,
 ) -> MultiRpcResult<Vec<evm_rpc_types::LogEntry>> {
-    let config = config.unwrap_or_default();
-    let max_block_range = config.max_block_range_or_default();
-    if let Err(err) = validate_get_logs_block_range(&args, max_block_range) {
-        return MultiRpcResult::Consistent(Err(err));
-    }
+    let config = match eth_get_logs_rpc_config(config, &args) {
+        Ok(config) => config,
+        Err(err) => return MultiRpcResult::from(err),
+    };
     match CandidRpcClient::new(source, Some(RpcConfig::from(config)), now()) {
         Ok(source) => source.eth_get_logs(args).await,
         Err(err) => Err(err).into(),
@@ -58,13 +57,20 @@ pub async fn eth_get_logs_cycles_cost(
     config: Option<evm_rpc_types::GetLogsRpcConfig>,
     args: evm_rpc_types::GetLogsArgs,
 ) -> RpcResult<u128> {
-    let config = config.unwrap_or_default();
-    let max_block_range = config.max_block_range_or_default();
-    validate_get_logs_block_range(&args, max_block_range)?;
-    match CandidRpcClient::new(source, Some(RpcConfig::from(config)), now()) {
+    match CandidRpcClient::new(source, Some(eth_get_logs_rpc_config(config, &args)?), now()) {
         Ok(source) => source.eth_get_logs_cycles_cost(args).await,
         Err(err) => Err(err),
     }
+}
+
+fn eth_get_logs_rpc_config(
+    config: Option<evm_rpc_types::GetLogsRpcConfig>,
+    args: &evm_rpc_types::GetLogsArgs,
+) -> Result<RpcConfig, evm_rpc_types::RpcError> {
+    let config = config.unwrap_or_default();
+    let max_block_range = config.max_block_range_or_default();
+    validate_get_logs_block_range(&args, max_block_range)?;
+    Ok(RpcConfig::from(config))
 }
 
 #[update(name = "eth_getBlockByNumber")]
