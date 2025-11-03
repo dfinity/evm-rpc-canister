@@ -1,8 +1,6 @@
 mod cketh_conversion;
 
-use crate::{
-    candid_rpc::cketh_conversion::into_json_request, rpc_client::EthRpcClient, types::RpcMethod,
-};
+use crate::{rpc_client::EthRpcClient, types::RpcMethod};
 use candid::Nat;
 use canhttp::multi::Timestamp;
 use ethers_core::{types::Transaction, utils::rlp};
@@ -174,6 +172,7 @@ impl CandidRpcClient {
     }
 
     pub async fn multi_request(self, json_rpc_payload: String) -> MultiRpcResult<String> {
+        use cketh_conversion::into_json_request;
         let request = match into_json_request(json_rpc_payload) {
             Ok(request) => request,
             Err(err) => return MultiRpcResult::Consistent(Err(err)),
@@ -189,6 +188,7 @@ impl CandidRpcClient {
     }
 
     pub async fn multi_cycles_cost(self, json_rpc_payload: String) -> RpcResult<u128> {
+        use cketh_conversion::into_json_request;
         let request = into_json_request(json_rpc_payload)?;
         self.client
             .multi_request(

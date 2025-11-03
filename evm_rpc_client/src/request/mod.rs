@@ -761,7 +761,7 @@ pub struct RequestCostBuilder<Runtime, Converter, RetryPolicy, Config, Params> {
 }
 
 impl<R: Runtime, C, P, Config, Params> RequestCostBuilder<R, C, P, Config, Params> {
-    /// Constructs the [`Request`] and send it using the [`SolRpcClient`].
+    /// Constructs the [`Request`] and send it using the [`EvmRpcClient`].
     pub async fn send(self) -> RpcResult<u128>
     where
         Config: CandidType + Send,
