@@ -335,7 +335,7 @@ impl<R, C: EvmRpcResponseConverter, P> EvmRpcClient<R, C, P> {
     /// then decodes the ABI-encoded response into the human-readable string `USDC`.
     ///
     /// ```rust
-    /// use alloy_dyn_abi::{DynSolType, DynSolValue};
+    /// use alloy::{sol, sol_types::{SolCall, SolInterface}};
     /// use alloy_primitives::{address, bytes, Bytes};
     /// use alloy_rpc_types::BlockNumberOrTag;
     /// use evm_rpc_client::EvmRpcClient;
@@ -344,6 +344,12 @@ impl<R, C: EvmRpcResponseConverter, P> EvmRpcClient<R, C, P> {
     /// # use std::str::FromStr;
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// sol! {
+    ///     interface ERC20 {
+    ///         function symbol() external view returns (string);
+    ///     }
+    /// }
+    ///
     /// let client = EvmRpcClient::builder_for_ic()
     ///     .with_alloy()
     /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(
@@ -352,10 +358,9 @@ impl<R, C: EvmRpcResponseConverter, P> EvmRpcClient<R, C, P> {
     ///     .build();
     ///
     /// let tx_request = alloy_rpc_types::TransactionRequest::default()
-    ///     // USDC address
     ///     .from(address!("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"))
-    ///     // Selector for `symbol()`
-    ///     .input(bytes!(0x95, 0xd8, 0x9b, 0x41).into());
+    ///     .input(ERC20::symbolCall::new(()).abi_encode().into());
+    /// # assert_eq!(ERC20::symbolCall::new(()).abi_encode(), vec![0x95, 0xd8, 0x9b, 0x41]);
     ///
     /// let result = client
     ///     .call(tx_request)
@@ -365,8 +370,8 @@ impl<R, C: EvmRpcResponseConverter, P> EvmRpcClient<R, C, P> {
     ///     .expect_consistent()
     ///     .unwrap();
     ///
-    /// let decoded = DynSolType::String.abi_decode(&result);
-    /// assert_eq!(decoded, Ok(DynSolValue::from("USDC".to_string())));
+    /// let decoded = ERC20::symbolCall::abi_decode_returns(&result).unwrap();
+    /// assert_eq!(decoded, "USDC".to_string());
     /// # Ok(())
     /// # }
     /// ```

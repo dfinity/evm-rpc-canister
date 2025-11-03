@@ -24,7 +24,7 @@ strum = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-alloy-dyn-abi = { workspace = true }
+alloy = { workspace = true }
 alloy-primitives = { workspace = true }
 alloy-rpc-types = { workspace = true }
 evm_rpc_types = { path = "../evm_rpc_types", features = ["alloy"] }
