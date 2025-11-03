@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.0] - 2025-11-03
+
+### Added
+
+- For each `eth_*` endpoint, add a new corresponding `eth_*CyclesCost` query endpoint with the same Candid arguments, that allows computing the cycles cost of calling the corresponding `eth_*` update endpoint ([#508](https://github.com/dfinity/evm-rpc-canister/pull/508), [#509](https://github.com/dfinity/evm-rpc-canister/pull/509))
+
+### Changed
+
+- Use constant-size request IDs in JSON-RPC requests to allow for consistent request cycles costs ([#514](https://github.com/dfinity/evm-rpc-canister/pull/514))
+
+[2.7.0]: https://github.com/dfinity/evm-rpc-canister/compare/v2.6.0...v2.7.0
+
 ## [2.6.0] - 2025-10-20
 
 ### Added
