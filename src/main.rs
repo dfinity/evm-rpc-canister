@@ -69,7 +69,7 @@ fn eth_get_logs_rpc_config(
 ) -> Result<RpcConfig, evm_rpc_types::RpcError> {
     let config = config.unwrap_or_default();
     let max_block_range = config.max_block_range_or_default();
-    validate_get_logs_block_range(&args, max_block_range)?;
+    validate_get_logs_block_range(args, max_block_range)?;
     Ok(RpcConfig::from(config))
 }
 
