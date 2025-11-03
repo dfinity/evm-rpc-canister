@@ -336,7 +336,6 @@ impl<R, C: EvmRpcResponseConverter, P> EvmRpcClient<R, C, P> {
     ///
     /// ```rust
     /// use alloy::{sol, sol_types::{SolCall, SolInterface}};
-    /// use alloy_dyn_abi::{DynSolType, DynSolValue};
     /// use alloy_primitives::{address, bytes, Bytes};
     /// use alloy_rpc_types::BlockNumberOrTag;
     /// use evm_rpc_client::EvmRpcClient;

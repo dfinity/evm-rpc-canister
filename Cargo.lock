@@ -1977,7 +1977,6 @@ name = "evm_rpc_client"
 version = "0.1.0"
 dependencies = [
  "alloy",
- "alloy-dyn-abi",
  "alloy-primitives",
  "alloy-rpc-types",
  "async-trait",
