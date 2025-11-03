@@ -5,7 +5,8 @@ use crate::{retry, runtime::IcError, EvmRpcClient, Runtime};
 use candid::CandidType;
 use evm_rpc_types::{
     BlockTag, CallArgs, ConsensusStrategy, FeeHistoryArgs, GetLogsArgs, GetLogsRpcConfig,
-    GetTransactionCountArgs, Hex, Hex20, Hex32, MultiRpcResult, Nat256, RpcConfig, RpcServices,
+    GetTransactionCountArgs, Hex, Hex20, Hex32, MultiRpcResult, Nat256, RpcConfig, RpcResult,
+    RpcServices,
 };
 use serde::de::DeserializeOwned;
 use std::fmt::{Debug, Formatter};
@@ -403,6 +404,20 @@ impl EvmRpcEndpoint {
             Self::SendRawTransaction => "eth_sendRawTransaction",
         }
     }
+
+    /// Method name on the EVM RPC canister to estimate the amount of cycles for that request.
+    pub fn cycles_cost_method(&self) -> &'static str {
+        match &self {
+            Self::Call => "eth_callCyclesCost",
+            Self::FeeHistory => "eth_feeHistoryCyclesCost",
+            Self::GetBlockByNumber => "eth_getBlockByNumberCyclesCost",
+            Self::GetLogs => "eth_getLogsCyclesCost",
+            Self::GetTransactionCount => "eth_getTransactionCountCyclesCost",
+            Self::GetTransactionReceipt => "eth_getTransactionReceiptCyclesCost",
+            Self::MultiRequest => "multi_requestCyclesCost",
+            Self::SendRawTransaction => "eth_sendRawTransactionCyclesCost",
+        }
+    }
 }
 
 /// A builder to construct a [`Request`].
@@ -471,6 +486,24 @@ impl<Runtime, Converter, RetryPolicy, Config, Params, CandidOutput, Output>
         RequestBuilder::<Runtime, Converter, RetryPolicy, Config, Params, CandidOutput, Output> {
             client,
             request,
+        }
+    }
+
+    /// Query the cycles cost for that request
+    pub fn request_cost(
+        self,
+    ) -> RequestCostBuilder<Runtime, Converter, RetryPolicy, Config, Params> {
+        RequestCostBuilder {
+            client: self.client,
+            request: RequestCost {
+                endpoint: self.request.endpoint,
+                rpc_services: self.request.rpc_services,
+                rpc_config: self.request.rpc_config,
+                params: self.request.params,
+                cycles: 0,
+                _candid_marker: Default::default(),
+                _output_marker: Default::default(),
+            },
         }
     }
 
@@ -716,6 +749,25 @@ impl<Config, Params, CandidOutput, Output> Request<Config, Params, CandidOutput,
     #[inline]
     pub fn params_mut(&mut self) -> &mut Params {
         &mut self.params
+    }
+}
+
+pub type RequestCost<Config, Params> = Request<Config, Params, RpcResult<u128>, RpcResult<u128>>;
+
+#[must_use = "RequestCostBuilder does nothing until you 'send' it"]
+pub struct RequestCostBuilder<Runtime, Converter, RetryPolicy, Config, Params> {
+    client: EvmRpcClient<Runtime, Converter, RetryPolicy>,
+    request: RequestCost<Config, Params>,
+}
+
+impl<R: Runtime, C, P, Config, Params> RequestCostBuilder<R, C, P, Config, Params> {
+    /// Constructs the [`Request`] and send it using the [`EvmRpcClient`].
+    pub async fn send(self) -> RpcResult<u128>
+    where
+        Config: CandidType + Send,
+        Params: CandidType + Send,
+    {
+        self.client.execute_cycles_cost_request(self.request).await
     }
 }
 

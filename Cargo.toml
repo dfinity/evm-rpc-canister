@@ -65,6 +65,7 @@ num-traits = { workspace = true }
 pocket-ic = { workspace = true }
 proptest = { workspace = true }
 rand = { workspace = true }
+strum = { workspace = true }
 tokio = { workspace = true }
 
 [workspace.dependencies]

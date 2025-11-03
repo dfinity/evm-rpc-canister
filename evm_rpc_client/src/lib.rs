@@ -33,34 +33,45 @@
 //!     .build();
 //! ```
 //!
-//! ## Specifying the amount of cycles to send
+//! ## Estimating the amount of cycles to send
 //!
 //! Every call made to the EVM RPC canister that triggers HTTPs outcalls (e.g., `eth_getLogs`)
 //! needs to attach some cycles to pay for the call.
 //! By default, the client will attach some amount of cycles that should be sufficient for most cases.
 //!
-//! If this is not the case, the amount of cycles to be sent can be overridden. It's advisable to
-//! actually send *more* cycles than required, since *unused cycles will be refunded*.
+//! If this is not the case, the amount of cycles to be sent can be changed as follows:
+//! 1. Determine the required amount of cycles to send for a particular request.
+//!    The EVM RPC canister offers some query endpoints (e.g., `eth_getLogsCyclesCost`) for that purpose.
+//!    This could help establishing a baseline so that the estimated cycles cost for similar requests
+//!    can be extrapolated from it instead of making additional queries to the EVM RPC canister.
+//! 2. Override the amount of cycles to send for that particular request.
+//!    It's advisable to actually send *more* cycles than required, since *unused cycles will be refunded*.
 //!
 //! ```rust
 //! use alloy_primitives::{address, U256};
 //! use alloy_rpc_types::BlockNumberOrTag;
 //! use evm_rpc_client::EvmRpcClient;
 //!
-//! # use evm_rpc_types::{MultiRpcResult, Nat256};
+//! # use evm_rpc_types::{MultiRpcResult, Nat256, RpcError};
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let client = EvmRpcClient::builder_for_ic()
 //!     .with_alloy()
-//! #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(Nat256::from(1_u64))))
+//! #   .with_stub_responses()
+//! #   .with_response_for_method("eth_getTransactionCountCyclesCost", Ok::<u128, RpcError>(100_000_000_000))
+//! #   .with_response_for_method("eth_getTransactionCount", MultiRpcResult::Consistent(Ok(Nat256::from(1_u64))))
 //!     .build();
 //!
-//! let result = client
+//! let request = client
 //!     .get_transaction_count((
 //!         address!("0xdac17f958d2ee523a2206206994597c13d831ec7"),
 //!         BlockNumberOrTag::Latest,
-//!     ))
-//!     .with_cycles(20_000_000_000)
+//!     ));
+//!
+//! let minimum_required_cycles_amount = request.clone().request_cost().send().await.unwrap();
+//!
+//! let result = request
+//!     .with_cycles(minimum_required_cycles_amount)
 //!     .send()
 //!     .await
 //!     .expect_consistent();
@@ -122,10 +133,11 @@ mod request;
 mod retry;
 mod runtime;
 
+use crate::request::RequestCost;
 use candid::{CandidType, Principal};
 use evm_rpc_types::{
     BlockTag, CallArgs, ConsensusStrategy, FeeHistoryArgs, GetLogsArgs, GetTransactionCountArgs,
-    Hex, Hex32, RpcConfig, RpcServices,
+    Hex, Hex32, RpcConfig, RpcResult, RpcServices,
 };
 #[cfg(feature = "alloy")]
 pub use request::alloy::AlloyResponseConverter;
@@ -134,10 +146,10 @@ use request::{
     FeeHistoryRequestBuilder, GetBlockByNumberRequest, GetBlockByNumberRequestBuilder,
     GetLogsRequest, GetLogsRequestBuilder, GetTransactionCountRequest,
     GetTransactionCountRequestBuilder, GetTransactionReceiptRequest,
-    GetTransactionReceiptRequestBuilder, JsonRequest, JsonRequestBuilder, Request, RequestBuilder,
+    GetTransactionReceiptRequestBuilder, JsonRequest, JsonRequestBuilder,
     SendRawTransactionRequest, SendRawTransactionRequestBuilder,
 };
-pub use request::{CandidResponseConverter, EvmRpcConfig};
+pub use request::{CandidResponseConverter, EvmRpcConfig, EvmRpcEndpoint, Request, RequestBuilder};
 pub use retry::{DoubleCycles, NoRetry, RetryPolicy};
 pub use runtime::{IcError, IcRuntime, Runtime};
 use serde::de::DeserializeOwned;
@@ -856,5 +868,29 @@ impl<Runtime: runtime::Runtime, Converter, RetryPolicy>
             )
             .await
             .map(Into::into)
+    }
+
+    async fn execute_cycles_cost_request<Config, Params>(
+        &self,
+        request: RequestCost<Config, Params>,
+    ) -> RpcResult<u128>
+    where
+        Config: CandidType + Send,
+        Params: CandidType + Send,
+    {
+        self.config
+            .runtime
+            .query_call::<(RpcServices, Option<Config>, Params), RpcResult<u128>>(
+                self.config.evm_rpc_canister,
+                request.endpoint.cycles_cost_method(),
+                (request.rpc_services, request.rpc_config, request.params),
+            )
+            .await
+            .unwrap_or_else(|e| {
+                panic!(
+                    "Client error: failed to call `{}`: {e:?}",
+                    request.endpoint.cycles_cost_method()
+                )
+            })
     }
 }

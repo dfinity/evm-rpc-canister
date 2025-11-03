@@ -8,7 +8,10 @@ use crate::rpc_client::{
         Hash, JsonByte, StorageKey,
     },
 };
-use evm_rpc_types::{BlockTag, Hex, Hex20, Hex256, Hex32, HexByte, Nat256};
+use canhttp::http::json::JsonRpcRequest;
+use evm_rpc_types::{
+    BlockTag, Hex, Hex20, Hex256, Hex32, HexByte, Nat256, RpcError, RpcResult, ValidationError,
+};
 use ic_ethereum_types::Address;
 
 pub(super) fn into_block_spec(value: BlockTag) -> BlockSpec {
@@ -268,4 +271,14 @@ pub(super) fn from_data(value: Data) -> Hex {
 
 fn into_data(value: Hex) -> Data {
     Data::from(Vec::<u8>::from(value))
+}
+
+pub(super) fn into_json_request(
+    json_rpc_payload: String,
+) -> RpcResult<JsonRpcRequest<serde_json::Value>> {
+    serde_json::from_str(&json_rpc_payload).map_err(|e| {
+        RpcError::ValidationError(ValidationError::Custom(format!(
+            "Invalid JSON RPC request: {e}"
+        )))
+    })
 }

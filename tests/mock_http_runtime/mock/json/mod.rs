@@ -7,7 +7,7 @@ use pocket_ic::common::rest::{
     CanisterHttpHeader, CanisterHttpMethod, CanisterHttpReply, CanisterHttpRequest,
     CanisterHttpResponse,
 };
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::{collections::BTreeSet, str::FromStr};
 use url::{Host, Url};
 
@@ -88,16 +88,6 @@ impl JsonRpcRequestMatcher {
             ..self
         }
     }
-
-    pub fn request_body(&self) -> JsonRpcRequest<Value> {
-        serde_json::from_value(json!({
-            "jsonrpc": "2.0",
-            "method": &self.method,
-            "params": self.params.clone().unwrap_or(Value::Null),
-            "id": self.id.clone().unwrap_or(Id::Null),
-        }))
-        .unwrap()
-    }
 }
 
 impl CanisterHttpRequestMatcher for JsonRpcRequestMatcher {
@@ -132,10 +122,20 @@ impl CanisterHttpRequestMatcher for JsonRpcRequestMatcher {
                 return false;
             }
         }
-        match serde_json::from_slice(&request.body) {
+        match serde_json::from_slice::<JsonRpcRequest<Value>>(&request.body) {
             Ok(actual_body) => {
-                if self.request_body() != actual_body {
+                if self.method != actual_body.method() {
                     return false;
+                }
+                if let Some(ref id) = self.id {
+                    if id != actual_body.id() {
+                        return false;
+                    }
+                }
+                if let Some(ref params) = self.params {
+                    if Some(params) != actual_body.params() {
+                        return false;
+                    }
                 }
             }
             // Not a JSON-RPC request

@@ -2,18 +2,22 @@ mod mock_http_runtime;
 mod setup;
 
 use crate::{
-    mock_http_runtime::mock::{
-        json::{JsonRpcRequestMatcher, JsonRpcResponse},
-        CanisterHttpReject, CanisterHttpReply, MockHttpOutcalls, MockHttpOutcallsBuilder,
+    mock_http_runtime::{
+        mock::{
+            json::{JsonRpcRequestMatcher, JsonRpcResponse},
+            CanisterHttpReject, CanisterHttpReply, MockHttpOutcalls, MockHttpOutcallsBuilder,
+        },
+        wallet::MockHttpRuntimeWithWallet,
     },
     setup::EvmRpcSetup,
 };
 use alloy_primitives::{address, b256, bloom, bytes, Address, Bytes, FixedBytes, B256, B64, U256};
 use alloy_rpc_types::{BlockNumberOrTag, BlockTransactions};
 use assert_matches::assert_matches;
-use candid::{Encode, Principal};
+use candid::{CandidType, Encode, Principal};
 use canhttp::http::json::{ConstantSizeId, Id};
 use evm_rpc_client::{DoubleCycles, NoRetry};
+use evm_rpc_client::{EvmRpcEndpoint, RequestBuilder};
 use evm_rpc_types::{
     BlockTag, ConsensusStrategy, EthMainnetService, EthSepoliaService, GetLogsRpcConfig, Hex,
     Hex32, HttpOutcallError, InstallArgs, JsonRpcError, LegacyRejectionCode, MultiRpcResult,
@@ -23,8 +27,10 @@ use ic_error_types::RejectCode;
 use ic_http_types::HttpRequest;
 use pocket_ic::common::rest::CanisterHttpResponse;
 use pocket_ic::ErrorCode;
+use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
-use std::iter;
+use std::{fmt::Debug, iter};
+use strum::IntoEnumIterator;
 
 const DEFAULT_CALLER_TEST_ID: Principal =
     Principal::from_slice(&[0x0, 0x0, 0x0, 0x0, 0x3, 0x31, 0x1, 0x8, 0x2, 0x2]);
@@ -49,8 +55,8 @@ const MOCK_TRANSACTION: Bytes = bytes!("0xf86c098504a817c80082520894353535353535
 const MOCK_TRANSACTION_HASH: B256 =
     b256!("0x33469b22e9f636356c4160a87eb19df52b7412e8eac32a4a55ffe88ea8350788");
 
-const ADDRESS: Address = address!("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
-const INPUT_DATA: Bytes =
+const MOCK_ADDRESS: Address = address!("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
+const MOCK_INPUT_DATA: Bytes =
     bytes!("0x70a08231000000000000000000000000b25eA1D493B49a1DeD42aC5B1208cC618f9A9B80");
 
 const RPC_SERVICES: &[RpcServices] = &[
@@ -902,8 +908,8 @@ async fn eth_call_should_succeed() {
                 .build()
                 .call(
                     alloy_rpc_types::TransactionRequest::default()
-                        .to(ADDRESS)
-                        .input(alloy_rpc_types::TransactionInput::from(INPUT_DATA)),
+                        .to(MOCK_ADDRESS)
+                        .input(alloy_rpc_types::TransactionInput::from(MOCK_INPUT_DATA)),
                 );
             if let Some(block) = block.clone() {
                 request = request.with_block(block)
@@ -917,8 +923,8 @@ async fn eth_call_should_succeed() {
                 .build()
                 .call(
                     alloy_rpc_types::TransactionRequest::default()
-                        .to(ADDRESS)
-                        .input(alloy_rpc_types::TransactionInput::from(INPUT_DATA)),
+                        .to(MOCK_ADDRESS)
+                        .input(alloy_rpc_types::TransactionInput::from(MOCK_INPUT_DATA)),
                 );
             if let Some(block) = block.clone() {
                 request = request.with_block(block)
@@ -2459,12 +2465,321 @@ async fn should_change_default_provider_when_one_keeps_failing() {
     assert_eq!(response, U256::ONE);
 }
 
+mod cycles_cost_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn should_be_idempotent() {
+        async fn check<Converter, Config, Params, CandidOutput, Output>(
+            request: RequestBuilder<
+                MockHttpRuntimeWithWallet,
+                Converter,
+                NoRetry,
+                Config,
+                Params,
+                CandidOutput,
+                Output,
+            >,
+        ) where
+            Config: CandidType + Clone + Send,
+            Params: CandidType + Clone + Send,
+        {
+            let cycles_cost_1 = request.clone().request_cost().send().await.unwrap();
+            let cycles_cost_2 = request.request_cost().send().await.unwrap();
+            assert_eq!(cycles_cost_1, cycles_cost_2);
+            assert!(cycles_cost_1 > 0);
+        }
+
+        let setup = EvmRpcSetup::with_args(InstallArgs {
+            demo: Some(false),
+            ..Default::default()
+        })
+        .await
+        .mock_api_keys()
+        .await;
+        let client = setup.client(MockHttpOutcalls::NEVER).build();
+
+        for endpoint in EvmRpcEndpoint::iter() {
+            match endpoint {
+                EvmRpcEndpoint::Call => {
+                    check(
+                        client.call(
+                            alloy_rpc_types::TransactionRequest::default()
+                                .to(MOCK_ADDRESS)
+                                .input(alloy_rpc_types::TransactionInput::from(MOCK_INPUT_DATA)),
+                        ),
+                    )
+                    .await;
+                }
+                EvmRpcEndpoint::FeeHistory => {
+                    check(client.fee_history((3_u64, BlockNumberOrTag::Latest))).await
+                }
+                EvmRpcEndpoint::GetBlockByNumber => {
+                    check(client.get_block_by_number(BlockNumberOrTag::Latest)).await
+                }
+                EvmRpcEndpoint::GetLogs => check(client.get_logs(vec![MOCK_ADDRESS])).await,
+                EvmRpcEndpoint::GetTransactionCount => {
+                    check(client.get_transaction_count((MOCK_ADDRESS, BlockNumberOrTag::Latest)))
+                        .await
+                }
+                EvmRpcEndpoint::GetTransactionReceipt => {
+                    check(client.get_transaction_receipt(MOCK_TRANSACTION_HASH)).await
+                }
+                EvmRpcEndpoint::MultiRequest => {
+                    check(client.multi_request(json!({
+                        "id" : ConstantSizeId::from(0_u64).to_string(),
+                        "jsonrpc": "2.0",
+                        "method": "eth_gasPrice",
+                    })))
+                    .await
+                }
+                EvmRpcEndpoint::SendRawTransaction => {
+                    check(client.send_raw_transaction(MOCK_TRANSACTION)).await
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn should_be_zero_when_in_demo_mode() {
+        async fn check<Converter, Config, Params, CandidOutput, Output>(
+            request: RequestBuilder<
+                MockHttpRuntimeWithWallet,
+                Converter,
+                NoRetry,
+                Config,
+                Params,
+                CandidOutput,
+                Output,
+            >,
+        ) where
+            Config: CandidType + Clone + Send,
+            Params: CandidType + Clone + Send,
+        {
+            let cycles_cost = request.request_cost().send().await;
+            assert_eq!(cycles_cost, Ok(0));
+        }
+
+        let setup = EvmRpcSetup::with_args(InstallArgs {
+            demo: Some(true),
+            ..Default::default()
+        })
+        .await
+        .mock_api_keys()
+        .await;
+        let client = setup.client(MockHttpOutcalls::NEVER).build();
+
+        for endpoint in EvmRpcEndpoint::iter() {
+            match endpoint {
+                EvmRpcEndpoint::Call => {
+                    check(
+                        client.call(
+                            alloy_rpc_types::TransactionRequest::default()
+                                .to(MOCK_ADDRESS)
+                                .input(alloy_rpc_types::TransactionInput::from(MOCK_INPUT_DATA)),
+                        ),
+                    )
+                    .await;
+                }
+                EvmRpcEndpoint::FeeHistory => {
+                    check(client.fee_history((3_u64, BlockNumberOrTag::Latest))).await
+                }
+                EvmRpcEndpoint::GetBlockByNumber => {
+                    check(client.get_block_by_number(BlockNumberOrTag::Latest)).await
+                }
+                EvmRpcEndpoint::GetLogs => check(client.get_logs(vec![MOCK_ADDRESS])).await,
+                EvmRpcEndpoint::GetTransactionCount => {
+                    check(client.get_transaction_count((MOCK_ADDRESS, BlockNumberOrTag::Latest)))
+                        .await
+                }
+                EvmRpcEndpoint::GetTransactionReceipt => {
+                    check(client.get_transaction_receipt(MOCK_TRANSACTION_HASH)).await
+                }
+                EvmRpcEndpoint::MultiRequest => {
+                    check(client.multi_request(json!({
+                        "id" : ConstantSizeId::from(0_u64).to_string(),
+                        "jsonrpc": "2.0",
+                        "method": "eth_gasPrice",
+                    })))
+                    .await
+                }
+                EvmRpcEndpoint::SendRawTransaction => {
+                    check(client.send_raw_transaction(MOCK_TRANSACTION)).await
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn should_get_exact_cycles_cost() {
+        async fn check<Config, Converter, Params, CandidOutput, Output>(
+            setup: &EvmRpcSetup,
+            request: RequestBuilder<
+                MockHttpRuntimeWithWallet,
+                Converter,
+                NoRetry,
+                Config,
+                Params,
+                MultiRpcResult<CandidOutput>,
+                MultiRpcResult<Output>,
+            >,
+            expected_cycles_cost: u128,
+        ) where
+            Config: CandidType + Clone + Send,
+            Params: CandidType + Clone + Send,
+            CandidOutput: CandidType + DeserializeOwned,
+            Output: Debug,
+            MultiRpcResult<CandidOutput>: Into<MultiRpcResult<Output>>,
+        {
+            let five_percents = 5_u8;
+
+            let cycles_cost = request.clone().request_cost().send().await.unwrap();
+            assert_within(cycles_cost, expected_cycles_cost, five_percents);
+
+            let cycles_before = setup.evm_rpc_canister_cycles_balance().await;
+            // Request with exact cycles amount should succeed
+            let result = request
+                .clone()
+                .with_cycles(cycles_cost)
+                .send()
+                .await
+                .expect_consistent();
+            if let Err(RpcError::ProviderError(ProviderError::TooFewCycles { .. })) = result {
+                panic!("BUG: estimated cycles cost was insufficient!: {result:?}");
+            }
+            let cycles_after = setup.evm_rpc_canister_cycles_balance().await;
+            let cycles_consumed = cycles_before + cycles_cost - cycles_after;
+
+            assert!(
+                cycles_after > cycles_before,
+                "BUG: not enough cycles requested. Requested {cycles_cost} cycles, but consumed {cycles_consumed} cycles"
+            );
+
+            // The same request with fewer cycles should fail.
+            let results = request
+                .with_cycles(cycles_cost - 1)
+                .send()
+                .await
+                .expect_inconsistent();
+
+            assert!(
+                results.iter().any(|(_provider, result)| matches!(
+                    result,
+                    &Err(RpcError::ProviderError(ProviderError::TooFewCycles {
+                        expected: _,
+                        received: _
+                    }))
+                )),
+                "BUG: Expected at least one TooFewCycles error, but got {results:?}"
+            );
+        }
+
+        let setup = EvmRpcSetup::new().await.mock_api_keys().await;
+        // The exact cycles cost of an HTTPs outcall is independent of the response,
+        // so we always return a dummy response so that individual responses
+        // do not need to be mocked.
+        let mut mocks = MockHttpOutcallsBuilder::new();
+        let mut ids = 0_u64..;
+        for endpoint in EvmRpcEndpoint::iter() {
+            let rpc_method = if endpoint == EvmRpcEndpoint::MultiRequest {
+                MOCK_REQUEST_METHOD
+            } else {
+                endpoint.rpc_method()
+            };
+            for id in ids.by_ref().take(5) {
+                mocks = mocks
+                    .given(JsonRpcRequestMatcher::with_method(rpc_method).with_id(id))
+                    .respond_with(CanisterHttpReply::with_status(403));
+            }
+            // Advance ID by 1 to account for the call with insufficient cycles, for which only the
+            // call to the last provider does not result in an HTTP outcall
+            for _ in ids.by_ref().take(1) {}
+        }
+
+        let client = setup.client(mocks).build();
+
+        for endpoint in EvmRpcEndpoint::iter() {
+            // To find out the expected_cycles_cost for a new endpoint, set the amount to 0
+            // and run the test. It should fail and report the amount of cycles needed.
+            match endpoint {
+                EvmRpcEndpoint::Call => {
+                    check(
+                        &setup,
+                        client.call(
+                            alloy_rpc_types::TransactionRequest::default()
+                                .to(MOCK_ADDRESS)
+                                .input(alloy_rpc_types::TransactionInput::from(MOCK_INPUT_DATA)),
+                        ),
+                        1_734_639_200,
+                    )
+                    .await;
+                }
+                EvmRpcEndpoint::FeeHistory => {
+                    check(
+                        &setup,
+                        client.fee_history((3_u64, BlockNumberOrTag::Latest)),
+                        1_750_673_600,
+                    )
+                    .await
+                }
+                EvmRpcEndpoint::GetBlockByNumber => {
+                    check(
+                        &setup,
+                        client.get_block_by_number(BlockNumberOrTag::Latest),
+                        3_714_418_400,
+                    )
+                    .await
+                }
+                EvmRpcEndpoint::GetLogs => {
+                    check(&setup, client.get_logs(vec![MOCK_ADDRESS]), 1_795_635_200).await
+                }
+                EvmRpcEndpoint::GetTransactionCount => {
+                    check(
+                        &setup,
+                        client.get_transaction_count((MOCK_ADDRESS, BlockNumberOrTag::Latest)),
+                        1_714_688_000,
+                    )
+                    .await
+                }
+                EvmRpcEndpoint::GetTransactionReceipt => {
+                    check(
+                        &setup,
+                        client.get_transaction_receipt(MOCK_TRANSACTION_HASH),
+                        1_768_421_600,
+                    )
+                    .await
+                }
+                EvmRpcEndpoint::MultiRequest => {
+                    check(
+                        &setup,
+                        client.multi_request(json!({
+                            "id" : ConstantSizeId::from(0_u64).to_string(),
+                            "jsonrpc": "2.0",
+                            "method": "eth_gasPrice",
+                        })),
+                        1_729_090_400,
+                    )
+                    .await
+                }
+                EvmRpcEndpoint::SendRawTransaction => {
+                    check(
+                        &setup,
+                        client.send_raw_transaction(MOCK_TRANSACTION),
+                        1_738_556_000,
+                    )
+                    .await
+                }
+            }
+        }
+    }
+}
+
 fn call_request() -> JsonRpcRequestMatcher {
     JsonRpcRequestMatcher::with_method("eth_call")
         .with_params(json!([
             {
-                "to": ADDRESS,
-                "input": INPUT_DATA
+                "to": MOCK_ADDRESS,
+                "input": MOCK_INPUT_DATA
             },
             "latest"
         ]))
@@ -2592,20 +2907,20 @@ mod request_cost_tests {
             "BUG: Expected TooFewCycles error, but got {result:?}"
         );
     }
+}
 
-    fn assert_within(actual: u128, expected: u128, percentage_error: u8) {
-        assert!(percentage_error <= 100);
-        let error_margin = expected.saturating_mul(percentage_error as u128) / 100;
-        let lower_bound = expected.saturating_sub(error_margin);
-        let upper_bound = expected.saturating_add(error_margin);
-        assert!(
-            lower_bound <= actual && actual <= upper_bound,
-            "Expected {} <= {} <= {}",
-            lower_bound,
-            actual,
-            upper_bound
-        );
-    }
+fn assert_within(actual: u128, expected: u128, percentage_error: u8) {
+    assert!(percentage_error <= 100);
+    let error_margin = expected.saturating_mul(percentage_error as u128) / 100;
+    let lower_bound = expected.saturating_sub(error_margin);
+    let upper_bound = expected.saturating_add(error_margin);
+    assert!(
+        lower_bound <= actual && actual <= upper_bound,
+        "Expected {} <= {} <= {}",
+        lower_bound,
+        actual,
+        upper_bound
+    );
 }
 
 fn fee_history_request() -> JsonRpcRequestMatcher {
