@@ -1,13 +1,14 @@
 #[cfg(feature = "alloy")]
 pub(crate) mod alloy;
 
-use crate::{retry, runtime::IcError, EvmRpcClient, Runtime};
+use crate::{retry, EvmRpcClient, Runtime};
 use candid::CandidType;
 use evm_rpc_types::{
     BlockTag, CallArgs, ConsensusStrategy, FeeHistoryArgs, GetLogsArgs, GetLogsRpcConfig,
     GetTransactionCountArgs, Hex, Hex20, Hex32, MultiRpcResult, Nat256, RpcConfig, RpcResult,
     RpcServices,
 };
+use ic_canister_runtime::IcError;
 use serde::de::DeserializeOwned;
 use std::fmt::{Debug, Formatter};
 use strum::EnumIter;

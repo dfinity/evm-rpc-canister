@@ -1,9 +1,4 @@
-use crate::{
-    mock_http_runtime::{
-        mock::MockHttpOutcalls, wallet::MockHttpRuntimeWithWallet, MockHttpRuntime,
-    },
-    DEFAULT_CALLER_TEST_ID, DEFAULT_CONTROLLER_TEST_ID, INITIAL_CYCLES, MOCK_API_KEY,
-};
+use crate::{DEFAULT_CALLER_TEST_ID, DEFAULT_CONTROLLER_TEST_ID, INITIAL_CYCLES, MOCK_API_KEY};
 use candid::{CandidType, Decode, Encode, Nat, Principal};
 use canlog::{Log, LogEntry};
 use evm_rpc::{
@@ -11,12 +6,13 @@ use evm_rpc::{
     providers::PROVIDERS,
     types::{ProviderId, RpcAccess},
 };
-use evm_rpc_client::{AlloyResponseConverter, ClientBuilder, EvmRpcClient, NoRetry, Runtime};
+use evm_rpc_client::{AlloyResponseConverter, ClientBuilder, EvmRpcClient, NoRetry};
 use evm_rpc_types::{InstallArgs, Provider, RpcResult, RpcService};
+use ic_canister_runtime::{CyclesWalletRuntime, Runtime};
 use ic_http_types::{HttpRequest, HttpResponse};
-use ic_management_canister_types::CanisterId;
-use ic_management_canister_types::CanisterSettings;
+use ic_management_canister_types::{CanisterId, CanisterSettings};
 use ic_metrics_assert::{MetricsAssert, PocketIcAsyncHttpQuery};
+use ic_pocket_canister_runtime::{MockHttpOutcalls, PocketIcRuntime};
 use ic_test_utilities_load_wasm::load_wasm;
 use num_traits::ToPrimitive;
 use pocket_ic::{nonblocking::PocketIc, ErrorCode, PocketIcBuilder, RejectResponse};
@@ -24,7 +20,7 @@ use serde::de::DeserializeOwned;
 use std::{
     env::{set_var, var},
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::Arc,
     time::Duration,
 };
 
@@ -126,30 +122,29 @@ impl EvmRpcSetup {
         panic!("Failed to upgrade canister after many trials!")
     }
 
-    pub fn client(
+    pub async fn client(
         &self,
         mocks: impl Into<MockHttpOutcalls>,
-    ) -> ClientBuilder<MockHttpRuntimeWithWallet, AlloyResponseConverter, NoRetry> {
+    ) -> ClientBuilder<CyclesWalletRuntime<PocketIcRuntime<'_>>, AlloyResponseConverter, NoRetry>
+    {
         EvmRpcClient::builder(
-            self.new_mock_http_runtime_with_wallet(mocks),
+            self.new_mock_http_runtime_with_wallet(mocks).await,
             self.evm_rpc_canister_id,
         )
         .with_alloy()
     }
 
-    pub fn new_mock_http_runtime_with_wallet(
+    pub async fn new_mock_http_runtime_with_wallet(
         &self,
         mocks: impl Into<MockHttpOutcalls>,
-    ) -> MockHttpRuntimeWithWallet {
-        MockHttpRuntimeWithWallet {
-            mock_http_runtime: MockHttpRuntime {
-                env: self.env.clone(),
-                // Call the cycles wallet as controller so we are allowed to attach cycles
-                caller: self.controller,
-                mocks: Mutex::new(mocks.into()),
-            },
-            wallet_canister_id: self.wallet_canister_id,
-        }
+    ) -> CyclesWalletRuntime<PocketIcRuntime<'_>> {
+        CyclesWalletRuntime::new(
+            // Call the cycles wallet as controller so we are allowed to attach cycles
+            PocketIcRuntime::new(self.env.as_ref(), self.controller)
+                .await
+                .with_http_mocks(mocks.into()),
+            self.wallet_canister_id,
+        )
     }
 
     pub async fn evm_rpc_canister_cycles_balance(&self) -> u128 {
@@ -245,7 +240,7 @@ impl EvmRpcSetup {
     // Legacy endpoint, not supported by the `evm_rpc_client::EvmRpcClient`
     pub async fn request(
         &self,
-        runtime: &MockHttpRuntimeWithWallet,
+        runtime: &CyclesWalletRuntime<PocketIcRuntime<'_>>,
         (source, json_rpc_payload, max_response_bytes): (RpcService, &str, u64),
         cycles: u128,
     ) -> RpcResult<String> {

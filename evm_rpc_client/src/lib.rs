@@ -58,8 +58,8 @@
 //! let client = EvmRpcClient::builder_for_ic()
 //!     .with_alloy()
 //! #   .with_stub_responses()
-//! #   .with_response_for_method("eth_getTransactionCountCyclesCost", Ok::<u128, RpcError>(100_000_000_000))
-//! #   .with_response_for_method("eth_getTransactionCount", MultiRpcResult::Consistent(Ok(Nat256::from(1_u64))))
+//! #   .add_stub_response(Ok::<u128, RpcError>(100_000_000_000))
+//! #   .add_stub_response(MultiRpcResult::Consistent(Ok(Nat256::from(1_u64))))
 //!     .build();
 //!
 //! let request = client
@@ -100,7 +100,7 @@
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let client = EvmRpcClient::builder_for_ic()
-//! #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(Nat256::from(1_u64))))
+//! #   .with_stub_response(MultiRpcResult::Consistent(Ok(Nat256::from(1_u64))))
 //!     .with_alloy()
 //!     .with_rpc_sources(RpcServices::EthMainnet(None))
 //!     .with_consensus_strategy(ConsensusStrategy::Threshold {
@@ -131,7 +131,6 @@
 pub mod fixtures;
 mod request;
 mod retry;
-mod runtime;
 
 use crate::request::RequestCost;
 use candid::{CandidType, Principal};
@@ -139,6 +138,7 @@ use evm_rpc_types::{
     BlockTag, CallArgs, ConsensusStrategy, FeeHistoryArgs, GetLogsArgs, GetTransactionCountArgs,
     Hex, Hex32, RpcConfig, RpcResult, RpcServices,
 };
+use ic_canister_runtime::{IcError, IcRuntime, Runtime};
 #[cfg(feature = "alloy")]
 pub use request::alloy::AlloyResponseConverter;
 use request::{
@@ -151,7 +151,6 @@ use request::{
 };
 pub use request::{CandidResponseConverter, EvmRpcConfig, EvmRpcEndpoint, Request, RequestBuilder};
 pub use retry::{DoubleCycles, NoRetry, RetryPolicy};
-pub use runtime::{IcError, IcRuntime, Runtime};
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
 
@@ -193,7 +192,7 @@ impl EvmRpcClient<IcRuntime, CandidResponseConverter, NoRetry> {
     /// Creates a [`ClientBuilder`] to configure a [`EvmRpcClient`] targeting [`EVM_RPC_CANISTER`]
     /// running on the Internet Computer.
     pub fn builder_for_ic() -> ClientBuilder<IcRuntime, CandidResponseConverter, NoRetry> {
-        ClientBuilder::new(IcRuntime, EVM_RPC_CANISTER)
+        ClientBuilder::new(IcRuntime::new(), EVM_RPC_CANISTER)
     }
 }
 
@@ -364,7 +363,7 @@ impl<R, C: EvmRpcResponseConverter, P> EvmRpcClient<R, C, P> {
     ///
     /// let client = EvmRpcClient::builder_for_ic()
     ///     .with_alloy()
-    /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(
+    /// #   .with_stub_response(MultiRpcResult::Consistent(Ok(
     /// #       Hex::from_str("0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000045553444300000000000000000000000000000000000000000000000000000000").unwrap()
     /// #   )))
     ///     .build();
@@ -418,7 +417,7 @@ impl<R, C: EvmRpcResponseConverter, P> EvmRpcClient<R, C, P> {
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = EvmRpcClient::builder_for_ic()
     ///     .with_alloy()
-    /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(evm_rpc_types::Block {
+    /// #   .with_stub_response(MultiRpcResult::Consistent(Ok(evm_rpc_types::Block {
     /// #       base_fee_per_gas: None,
     /// #       number: Nat256::ZERO,
     /// #       difficulty: Some(Nat256::ZERO),
@@ -479,7 +478,7 @@ impl<R, C: EvmRpcResponseConverter, P> EvmRpcClient<R, C, P> {
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = EvmRpcClient::builder_for_ic()
     ///     .with_alloy()
-    /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(evm_rpc_types::FeeHistory {
+    /// #   .with_stub_response(MultiRpcResult::Consistent(Ok(evm_rpc_types::FeeHistory {
     /// #       oldest_block: 0x1627fb8_u64.into(),
     /// #       base_fee_per_gas: vec![
     /// #           0x2e9d4aab_u128.into(),
@@ -557,7 +556,7 @@ impl<R, C: EvmRpcResponseConverter, P> EvmRpcClient<R, C, P> {
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = EvmRpcClient::builder_for_ic()
     ///     .with_alloy()
-    /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(vec![
+    /// #   .with_stub_response(MultiRpcResult::Consistent(Ok(vec![
     /// #       evm_rpc_types::LogEntry {
     /// #           address: Hex20::from_str("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48").unwrap(),
     /// #           topics: vec![
@@ -632,7 +631,7 @@ impl<R, C: EvmRpcResponseConverter, P> EvmRpcClient<R, C, P> {
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = EvmRpcClient::builder_for_ic()
     ///     .with_alloy()
-    /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(Nat256::from(1_u64))))
+    /// #   .with_stub_response(MultiRpcResult::Consistent(Ok(Nat256::from(1_u64))))
     ///     .build();
     ///
     /// let result = client
@@ -674,7 +673,7 @@ impl<R, C: EvmRpcResponseConverter, P> EvmRpcClient<R, C, P> {
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = EvmRpcClient::builder_for_ic()
     ///     .with_alloy()
-    /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(evm_rpc_types::TransactionReceipt {
+    /// #   .with_stub_response(MultiRpcResult::Consistent(Ok(evm_rpc_types::TransactionReceipt {
     /// #       block_hash: Hex32::from_str("0xf6084155ff2022773b22df3217d16e9df53cbc42689b27ca4789e06b6339beb2").unwrap(),
     /// #       block_number: Nat256::from(0x52a975_u64),
     /// #       effective_gas_price: Nat256::from(0x6052340_u64),
@@ -733,7 +732,7 @@ impl<R, C: EvmRpcResponseConverter, P> EvmRpcClient<R, C, P> {
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = EvmRpcClient::builder_for_ic()
-    /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok("0x24604d0d".to_string())))
+    /// #   .with_stub_response(MultiRpcResult::Consistent(Ok("0x24604d0d".to_string())))
     ///     .build();
     ///
     /// let result = client
@@ -778,7 +777,7 @@ impl<R, C: EvmRpcResponseConverter, P> EvmRpcClient<R, C, P> {
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = EvmRpcClient::builder_for_ic()
     ///     .with_alloy()
-    /// #   .with_default_stub_response(MultiRpcResult::Consistent(Ok(SendRawTransactionStatus::Ok(Some(Hex32::from_str("0x33469b22e9f636356c4160a87eb19df52b7412e8eac32a4a55ffe88ea8350788").unwrap())))))
+    /// #   .with_stub_response(MultiRpcResult::Consistent(Ok(SendRawTransactionStatus::Ok(Some(Hex32::from_str("0x33469b22e9f636356c4160a87eb19df52b7412e8eac32a4a55ffe88ea8350788").unwrap())))))
     ///     .build();
     ///
     /// let result = client
@@ -803,7 +802,7 @@ impl<R, C: EvmRpcResponseConverter, P> EvmRpcClient<R, C, P> {
     }
 }
 
-impl<Runtime: runtime::Runtime, Converter, RetryPolicy>
+impl<Runtime: ic_canister_runtime::Runtime, Converter, RetryPolicy>
     EvmRpcClient<Runtime, Converter, RetryPolicy>
 {
     async fn execute_request<Config, Params, CandidOutput, Output>(
