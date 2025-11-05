@@ -29,7 +29,7 @@ use evm_rpc_types::{
     HttpOutcallError, LegacyRejectionCode, ProviderError, RpcError, RpcResult, ValidationError,
 };
 use http::{header::CONTENT_TYPE, HeaderValue};
-use ic_management_canister_types::{
+use ic_cdk::management_canister::{
     HttpRequestArgs as IcHttpRequest, HttpRequestResult as IcHttpResponse, TransformArgs,
     TransformContext, TransformFunc,
 };

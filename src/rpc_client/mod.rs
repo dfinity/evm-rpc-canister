@@ -26,7 +26,7 @@ use evm_rpc_types::{
     RpcService, RpcServices,
 };
 use http::{Request, Response};
-use ic_management_canister_types::{
+use ic_cdk::management_canister::{
     HttpRequestArgs as IcHttpRequest, TransformContext, TransformFunc,
 };
 use json::{
