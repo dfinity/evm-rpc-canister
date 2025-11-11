@@ -1419,8 +1419,8 @@ async fn candid_rpc_should_return_inconsistent_results_with_consensus_error() {
     setup
         .check_metrics()
         .await
-        .assert_contains_metric_matching(r#"evmrpc_err_http_outcall\{method="eth_getTransactionCount",host="rpc.ankr.com",code="SYS_TRANSIENT"\} 1 \d+"#)
-        .assert_contains_metric_matching(r#"evmrpc_err_http_outcall\{method="eth_getTransactionCount",host="ethereum-rpc.publicnode.com",code="SYS_TRANSIENT"\} 1 \d+"#);
+        .assert_contains_metric_matching(r#"evmrpc_err_no_consensus\{method="eth_getTransactionCount",host="rpc.ankr.com"\} 1 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_err_no_consensus\{method="eth_getTransactionCount",host="ethereum-rpc.publicnode.com"\} 1 \d+"#, );
 }
 
 #[tokio::test]
