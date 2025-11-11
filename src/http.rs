@@ -29,6 +29,7 @@ use evm_rpc_types::{
     HttpOutcallError, LegacyRejectionCode, ProviderError, RpcError, RpcResult, ValidationError,
 };
 use http::{header::CONTENT_TYPE, HeaderValue};
+use ic_error_types::RejectCode;
 use ic_management_canister_types::{
     HttpRequestArgs as IcHttpRequest, HttpRequestResult as IcHttpResponse, TransformArgs,
     TransformContext, TransformFunc,
@@ -146,6 +147,12 @@ where
                             if error.is_response_too_large() {
                                 add_metric_entry!(
                                     err_max_response_size_exceeded,
+                                    (req_data.method, req_data.host),
+                                    1
+                                );
+                            } else if is_consensus_error(error) {
+                                add_metric_entry!(
+                                    err_no_consensus,
                                     (req_data.method, req_data.host),
                                     1
                                 );
@@ -405,5 +412,16 @@ pub fn transform_http_request(args: TransformArgs) -> IcHttpResponse {
         body: canonicalize_json(&args.response.body).unwrap_or(args.response.body),
         // Remove headers (which may contain a timestamp) for consensus
         headers: vec![],
+    }
+}
+
+fn is_consensus_error(error: &IcError) -> bool {
+    match error {
+        IcError::CallRejected { code, message } => {
+            code == &RejectCode::SysTransient
+                && message
+                    .contains("No consensus could be reached. Replicas had different responses.")
+        }
+        _ => false,
     }
 }
