@@ -1419,8 +1419,9 @@ async fn candid_rpc_should_return_inconsistent_results_with_consensus_error() {
     setup
         .check_metrics()
         .await
-        .assert_contains_metric_matching(r#"evmrpc_err_http_outcall\{method="eth_getTransactionCount",host="rpc.ankr.com",code="SYS_TRANSIENT"\} 1 \d+"#)
-        .assert_contains_metric_matching(r#"evmrpc_err_http_outcall\{method="eth_getTransactionCount",host="ethereum-rpc.publicnode.com",code="SYS_TRANSIENT"\} 1 \d+"#);
+        .assert_contains_metric_matching(r#"evmrpc_err_no_consensus\{method="eth_getTransactionCount",host="rpc.ankr.com"\} 1 \d+"#)
+        .assert_contains_metric_matching(r#"evmrpc_err_no_consensus\{method="eth_getTransactionCount",host="ethereum-rpc.publicnode.com"\} 1 \d+"#, )
+        .assert_does_not_contain_metric_matching(r#"evmrpc_err_http_outcall.*"#);
 }
 
 #[tokio::test]
@@ -1453,12 +1454,48 @@ async fn should_have_metrics_for_request_endpoint() {
     setup
         .check_metrics()
         .await
-        .assert_contains_metric_matching(
-            r#"evmrpc_requests\{method="request",is_manual_request="true",host="cloudflare-eth.com"\} 1 \d+"#,
-        )
-        .assert_contains_metric_matching(
-            r#"evmrpc_responses\{method="request",is_manual_request="true",host="cloudflare-eth.com",status="200"\} 1 \d+"#,
+        .assert_contains_metric_matching(r#"evmrpc_requests\{method="request",is_manual_request="true",host="cloudflare-eth.com"\} 1 \d+"#, )
+        .assert_contains_metric_matching(r#"evmrpc_responses\{method="request",is_manual_request="true",host="cloudflare-eth.com",status="200"\} 1 \d+"#, )
+        .assert_does_not_contain_metric_matching(r#"evmrpc_err_http_outcall.*"#);
+}
+
+#[tokio::test]
+async fn should_have_metrics_for_consensus_errors() {
+    let mocks = MockHttpOutcallsBuilder::new()
+        .given(get_transaction_count_request())
+        .respond_with(CanisterHttpReject::with_reject_code(RejectCode::SysTransient)
+            .with_message("No consensus could be reached. Replicas had different responses. Details: request_id: 21114231, timeout: 1761906996398580080, hashes: [2f66337c4e46bad3b26f3271d7def54b1b9632dee3146a993bf968ac9fb5bbd5: 15], [6ca1037eb29b619e387de330bc8e248a619b66b04cba26eab59723eddba12d1c: 14], [8ebeb0f2e2390b2e8c63f1ae24d416e6f90e4ddddc47c3df23c40ac03c7d3835: 2], [4fce8e9722ab59f92be2f4a65c5ae7d1f3b69f2b2993287c0795bbfe17d9ed51: 1]")
         );
+
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
+    let result = setup
+        .client(mocks)
+        .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
+            EthMainnetService::Cloudflare,
+        ])))
+        .build()
+        .get_transaction_count((
+            address!("0xdac17f958d2ee523a2206206994597c13d831ec7"),
+            BlockNumberOrTag::Latest,
+        ))
+        .send()
+        .await
+        .expect_consistent();
+    assert_matches!(
+        result,
+        Err(RpcError::HttpOutcallError(HttpOutcallError::IcError {
+            code: LegacyRejectionCode::SysTransient,
+            ..
+        }))
+    );
+
+    setup
+        .check_metrics()
+        .await
+        .assert_contains_metric_matching(r#"evmrpc_requests\{method="eth_getTransactionCount",host="cloudflare-eth.com"\} 1 \d+"#, )
+        .assert_contains_metric_matching(r#"evmrpc_err_no_consensus\{method="eth_getTransactionCount",host="cloudflare-eth.com"\} 1 \d+"#, )
+        .assert_does_not_contain_metric_matching(r#"evmrpc_responses.*"#, )
+        .assert_does_not_contain_metric_matching(r#"evmrpc_err_http_outcall.*"#, );
 }
 
 #[tokio::test]

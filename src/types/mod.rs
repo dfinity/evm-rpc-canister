@@ -176,6 +176,8 @@ pub struct Metrics {
     pub err_http_outcall: HashMap<(MetricRpcMethod, MetricRpcHost, LegacyRejectionCode), u64>,
     #[serde(rename = "errMaxResponseSizeExceeded")]
     pub err_max_response_size_exceeded: HashMap<(MetricRpcMethod, MetricRpcHost), u64>,
+    #[serde(rename = "errNoConsensus")]
+    pub err_no_consensus: HashMap<(MetricRpcMethod, MetricRpcHost), u64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
