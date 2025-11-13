@@ -1420,7 +1420,8 @@ async fn candid_rpc_should_return_inconsistent_results_with_consensus_error() {
         .check_metrics()
         .await
         .assert_contains_metric_matching(r#"evmrpc_err_no_consensus\{method="eth_getTransactionCount",host="rpc.ankr.com"\} 1 \d+"#)
-        .assert_contains_metric_matching(r#"evmrpc_err_no_consensus\{method="eth_getTransactionCount",host="ethereum-rpc.publicnode.com"\} 1 \d+"#, );
+        .assert_contains_metric_matching(r#"evmrpc_err_no_consensus\{method="eth_getTransactionCount",host="ethereum-rpc.publicnode.com"\} 1 \d+"#, )
+        .assert_does_not_contain_metric_matching(r#"evmrpc_err_http_outcall.*"#);
 }
 
 #[tokio::test]
@@ -1453,12 +1454,9 @@ async fn should_have_metrics_for_request_endpoint() {
     setup
         .check_metrics()
         .await
-        .assert_contains_metric_matching(
-            r#"evmrpc_requests\{method="request",is_manual_request="true",host="cloudflare-eth.com"\} 1 \d+"#,
-        )
-        .assert_contains_metric_matching(
-            r#"evmrpc_responses\{method="request",is_manual_request="true",host="cloudflare-eth.com",status="200"\} 1 \d+"#,
-        );
+        .assert_contains_metric_matching(r#"evmrpc_requests\{method="request",is_manual_request="true",host="cloudflare-eth.com"\} 1 \d+"#, )
+        .assert_contains_metric_matching(r#"evmrpc_responses\{method="request",is_manual_request="true",host="cloudflare-eth.com",status="200"\} 1 \d+"#, )
+        .assert_does_not_contain_metric_matching(r#"evmrpc_err_http_outcall.*"#);
 }
 
 #[tokio::test]
@@ -1494,16 +1492,10 @@ async fn should_have_metrics_for_consensus_errors() {
     setup
         .check_metrics()
         .await
-        .assert_contains_metric_matching(
-            r#"evmrpc_requests\{method="eth_getTransactionCount",host="cloudflare-eth.com"\} 1 \d+"#,
-        )
-        .assert_contains_metric_matching(
-            r#"evmrpc_err_no_consensus\{method="eth_getTransactionCount",host="cloudflare-eth.com"\} 1 \d+"#,
-        ).assert_does_not_contain_metric_matching(
-            r#"evmrpc_responses.*"#,
-        ).assert_does_not_contain_metric_matching(
-            r#"evmrpc_err_http_outcall.*"#,
-        );
+        .assert_contains_metric_matching(r#"evmrpc_requests\{method="eth_getTransactionCount",host="cloudflare-eth.com"\} 1 \d+"#, )
+        .assert_contains_metric_matching(r#"evmrpc_err_no_consensus\{method="eth_getTransactionCount",host="cloudflare-eth.com"\} 1 \d+"#, )
+        .assert_does_not_contain_metric_matching(r#"evmrpc_responses.*"#, )
+        .assert_does_not_contain_metric_matching(r#"evmrpc_err_http_outcall.*"#, );
 }
 
 #[tokio::test]

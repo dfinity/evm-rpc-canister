@@ -418,9 +418,7 @@ pub fn transform_http_request(args: TransformArgs) -> IcHttpResponse {
 fn is_consensus_error(error: &IcError) -> bool {
     match error {
         IcError::CallRejected { code, message } => {
-            code == &RejectCode::SysTransient
-                && message
-                    .contains("No consensus could be reached. Replicas had different responses.")
+            code == &RejectCode::SysTransient && message.to_lowercase().contains("no consensus")
         }
         _ => false,
     }
