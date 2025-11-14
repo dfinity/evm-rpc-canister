@@ -1,9 +1,10 @@
+use crate::providers::resolve_rpc_service;
 use crate::{
     add_metric_entry,
     constants::{COLLATERAL_CYCLES_PER_NODE, CONTENT_TYPE_VALUE},
     logs::Priority,
     memory::{get_num_subnet_nodes, get_override_provider, is_demo_active, next_request_id},
-    types::{MetricRpcHost, MetricRpcMethod, ResolvedRpcService},
+    types::{MetricRpcMethod, MetricRpcService},
     util::canonicalize_json,
 };
 use canhttp::{
@@ -26,7 +27,8 @@ use canhttp::{
 };
 use canlog::log;
 use evm_rpc_types::{
-    HttpOutcallError, LegacyRejectionCode, ProviderError, RpcError, RpcResult, ValidationError,
+    HttpOutcallError, LegacyRejectionCode, ProviderError, RpcError, RpcResult, RpcService,
+    ValidationError,
 };
 use http::{header::CONTENT_TYPE, HeaderValue};
 use ic_error_types::RejectCode;
@@ -46,17 +48,18 @@ use tower::{
 use tower_http::{set_header::SetRequestHeaderLayer, ServiceBuilderExt};
 
 pub fn json_rpc_request_arg(
-    service: ResolvedRpcService,
+    service: RpcService,
     json_rpc_payload: &str,
     max_response_bytes: u64,
 ) -> RpcResult<HttpJsonRpcRequest<serde_json::Value>> {
+    let resolved_service = resolve_rpc_service(service.clone())?;
     let body: JsonRpcRequest<serde_json::Value> =
         serde_json::from_str(json_rpc_payload).map_err(|e| {
             RpcError::ValidationError(ValidationError::Custom(format!(
                 "Invalid JSON RPC request: {e}"
             )))
         })?;
-    service
+    resolved_service
         .post(&get_override_provider())?
         .max_response_bytes(max_response_bytes)
         .transform_context(TransformContext {
@@ -67,13 +70,17 @@ pub fn json_rpc_request_arg(
             context: vec![],
         })
         .body(body)
+        .map(|mut request| {
+            request.extensions_mut().insert(service);
+            request
+        })
         .map_err(|e| {
             RpcError::ValidationError(ValidationError::Custom(format!("Invalid request: {e}")))
         })
 }
 
 pub async fn json_rpc_request(
-    service: ResolvedRpcService,
+    service: RpcService,
     json_rpc_payload: &str,
     max_response_bytes: u64,
 ) -> RpcResult<HttpJsonRpcResponse<serde_json::Value>> {
@@ -116,23 +123,26 @@ where
                 .on_request(move |req: &HttpJsonRpcRequest<I>| {
                     let req_data = MetricData {
                         method: rpc_method.clone(),
-                        host: MetricRpcHost(req.uri().host().unwrap().to_string()),
+                        service: MetricRpcService {
+                            host: req.uri().host().unwrap().to_string(),
+                            is_supported: has_supported_rpc_service(req),
+                        },
                         request_id: req.body().id().clone(),
                     };
                     add_metric_entry!(
                         requests,
-                        (req_data.method.clone(), req_data.host.clone()),
+                        (req_data.method.clone(), req_data.service.clone()),
                         1
                     );
                     log!(Priority::TraceHttp, "JSON-RPC request with id `{}` to {}: {:?}",
                         req_data.request_id,
-                        req_data.host.0,
+                        req_data.service.host,
                         req.body()
                     );
                     req_data
                 })
                 .on_response(|req_data: MetricData, response: &HttpJsonRpcResponse<O>| {
-                    observe_response(req_data.method, req_data.host, response.status().as_u16());
+                    observe_response(req_data.method, req_data.service, response.status().as_u16());
                     log!(
                         Priority::TraceHttp,
                         "Got response for request with id `{}`. Response with status {}: {:?}",
@@ -147,13 +157,13 @@ where
                             if error.is_response_too_large() {
                                 add_metric_entry!(
                                     err_max_response_size_exceeded,
-                                    (req_data.method, req_data.host),
+                                    (req_data.method, req_data.service),
                                     1
                                 );
                             } else if is_consensus_error(error) {
                                 add_metric_entry!(
                                     err_no_consensus,
-                                    (req_data.method, req_data.host),
+                                    (req_data.method, req_data.service),
                                     1
                                 );
                             } else {
@@ -164,14 +174,14 @@ where
                                     error
                                 );
                                 match error {
-                                    IcError::CallRejected {code, ..} => {
+                                    IcError::CallRejected { code, .. } => {
                                         add_metric_entry!(
                                             err_http_outcall,
-                                            (req_data.method, req_data.host, LegacyRejectionCode::from(*code)),
+                                            (req_data.method, req_data.service, LegacyRejectionCode::from(*code)),
                                             1
                                         );
                                     }
-                                    IcError::InsufficientLiquidCycleBalance {..} => {}
+                                    IcError::InsufficientLiquidCycleBalance { .. } => {}
                                 }
                             }
                         }
@@ -181,7 +191,7 @@ where
                         ) => {
                             observe_response(
                                 req_data.method,
-                                req_data.host,
+                                req_data.service,
                                 response.status().as_u16(),
                             );
                             log!(
@@ -199,7 +209,7 @@ where
                                 parsing_error: _,
                             },
                         ) => {
-                            observe_response(req_data.method, req_data.host, *status);
+                            observe_response(req_data.method, req_data.service, *status);
                             log!(
                                 Priority::TraceHttp,
                                 "Invalid JSON RPC response for request with id `{}`: {}",
@@ -208,7 +218,7 @@ where
                             );
                         }
                         HttpClientError::InvalidJsonResponseId(ConsistentResponseIdFilterError::InconsistentId { status, request_id: _, response_id: _ }) => {
-                            observe_response(req_data.method, req_data.host, *status);
+                            observe_response(req_data.method, req_data.service, *status);
                             log!(
                                 Priority::TraceHttp,
                                 "Invalid JSON RPC response for request with id `{}`: {}",
@@ -231,13 +241,22 @@ where
         .service(canhttp::Client::new_with_error::<HttpClientError>())
 }
 
+fn has_supported_rpc_service<I>(req: &HttpJsonRpcRequest<I>) -> bool {
+    match req.extensions().get::<RpcService>() {
+        // The request should always have an `RpcService` extension,
+        // but default to `false` if not.
+        Some(RpcService::Custom(_)) | None => false,
+        _ => true,
+    }
+}
+
 fn generate_request_id<I>(request: HttpJsonRpcRequest<I>) -> HttpJsonRpcRequest<I> {
     let (parts, mut body) = request.into_parts();
     body.set_id(next_request_id());
     http::Request::from_parts(parts, body)
 }
 
-fn observe_response(method: MetricRpcMethod, host: MetricRpcHost, status: u16) {
+fn observe_response(method: MetricRpcMethod, host: MetricRpcService, status: u16) {
     let status: u32 = status as u32;
     add_metric_entry!(responses, (method, host, status.into()), 1);
 }
@@ -388,7 +407,7 @@ impl HttpsOutcallError for HttpClientError {
 
 struct MetricData {
     method: MetricRpcMethod,
-    host: MetricRpcHost,
+    service: MetricRpcService,
     request_id: Id,
 }
 
