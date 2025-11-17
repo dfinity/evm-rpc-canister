@@ -1,3 +1,4 @@
+use crate::types::MetricRpcService;
 use crate::{
     add_metric_entry,
     http::{
@@ -10,7 +11,7 @@ use crate::{
         json::responses::RawJson,
         numeric::TransactionCount,
     },
-    types::{MetricRpcHost, MetricRpcMethod, ResolvedRpcService, RpcMethod},
+    types::{MetricRpcMethod, ResolvedRpcService, RpcMethod},
 };
 use canhttp::{
     cycles::CyclesChargingPolicy,
@@ -557,6 +558,11 @@ impl<Params, Output> MultiRpcRequest<Params, Output> {
                             self.params.clone(),
                         ))
                         .expect("BUG: invalid request")
+                })
+                .map(|mut request| {
+                    // Store the original `RpcService` for usage when recording metrics
+                    request.extensions_mut().insert(provider.clone());
+                    request
                 });
             requests.insert_once(provider.clone(), request);
         }
@@ -620,11 +626,12 @@ fn process_result<T>(
                             inconsistent_responses,
                             (
                                 method.clone().into(),
-                                MetricRpcHost(
-                                    provider
+                                MetricRpcService {
+                                    host: provider
                                         .hostname()
-                                        .unwrap_or_else(|| "(unknown)".to_string())
-                                )
+                                        .unwrap_or_else(|| "(unknown)".to_string()),
+                                    is_supported: !matches!(service, RpcService::Custom(_))
+                                }
                             ),
                             1
                         )

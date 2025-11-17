@@ -119,17 +119,18 @@ impl MetricLabels for MetricRpcMethod {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, CandidType, Deserialize)]
-pub struct MetricRpcHost(pub String);
-
-impl From<&str> for MetricRpcHost {
-    fn from(hostname: &str) -> Self {
-        MetricRpcHost(hostname.to_string())
-    }
+pub struct MetricRpcService {
+    pub host: String,
+    pub is_supported: bool,
 }
 
-impl MetricLabels for MetricRpcHost {
+impl MetricLabels for MetricRpcService {
     fn metric_labels(&self) -> Vec<(&str, &str)> {
-        vec![("host", &self.0)]
+        let mut labels = vec![("host", self.host.as_str())];
+        if self.is_supported {
+            labels.push(("is_supported_provider", "true"));
+        }
+        labels
     }
 }
 
@@ -166,18 +167,18 @@ impl MetricLabels for LegacyRejectionCode {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, CandidType, Deserialize)]
 pub struct Metrics {
-    pub requests: HashMap<(MetricRpcMethod, MetricRpcHost), u64>,
-    pub responses: HashMap<(MetricRpcMethod, MetricRpcHost, MetricHttpStatusCode), u64>,
+    pub requests: HashMap<(MetricRpcMethod, MetricRpcService), u64>,
+    pub responses: HashMap<(MetricRpcMethod, MetricRpcService, MetricHttpStatusCode), u64>,
     #[serde(rename = "inconsistentResponses")]
-    pub inconsistent_responses: HashMap<(MetricRpcMethod, MetricRpcHost), u64>,
+    pub inconsistent_responses: HashMap<(MetricRpcMethod, MetricRpcService), u64>,
     #[serde(rename = "cyclesCharged")]
-    pub cycles_charged: HashMap<(MetricRpcMethod, MetricRpcHost), u128>,
+    pub cycles_charged: HashMap<(MetricRpcMethod, MetricRpcService), u128>,
     #[serde(rename = "errHttpOutcall")]
-    pub err_http_outcall: HashMap<(MetricRpcMethod, MetricRpcHost, LegacyRejectionCode), u64>,
+    pub err_http_outcall: HashMap<(MetricRpcMethod, MetricRpcService, LegacyRejectionCode), u64>,
     #[serde(rename = "errMaxResponseSizeExceeded")]
-    pub err_max_response_size_exceeded: HashMap<(MetricRpcMethod, MetricRpcHost), u64>,
+    pub err_max_response_size_exceeded: HashMap<(MetricRpcMethod, MetricRpcService), u64>,
     #[serde(rename = "errNoConsensus")]
-    pub err_no_consensus: HashMap<(MetricRpcMethod, MetricRpcHost), u64>,
+    pub err_no_consensus: HashMap<(MetricRpcMethod, MetricRpcService), u64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
