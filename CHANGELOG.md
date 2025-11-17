@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.1] - 2025-11-17
+
+### Changed
+
+- Add metrics label identifying requests made with supported providers ([#521](https://github.com/dfinity/evm-rpc-canister/pull/521))
+- Separate consensus errors from other HTTP outcall errors in metrics ([#520](https://github.com/dfinity/evm-rpc-canister/pull/520))
+
+[2.7.1]: https://github.com/dfinity/evm-rpc-canister/compare/evm_rpc-v2.7.0...evm_rpc-v2.7.1
+
 ## [2.7.0] - 2025-11-03
 
 ### Added
@@ -15,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Use constant-size request IDs in JSON-RPC requests to allow for consistent request cycles costs ([#514](https://github.com/dfinity/evm-rpc-canister/pull/514))
 
-[2.7.0]: https://github.com/dfinity/evm-rpc-canister/compare/v2.6.0...v2.7.0
+[2.7.0]: https://github.com/dfinity/evm-rpc-canister/compare/evm_rpc-v2.6.0...evm_rpc-v2.7.0
 
 ## [2.6.0] - 2025-10-20
 
@@ -38,7 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add `err_max_response_size_exceeded` to Prometheus metrics ([#487](https://github.com/dfinity/evm-rpc-canister/pull/487))
 
-[2.6.0]: https://github.com/dfinity/evm-rpc-canister/compare/v2.5.0...v2.6.0
+[2.6.0]: https://github.com/dfinity/evm-rpc-canister/compare/v2.5.0...evm_rpc-v2.6.0
 
 ## [2.5.0] - 2025-09-12
 
