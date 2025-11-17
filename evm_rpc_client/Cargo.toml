@@ -1,6 +1,6 @@
 [package]
 name = "evm_rpc_client"
-version = "0.2.0"
+version = "0.2.1"
 description = "Rust client for interacting with the EVM RPC canister"
 license = "Apache-2.0"
 readme = "README.md"
