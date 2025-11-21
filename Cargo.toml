@@ -1,6 +1,6 @@
 [package]
 name = "evm_rpc"
-version = "2.7.0"
+version = "2.7.1"
 description = "Interact with EVM blockchains from the Internet Computer."
 authors = ["DFINITY Foundation"]
 readme = "README.md"
@@ -26,6 +26,7 @@ evm_rpc_types = { path = "evm_rpc_types" }
 getrandom = { workspace = true }
 http = { workspace = true }
 ic-ethereum-types = { workspace = true }
+ic-error-types = { workspace = true }
 ic-http-types = { workspace = true }
 ic-metrics-encoder = { workspace = true }
 ic-stable-structures = { workspace = true }

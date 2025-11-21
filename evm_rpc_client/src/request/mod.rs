@@ -507,6 +507,12 @@ impl<Runtime, Converter, RetryPolicy, Config, Params, CandidOutput, Output>
         }
     }
 
+    /// Change the [`RpcServices`] for that request.
+    pub fn with_rpc_sources(mut self, rpc_services: RpcServices) -> Self {
+        self.request.rpc_services = rpc_services;
+        self
+    }
+
     /// Change the amount of cycles to send for that request.
     pub fn with_cycles(mut self, cycles: u128) -> Self {
         *self.request.cycles_mut() = cycles;

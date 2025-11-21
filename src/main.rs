@@ -13,7 +13,7 @@ use evm_rpc::{
         set_override_provider,
     },
     metrics::encode_metrics,
-    providers::{find_provider, resolve_rpc_service, PROVIDERS, SERVICE_PROVIDER_MAP},
+    providers::{find_provider, PROVIDERS, SERVICE_PROVIDER_MAP},
     types::{OverrideProvider, Provider, ProviderId, RpcAccess, RpcAuth},
 };
 use evm_rpc_types::{Hex32, HttpOutcallError, MultiRpcResult, RpcConfig, RpcResult, RpcServices};
@@ -259,12 +259,7 @@ async fn request(
     json_rpc_payload: String,
     max_response_bytes: u64,
 ) -> RpcResult<String> {
-    let response = json_rpc_request(
-        resolve_rpc_service(service)?,
-        &json_rpc_payload,
-        max_response_bytes,
-    )
-    .await?;
+    let response = json_rpc_request(service, &json_rpc_payload, max_response_bytes).await?;
     serde_json::to_string(response.body()).map_err(|e| {
         HttpOutcallError::InvalidHttpJsonRpcResponse {
             status: response.status().as_u16(),
@@ -284,11 +279,7 @@ async fn request_cost(
     if is_demo_active() {
         Ok(0)
     } else {
-        let request = json_rpc_request_arg(
-            resolve_rpc_service(service)?,
-            &json_rpc_payload,
-            max_response_bytes,
-        )?;
+        let request = json_rpc_request_arg(service, &json_rpc_payload, max_response_bytes)?;
 
         async fn extract_request(
             request: IcHttpRequest,
