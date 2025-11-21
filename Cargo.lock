@@ -1202,8 +1202,9 @@ dependencies = [
 
 [[package]]
 name = "canhttp"
-version = "0.3.0"
-source = "git+https://github.com/lwshang/canhttp?rev=9e7958d82e7ade9a65bcad25c7987c095cd7a65d#9e7958d82e7ade9a65bcad25c7987c095cd7a65d"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "13f7072785f309714ab665889c3c73c9d64d976fdc02b8cadb9de13799f69053"
 dependencies = [
  "assert_matches",
  "ciborium",
@@ -1231,7 +1232,7 @@ dependencies = [
  "candid",
  "canlog_derive",
  "ic-canister-log",
- "ic0 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ic0",
  "regex",
  "serde",
  "serde_json",
@@ -1954,7 +1955,7 @@ dependencies = [
  "ic-ethereum-types",
  "ic-http-types",
  "ic-management-canister-types 0.3.3",
- "ic-management-canister-types 0.4.1",
+ "ic-management-canister-types 0.5.0",
  "ic-metrics-assert",
  "ic-metrics-encoder",
  "ic-stable-structures",
@@ -2010,7 +2011,7 @@ dependencies = [
  "canlog",
  "hex",
  "ic-error-types",
- "ic-management-canister-types 0.4.1",
+ "ic-management-canister-types 0.5.0",
  "num-bigint",
  "proptest",
  "serde",
@@ -2522,15 +2523,16 @@ dependencies = [
 
 [[package]]
 name = "ic-cdk"
-version = "0.19.0-beta.3"
-source = "git+https://github.com/dfinity/cdk-rs.git?rev=cd516011d96c6e1abd239f706a2d42029737d5cc#cd516011d96c6e1abd239f706a2d42029737d5cc"
+version = "0.19.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "818d6d5416a8f0212e1b132703b0da51e36c55f2b96677e96f2bbe7702e1bd85"
 dependencies = [
  "candid",
  "ic-cdk-executor",
  "ic-cdk-macros",
  "ic-error-types",
- "ic-management-canister-types 0.4.1",
- "ic0 1.0.1 (git+https://github.com/dfinity/cdk-rs.git?rev=cd516011d96c6e1abd239f706a2d42029737d5cc)",
+ "ic-management-canister-types 0.5.0",
+ "ic0",
  "pin-project-lite",
  "serde",
  "serde_bytes",
@@ -2549,18 +2551,20 @@ dependencies = [
 
 [[package]]
 name = "ic-cdk-executor"
-version = "2.0.0-beta.1"
-source = "git+https://github.com/dfinity/cdk-rs.git?rev=cd516011d96c6e1abd239f706a2d42029737d5cc#cd516011d96c6e1abd239f706a2d42029737d5cc"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "33716b730ded33690b8a704bff3533fda87d229e58046823647d28816e9bcee7"
 dependencies = [
- "ic0 1.0.1 (git+https://github.com/dfinity/cdk-rs.git?rev=cd516011d96c6e1abd239f706a2d42029737d5cc)",
+ "ic0",
  "slotmap",
  "smallvec",
 ]
 
 [[package]]
 name = "ic-cdk-macros"
-version = "0.19.0-beta.3"
-source = "git+https://github.com/dfinity/cdk-rs.git?rev=cd516011d96c6e1abd239f706a2d42029737d5cc#cd516011d96c6e1abd239f706a2d42029737d5cc"
+version = "0.19.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "66dad91a214945cb3605bc9ef6901b87e2ac41e3624284c2cabba49d43aa4f43"
 dependencies = [
  "candid",
  "darling 0.20.11",
@@ -2650,8 +2654,9 @@ dependencies = [
 
 [[package]]
 name = "ic-management-canister-types"
-version = "0.4.1"
-source = "git+https://github.com/dfinity/cdk-rs.git?rev=cd516011d96c6e1abd239f706a2d42029737d5cc#cd516011d96c6e1abd239f706a2d42029737d5cc"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3149217e24186df3f13dc45eee14cdb3e5cad07d0b2b67bd53555c1c55462957"
 dependencies = [
  "candid",
  "serde",
@@ -2730,11 +2735,6 @@ name = "ic0"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1499d08fd5be8f790d477e1865d63bab6a8d748300e141270c4296e6d5fdd6bc"
-
-[[package]]
-name = "ic0"
-version = "1.0.1"
-source = "git+https://github.com/dfinity/cdk-rs.git?rev=cd516011d96c6e1abd239f706a2d42029737d5cc#cd516011d96c6e1abd239f706a2d42029737d5cc"
 
 [[package]]
 name = "ic_principal"
