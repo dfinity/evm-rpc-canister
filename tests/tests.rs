@@ -1,16 +1,6 @@
-mod mock_http_runtime;
 mod setup;
 
-use crate::{
-    mock_http_runtime::{
-        mock::{
-            json::{JsonRpcRequestMatcher, JsonRpcResponse},
-            CanisterHttpReject, CanisterHttpReply, MockHttpOutcalls, MockHttpOutcallsBuilder,
-        },
-        wallet::MockHttpRuntimeWithWallet,
-    },
-    setup::EvmRpcSetup,
-};
+use crate::setup::EvmRpcSetup;
 use alloy_primitives::{address, b256, bloom, bytes, Address, Bytes, FixedBytes, B256, B64, U256};
 use alloy_rpc_types::{BlockNumberOrTag, BlockTransactions};
 use assert_matches::assert_matches;
@@ -22,8 +12,13 @@ use evm_rpc_types::{
     Hex32, HttpOutcallError, InstallArgs, JsonRpcError, LegacyRejectionCode, MultiRpcResult,
     Nat256, ProviderError, RpcApi, RpcError, RpcResult, RpcService, RpcServices, ValidationError,
 };
+use ic_canister_runtime::CyclesWalletRuntime;
 use ic_error_types::RejectCode;
 use ic_http_types::HttpRequest;
+use ic_pocket_canister_runtime::{
+    CanisterHttpReject, CanisterHttpReply, JsonRpcRequestMatcher, JsonRpcResponse,
+    MockHttpOutcalls, MockHttpOutcallsBuilder, PocketIcRuntime,
+};
 use pocket_ic::{common::rest::CanisterHttpResponse, ErrorCode};
 use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
@@ -36,8 +31,6 @@ const DEFAULT_CONTROLLER_TEST_ID: Principal = Principal::from_slice(&[0x9d, 0xf7
 const ADDITIONAL_TEST_ID: Principal = Principal::from_slice(&[0x9d, 0xf7, 0x03]);
 
 const INITIAL_CYCLES: u128 = 100_000_000_000_000_000;
-
-const MAX_TICKS: usize = 10;
 
 const MOCK_REQUEST_METHOD: &str = "eth_gasPrice";
 const MOCK_REQUEST_ID: Id = Id::Number(1);
@@ -90,7 +83,7 @@ async fn should_canonicalize_request_endpoint_response() {
             .respond_with(JsonRpcResponse::from(response));
         let result = setup
             .request(
-                &setup.new_mock_http_runtime_with_wallet(mocks),
+                &setup.new_mock_http_runtime_with_wallet(mocks).await,
                 (
                     RpcService::Custom(RpcApi {
                         url: MOCK_REQUEST_URL.to_string(),
@@ -119,7 +112,7 @@ async fn should_not_modify_json_rpc_request_from_request_endpoint() {
     let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let response = setup
         .request(
-            &setup.new_mock_http_runtime_with_wallet(mocks),
+            &setup.new_mock_http_runtime_with_wallet(mocks).await,
             (
                 RpcService::Custom(RpcApi {
                     url: MOCK_REQUEST_URL.to_string(),
@@ -158,6 +151,7 @@ async fn multi_request_should_succeed() {
     for source in RPC_SERVICES {
         let candid_result = setup
             .client(mocks(offsets.next().unwrap()))
+            .await
             .with_rpc_sources(source.clone())
             .with_candid()
             .build()
@@ -173,6 +167,7 @@ async fn multi_request_should_succeed() {
 
         let alloy_result = setup
             .client(mocks(offsets.next().unwrap()))
+            .await
             .with_rpc_sources(source.clone())
             .build()
             .multi_request(json!({
@@ -257,6 +252,7 @@ async fn eth_get_logs_should_succeed() {
         ] {
             let candid_result = setup
                 .client(mocks(from_block, to_block, offsets.next().unwrap()))
+                .await
                 .with_rpc_sources(source.clone())
                 .with_candid()
                 .build()
@@ -271,6 +267,7 @@ async fn eth_get_logs_should_succeed() {
 
             let alloy_result = setup
                 .client(mocks(from_block, to_block, offsets.next().unwrap()))
+                .await
                 .with_rpc_sources(source.clone())
                 .build()
                 .get_logs(vec![address!("0xdac17f958d2ee523a2206206994597c13d831ec7")])
@@ -310,7 +307,8 @@ async fn eth_get_logs_should_fail_when_block_range_too_large() {
             ),
         ] {
             let client = setup
-                .client(MockHttpOutcalls::NEVER)
+                .client(MockHttpOutcalls::never())
+                .await
                 .with_rpc_sources(source.clone())
                 .build();
 
@@ -380,6 +378,7 @@ async fn eth_get_block_by_number_should_succeed() {
     for source in RPC_SERVICES {
         let candid_result = setup
             .client(mocks(offsets.next().unwrap()))
+            .await
             .with_rpc_sources(source.clone())
             .with_candid()
             .build()
@@ -391,6 +390,7 @@ async fn eth_get_block_by_number_should_succeed() {
 
         let alloy_result = setup
             .client(mocks(offsets.next().unwrap()))
+            .await
             .with_rpc_sources(source.clone())
             .build()
             .get_block_by_number(BlockNumberOrTag::Latest)
@@ -445,6 +445,7 @@ async fn eth_get_block_by_number_pre_london_fork_should_succeed() {
 
         let response = setup
             .client(mocks)
+            .await
             .with_rpc_sources(source.clone())
             .build()
             .get_block_by_number(BlockNumberOrTag::Latest)
@@ -534,6 +535,7 @@ async fn eth_get_block_by_number_should_be_consistent_when_total_difficulty_inco
 
     let response = setup
         .client(mocks)
+        .await
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
             EthMainnetService::Ankr,
             EthMainnetService::PublicNode,
@@ -701,6 +703,7 @@ async fn eth_get_transaction_receipt_should_succeed() {
         for source in RPC_SERVICES {
             let candid_result = setup
                 .client(mocks(tx_hash, &response, offsets.next().unwrap()))
+                .await
                 .with_rpc_sources(source.clone())
                 .with_candid()
                 .build()
@@ -712,6 +715,7 @@ async fn eth_get_transaction_receipt_should_succeed() {
 
             let alloy_result = setup
                 .client(mocks(tx_hash, &response, offsets.next().unwrap()))
+                .await
                 .with_rpc_sources(source.clone())
                 .build()
                 .get_transaction_receipt(tx_hash)
@@ -746,6 +750,7 @@ async fn eth_get_transaction_count_should_succeed() {
     for source in RPC_SERVICES {
         let candid_result = setup
             .client(mocks(offsets.next().unwrap()))
+            .await
             .with_rpc_sources(source.clone())
             .with_candid()
             .build()
@@ -760,6 +765,7 @@ async fn eth_get_transaction_count_should_succeed() {
 
         let alloy_result = setup
             .client(mocks(offsets.next().unwrap()))
+            .await
             .with_rpc_sources(source.clone())
             .build()
             .get_transaction_count((
@@ -805,6 +811,7 @@ async fn eth_fee_history_should_succeed() {
     for source in RPC_SERVICES {
         let candid_result = setup
             .client(mocks(offsets.next().unwrap()))
+            .await
             .with_rpc_sources(source.clone())
             .with_candid()
             .build()
@@ -816,6 +823,7 @@ async fn eth_fee_history_should_succeed() {
 
         let alloy_result = setup
             .client(mocks(offsets.next().unwrap()))
+            .await
             .with_rpc_sources(source.clone())
             .build()
             .fee_history((3_u64, BlockNumberOrTag::Latest))
@@ -847,6 +855,7 @@ async fn eth_send_raw_transaction_should_succeed() {
     for source in RPC_SERVICES {
         let candid_result = setup
             .client(mocks(offsets.next().unwrap()))
+            .await
             .with_rpc_sources(source.clone())
             .with_candid()
             .build()
@@ -863,6 +872,7 @@ async fn eth_send_raw_transaction_should_succeed() {
 
         let alloy_result = setup
             .client(mocks(offsets.next().unwrap()))
+            .await
             .with_rpc_sources(source.clone())
             .build()
             .send_raw_transaction(MOCK_TRANSACTION)
@@ -901,6 +911,7 @@ async fn eth_call_should_succeed() {
         for source in RPC_SERVICES {
             let mut request = setup
                 .client(mocks(offsets.next().unwrap()))
+                .await
                 .with_rpc_sources(source.clone())
                 .with_candid()
                 .build()
@@ -917,6 +928,7 @@ async fn eth_call_should_succeed() {
 
             let mut request = setup
                 .client(mocks(offsets.next().unwrap()))
+                .await
                 .with_rpc_sources(source.clone())
                 .build()
                 .call(
@@ -971,6 +983,7 @@ async fn candid_rpc_should_allow_unexpected_response_fields() {
 
     let response = setup
         .client(mocks)
+        .await
         .with_rpc_sources(RpcServices::EthMainnet(None))
         .build()
         .get_transaction_receipt(b256!(
@@ -994,7 +1007,8 @@ async fn candid_rpc_should_err_without_cycles() {
     let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     let result = setup
-        .client(MockHttpOutcalls::NEVER)
+        .client(MockHttpOutcalls::never())
+        .await
         .with_rpc_sources(RpcServices::EthMainnet(None))
         .build()
         .get_transaction_receipt(b256!(
@@ -1029,6 +1043,7 @@ async fn candid_rpc_should_err_when_service_unavailable() {
         .respond_with(CanisterHttpReply::with_status(503).with_body("Service unavailable"));
     let result = setup
         .client(mocks)
+        .await
         .with_rpc_sources(RpcServices::EthMainnet(None))
         .build()
         .get_transaction_receipt(b256!(
@@ -1080,6 +1095,7 @@ async fn candid_rpc_should_recognize_json_error() {
         .respond_with(mock_response().with_id(1));
     let result = setup
         .client(mocks)
+        .await
         .with_rpc_sources(RpcServices::EthSepolia(Some(vec![
             EthSepoliaService::Ankr,
             EthSepoliaService::BlockPi,
@@ -1112,7 +1128,8 @@ async fn candid_rpc_should_recognize_json_error() {
 async fn candid_rpc_should_reject_empty_service_list() {
     let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let result = setup
-        .client(MockHttpOutcalls::NEVER)
+        .client(MockHttpOutcalls::never())
+        .await
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![])))
         .build()
         .get_transaction_receipt(b256!(
@@ -1146,6 +1163,7 @@ async fn candid_rpc_should_return_inconsistent_results() {
     let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let results = setup
         .client(mocks)
+        .await
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
             EthMainnetService::Ankr,
             EthMainnetService::Cloudflare,
@@ -1212,6 +1230,7 @@ async fn candid_rpc_should_return_3_out_of_4_transaction_count() {
 
         setup
             .client(mocks)
+            .await
             .with_rpc_sources(RpcServices::EthMainnet(None))
             .build()
             .get_transaction_count((
@@ -1312,6 +1331,7 @@ async fn candid_rpc_should_return_inconsistent_results_with_error() {
 
     let result = setup
         .client(mocks)
+        .await
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
             EthMainnetService::Alchemy,
             EthMainnetService::Ankr,
@@ -1376,6 +1396,7 @@ async fn candid_rpc_should_return_inconsistent_results_with_consensus_error() {
 
     let result = setup
         .client(mocks)
+        .await
         .with_rpc_sources(RpcServices::EthMainnet(None))
         .build()
         .get_transaction_count((
@@ -1439,7 +1460,7 @@ async fn should_have_metrics_for_request_endpoint() {
         .respond_with(JsonRpcResponse::from(mock_request_response_2));
 
     let setup = EvmRpcSetup::new().await.mock_api_keys().await;
-    let runtime = setup.new_mock_http_runtime_with_wallet(mocks);
+    let runtime = setup.new_mock_http_runtime_with_wallet(mocks).await;
 
     // Send one request with a supported RPC provider
     let response = setup
@@ -1493,6 +1514,7 @@ async fn should_have_metrics_for_consensus_errors() {
     let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let result = setup
         .client(mocks)
+        .await
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
             EthMainnetService::Cloudflare,
         ])))
@@ -1530,6 +1552,7 @@ async fn should_have_metrics_for_multi_request_endpoint() {
     let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let response = setup
         .client(mocks)
+        .await
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
             EthMainnetService::Cloudflare,
         ])))
@@ -1564,7 +1587,7 @@ async fn should_have_metrics_for_custom_providers() {
         .respond_with(get_transaction_count_response().with_id(2));
 
     let setup = EvmRpcSetup::new().await.mock_api_keys().await;
-    let request = setup.client(mocks).build().get_transaction_count((
+    let request = setup.client(mocks).await.build().get_transaction_count((
         address!("0xdac17f958d2ee523a2206206994597c13d831ec7"),
         BlockNumberOrTag::Latest,
     ));
@@ -1615,6 +1638,7 @@ async fn candid_rpc_should_return_inconsistent_results_with_unexpected_http_stat
 
     let result = setup
         .client(mocks)
+        .await
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
             EthMainnetService::Alchemy,
             EthMainnetService::Ankr,
@@ -1675,6 +1699,7 @@ async fn candid_rpc_should_handle_already_known() {
     let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let result = setup
         .client(mocks)
+        .await
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
             EthMainnetService::Ankr,
             EthMainnetService::Cloudflare,
@@ -1706,6 +1731,7 @@ async fn candid_rpc_should_recognize_rate_limit() {
     let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let result = setup
         .client(mocks)
+        .await
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
             EthMainnetService::Ankr,
             EthMainnetService::Cloudflare,
@@ -1757,6 +1783,7 @@ async fn should_use_custom_response_size_estimate() {
 
     let client = setup
         .client(mocks)
+        .await
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
             EthMainnetService::Cloudflare,
         ])))
@@ -1788,6 +1815,7 @@ async fn should_use_fallback_public_url() {
                 .given(get_transaction_count_request().with_url("https://rpc.ankr.com/eth"))
                 .respond_with(get_transaction_count_response()),
         )
+        .await
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![EthMainnetService::Ankr])))
         .build()
         .get_transaction_count((
@@ -1822,6 +1850,7 @@ async fn should_insert_api_keys() {
                 )
                 .respond_with(get_transaction_count_response()),
         )
+        .await
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![EthMainnetService::Ankr])))
         .build()
         .get_transaction_count((
@@ -1859,6 +1888,7 @@ async fn should_update_api_key() {
                 )
                 .respond_with(get_transaction_count_response().with_id(0)),
         )
+        .await
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![EthMainnetService::Ankr])))
         .build()
         .get_transaction_count((
@@ -1885,6 +1915,7 @@ async fn should_update_api_key() {
                 )
                 .respond_with(get_transaction_count_response().with_id(1)),
         )
+        .await
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![EthMainnetService::Ankr])))
         .build()
         .get_transaction_count((
@@ -1924,6 +1955,7 @@ async fn should_update_bearer_token() {
                 )
                 .respond_with(get_transaction_count_response()),
         )
+        .await
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
             EthMainnetService::Alchemy,
         ])))
@@ -2023,6 +2055,7 @@ async fn upgrade_should_keep_api_keys() {
                 )
                 .respond_with(get_transaction_count_response()),
         )
+        .await
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![EthMainnetService::Ankr])))
         .build()
         .get_transaction_count((
@@ -2046,6 +2079,7 @@ async fn upgrade_should_keep_api_keys() {
                 )
                 .respond_with(get_transaction_count_response()),
         )
+        .await
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![EthMainnetService::Ankr])))
         .build()
         .get_transaction_count((
@@ -2238,6 +2272,7 @@ async fn should_retry_when_response_too_large() {
 
     let response = setup
         .client(mocks)
+        .await
         .with_rpc_sources(rpc_services.clone())
         .with_response_size_estimate(1)
         .build()
@@ -2274,6 +2309,7 @@ async fn should_retry_when_response_too_large() {
 
     let response = setup
         .client(mocks)
+        .await
         .with_rpc_sources(rpc_services.clone())
         .with_response_size_estimate(1)
         .build()
@@ -2297,7 +2333,8 @@ async fn should_retry_with_increasingly_more_cycles() {
 
     // Should fail without retrying
     let response = setup
-        .client(MockHttpOutcalls::NEVER)
+        .client(MockHttpOutcalls::never())
+        .await
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
             EthMainnetService::Cloudflare,
         ])))
@@ -2323,6 +2360,7 @@ async fn should_retry_with_increasingly_more_cycles() {
                 .given(get_transaction_count_request().with_id(4))
                 .respond_with(get_transaction_count_response().with_id(4)),
         )
+        .await
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
             EthMainnetService::Cloudflare,
         ])))
@@ -2359,6 +2397,7 @@ async fn should_have_different_request_ids_when_retrying_because_response_too_bi
 
     let response = setup
         .client(mocks)
+        .await
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
             EthMainnetService::Cloudflare,
         ])))
@@ -2396,6 +2435,7 @@ async fn should_fail_when_response_id_inconsistent_with_request_id() {
                 .given(get_transaction_count_request().with_id(request_id))
                 .respond_with(get_transaction_count_response().with_id(response_id)),
         )
+        .await
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
             EthMainnetService::Cloudflare,
         ])))
@@ -2428,6 +2468,7 @@ async fn should_log_request() {
 
     let response = setup
         .client(mocks)
+        .await
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
             EthMainnetService::Alchemy,
         ])))
@@ -2482,6 +2523,7 @@ async fn should_change_default_provider_when_one_keeps_failing() {
                 )
                 .respond_with(get_transaction_count_response().with_id(2)),
         )
+        .await
         .with_rpc_sources(RpcServices::EthMainnet(None))
         .with_consensus_strategy(ConsensusStrategy::Threshold {
             total: Some(3),
@@ -2514,6 +2556,7 @@ async fn should_change_default_provider_when_one_keeps_failing() {
                 )
                 .respond_with(get_transaction_count_response().with_id(4)),
         )
+        .await
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
             EthMainnetService::Ankr,
             EthMainnetService::Alchemy,
@@ -2552,6 +2595,7 @@ async fn should_change_default_provider_when_one_keeps_failing() {
                 )
                 .respond_with(get_transaction_count_response().with_id(7)),
         )
+        .await
         .with_rpc_sources(RpcServices::EthMainnet(None))
         .with_consensus_strategy(ConsensusStrategy::Threshold {
             total: Some(3),
@@ -2576,7 +2620,7 @@ mod cycles_cost_tests {
     async fn should_be_idempotent() {
         async fn check<Converter, Config, Params, CandidOutput, Output>(
             request: RequestBuilder<
-                MockHttpRuntimeWithWallet,
+                CyclesWalletRuntime<PocketIcRuntime<'_>>,
                 Converter,
                 NoRetry,
                 Config,
@@ -2601,7 +2645,7 @@ mod cycles_cost_tests {
         .await
         .mock_api_keys()
         .await;
-        let client = setup.client(MockHttpOutcalls::NEVER).build();
+        let client = setup.client(MockHttpOutcalls::never()).await.build();
 
         for endpoint in EvmRpcEndpoint::iter() {
             match endpoint {
@@ -2648,7 +2692,7 @@ mod cycles_cost_tests {
     async fn should_be_zero_when_in_demo_mode() {
         async fn check<Converter, Config, Params, CandidOutput, Output>(
             request: RequestBuilder<
-                MockHttpRuntimeWithWallet,
+                CyclesWalletRuntime<PocketIcRuntime<'_>>,
                 Converter,
                 NoRetry,
                 Config,
@@ -2671,7 +2715,7 @@ mod cycles_cost_tests {
         .await
         .mock_api_keys()
         .await;
-        let client = setup.client(MockHttpOutcalls::NEVER).build();
+        let client = setup.client(MockHttpOutcalls::never()).await.build();
 
         for endpoint in EvmRpcEndpoint::iter() {
             match endpoint {
@@ -2719,7 +2763,7 @@ mod cycles_cost_tests {
         async fn check<Config, Converter, Params, CandidOutput, Output>(
             setup: &EvmRpcSetup,
             request: RequestBuilder<
-                MockHttpRuntimeWithWallet,
+                CyclesWalletRuntime<PocketIcRuntime<'_>>,
                 Converter,
                 NoRetry,
                 Config,
@@ -2800,7 +2844,7 @@ mod cycles_cost_tests {
             for _ in ids.by_ref().take(1) {}
         }
 
-        let client = setup.client(mocks).build();
+        let client = setup.client(mocks).await.build();
 
         for endpoint in EvmRpcEndpoint::iter() {
             // To find out the expected_cycles_cost for a new endpoint, set the amount to 0
@@ -2969,7 +3013,7 @@ mod request_cost_tests {
         // Request with exact cycles amount should succeed
         let result = setup
             .request(
-                &setup.new_mock_http_runtime_with_wallet(mocks),
+                &setup.new_mock_http_runtime_with_wallet(mocks).await,
                 (
                     RpcService::EthMainnet(EthMainnetService::PublicNode),
                     MOCK_REQUEST_PAYLOAD,
@@ -2992,7 +3036,9 @@ mod request_cost_tests {
         // Same request with fewer cycles should fail.
         let result = setup
             .request(
-                &setup.new_mock_http_runtime_with_wallet(MockHttpOutcalls::NEVER),
+                &setup
+                    .new_mock_http_runtime_with_wallet(MockHttpOutcalls::never())
+                    .await,
                 (
                     RpcService::EthMainnet(EthMainnetService::PublicNode),
                     MOCK_REQUEST_PAYLOAD,

@@ -53,9 +53,10 @@ alloy-consensus = { workspace = true }
 alloy-primitives = { workspace = true }
 alloy-rpc-types = { workspace = true }
 assert_matches = { workspace = true }
-async-trait = { workspace = true }
 candid_parser = { workspace = true }
 evm_rpc_client = { path = "evm_rpc_client", features = ["alloy"] }
+ic-canister-runtime = { workspace = true, features = ["wallet"] }
+ic-pocket-canister-runtime = { workspace = true }
 ic-crypto-test-utils-reproducible-rng = { git = "https://github.com/dfinity/ic", rev = "release-2024-09-26_01-31-base" }
 ic-error-types = { workspace = true }
 ic-management-canister-types = { workspace = true }
@@ -77,7 +78,7 @@ alloy-rpc-types = "1.0.23"
 assert_matches = "1.5.0"
 async-trait = "0.1.88"
 candid = { version = "0.10.13" }
-canhttp = { version = "0.3.0", features = ["json", "multi"] }
+canhttp = { git = "https://github.com/dfinity/canhttp/", rev = "977966847c04211071eb9bb2797c841bc4854a71", features = ["json", "multi"] }
 canlog = { version = "0.2.0", features = ["derive"] }
 candid_parser = { version = "0.1.4" }
 derive_more = { version = "2.0.1", features = ["from", "into"] }
@@ -86,6 +87,7 @@ ethnum = { version = "1.5.0", features = ["serde"] }
 getrandom = { version = "0.2", features = ["custom"] }
 hex = "0.4.3"
 http = "1.3.1"
+ic-canister-runtime = { git = "https://github.com/dfinity/canhttp/", rev = "977966847c04211071eb9bb2797c841bc4854a71" }
 ic-cdk = "0.18.7"
 ic-cdk-bindgen = "0.1"
 ic-cdk-macros = "0.17.2"
@@ -96,6 +98,7 @@ ic-ethereum-types = "1.0.0"
 ic-management-canister-types = "0.3"
 ic-metrics-assert = { version = "0.1.1", features = ["pocket_ic"] }
 ic-metrics-encoder = "1.1"
+ic-pocket-canister-runtime = { git = "https://github.com/dfinity/canhttp/", rev = "977966847c04211071eb9bb2797c841bc4854a71" }
 ic-stable-structures = "0.6.8"
 maplit = "1.0.2"
 minicbor = { version = "1.0.0", features = ["alloc", "derive"] }
