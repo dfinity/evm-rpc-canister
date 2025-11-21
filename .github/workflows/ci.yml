@@ -99,7 +99,7 @@ jobs:
 
       - name: 'Check canister endpoints'
         run: |
-          ic-wasm "$GITHUB_WORKSPACE/evm_rpc.wasm.gz" check-endpoints --hidden ./candid/hidden_endpoints.txt
+          ic-wasm "$GITHUB_WORKSPACE/evm_rpc.wasm.gz" check-endpoints --hidden ./candid/hidden_endpoints.conf
 
   cargo-test:
     needs: [ reproducible-build ]
