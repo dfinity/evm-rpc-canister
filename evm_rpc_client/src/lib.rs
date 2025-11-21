@@ -57,7 +57,7 @@
 //! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let client = EvmRpcClient::builder_for_ic()
 //!     .with_alloy()
-//! #   .with_stub_responses()
+//! #   .with_stub_runtime()
 //! #   .add_stub_response(Ok::<u128, RpcError>(100_000_000_000))
 //! #   .add_stub_response(MultiRpcResult::Consistent(Ok(Nat256::from(1_u64))))
 //!     .build();

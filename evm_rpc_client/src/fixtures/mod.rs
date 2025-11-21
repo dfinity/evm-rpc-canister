@@ -8,7 +8,7 @@ use ic_canister_runtime::StubRuntime;
 
 impl<R, C, P> ClientBuilder<R, C, P> {
     /// Set the runtime to a [`StubRuntime`].
-    pub fn with_stub_responses(self) -> ClientBuilder<StubRuntime, C, P> {
+    pub fn with_stub_runtime(self) -> ClientBuilder<StubRuntime, C, P> {
         self.with_runtime(|_runtime| StubRuntime::default())
     }
 
@@ -17,7 +17,7 @@ impl<R, C, P> ClientBuilder<R, C, P> {
         self,
         stub_response: Out,
     ) -> ClientBuilder<StubRuntime, C, P> {
-        self.with_stub_responses().add_stub_response(stub_response)
+        self.with_stub_runtime().add_stub_response(stub_response)
     }
 }
 
