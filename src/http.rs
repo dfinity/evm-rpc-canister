@@ -31,11 +31,11 @@ use evm_rpc_types::{
     ValidationError,
 };
 use http::{header::CONTENT_TYPE, HeaderValue};
-use ic_error_types::RejectCode;
-use ic_management_canister_types::{
+use ic_cdk::management_canister::{
     HttpRequestArgs as IcHttpRequest, HttpRequestResult as IcHttpResponse, TransformArgs,
     TransformContext, TransformFunc,
 };
+use ic_error_types::RejectCode;
 use serde::{de::DeserializeOwned, Serialize};
 use std::fmt::Debug;
 use thiserror::Error;

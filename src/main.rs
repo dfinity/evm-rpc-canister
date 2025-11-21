@@ -17,11 +17,11 @@ use evm_rpc::{
     types::{OverrideProvider, Provider, ProviderId, RpcAccess, RpcAuth},
 };
 use evm_rpc_types::{Hex32, HttpOutcallError, MultiRpcResult, RpcConfig, RpcResult, RpcServices};
-use ic_cdk::{api::is_controller, query, update};
-use ic_http_types::{HttpRequest, HttpResponse, HttpResponseBuilder};
-use ic_management_canister_types::{
+use ic_cdk::management_canister::{
     HttpRequestArgs as IcHttpRequest, HttpRequestResult as IcHttpResponse, TransformArgs,
 };
+use ic_cdk::{api::is_controller, query, update};
+use ic_http_types::{HttpRequest, HttpResponse, HttpResponseBuilder};
 use ic_metrics_encoder::MetricsEncoder;
 use std::str::FromStr;
 use tower::Service;
