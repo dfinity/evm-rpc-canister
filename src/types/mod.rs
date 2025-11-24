@@ -234,7 +234,7 @@ impl TryFrom<String> for ApiKey {
 }
 
 impl Storable for ApiKey {
-    fn to_bytes(&self) -> Cow<[u8]> {
+    fn to_bytes(&self) -> Cow<'_, [u8]> {
         self.0.to_bytes()
     }
 
@@ -252,7 +252,7 @@ impl Storable for ApiKey {
 pub struct StorableLogFilter(LogFilter);
 
 impl Storable for StorableLogFilter {
-    fn to_bytes(&self) -> Cow<[u8]> {
+    fn to_bytes(&self) -> Cow<'_, [u8]> {
         serde_json::to_vec(self)
             .expect("Error while serializing `LogFilter`")
             .into()
@@ -410,7 +410,7 @@ impl TryFrom<evm_rpc_types::OverrideProvider> for OverrideProvider {
 }
 
 impl Storable for OverrideProvider {
-    fn to_bytes(&self) -> Cow<[u8]> {
+    fn to_bytes(&self) -> Cow<'_, [u8]> {
         serde_json::to_vec(self)
             .expect("Error while serializing `OverrideProvider`")
             .into()
