@@ -2012,7 +2012,7 @@ dependencies = [
 
 [[package]]
 name = "evm_rpc_client"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "alloy",
  "alloy-primitives",
@@ -2029,7 +2029,7 @@ dependencies = [
 
 [[package]]
 name = "evm_rpc_types"
-version = "3.0.1"
+version = "3.1.0"
 dependencies = [
  "alloy-consensus",
  "alloy-primitives",
