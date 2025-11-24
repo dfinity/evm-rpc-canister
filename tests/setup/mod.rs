@@ -14,8 +14,8 @@ use evm_rpc::{
 use evm_rpc_client::{AlloyResponseConverter, ClientBuilder, EvmRpcClient, NoRetry, Runtime};
 use evm_rpc_types::{InstallArgs, Provider, RpcResult, RpcService};
 use ic_http_types::{HttpRequest, HttpResponse};
-use ic_management_canister_types::CanisterId;
-use ic_management_canister_types::CanisterSettings;
+use ic_management_canister_types_pocket_ic::CanisterId;
+use ic_management_canister_types_pocket_ic::CanisterSettings;
 use ic_metrics_assert::{MetricsAssert, PocketIcAsyncHttpQuery};
 use ic_test_utilities_load_wasm::load_wasm;
 use num_traits::ToPrimitive;
