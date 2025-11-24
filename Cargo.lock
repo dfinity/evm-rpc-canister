@@ -1936,7 +1936,6 @@ dependencies = [
  "alloy-primitives",
  "alloy-rpc-types",
  "assert_matches",
- "async-trait",
  "candid",
  "candid_parser",
  "canhttp",
@@ -1949,6 +1948,7 @@ dependencies = [
  "getrandom 0.2.16",
  "hex",
  "http",
+ "ic-canister-runtime",
  "ic-cdk",
  "ic-crypto-test-utils-reproducible-rng",
  "ic-error-types",
@@ -1958,6 +1958,7 @@ dependencies = [
  "ic-management-canister-types 0.5.0",
  "ic-metrics-assert",
  "ic-metrics-encoder",
+ "ic-pocket-canister-runtime",
  "ic-stable-structures",
  "ic-test-utilities-load-wasm",
  "maplit",
@@ -1991,12 +1992,10 @@ dependencies = [
  "async-trait",
  "candid",
  "evm_rpc_types",
- "ic-cdk",
- "ic-error-types",
+ "ic-canister-runtime",
  "serde",
  "serde_json",
  "strum 0.27.2",
- "thiserror 2.0.17",
  "tokio",
 ]
 
@@ -2522,6 +2521,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "ic-canister-runtime"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "01a81a68bc6825ab81142a4e176ee04d0cc73deeed69753603e90e57b3ddcd3f"
+dependencies = [
+ "async-trait",
+ "candid",
+ "ic-cdk",
+ "ic-error-types",
+ "regex-lite",
+ "serde",
+ "serde_bytes",
+ "thiserror 2.0.17",
+]
+
+[[package]]
 name = "ic-cdk"
 version = "0.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2684,6 +2699,25 @@ name = "ic-metrics-encoder"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b5c7628eac357aecda461130f8074468be5aa4d258a002032d82d817f79f1f8"
+
+[[package]]
+name = "ic-pocket-canister-runtime"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5ccbb68e4ef54e2babdead0dd58c6948a05a89b6b0e18fb91239fbd62fdcc9b4"
+dependencies = [
+ "async-trait",
+ "candid",
+ "canhttp",
+ "ic-canister-runtime",
+ "ic-cdk",
+ "ic-error-types",
+ "pocket-ic",
+ "serde",
+ "serde_json",
+ "tokio",
+ "url",
+]
 
 [[package]]
 name = "ic-sha3"
@@ -3957,6 +3991,12 @@ dependencies = [
  "memchr",
  "regex-syntax 0.8.8",
 ]
+
+[[package]]
+name = "regex-lite"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d942b98df5e658f56f20d592c7f868833fe38115e65c33003d8cd224b0155da"
 
 [[package]]
 name = "regex-syntax"

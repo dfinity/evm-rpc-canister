@@ -1,16 +1,6 @@
-mod mock_http_runtime;
 mod setup;
 
-use crate::{
-    mock_http_runtime::{
-        mock::{
-            json::{JsonRpcRequestMatcher, JsonRpcResponse},
-            CanisterHttpReject, CanisterHttpReply, MockHttpOutcalls, MockHttpOutcallsBuilder,
-        },
-        wallet::MockHttpRuntimeWithWallet,
-    },
-    setup::EvmRpcSetup,
-};
+use crate::setup::EvmRpcSetup;
 use alloy_primitives::{address, b256, bloom, bytes, Address, Bytes, FixedBytes, B256, B64, U256};
 use alloy_rpc_types::{BlockNumberOrTag, BlockTransactions};
 use assert_matches::assert_matches;
@@ -22,8 +12,13 @@ use evm_rpc_types::{
     Hex32, HttpOutcallError, InstallArgs, JsonRpcError, LegacyRejectionCode, MultiRpcResult,
     Nat256, ProviderError, RpcApi, RpcError, RpcResult, RpcService, RpcServices, ValidationError,
 };
+use ic_canister_runtime::CyclesWalletRuntime;
 use ic_error_types::RejectCode;
 use ic_http_types::HttpRequest;
+use ic_pocket_canister_runtime::{
+    CanisterHttpReject, CanisterHttpReply, JsonRpcRequestMatcher, JsonRpcResponse,
+    MockHttpOutcalls, MockHttpOutcallsBuilder, PocketIcRuntime,
+};
 use pocket_ic::{common::rest::CanisterHttpResponse, ErrorCode};
 use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
@@ -36,8 +31,6 @@ const DEFAULT_CONTROLLER_TEST_ID: Principal = Principal::from_slice(&[0x9d, 0xf7
 const ADDITIONAL_TEST_ID: Principal = Principal::from_slice(&[0x9d, 0xf7, 0x03]);
 
 const INITIAL_CYCLES: u128 = 100_000_000_000_000_000;
-
-const MAX_TICKS: usize = 10;
 
 const MOCK_REQUEST_METHOD: &str = "eth_gasPrice";
 const MOCK_REQUEST_ID: Id = Id::Number(1);
@@ -310,7 +303,7 @@ async fn eth_get_logs_should_fail_when_block_range_too_large() {
             ),
         ] {
             let client = setup
-                .client(MockHttpOutcalls::NEVER)
+                .client(MockHttpOutcalls::never())
                 .with_rpc_sources(source.clone())
                 .build();
 
@@ -994,7 +987,7 @@ async fn candid_rpc_should_err_without_cycles() {
     let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     let result = setup
-        .client(MockHttpOutcalls::NEVER)
+        .client(MockHttpOutcalls::never())
         .with_rpc_sources(RpcServices::EthMainnet(None))
         .build()
         .get_transaction_receipt(b256!(
@@ -1112,7 +1105,7 @@ async fn candid_rpc_should_recognize_json_error() {
 async fn candid_rpc_should_reject_empty_service_list() {
     let setup = EvmRpcSetup::new().await.mock_api_keys().await;
     let result = setup
-        .client(MockHttpOutcalls::NEVER)
+        .client(MockHttpOutcalls::never())
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![])))
         .build()
         .get_transaction_receipt(b256!(
@@ -2297,7 +2290,7 @@ async fn should_retry_with_increasingly_more_cycles() {
 
     // Should fail without retrying
     let response = setup
-        .client(MockHttpOutcalls::NEVER)
+        .client(MockHttpOutcalls::never())
         .with_rpc_sources(RpcServices::EthMainnet(Some(vec![
             EthMainnetService::Cloudflare,
         ])))
@@ -2576,7 +2569,7 @@ mod cycles_cost_tests {
     async fn should_be_idempotent() {
         async fn check<Converter, Config, Params, CandidOutput, Output>(
             request: RequestBuilder<
-                MockHttpRuntimeWithWallet,
+                CyclesWalletRuntime<PocketIcRuntime<'_>>,
                 Converter,
                 NoRetry,
                 Config,
@@ -2601,7 +2594,7 @@ mod cycles_cost_tests {
         .await
         .mock_api_keys()
         .await;
-        let client = setup.client(MockHttpOutcalls::NEVER).build();
+        let client = setup.client(MockHttpOutcalls::never()).build();
 
         for endpoint in EvmRpcEndpoint::iter() {
             match endpoint {
@@ -2648,7 +2641,7 @@ mod cycles_cost_tests {
     async fn should_be_zero_when_in_demo_mode() {
         async fn check<Converter, Config, Params, CandidOutput, Output>(
             request: RequestBuilder<
-                MockHttpRuntimeWithWallet,
+                CyclesWalletRuntime<PocketIcRuntime<'_>>,
                 Converter,
                 NoRetry,
                 Config,
@@ -2671,7 +2664,7 @@ mod cycles_cost_tests {
         .await
         .mock_api_keys()
         .await;
-        let client = setup.client(MockHttpOutcalls::NEVER).build();
+        let client = setup.client(MockHttpOutcalls::never()).build();
 
         for endpoint in EvmRpcEndpoint::iter() {
             match endpoint {
@@ -2719,7 +2712,7 @@ mod cycles_cost_tests {
         async fn check<Config, Converter, Params, CandidOutput, Output>(
             setup: &EvmRpcSetup,
             request: RequestBuilder<
-                MockHttpRuntimeWithWallet,
+                CyclesWalletRuntime<PocketIcRuntime<'_>>,
                 Converter,
                 NoRetry,
                 Config,
@@ -2992,7 +2985,7 @@ mod request_cost_tests {
         // Same request with fewer cycles should fail.
         let result = setup
             .request(
-                &setup.new_mock_http_runtime_with_wallet(MockHttpOutcalls::NEVER),
+                &setup.new_mock_http_runtime_with_wallet(MockHttpOutcalls::never()),
                 (
                     RpcService::EthMainnet(EthMainnetService::PublicNode),
                     MOCK_REQUEST_PAYLOAD,

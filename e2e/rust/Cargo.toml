@@ -7,11 +7,11 @@ edition = "2021"
 
 [dependencies]
 candid = { workspace = true }
-ic-certified-map = { workspace = true }
+evm_rpc_types = { path = "../../evm_rpc_types" }
 ic-cdk = { workspace = true }
+ic-certified-map = { workspace = true }
 serde = { workspace = true }
 serde_bytes = { workspace = true }
-evm_rpc_types = { path = "../../evm_rpc_types" }
 
 [build-dependencies]
 ic-cdk-bindgen = { workspace = true }
