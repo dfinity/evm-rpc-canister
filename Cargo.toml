@@ -115,7 +115,7 @@ strum = { version = "0.27.2", features = ["derive"] }
 thousands = "0.2"
 tokio = "1.48.0"
 tower = "0.5.2"
-tower-http = "0.6.6"
+tower-http = "0.6.7"
 thiserror = "2.0.17"
 url = "2.5"
 zeroize = { version = "1.8", features = ["zeroize_derive"] }
