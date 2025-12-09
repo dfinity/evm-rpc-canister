@@ -1982,8 +1982,7 @@ dependencies = [
  "ic-error-types",
  "ic-ethereum-types",
  "ic-http-types",
- "ic-management-canister-types 0.3.3",
- "ic-management-canister-types 0.5.0",
+ "ic-management-canister-types",
  "ic-metrics-assert",
  "ic-metrics-encoder",
  "ic-pocket-canister-runtime",
@@ -2038,7 +2037,7 @@ dependencies = [
  "canlog",
  "hex",
  "ic-error-types",
- "ic-management-canister-types 0.5.0",
+ "ic-management-canister-types",
  "num-bigint",
  "proptest",
  "serde",
@@ -2551,9 +2550,9 @@ dependencies = [
 
 [[package]]
 name = "ic-canister-runtime"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "01a81a68bc6825ab81142a4e176ee04d0cc73deeed69753603e90e57b3ddcd3f"
+checksum = "d439b5964d325436cf034623fa61f29c4cb670b8f98301cf1d267eb75170515c"
 dependencies = [
  "async-trait",
  "candid",
@@ -2575,7 +2574,7 @@ dependencies = [
  "ic-cdk-executor",
  "ic-cdk-macros",
  "ic-error-types",
- "ic-management-canister-types 0.5.0",
+ "ic-management-canister-types",
  "ic0",
  "pin-project-lite",
  "serde",
@@ -2687,17 +2686,6 @@ dependencies = [
 
 [[package]]
 name = "ic-management-canister-types"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ea7e5b8a0f7c3b320d9450ac950547db4f24a31601b5d398f9680b64427455d2"
-dependencies = [
- "candid",
- "serde",
- "serde_bytes",
-]
-
-[[package]]
-name = "ic-management-canister-types"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3149217e24186df3f13dc45eee14cdb3e5cad07d0b2b67bd53555c1c55462957"
@@ -2709,18 +2697,16 @@ dependencies = [
 
 [[package]]
 name = "ic-metrics-assert"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d74f5e67d382d612d7b4f2d232ea0cf6a8e777c8e0099cd45e01cf68efae0aa"
+checksum = "68eeac14a82b6b7f7cff3cb496e1981b252b51075566801aeaf1e4478a9442ec"
 dependencies = [
  "async-trait",
  "candid",
  "ic-http-types",
- "ic-management-canister-types 0.3.3",
+ "ic-management-canister-types",
  "pocket-ic",
  "regex",
- "serde",
- "serde_bytes",
 ]
 
 [[package]]
@@ -2731,9 +2717,9 @@ checksum = "8b5c7628eac357aecda461130f8074468be5aa4d258a002032d82d817f79f1f8"
 
 [[package]]
 name = "ic-pocket-canister-runtime"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ccbb68e4ef54e2babdead0dd58c6948a05a89b6b0e18fb91239fbd62fdcc9b4"
+checksum = "f3d0227c6533ef614234e3c320871d996c592e99daca3eaeba1ce633baf76eaf"
 dependencies = [
  "async-trait",
  "candid",
@@ -3650,9 +3636,9 @@ dependencies = [
 
 [[package]]
 name = "pocket-ic"
-version = "10.0.0"
+version = "11.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c9b78f339182efb981ceca2ac360aa280609f8d8c785e5a7eeda488f53497a8"
+checksum = "67394a1de5e9bd67e92eef90c9034fbd28f26cfcb64854f187f3979191d6380c"
 dependencies = [
  "backoff",
  "base64 0.13.1",
@@ -3660,10 +3646,11 @@ dependencies = [
  "flate2",
  "hex",
  "ic-certification",
- "ic-management-canister-types 0.3.3",
+ "ic-management-canister-types",
  "ic-transport-types",
  "reqwest",
  "schemars 0.8.22",
+ "semver 1.0.27",
  "serde",
  "serde_bytes",
  "serde_cbor",
