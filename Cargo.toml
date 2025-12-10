@@ -97,7 +97,7 @@ ic-management-canister-types = "0.5.0"
 ic-metrics-assert = { version = "0.3.0", features = ["pocket_ic"] }
 ic-metrics-encoder = "1.1"
 ic-pocket-canister-runtime = "0.2.0"
-ic-stable-structures = "0.6.9"
+ic-stable-structures = "0.7.2"
 maplit = "1.0.2"
 minicbor = { version = "1.1.0", features = ["alloc", "derive"] }
 num-bigint = "0.4.6"
