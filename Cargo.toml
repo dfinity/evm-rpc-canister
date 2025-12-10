@@ -59,7 +59,6 @@ ic-canister-runtime = { workspace = true, features = ["wallet"] }
 ic-pocket-canister-runtime = { workspace = true }
 ic-crypto-test-utils-reproducible-rng = { git = "https://github.com/dfinity/ic", rev = "release-2024-09-26_01-31-base" }
 ic-error-types = { workspace = true }
-ic-management-canister-types-pocket-ic = { package = "ic-management-canister-types", version = "0.3" }
 ic-metrics-assert = { workspace = true }
 ic-test-utilities-load-wasm = { git = "https://github.com/dfinity/ic", rev = "release-2024-09-26_01-31-base" }
 maplit = { workspace = true }
@@ -95,15 +94,15 @@ ic-http-types = "0.1.0"
 ic-error-types = "0.2"
 ic-ethereum-types = "1.0.0"
 ic-management-canister-types = "0.5.0"
-ic-metrics-assert = { version = "0.2.0", features = ["pocket_ic"] }
+ic-metrics-assert = { version = "0.3.0", features = ["pocket_ic"] }
 ic-metrics-encoder = "1.1"
-ic-pocket-canister-runtime = "0.1.0"
+ic-pocket-canister-runtime = "0.2.0"
 ic-stable-structures = "0.6.9"
 maplit = "1.0.2"
 minicbor = { version = "1.1.0", features = ["alloc", "derive"] }
 num-bigint = "0.4.6"
 num-traits = "0.2.19"
-pocket-ic = "10.0.0"
+pocket-ic = "11.0.0"
 proptest = "1.9.0"
 rand = "0.8.5"
 regex = "1.12"

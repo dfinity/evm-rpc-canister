@@ -10,7 +10,7 @@ use evm_rpc_client::{AlloyResponseConverter, ClientBuilder, EvmRpcClient, NoRetr
 use evm_rpc_types::{InstallArgs, Provider, RpcResult, RpcService};
 use ic_canister_runtime::{CyclesWalletRuntime, Runtime};
 use ic_http_types::{HttpRequest, HttpResponse};
-use ic_management_canister_types_pocket_ic::{CanisterId, CanisterSettings};
+use ic_management_canister_types::{CanisterId, CanisterSettings};
 use ic_metrics_assert::{MetricsAssert, PocketIcAsyncHttpQuery};
 use ic_pocket_canister_runtime::{MockHttpOutcalls, PocketIcRuntime};
 use ic_test_utilities_load_wasm::load_wasm;
