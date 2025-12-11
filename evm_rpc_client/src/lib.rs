@@ -346,9 +346,10 @@ impl<R, C: EvmRpcResponseConverter, P> EvmRpcClient<R, C, P> {
     /// then decodes the ABI-encoded response into the human-readable string `USDC`.
     ///
     /// ```rust
-    /// use alloy::{sol, sol_types::{SolCall, SolInterface}};
     /// use alloy_primitives::{address, bytes, Bytes};
     /// use alloy_rpc_types::BlockNumberOrTag;
+    /// use alloy_sol_macro::sol;
+    /// use alloy_sol_types::{SolCall, SolInterface};
     /// use evm_rpc_client::EvmRpcClient;
     ///
     /// # use evm_rpc_types::{Hex, MultiRpcResult};
