@@ -25,8 +25,9 @@ serde_json = { workspace = true }
 strum = { workspace = true }
 
 [dev-dependencies]
-alloy = { workspace = true }
 alloy-primitives = { workspace = true }
 alloy-rpc-types = { workspace = true }
+alloy-sol-macro = { workspace = true }
+alloy-sol-types = { workspace = true }
 evm_rpc_types = { path = "../evm_rpc_types", features = ["alloy"] }
 tokio = { workspace = true, features = ["full"] }
