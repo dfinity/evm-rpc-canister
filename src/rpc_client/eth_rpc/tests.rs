@@ -1,17 +1,14 @@
 use super::*;
 
-fn check_response_normalization<O: HttpResponsePayload>(left: &str, right: &str) {
+fn check_response_normalization(transform: &ResponseTransform, left: &str, right: &str) {
     fn add_envelope(reply: &str) -> Vec<u8> {
         format!("{{\"jsonrpc\": \"2.0\", \"id\": 1, \"result\": {}}}", reply).into_bytes()
     }
 
     let mut left = add_envelope(left);
     let mut right = add_envelope(right);
-    let maybe_transform = O::response_transform();
-    if let Some(transform) = maybe_transform {
-        transform.apply(&mut left);
-        transform.apply(&mut right);
-    }
+    transform.apply(&mut left);
+    transform.apply(&mut right);
     let left_string = String::from_utf8(left).unwrap();
     let right_string = String::from_utf8(right).unwrap();
     assert_eq!(left_string, right_string);
@@ -19,7 +16,8 @@ fn check_response_normalization<O: HttpResponsePayload>(left: &str, right: &str)
 
 #[test]
 fn fee_history_normalization() {
-    check_response_normalization::<FeeHistory>(
+    check_response_normalization(
+        &ResponseTransform::FeeHistory,
         r#"{
         "baseFeePerGas": [
             "0x729d3f3b3",
@@ -115,7 +113,8 @@ fn fee_history_normalization() {
 
 #[test]
 fn block_normalization() {
-    check_response_normalization::<Block>(
+    check_response_normalization(
+        &ResponseTransform::GetBlockByNumber,
         r#"{
         "number": "0x10eb3c6",
         "hash": "0x85db6d6ad071d127795df4c5f1b04863629d7c2832c89550aa2771bf81c40c85",
@@ -189,7 +188,8 @@ fn block_normalization() {
 
 #[test]
 fn eth_get_logs_normalization() {
-    check_response_normalization::<Vec<LogEntry>>(
+    check_response_normalization(
+        &ResponseTransform::GetLogs,
         r#"[
         {
             "removed": false,
@@ -362,7 +362,8 @@ fn eth_get_logs_order_normalization() {
         logs
     };
 
-    check_response_normalization::<Vec<LogEntry>>(
+    check_response_normalization(
+        &ResponseTransform::GetLogs,
         &serde_json::to_string(&original_logs).unwrap(),
         &serde_json::to_string(&suffled_logs).unwrap(),
     )
@@ -370,7 +371,8 @@ fn eth_get_logs_order_normalization() {
 
 #[test]
 fn transaction_receipt_normalization() {
-    check_response_normalization::<TransactionReceipt>(
+    check_response_normalization(
+        &ResponseTransform::GetTransactionReceipt,
         r#"{
         "type": "0x2",
         "blockHash": "0x82005d2f17b251900968f01b0ed482cb49b7e1d797342bc504904d442b64dbe4",
