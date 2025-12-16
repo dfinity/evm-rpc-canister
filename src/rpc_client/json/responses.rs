@@ -1,8 +1,9 @@
-use crate::rpc_client::eth_rpc::{HttpResponsePayload, ResponseTransform};
-use crate::rpc_client::json::{FixedSizeData, Hash, JsonByte, LogsBloom};
-use crate::rpc_client::numeric::{
-    BlockNonce, BlockNumber, Difficulty, GasAmount, LogIndex, NumBytes, Timestamp,
-    TransactionIndex, Wei, WeiPerGas,
+use crate::rpc_client::{
+    json::{FixedSizeData, Hash, JsonByte, LogsBloom},
+    numeric::{
+        BlockNonce, BlockNumber, Difficulty, GasAmount, LogIndex, NumBytes, Timestamp,
+        TransactionIndex, Wei, WeiPerGas,
+    },
 };
 use candid::Deserialize;
 use ic_ethereum_types::Address;
@@ -67,12 +68,6 @@ pub struct TransactionReceipt {
     /// The type of the transaction (e.g. "0x0" for legacy transactions, "0x2" for EIP-1559 transactions)
     #[serde(rename = "type")]
     pub tx_type: JsonByte,
-}
-
-impl HttpResponsePayload for TransactionReceipt {
-    fn response_transform() -> Option<ResponseTransform> {
-        Some(ResponseTransform::TransactionReceipt)
-    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq)]
@@ -173,12 +168,6 @@ pub struct LogEntry {
     pub removed: bool,
 }
 
-impl HttpResponsePayload for Vec<LogEntry> {
-    fn response_transform() -> Option<ResponseTransform> {
-        Some(ResponseTransform::LogEntries)
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Block {
     /// Base fee per gas
@@ -259,12 +248,6 @@ pub struct Block {
     pub uncles: Vec<Hash>,
 }
 
-impl HttpResponsePayload for Block {
-    fn response_transform() -> Option<ResponseTransform> {
-        Some(ResponseTransform::Block)
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct FeeHistory {
     /// Lowest number block of the returned range.
@@ -286,12 +269,6 @@ pub struct FeeHistory {
     pub reward: Vec<Vec<WeiPerGas>>,
 }
 
-impl HttpResponsePayload for FeeHistory {
-    fn response_transform() -> Option<ResponseTransform> {
-        Some(ResponseTransform::FeeHistory)
-    }
-}
-
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub enum SendRawTransactionResult {
     Ok,
@@ -300,17 +277,9 @@ pub enum SendRawTransactionResult {
     NonceTooHigh,
 }
 
-impl HttpResponsePayload for SendRawTransactionResult {
-    fn response_transform() -> Option<ResponseTransform> {
-        Some(ResponseTransform::SendRawTransaction)
-    }
-}
-
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(transparent)]
 pub struct Data(#[serde(with = "ic_ethereum_types::serde_data")] pub Vec<u8>);
-
-impl HttpResponsePayload for Data {}
 
 impl From<Vec<u8>> for Data {
     fn from(data: Vec<u8>) -> Self {
@@ -327,12 +296,6 @@ impl AsRef<[u8]> for Data {
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(transparent)]
 pub struct RawJson(pub String);
-
-impl HttpResponsePayload for RawJson {
-    fn response_transform() -> Option<ResponseTransform> {
-        Some(ResponseTransform::Raw)
-    }
-}
 
 impl From<RawJson> for String {
     fn from(value: RawJson) -> Self {

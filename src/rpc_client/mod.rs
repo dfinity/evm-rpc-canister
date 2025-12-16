@@ -1,3 +1,4 @@
+use crate::rpc_client::eth_rpc::ResponseTransform;
 use crate::types::MetricRpcService;
 use crate::{
     add_metric_entry,
@@ -7,7 +8,7 @@ use crate::{
     memory::{get_override_provider, rank_providers, record_ok_result},
     providers::{resolve_rpc_service, SupportedRpcService},
     rpc_client::{
-        eth_rpc::{HttpResponsePayload, ResponseSizeEstimate, HEADER_SIZE_LIMIT},
+        eth_rpc::{ResponseSizeEstimate, HEADER_SIZE_LIMIT},
         json::responses::RawJson,
         numeric::TransactionCount,
     },
@@ -282,6 +283,7 @@ impl EthRpcClient {
             RpcMethod::EthGetLogs,
             (params,),
             response_size_estimate,
+            ResponseTransform::GetLogs,
             reduction,
         )
     }
@@ -306,6 +308,7 @@ impl EthRpcClient {
                 include_full_transactions: false,
             },
             response_size_estimate,
+            ResponseTransform::GetBlockByNumber,
             reduction_strategy,
         )
     }
@@ -321,6 +324,7 @@ impl EthRpcClient {
             RpcMethod::EthGetTransactionReceipt,
             (tx_hash,),
             response_size_estimate,
+            ResponseTransform::GetTransactionReceipt,
             reduction_strategy,
         )
     }
@@ -337,6 +341,7 @@ impl EthRpcClient {
             RpcMethod::EthFeeHistory,
             params,
             response_size_estimate,
+            ResponseTransform::FeeHistory,
             reduction_strategy,
         )
     }
@@ -354,6 +359,7 @@ impl EthRpcClient {
             RpcMethod::EthSendRawTransaction,
             (raw_signed_transaction_hex,),
             response_size_estimate,
+            ResponseTransform::SendRawTransaction,
             reduction_strategy,
         )
     }
@@ -369,6 +375,7 @@ impl EthRpcClient {
             RpcMethod::EthGetTransactionCount,
             params,
             response_size_estimate,
+            ResponseTransform::GetTransactionCount,
             reduction_strategy,
         )
     }
@@ -381,6 +388,7 @@ impl EthRpcClient {
             RpcMethod::EthCall,
             params,
             response_size_estimate,
+            ResponseTransform::Call,
             reduction_strategy,
         )
     }
@@ -397,6 +405,7 @@ impl EthRpcClient {
             method,
             params,
             response_size_estimate,
+            ResponseTransform::Raw,
             reduction_strategy,
         )
     }
@@ -407,6 +416,7 @@ pub struct MultiRpcRequest<Params, Output> {
     method: RpcMethod,
     params: Params,
     response_size_estimate: ResponseSizeEstimate,
+    transform: ResponseTransform,
     reduction_strategy: ReductionStrategy,
     _marker: std::marker::PhantomData<Output>,
 }
@@ -417,6 +427,7 @@ impl<Params, Output> MultiRpcRequest<Params, Output> {
         method: RpcMethod,
         params: Params,
         response_size_estimate: ResponseSizeEstimate,
+        transform: ResponseTransform,
         reduction_strategy: ReductionStrategy,
     ) -> MultiRpcRequest<Params, Output> {
         MultiRpcRequest {
@@ -424,6 +435,7 @@ impl<Params, Output> MultiRpcRequest<Params, Output> {
             method,
             params,
             response_size_estimate,
+            transform,
             reduction_strategy,
             _marker: Default::default(),
         }
@@ -434,7 +446,7 @@ impl<Params, Output> MultiRpcRequest<Params, Output> {
     pub async fn send_and_reduce(self) -> MultiRpcResult<Output>
     where
         Params: Serialize + Clone + Debug,
-        Output: Debug + Serialize + DeserializeOwned + HttpResponsePayload + PartialEq,
+        Output: Debug + Serialize + DeserializeOwned + PartialEq,
     {
         let result = self.parallel_call().await.reduce(self.reduction_strategy);
         process_result(self.method, result)
@@ -448,7 +460,7 @@ impl<Params, Output> MultiRpcRequest<Params, Output> {
     async fn parallel_call(&self) -> MultiResults<RpcService, Output, RpcError>
     where
         Params: Serialize + Clone + Debug,
-        Output: Debug + DeserializeOwned + HttpResponsePayload,
+        Output: Debug + DeserializeOwned,
     {
         let requests = self.create_json_rpc_requests();
 
@@ -478,7 +490,6 @@ impl<Params, Output> MultiRpcRequest<Params, Output> {
     pub async fn cycles_cost(&self) -> RpcResult<u128>
     where
         Params: Serialize + Clone + Debug,
-        Output: HttpResponsePayload,
     {
         async fn extract_request(
             request: IcHttpRequest,
@@ -527,16 +538,12 @@ impl<Params, Output> MultiRpcRequest<Params, Output> {
     ) -> MultiResults<RpcService, Request<JsonRpcRequest<Params>>, RpcError>
     where
         Params: Clone,
-        Output: HttpResponsePayload,
     {
-        let transform_op = Output::response_transform()
-            .as_ref()
-            .map(|t| {
-                let mut buf = vec![];
-                minicbor::encode(t, &mut buf).unwrap();
-                buf
-            })
-            .unwrap_or_default();
+        let transform_op = {
+            let mut buf = vec![];
+            minicbor::encode(&self.transform, &mut buf).unwrap();
+            buf
+        };
         let effective_size_estimate = self.response_size_estimate.get();
         let mut requests = MultiResults::default();
         for provider in self.providers.iter() {
