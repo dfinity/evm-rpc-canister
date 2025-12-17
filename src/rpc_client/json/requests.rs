@@ -1,12 +1,14 @@
-use crate::rpc_client::json::responses::Data;
-use crate::rpc_client::json::{FixedSizeData, Hash, JsonByte, StorageKey};
-use crate::rpc_client::numeric::{
-    BlockNumber, ChainId, GasAmount, NumBlocks, TransactionNonce, Wei, WeiPerGas,
+use crate::rpc_client::{
+    amount::Amount,
+    json::{responses::Data, FixedSizeData, Hash, JsonByte, StorageKey},
+    numeric::{BlockNumber, ChainId, GasAmount, NumBlocks, TransactionNonce, Wei, WeiPerGas},
 };
 use ic_ethereum_types::Address;
 use serde::{Deserialize, Serialize};
-use std::fmt;
-use std::fmt::{Display, Formatter};
+use std::{
+    fmt,
+    fmt::{Display, Formatter},
+};
 
 /// Parameters of the [`eth_getTransactionCount`](https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_gettransactioncount) call.
 #[derive(Debug, Serialize, Clone)]
@@ -24,9 +26,18 @@ impl From<GetTransactionCountParams> for (Address, BlockSpec) {
     }
 }
 
+impl From<evm_rpc_types::GetTransactionCountArgs> for GetTransactionCountParams {
+    fn from(args: evm_rpc_types::GetTransactionCountArgs) -> Self {
+        Self {
+            address: Address::new(args.address.into()),
+            block: args.block.into(),
+        }
+    }
+}
+
 /// Parameters of the [`eth_getLogs`](https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_getlogs) call.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GetLogsParam {
+pub struct GetLogsParams {
     /// Integer block number, or "latest" for the last mined block or "pending", "earliest" for not yet mined transactions.
     #[serde(rename = "fromBlock")]
     pub from_block: BlockSpec,
@@ -40,6 +51,31 @@ pub struct GetLogsParam {
     /// Each topic can also be an array of DATA with "or" options.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub topics: Vec<Vec<FixedSizeData>>,
+}
+
+impl From<evm_rpc_types::GetLogsArgs> for GetLogsParams {
+    fn from(args: evm_rpc_types::GetLogsArgs) -> Self {
+        Self {
+            from_block: args.from_block.map(BlockSpec::from).unwrap_or_default(),
+            to_block: args.to_block.map(BlockSpec::from).unwrap_or_default(),
+            address: args
+                .addresses
+                .into_iter()
+                .map(|address| Address::new(address.into()))
+                .collect(),
+            topics: args
+                .topics
+                .unwrap_or_default()
+                .into_iter()
+                .map(|topic| {
+                    topic
+                        .into_iter()
+                        .map(|t| FixedSizeData::new(t.into()))
+                        .collect()
+                })
+                .collect(),
+        }
+    }
 }
 
 /// Parameters of the [`eth_feeHistory`](https://ethereum.github.io/execution-apis/api-documentation/) call.
@@ -69,6 +105,16 @@ impl From<FeeHistoryParams> for (NumBlocks, BlockSpec, Vec<u8>) {
     }
 }
 
+impl From<evm_rpc_types::FeeHistoryArgs> for FeeHistoryParams {
+    fn from(args: evm_rpc_types::FeeHistoryArgs) -> Self {
+        Self {
+            block_count: args.block_count.into(),
+            highest_block: args.newest_block.into(),
+            reward_percentiles: args.reward_percentiles.unwrap_or_default(),
+        }
+    }
+}
+
 /// The block specification indicating which block to query.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(untagged)]
@@ -77,6 +123,19 @@ pub enum BlockSpec {
     Number(BlockNumber),
     /// Query the block with the specified tag.
     Tag(BlockTag),
+}
+
+impl From<evm_rpc_types::BlockTag> for BlockSpec {
+    fn from(value: evm_rpc_types::BlockTag) -> Self {
+        match value {
+            evm_rpc_types::BlockTag::Number(n) => Self::Number(n.into()),
+            evm_rpc_types::BlockTag::Latest => Self::Tag(BlockTag::Latest),
+            evm_rpc_types::BlockTag::Safe => Self::Tag(BlockTag::Safe),
+            evm_rpc_types::BlockTag::Finalized => Self::Tag(BlockTag::Finalized),
+            evm_rpc_types::BlockTag::Earliest => Self::Tag(BlockTag::Earliest),
+            evm_rpc_types::BlockTag::Pending => Self::Tag(BlockTag::Pending),
+        }
+    }
 }
 
 impl Default for BlockSpec {
@@ -145,11 +204,20 @@ impl From<GetBlockByNumberParams> for (BlockSpec, bool) {
     }
 }
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(into = "(TransactionRequest, BlockSpec)")]
 pub struct EthCallParams {
     pub transaction: TransactionRequest,
     pub block: BlockSpec,
+}
+
+impl From<evm_rpc_types::CallArgs> for EthCallParams {
+    fn from(value: evm_rpc_types::CallArgs) -> Self {
+        Self {
+            transaction: value.transaction.into(),
+            block: value.block.unwrap_or_default().into(),
+        }
+    }
 }
 
 impl From<EthCallParams> for (TransactionRequest, BlockSpec) {
@@ -225,6 +293,62 @@ pub struct TransactionRequest {
     /// Chain ID that this transaction is valid on.
     #[serde(rename = "chainId", skip_serializing_if = "Option::is_none")]
     pub chain_id: Option<ChainId>,
+}
+
+impl From<evm_rpc_types::TransactionRequest> for TransactionRequest {
+    fn from(
+        evm_rpc_types::TransactionRequest {
+            tx_type,
+            nonce,
+            to,
+            from,
+            gas,
+            value,
+            input,
+            gas_price,
+            max_priority_fee_per_gas,
+            max_fee_per_gas,
+            max_fee_per_blob_gas,
+            access_list,
+            blob_versioned_hashes,
+            blobs,
+            chain_id,
+        }: evm_rpc_types::TransactionRequest,
+    ) -> Self {
+        fn map_access_list(list: evm_rpc_types::AccessList) -> AccessList {
+            AccessList(
+                list.0
+                    .into_iter()
+                    .map(|entry| AccessListItem {
+                        address: Address::new(entry.address.into()),
+                        storage_keys: entry
+                            .storage_keys
+                            .into_iter()
+                            .map(|key| StorageKey::new(key.into()))
+                            .collect(),
+                    })
+                    .collect(),
+            )
+        }
+        Self {
+            tx_type: tx_type.map(|t| JsonByte::new(t.into())),
+            nonce: nonce.map(Amount::from),
+            to: to.map(|address| Address::new(address.into())),
+            from: from.map(|address| Address::new(address.into())),
+            gas: gas.map(Amount::from),
+            value: value.map(Amount::from),
+            input: input.map(Data::from),
+            gas_price: gas_price.map(Amount::from),
+            max_priority_fee_per_gas: max_priority_fee_per_gas.map(Amount::from),
+            max_fee_per_gas: max_fee_per_gas.map(Amount::from),
+            max_fee_per_blob_gas: max_fee_per_blob_gas.map(Amount::from),
+            access_list: access_list.map(map_access_list),
+            blob_versioned_hashes: blob_versioned_hashes
+                .map(|hashes| hashes.into_iter().map(Hash::from).collect()),
+            blobs: blobs.map(|blobs| blobs.into_iter().map(Data::from).collect()),
+            chain_id: chain_id.map(Amount::from),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

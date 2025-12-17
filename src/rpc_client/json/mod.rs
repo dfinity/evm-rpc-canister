@@ -78,6 +78,12 @@ bytes_array!(Hash, 32);
 bytes_array!(LogsBloom, 256);
 bytes_array!(StorageKey, 32);
 
+impl From<evm_rpc_types::Hex32> for Hash {
+    fn from(hex: evm_rpc_types::Hex32) -> Self {
+        Self::new(hex.into())
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct JsonByte(#[serde(with = "ic_ethereum_types::serde_data")] Byte);
