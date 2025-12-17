@@ -96,6 +96,7 @@ pub async fn json_rpc_request(
     .await
 }
 
+// TODO: Needs to support Vec<JsonRpcRequest<...>> OR Json
 pub fn http_client<I, O>(
     rpc_method: MetricRpcMethod,
     retry: bool,

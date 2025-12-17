@@ -6,9 +6,34 @@ mod alloy;
 
 use crate::{Hex, Hex20, Hex32, HexByte, Nat256};
 use candid::CandidType;
+use derive_more::{From, TryUnwrap};
 use serde::Deserialize;
 #[cfg(test)]
 use serde::Serialize;
+
+/// Instances of this type represent a single JSON-RPC call that can be as part of a batch of
+/// requests to the `batched_json_rpc_requests` endpoint of the EVM RPC canister.
+#[derive(Clone, Debug, PartialEq, Eq, CandidType, Deserialize, From, TryUnwrap)]
+#[try_unwrap(ref)]
+#[allow(clippy::large_enum_variant)]
+pub enum EvmRpcRequest {
+    /// Represents a JSON-RPC `eth_call` call.
+    Call(CallArgs),
+    /// Represents a JSON-RPC `eth_feeHistory` call.
+    FeeHistory(FeeHistoryArgs),
+    /// Represents a JSON-RPC `eth_getBlockByNumber` call.
+    GetBlockByNumber(BlockTag),
+    /// Represents a JSON-RPC `eth_getLogs` call.
+    GetLogs(GetLogsArgs),
+    /// Represents a JSON-RPC `eth_getTransactionCount` call.
+    GetTransactionCount(GetTransactionCountArgs),
+    /// Represents a JSON-RPC `eth_getTransactionReceipt` call.
+    GetTransactionReceipt(Hex32),
+    /// Represents a JSON-RPC `eth_sendRawTransaction` call.
+    SendRawTransaction(Hex),
+    /// Represents a generic JSON-RPC request.
+    JsonRpcRequest(String),
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, CandidType, Deserialize, Default)]
 pub enum BlockTag {

@@ -6,7 +6,31 @@ mod alloy;
 
 use crate::{Hex, Hex20, Hex256, Hex32, HexByte, Nat256};
 use candid::CandidType;
+use derive_more::TryUnwrap;
 use serde::{Deserialize, Serialize};
+
+/// Instances of this type represent the response to a single JSON-RPC call submitted as part of
+/// a batch to the `batched_json_rpc_requests` endpoint of the EVM RPC canister.
+#[derive(Clone, Debug, PartialEq, CandidType, Deserialize, TryUnwrap)]
+#[allow(clippy::large_enum_variant)]
+pub enum EvmRpcResponse {
+    /// Represents the response to a JSON-RPC `eth_call` call.
+    Call(Hex),
+    /// Represents the response to a JSON-RPC `eth_feeHistory` call.
+    FeeHistory(FeeHistory),
+    /// Represents the response to a JSON-RPC `eth_getBlockByNumber` call.
+    GetBlockByNumber(Block),
+    /// Represents the response to a JSON-RPC `eth_getLogs` call.
+    GetLogs(Vec<LogEntry>),
+    /// Represents the response to a JSON-RPC `eth_getTransactionCount` call.
+    GetTransactionCount(Nat256),
+    /// Represents the response to a JSON-RPC `eth_getTransactionReceipt` call.
+    GetTransactionReceipt(Option<TransactionReceipt>),
+    /// Represents the response to a JSON-RPC `eth_sendRawTransaction` call.
+    SendRawTransaction(SendRawTransactionStatus),
+    /// Represents the response to a generic JSON-RPC request.
+    JsonRpcRequest(String),
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, CandidType)]
 pub struct FeeHistory {

@@ -904,7 +904,7 @@ dependencies = [
  "anyhow",
  "candid",
  "codespan-reporting",
- "convert_case",
+ "convert_case 0.6.0",
  "hex",
  "lalrpop",
  "lalrpop-util",
@@ -1100,6 +1100,15 @@ name = "convert_case"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec182b0ca2f35d8fc196cf3404988fd8b8c739a4d270ff118a398feb0cbec1ca"
+dependencies = [
+ "unicode-segmentation",
+]
+
+[[package]]
+name = "convert_case"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb402b8d4c85569410425650ce3eddc7d698ed96d39a73f941b08fb63082f1e7"
 dependencies = [
  "unicode-segmentation",
 ]
@@ -1339,6 +1348,7 @@ version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bda628edc44c4bb645fbe0f758797143e4e07926f7ebf4e9bdfbd3d2ce621df3"
 dependencies = [
+ "convert_case 0.7.1",
  "proc-macro2",
  "quote",
  "syn 2.0.111",
@@ -1708,6 +1718,7 @@ dependencies = [
  "alloy-rpc-types",
  "candid",
  "canlog",
+ "derive_more 2.0.1",
  "hex",
  "ic-error-types",
  "ic-management-canister-types",

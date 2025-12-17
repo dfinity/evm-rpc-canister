@@ -1,5 +1,4 @@
-use crate::rpc_client::eth_rpc::ResponseTransform;
-use crate::types::MetricRpcService;
+use crate::rpc_client::json::responses::EvmRpcResponse;
 use crate::{
     add_metric_entry,
     http::{
@@ -8,11 +7,10 @@ use crate::{
     memory::{get_override_provider, rank_providers, record_ok_result},
     providers::{resolve_rpc_service, SupportedRpcService},
     rpc_client::{
-        eth_rpc::{ResponseSizeEstimate, HEADER_SIZE_LIMIT},
-        json::responses::RawJson,
-        numeric::TransactionCount,
+        eth_rpc::{ResponseSizeEstimate, ResponseTransform},
+        json::requests::EvmRpcRequest,
     },
-    types::{MetricRpcMethod, ResolvedRpcService, RpcMethod},
+    types::{MetricRpcMethod, MetricRpcService, ResolvedRpcService, RpcMethod},
 };
 use canhttp::{
     cycles::CyclesChargingPolicy,
@@ -31,16 +29,7 @@ use http::{Request, Response};
 use ic_cdk::management_canister::{
     HttpRequestArgs as IcHttpRequest, TransformContext, TransformFunc,
 };
-use json::{
-    requests::{
-        BlockSpec, EthCallParams, FeeHistoryParams, GetBlockByNumberParams, GetLogsParam,
-        GetTransactionCountParams,
-    },
-    responses::{Block, Data, FeeHistory, LogEntry, SendRawTransactionResult, TransactionReceipt},
-    Hash,
-};
 use serde::{de::DeserializeOwned, Serialize};
-use serde_json::Value;
 use std::{collections::BTreeSet, fmt::Debug};
 use tower::ServiceExt;
 
@@ -48,7 +37,7 @@ pub mod amount;
 pub(crate) mod eth_rpc;
 mod eth_rpc_error;
 pub(crate) mod json;
-mod numeric;
+pub(crate) mod numeric;
 
 #[cfg(test)]
 mod tests;
@@ -258,8 +247,12 @@ impl EthRpcClient {
         self.providers.chain
     }
 
-    fn response_size_estimate(&self, estimate: u64) -> ResponseSizeEstimate {
-        ResponseSizeEstimate::new(self.config.response_size_estimate.unwrap_or(estimate))
+    fn response_size_estimate(&self, request: &EvmRpcRequest) -> ResponseSizeEstimate {
+        ResponseSizeEstimate::new(
+            self.config
+                .response_size_estimate
+                .unwrap_or(request.response_size_estimate(self.chain())),
+        )
     }
 
     fn reduction_strategy(&self) -> ReductionStrategy {
@@ -272,141 +265,21 @@ impl EthRpcClient {
         )
     }
 
-    pub fn eth_get_logs(
+    pub fn multi_rpc_request(
         self,
-        params: GetLogsParam,
-    ) -> MultiRpcRequest<(GetLogsParam,), Vec<LogEntry>> {
-        let response_size_estimate = self.response_size_estimate(1024 + HEADER_SIZE_LIMIT);
+        request: EvmRpcRequest,
+    ) -> MultiRpcRequest<EvmRpcRequest, EvmRpcResponse> {
+        let response_size_estimate = self.response_size_estimate(&request);
         let reduction = self.reduction_strategy();
+        let rpc_method = request.rpc_method();
+        let response_transform = request.response_transform();
         MultiRpcRequest::new(
             self.providers.services,
-            RpcMethod::EthGetLogs,
-            (params,),
+            rpc_method,
+            request,
             response_size_estimate,
-            ResponseTransform::GetLogs,
+            response_transform,
             reduction,
-        )
-    }
-
-    pub fn eth_get_block_by_number(
-        self,
-        block: BlockSpec,
-    ) -> MultiRpcRequest<GetBlockByNumberParams, Block> {
-        let expected_block_size = match self.chain() {
-            EthereumNetwork::SEPOLIA => 12 * 1024,
-            EthereumNetwork::MAINNET => 24 * 1024,
-            _ => 24 * 1024, // Default for unknown networks
-        };
-        let response_size_estimate =
-            self.response_size_estimate(expected_block_size + HEADER_SIZE_LIMIT);
-        let reduction_strategy = self.reduction_strategy();
-        MultiRpcRequest::new(
-            self.providers.services,
-            RpcMethod::EthGetBlockByNumber,
-            GetBlockByNumberParams {
-                block,
-                include_full_transactions: false,
-            },
-            response_size_estimate,
-            ResponseTransform::GetBlockByNumber,
-            reduction_strategy,
-        )
-    }
-
-    pub fn eth_get_transaction_receipt(
-        self,
-        tx_hash: Hash,
-    ) -> MultiRpcRequest<(Hash,), Option<TransactionReceipt>> {
-        let response_size_estimate = self.response_size_estimate(700 + HEADER_SIZE_LIMIT);
-        let reduction_strategy = self.reduction_strategy();
-        MultiRpcRequest::new(
-            self.providers.services,
-            RpcMethod::EthGetTransactionReceipt,
-            (tx_hash,),
-            response_size_estimate,
-            ResponseTransform::GetTransactionReceipt,
-            reduction_strategy,
-        )
-    }
-
-    pub fn eth_fee_history(
-        self,
-        params: FeeHistoryParams,
-    ) -> MultiRpcRequest<FeeHistoryParams, FeeHistory> {
-        // A typical response is slightly above 300 bytes.
-        let response_size_estimate = self.response_size_estimate(512 + HEADER_SIZE_LIMIT);
-        let reduction_strategy = self.reduction_strategy();
-        MultiRpcRequest::new(
-            self.providers.services,
-            RpcMethod::EthFeeHistory,
-            params,
-            response_size_estimate,
-            ResponseTransform::FeeHistory,
-            reduction_strategy,
-        )
-    }
-
-    pub fn eth_send_raw_transaction(
-        self,
-        raw_signed_transaction_hex: String,
-    ) -> MultiRpcRequest<(String,), SendRawTransactionResult> {
-        // A successful reply is under 256 bytes, but we expect most calls to end with an error
-        // since we submit the same transaction from multiple nodes.
-        let response_size_estimate = self.response_size_estimate(256 + HEADER_SIZE_LIMIT);
-        let reduction_strategy = self.reduction_strategy();
-        MultiRpcRequest::new(
-            self.providers.services,
-            RpcMethod::EthSendRawTransaction,
-            (raw_signed_transaction_hex,),
-            response_size_estimate,
-            ResponseTransform::SendRawTransaction,
-            reduction_strategy,
-        )
-    }
-
-    pub fn eth_get_transaction_count(
-        self,
-        params: GetTransactionCountParams,
-    ) -> MultiRpcRequest<GetTransactionCountParams, TransactionCount> {
-        let response_size_estimate = self.response_size_estimate(50 + HEADER_SIZE_LIMIT);
-        let reduction_strategy = self.reduction_strategy();
-        MultiRpcRequest::new(
-            self.providers.services,
-            RpcMethod::EthGetTransactionCount,
-            params,
-            response_size_estimate,
-            ResponseTransform::GetTransactionCount,
-            reduction_strategy,
-        )
-    }
-
-    pub fn eth_call(self, params: EthCallParams) -> MultiRpcRequest<EthCallParams, Data> {
-        let response_size_estimate = self.response_size_estimate(256 + HEADER_SIZE_LIMIT);
-        let reduction_strategy = self.reduction_strategy();
-        MultiRpcRequest::new(
-            self.providers.services,
-            RpcMethod::EthCall,
-            params,
-            response_size_estimate,
-            ResponseTransform::Call,
-            reduction_strategy,
-        )
-    }
-
-    pub fn multi_request(
-        self,
-        method: RpcMethod,
-        params: Option<&Value>,
-    ) -> MultiRpcRequest<Option<&Value>, RawJson> {
-        let response_size_estimate = self.response_size_estimate(256 + HEADER_SIZE_LIMIT);
-        let reduction_strategy = self.reduction_strategy();
-        MultiRpcRequest::new(
-            self.providers.services,
-            method,
-            params,
-            response_size_estimate,
-            ResponseTransform::Raw,
-            reduction_strategy,
         )
     }
 }

@@ -23,6 +23,7 @@ alloy-primitives = { workspace = true, optional = true }
 alloy-rpc-types = { workspace = true, optional = true }
 candid = { workspace = true }
 canlog = { workspace = true }
+derive_more = { workspace = true }
 hex = { workspace = true }
 ic-error-types = { workspace = true }
 ic-management-canister-types = { workspace = true }

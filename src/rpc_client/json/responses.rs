@@ -1,3 +1,4 @@
+use crate::rpc_client::numeric::TransactionCount;
 use crate::rpc_client::{
     json::{FixedSizeData, Hash, JsonByte, LogsBloom},
     numeric::{
@@ -6,9 +7,54 @@ use crate::rpc_client::{
     },
 };
 use candid::Deserialize;
+use evm_rpc_types::{Hex, Hex20, Hex256, Hex32, HexByte, Nat256};
 use ic_ethereum_types::Address;
 use serde::Serialize;
 use std::fmt::{Display, Formatter};
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+#[allow(clippy::large_enum_variant)]
+pub enum EvmRpcResponse {
+    Call(Data),
+    FeeHistory(FeeHistory),
+    GetBlockByNumber(Block),
+    GetLogs(Vec<LogEntry>),
+    GetTransactionCount(TransactionCount),
+    GetTransactionReceipt(Option<TransactionReceipt>),
+    SendRawTransaction(SendRawTransactionResult),
+    JsonRpcRequest(String),
+}
+
+impl From<EvmRpcResponse> for evm_rpc_types::EvmRpcResponse {
+    fn from(response: EvmRpcResponse) -> Self {
+        match response {
+            EvmRpcResponse::Call(data) => Self::Call(evm_rpc_types::Hex::from(data)),
+            EvmRpcResponse::FeeHistory(fee_history) => {
+                Self::FeeHistory(evm_rpc_types::FeeHistory::from(fee_history))
+            }
+            EvmRpcResponse::GetBlockByNumber(block) => {
+                Self::GetBlockByNumber(evm_rpc_types::Block::from(block))
+            }
+            EvmRpcResponse::GetLogs(entries) => Self::GetLogs(
+                entries
+                    .into_iter()
+                    .map(evm_rpc_types::LogEntry::from)
+                    .collect(),
+            ),
+            EvmRpcResponse::GetTransactionCount(count) => {
+                Self::GetTransactionCount(Nat256::from(count))
+            }
+            EvmRpcResponse::GetTransactionReceipt(maybe_receipt) => Self::GetTransactionReceipt(
+                maybe_receipt.map(evm_rpc_types::TransactionReceipt::from),
+            ),
+            EvmRpcResponse::SendRawTransaction(status) => {
+                Self::SendRawTransaction(evm_rpc_types::SendRawTransactionStatus::from(status))
+            }
+            EvmRpcResponse::JsonRpcRequest(result) => Self::JsonRpcRequest(result),
+        }
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct TransactionReceipt {
@@ -68,6 +114,37 @@ pub struct TransactionReceipt {
     /// The type of the transaction (e.g. "0x0" for legacy transactions, "0x2" for EIP-1559 transactions)
     #[serde(rename = "type")]
     pub tx_type: JsonByte,
+}
+
+impl From<TransactionReceipt> for evm_rpc_types::TransactionReceipt {
+    fn from(value: TransactionReceipt) -> Self {
+        Self {
+            block_hash: Hex32::from(value.block_hash.into_bytes()),
+            block_number: value.block_number.into(),
+            effective_gas_price: value.effective_gas_price.into(),
+            gas_used: value.gas_used.into(),
+            cumulative_gas_used: value.cumulative_gas_used.into(),
+            status: value.status.map(|v| match v {
+                TransactionStatus::Success => Nat256::from(1_u8),
+                TransactionStatus::Failure => Nat256::from(0_u8),
+            }),
+            root: value.root.map(Hash::into_bytes).map(Hex32::from),
+            transaction_hash: Hex32::from(value.transaction_hash.into_bytes()),
+            contract_address: value
+                .contract_address
+                .map(|address| Hex20::from(address.into_bytes())),
+            from: Hex20::from(value.from.into_bytes()),
+            logs: value
+                .logs
+                .into_iter()
+                .map(evm_rpc_types::LogEntry::from)
+                .collect(),
+            logs_bloom: Hex256::from(value.logs_bloom.into_bytes()),
+            to: value.to.map(|address| Hex20::from(address.into_bytes())),
+            transaction_index: value.transaction_index.into(),
+            tx_type: HexByte::from(value.tx_type.into_byte()),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq)]
@@ -168,6 +245,26 @@ pub struct LogEntry {
     pub removed: bool,
 }
 
+impl From<LogEntry> for evm_rpc_types::LogEntry {
+    fn from(value: LogEntry) -> Self {
+        Self {
+            address: evm_rpc_types::Hex20::from(value.address.into_bytes()),
+            topics: value
+                .topics
+                .into_iter()
+                .map(|t| t.into_bytes().into())
+                .collect(),
+            data: value.data.0.into(),
+            block_hash: value.block_hash.map(|x| x.into_bytes().into()),
+            block_number: value.block_number.map(Nat256::from),
+            transaction_hash: value.transaction_hash.map(|x| x.into_bytes().into()),
+            transaction_index: value.transaction_index.map(Nat256::from),
+            log_index: value.log_index.map(Nat256::from),
+            removed: value.removed,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Block {
     /// Base fee per gas
@@ -248,6 +345,45 @@ pub struct Block {
     pub uncles: Vec<Hash>,
 }
 
+impl From<Block> for evm_rpc_types::Block {
+    fn from(value: Block) -> Self {
+        Self {
+            base_fee_per_gas: value.base_fee_per_gas.map(Nat256::from),
+            number: value.number.into(),
+            difficulty: value.difficulty.map(Nat256::from),
+            extra_data: Hex::from(value.extra_data.0),
+            gas_limit: value.gas_limit.into(),
+            gas_used: value.gas_used.into(),
+            hash: Hex32::from(value.hash.into_bytes()),
+            logs_bloom: Hex256::from(value.logs_bloom.into_bytes()),
+            miner: evm_rpc_types::Hex20::from(value.miner.into_bytes()),
+            mix_hash: Hex32::from(value.mix_hash.into_bytes()),
+            nonce: value.nonce.into(),
+            parent_hash: Hex32::from(value.parent_hash.into_bytes()),
+            receipts_root: Hex32::from(value.receipts_root.into_bytes()),
+            sha3_uncles: Hex32::from(value.sha3_uncles.into_bytes()),
+            size: value.size.into(),
+            state_root: Hex32::from(value.state_root.into_bytes()),
+            timestamp: value.timestamp.into(),
+            // The field totalDifficulty was removed from the official Ethereum JSON RPC Block schema in
+            // https://github.com/ethereum/execution-apis/pull/570 and as a consequence is inconsistent between different providers.
+            // See https://github.com/internet-computer-protocol/evm-rpc-canister/issues/311.
+            total_difficulty: None,
+            transactions: value
+                .transactions
+                .into_iter()
+                .map(|tx| Hex32::from(tx.into_bytes()))
+                .collect(),
+            transactions_root: value.transactions_root.map(|x| Hex32::from(x.into_bytes())),
+            uncles: value
+                .uncles
+                .into_iter()
+                .map(|tx| Hex32::from(tx.into_bytes()))
+                .collect(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct FeeHistory {
     /// Lowest number block of the returned range.
@@ -269,12 +405,42 @@ pub struct FeeHistory {
     pub reward: Vec<Vec<WeiPerGas>>,
 }
 
+impl From<FeeHistory> for evm_rpc_types::FeeHistory {
+    fn from(value: FeeHistory) -> Self {
+        Self {
+            oldest_block: value.oldest_block.into(),
+            base_fee_per_gas: value
+                .base_fee_per_gas
+                .into_iter()
+                .map(Nat256::from)
+                .collect(),
+            gas_used_ratio: value.gas_used_ratio,
+            reward: value
+                .reward
+                .into_iter()
+                .map(|x| x.into_iter().map(Nat256::from).collect())
+                .collect(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub enum SendRawTransactionResult {
     Ok,
     InsufficientFunds,
     NonceTooLow,
     NonceTooHigh,
+}
+
+impl From<SendRawTransactionResult> for evm_rpc_types::SendRawTransactionStatus {
+    fn from(status: SendRawTransactionResult) -> Self {
+        match status {
+            SendRawTransactionResult::Ok => Self::Ok(None),
+            SendRawTransactionResult::InsufficientFunds => Self::InsufficientFunds,
+            SendRawTransactionResult::NonceTooLow => Self::NonceTooLow,
+            SendRawTransactionResult::NonceTooHigh => Self::NonceTooHigh,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -290,6 +456,18 @@ impl From<Vec<u8>> for Data {
 impl AsRef<[u8]> for Data {
     fn as_ref(&self) -> &[u8] {
         &self.0
+    }
+}
+
+impl From<Hex> for Data {
+    fn from(hex: Hex) -> Self {
+        Self::from(Vec::<u8>::from(hex))
+    }
+}
+
+impl From<Data> for Hex {
+    fn from(data: Data) -> Self {
+        Self::from(data.0)
     }
 }
 

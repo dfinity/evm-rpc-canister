@@ -16,7 +16,9 @@ use evm_rpc::{
     providers::{find_provider, PROVIDERS, SERVICE_PROVIDER_MAP},
     types::{OverrideProvider, Provider, ProviderId, RpcAccess, RpcAuth},
 };
-use evm_rpc_types::{Hex32, HttpOutcallError, MultiRpcResult, RpcConfig, RpcResult, RpcServices};
+use evm_rpc_types::{
+    EvmRpcRequest, Hex32, HttpOutcallError, MultiRpcResult, RpcConfig, RpcResult, RpcServices,
+};
 use ic_cdk::management_canister::{
     HttpRequestArgs as IcHttpRequest, HttpRequestResult as IcHttpResponse, TransformArgs,
 };
@@ -46,7 +48,7 @@ pub async fn eth_get_logs(
         Err(err) => return MultiRpcResult::from(Err(err)),
     };
     match CandidRpcClient::new(source, Some(config), now()) {
-        Ok(source) => source.eth_get_logs(args).await,
+        Ok(source) => source.eth_get_logs(args.into()).await,
         Err(err) => Err(err).into(),
     }
 }
@@ -58,7 +60,7 @@ pub async fn eth_get_logs_cycles_cost(
     args: evm_rpc_types::GetLogsArgs,
 ) -> RpcResult<u128> {
     match CandidRpcClient::new(source, Some(eth_get_logs_rpc_config(config, &args)?), now()) {
-        Ok(source) => source.eth_get_logs_cycles_cost(args).await,
+        Ok(source) => source.cycles_cost(EvmRpcRequest::GetLogs(args)).await,
         Err(err) => Err(err),
     }
 }
@@ -80,7 +82,11 @@ pub async fn eth_get_block_by_number(
     block: evm_rpc_types::BlockTag,
 ) -> MultiRpcResult<evm_rpc_types::Block> {
     match CandidRpcClient::new(source, config, now()) {
-        Ok(source) => source.eth_get_block_by_number(block).await,
+        Ok(source) => {
+            source
+                .eth_get_block_by_number(EvmRpcRequest::GetBlockByNumber(block))
+                .await
+        }
         Err(err) => Err(err).into(),
     }
 }
@@ -92,7 +98,11 @@ pub async fn eth_get_block_by_number_cycles_cost(
     block: evm_rpc_types::BlockTag,
 ) -> RpcResult<u128> {
     match CandidRpcClient::new(source, config, now()) {
-        Ok(source) => source.eth_get_block_by_number_cycles_cost(block).await,
+        Ok(source) => {
+            source
+                .cycles_cost(EvmRpcRequest::GetBlockByNumber(block))
+                .await
+        }
         Err(err) => Err(err),
     }
 }
@@ -104,7 +114,11 @@ pub async fn eth_get_transaction_receipt(
     tx_hash: Hex32,
 ) -> MultiRpcResult<Option<evm_rpc_types::TransactionReceipt>> {
     match CandidRpcClient::new(source, config, now()) {
-        Ok(source) => source.eth_get_transaction_receipt(tx_hash).await,
+        Ok(source) => {
+            source
+                .eth_get_transaction_receipt(EvmRpcRequest::GetTransactionReceipt(tx_hash))
+                .await
+        }
         Err(err) => Err(err).into(),
     }
 }
@@ -118,7 +132,7 @@ pub async fn eth_get_transaction_receipt_cycles_cost(
     match CandidRpcClient::new(source, config, now()) {
         Ok(source) => {
             source
-                .eth_get_transaction_receipt_cycles_cost(tx_hash)
+                .cycles_cost(EvmRpcRequest::GetTransactionReceipt(tx_hash))
                 .await
         }
         Err(err) => Err(err),
@@ -132,7 +146,11 @@ pub async fn eth_get_transaction_count(
     args: evm_rpc_types::GetTransactionCountArgs,
 ) -> MultiRpcResult<evm_rpc_types::Nat256> {
     match CandidRpcClient::new(source, config, now()) {
-        Ok(source) => source.eth_get_transaction_count(args).await,
+        Ok(source) => {
+            source
+                .eth_get_transaction_count(EvmRpcRequest::GetTransactionCount(args))
+                .await
+        }
         Err(err) => Err(err).into(),
     }
 }
@@ -144,7 +162,11 @@ pub async fn eth_get_transaction_count_cycles_cost(
     args: evm_rpc_types::GetTransactionCountArgs,
 ) -> RpcResult<u128> {
     match CandidRpcClient::new(source, config, now()) {
-        Ok(source) => source.eth_get_transaction_count_cycles_cost(args).await,
+        Ok(source) => {
+            source
+                .cycles_cost(EvmRpcRequest::GetTransactionCount(args))
+                .await
+        }
         Err(err) => Err(err),
     }
 }
@@ -156,7 +178,11 @@ pub async fn eth_fee_history(
     args: evm_rpc_types::FeeHistoryArgs,
 ) -> MultiRpcResult<evm_rpc_types::FeeHistory> {
     match CandidRpcClient::new(source, config, now()) {
-        Ok(source) => source.eth_fee_history(args).await,
+        Ok(source) => {
+            source
+                .eth_fee_history(EvmRpcRequest::FeeHistory(args))
+                .await
+        }
         Err(err) => Err(err).into(),
     }
 }
@@ -168,7 +194,7 @@ pub async fn eth_fee_history_cycles_cost(
     args: evm_rpc_types::FeeHistoryArgs,
 ) -> RpcResult<u128> {
     match CandidRpcClient::new(source, config, now()) {
-        Ok(source) => source.eth_fee_history_cycles_cost(args).await,
+        Ok(source) => source.cycles_cost(EvmRpcRequest::FeeHistory(args)).await,
         Err(err) => Err(err),
     }
 }
@@ -182,7 +208,9 @@ pub async fn eth_send_raw_transaction(
     match CandidRpcClient::new(source, config, now()) {
         Ok(source) => {
             source
-                .eth_send_raw_transaction(raw_signed_transaction_hex)
+                .eth_send_raw_transaction(EvmRpcRequest::SendRawTransaction(
+                    raw_signed_transaction_hex,
+                ))
                 .await
         }
         Err(err) => Err(err).into(),
@@ -198,7 +226,9 @@ pub async fn eth_send_raw_transaction_cycles_cost(
     match CandidRpcClient::new(source, config, now()) {
         Ok(source) => {
             source
-                .eth_send_raw_transaction_cycles_cost(raw_signed_transaction_hex)
+                .cycles_cost(EvmRpcRequest::SendRawTransaction(
+                    raw_signed_transaction_hex,
+                ))
                 .await
         }
         Err(err) => Err(err),
@@ -212,7 +242,7 @@ pub async fn eth_call(
     args: evm_rpc_types::CallArgs,
 ) -> MultiRpcResult<evm_rpc_types::Hex> {
     match CandidRpcClient::new(source, config, now()) {
-        Ok(source) => source.eth_call(args).await,
+        Ok(source) => source.eth_call(EvmRpcRequest::Call(args)).await,
         Err(err) => Err(err).into(),
     }
 }
@@ -224,7 +254,7 @@ pub async fn eth_call_cycles_cost(
     args: evm_rpc_types::CallArgs,
 ) -> RpcResult<u128> {
     match CandidRpcClient::new(source, config, now()) {
-        Ok(source) => source.eth_call_cycles_cost(args).await,
+        Ok(source) => source.cycles_cost(EvmRpcRequest::Call(args)).await,
         Err(err) => Err(err),
     }
 }
@@ -236,7 +266,11 @@ pub async fn multi_request(
     args: String,
 ) -> MultiRpcResult<String> {
     match CandidRpcClient::new(source, config, now()) {
-        Ok(source) => source.multi_request(args).await,
+        Ok(source) => {
+            source
+                .multi_request(EvmRpcRequest::JsonRpcRequest(args))
+                .await
+        }
         Err(err) => Err(err).into(),
     }
 }
@@ -248,7 +282,11 @@ pub async fn multi_cycles_cost(
     args: String,
 ) -> RpcResult<u128> {
     match CandidRpcClient::new(source, config, now()) {
-        Ok(source) => source.multi_cycles_cost(args).await,
+        Ok(source) => {
+            source
+                .cycles_cost(EvmRpcRequest::JsonRpcRequest(args))
+                .await
+        }
         Err(err) => Err(err),
     }
 }

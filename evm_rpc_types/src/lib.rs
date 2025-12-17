@@ -20,10 +20,12 @@ use std::str::FromStr;
 pub use canlog::{LogFilter, RegexString, RegexSubstitution};
 pub use lifecycle::{InstallArgs, OverrideProvider};
 pub use request::{
-    AccessList, AccessListEntry, BlockTag, CallArgs, FeeHistoryArgs, GetLogsArgs,
+    AccessList, AccessListEntry, BlockTag, CallArgs, EvmRpcRequest, FeeHistoryArgs, GetLogsArgs,
     GetTransactionCountArgs, TransactionRequest,
 };
-pub use response::{Block, FeeHistory, LogEntry, SendRawTransactionStatus, TransactionReceipt};
+pub use response::{
+    Block, EvmRpcResponse, FeeHistory, LogEntry, SendRawTransactionStatus, TransactionReceipt,
+};
 pub use result::{
     HttpOutcallError, JsonRpcError, LegacyRejectionCode, MultiRpcResult, ProviderError, RpcError,
     RpcResult, ValidationError,
