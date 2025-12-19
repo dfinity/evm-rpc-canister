@@ -3,7 +3,7 @@ use canlog::{log, Log, Sort};
 use evm_rpc::{
     candid_rpc::{validate_get_logs_block_range, CandidRpcClient},
     http::{
-        charging_policy_with_collateral, json_rpc_request, json_rpc_request_arg,
+        charging_policy_with_collateral, json_rpc_request, legacy_json_rpc_request,
         service_request_builder, transform_http_request,
     },
     logs::Priority,
@@ -279,7 +279,7 @@ async fn request_cost(
     if is_demo_active() {
         Ok(0)
     } else {
-        let request = json_rpc_request_arg(service, &json_rpc_payload, max_response_bytes)?;
+        let request = legacy_json_rpc_request(service, &json_rpc_payload, max_response_bytes)?;
 
         async fn extract_request(
             request: IcHttpRequest,
