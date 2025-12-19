@@ -1,8 +1,7 @@
+use crate::http::error::HttpClientError;
 use crate::{
     add_metric_entry,
-    http::{
-        charging_policy_with_collateral, http_client, service_request_builder, HttpClientError,
-    },
+    http::{charging_policy_with_collateral, http_client, service_request_builder},
     memory::{get_override_provider, rank_providers, record_ok_result},
     providers::{resolve_rpc_service, SupportedRpcService},
     rpc_client::{
