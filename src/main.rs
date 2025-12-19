@@ -3,8 +3,8 @@ use canlog::{log, Log, Sort};
 use evm_rpc::{
     candid_rpc::{validate_get_logs_block_range, CandidRpcClient},
     http::{
-        charging_policy_with_collateral, json_rpc_request, legacy_json_rpc_request,
-        service_request_builder, transform_http_request,
+        charging_policy_with_collateral, http_client, legacy, service_request_builder,
+        transform_http_request,
     },
     logs::Priority,
     memory::{
@@ -259,7 +259,13 @@ async fn request(
     json_rpc_payload: String,
     max_response_bytes: u64,
 ) -> RpcResult<String> {
-    let response = json_rpc_request(service, &json_rpc_payload, max_response_bytes).await?;
+    let response = http_client::<serde_json::Value, serde_json::Value>(false)
+        .call(legacy::json_rpc_request(
+            service,
+            &json_rpc_payload,
+            max_response_bytes,
+        )?)
+        .await?;
     serde_json::to_string(response.body()).map_err(|e| {
         HttpOutcallError::InvalidHttpJsonRpcResponse {
             status: response.status().as_u16(),
@@ -279,7 +285,7 @@ async fn request_cost(
     if is_demo_active() {
         Ok(0)
     } else {
-        let request = legacy_json_rpc_request(service, &json_rpc_payload, max_response_bytes)?;
+        let request = legacy::json_rpc_request(service, &json_rpc_payload, max_response_bytes)?;
 
         async fn extract_request(
             request: IcHttpRequest,
