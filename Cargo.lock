@@ -1654,6 +1654,7 @@ dependencies = [
  "ethnum",
  "evm_rpc_client",
  "evm_rpc_types",
+ "getrandom 0.2.16",
  "hex",
  "http",
  "ic-canister-runtime",
