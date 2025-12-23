@@ -8,8 +8,8 @@ use canhttp::{
     cycles::{ChargeCaller, CyclesAccounting},
     http::{
         json::{
-            CreateJsonRpcIdFilter, HttpJsonRpcRequest, HttpJsonRpcResponse, JsonRequestConverter,
-            JsonResponseConverter,
+            CreateJsonRpcIdFilter, HttpBatchJsonRpcRequest, HttpJsonRpcRequest,
+            JsonRequestConverter, JsonResponseConverter, JsonRpcCall, JsonRpcRequest,
         },
         FilterNonSuccessfulHttpResponse, HttpRequestConverter, HttpResponseConverter,
     },
@@ -19,15 +19,12 @@ use canhttp::{
 };
 use error::HttpClientError;
 use evm_rpc_types::RpcError;
-use http::{header::CONTENT_TYPE, HeaderValue};
+use http::{header::CONTENT_TYPE, HeaderValue, Request as HttpRequest, Response as HttpResponse};
 use ic_cdk::management_canister::{
     HttpRequestArgs as IcHttpRequest, HttpRequestResult as IcHttpResponse, TransformArgs,
 };
-use observability::{
-    observe_http_client_error, observe_http_json_rpc_request, observe_http_json_rpc_response,
-};
+use observability::ObserveHttpCall;
 use serde::{de::DeserializeOwned, Serialize};
-use std::fmt::Debug;
 use tower::{
     layer::util::{Identity, Stack},
     retry::RetryLayer,
@@ -40,12 +37,15 @@ pub mod error;
 pub mod legacy;
 mod observability;
 
-pub fn http_client<I, O>(
+pub fn client<Request, Response>(
     retry: bool,
-) -> impl Service<HttpJsonRpcRequest<I>, Response = HttpJsonRpcResponse<O>, Error = RpcError>
+) -> impl Service<HttpRequest<Request>, Response = HttpResponse<Response>, Error = RpcError>
 where
-    I: Serialize + Clone + Debug,
-    O: DeserializeOwned + Debug,
+    HttpRequest<Request>: GenerateRequestId,
+    (Request, Response): JsonRpcCall<Request, Response>,
+    (Request, Response): ObserveHttpCall<Request, Response>,
+    Request: Serialize + Clone,
+    Response: DeserializeOwned,
 {
     let maybe_retry = if retry {
         Some(RetryLayer::new(DoubleMaxResponseBytes))
@@ -53,7 +53,9 @@ where
         None
     };
     let maybe_unique_id = if retry {
-        Some(MapRequestLayer::new(generate_request_id))
+        Some(MapRequestLayer::new(|request: HttpRequest<Request>| {
+            request.generate_request_id()
+        }))
     } else {
         None
     };
@@ -63,9 +65,9 @@ where
         .option_layer(maybe_unique_id)
         .layer(
             ObservabilityLayer::new()
-                .on_request(observe_http_json_rpc_request)
-                .on_response(observe_http_json_rpc_response)
-                .on_error(observe_http_client_error),
+                .on_request(<(Request, Response)>::observe_request)
+                .on_response(<(Request, Response)>::observe_response)
+                .on_error(<(Request, Response)>::observe_error),
         )
         .filter_response(CreateJsonRpcIdFilter::new())
         .layer(service_request_builder())
@@ -76,10 +78,31 @@ where
         .service(canhttp::Client::new_with_error::<HttpClientError>())
 }
 
-fn generate_request_id<I>(request: HttpJsonRpcRequest<I>) -> HttpJsonRpcRequest<I> {
-    let (parts, mut body) = request.into_parts();
-    body.set_id(next_request_id());
-    http::Request::from_parts(parts, body)
+pub trait GenerateRequestId: Sized {
+    fn generate_request_id(self) -> Self;
+}
+
+impl<I> GenerateRequestId for HttpBatchJsonRpcRequest<I> {
+    fn generate_request_id(self) -> Self {
+        self.map(|requests| {
+            requests
+                .into_iter()
+                .map(|mut request: JsonRpcRequest<I>| {
+                    request.set_id(next_request_id());
+                    request
+                })
+                .collect()
+        })
+    }
+}
+
+impl<I> GenerateRequestId for HttpJsonRpcRequest<I> {
+    fn generate_request_id(self) -> Self {
+        self.map(|mut request: JsonRpcRequest<I>| {
+            request.set_id(next_request_id());
+            request
+        })
+    }
 }
 
 type JsonRpcServiceBuilder<I> = ServiceBuilder<
@@ -95,13 +118,13 @@ type JsonRpcServiceBuilder<I> = ServiceBuilder<
 /// Middleware that takes care of transforming the request.
 ///
 /// It's required to separate it from the other middlewares, to compute the exact request cost.
-pub fn service_request_builder<I>() -> JsonRpcServiceBuilder<I> {
+pub fn service_request_builder<Request>() -> JsonRpcServiceBuilder<Request> {
     ServiceBuilder::new()
         .insert_request_header_if_not_present(
             CONTENT_TYPE,
             HeaderValue::from_static(CONTENT_TYPE_VALUE),
         )
-        .convert_request(JsonRequestConverter::<I>::new())
+        .convert_request(JsonRequestConverter::<Request>::new())
         .convert_request(HttpRequestConverter)
 }
 

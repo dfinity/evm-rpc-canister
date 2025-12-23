@@ -8,7 +8,7 @@ use canhttp::{
     http::{
         json::{
             ConsistentResponseIdFilterError, HttpJsonRpcRequest, HttpJsonRpcResponse, Id,
-            JsonResponseConversionError,
+            JsonResponseConversionError, JsonRpcRequest, JsonRpcResponse,
         },
         FilterNonSuccessfulHttpResponseError,
     },
@@ -16,8 +16,38 @@ use canhttp::{
 };
 use canlog::log;
 use evm_rpc_types::{LegacyRejectionCode, RpcService};
+use http::{Request as HttpRequest, Response as HttpResponse};
 use ic_error_types::RejectCode;
 use std::fmt::Debug;
+
+pub trait ObserveHttpCall<Request, Response> {
+    type RequestData;
+
+    fn observe_request(request: &HttpRequest<Request>) -> Self::RequestData;
+    fn observe_response(request_data: Self::RequestData, response: &HttpResponse<Response>);
+    fn observe_error(request_data: Self::RequestData, error: &HttpClientError);
+}
+
+impl<I, O> ObserveHttpCall<JsonRpcRequest<I>, JsonRpcResponse<O>>
+    for (JsonRpcRequest<I>, JsonRpcResponse<O>)
+where
+    I: Debug,
+    O: Debug,
+{
+    type RequestData = MetricData;
+
+    fn observe_request(request: &HttpJsonRpcRequest<I>) -> Self::RequestData {
+        observe_http_json_rpc_request(request)
+    }
+
+    fn observe_response(request_data: Self::RequestData, response: &HttpJsonRpcResponse<O>) {
+        observe_http_json_rpc_response(request_data, response)
+    }
+
+    fn observe_error(request_data: Self::RequestData, response: &HttpClientError) {
+        observe_http_client_error(request_data, response)
+    }
+}
 
 pub fn observe_http_json_rpc_request<I: Debug>(req: &HttpJsonRpcRequest<I>) -> MetricData {
     let req_data = from_request(req);
@@ -135,6 +165,15 @@ pub fn observe_http_client_error(req_data: MetricData, error: &HttpClientError) 
             );
             add_status_code_metric(req_data.method, req_data.service, *status);
         }
+        HttpClientError::InvalidJsonResponseId(
+            ConsistentResponseIdFilterError::InconsistentBatchIds {
+                status: _,
+                request_ids: _,
+                response_ids: _,
+            },
+        ) => {
+            todo!()
+        }
         HttpClientError::NotHandledError(e) => {
             log!(Priority::Info, "BUG: Unexpected error: {}", e);
         }
@@ -143,8 +182,8 @@ pub fn observe_http_client_error(req_data: MetricData, error: &HttpClientError) 
 }
 
 pub struct MetricData {
-    method: MetricRpcMethod,
     service: MetricRpcService,
+    method: MetricRpcMethod,
     request_id: Id,
 }
 

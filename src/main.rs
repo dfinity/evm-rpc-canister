@@ -1,9 +1,9 @@
-use canhttp::{cycles::CyclesChargingPolicy, multi::Timestamp};
+use canhttp::{cycles::CyclesChargingPolicy, http::json::HttpJsonRpcResponse, multi::Timestamp};
 use canlog::{log, Log, Sort};
 use evm_rpc::{
     candid_rpc::{validate_get_logs_block_range, CandidRpcClient},
     http::{
-        charging_policy_with_collateral, http_client, legacy, service_request_builder,
+        charging_policy_with_collateral, client, legacy, service_request_builder,
         transform_http_request,
     },
     logs::Priority,
@@ -259,7 +259,7 @@ async fn request(
     json_rpc_payload: String,
     max_response_bytes: u64,
 ) -> RpcResult<String> {
-    let response = http_client::<serde_json::Value, serde_json::Value>(false)
+    let response: HttpJsonRpcResponse<serde_json::Value> = client(false)
         .call(legacy::json_rpc_request(
             service,
             &json_rpc_payload,
