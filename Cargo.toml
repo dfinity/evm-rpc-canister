@@ -23,6 +23,7 @@ canhttp = { workspace = true }
 derive_more = { workspace = true }
 ethnum = { workspace = true }
 evm_rpc_types = { path = "evm_rpc_types" }
+getrandom = { workspace = true }
 http = { workspace = true }
 ic-ethereum-types = { workspace = true }
 ic-error-types = { workspace = true }
