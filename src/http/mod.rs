@@ -3,25 +3,21 @@ use crate::{
     memory::{get_num_subnet_nodes, is_demo_active, next_request_id},
     util::canonicalize_json,
 };
-use canhttp::cycles::ChargeCallerError;
-use canhttp::http::json::{
-    ConsistentResponseIdFilterError, CreateJsonRpcIdFilter, HttpBatchJsonRpcRequest,
-    JsonRequestConversionError, JsonResponseConversionError, JsonRpcRequest,
-};
-use canhttp::http::{
-    FilterNonSuccessfulHttpResponseError, HttpRequestConversionError, HttpResponseConversionError,
-};
-use canhttp::observability::ObservabilityLayer;
 use canhttp::{
     convert::ConvertRequestLayer,
     cycles::{ChargeCaller, CyclesAccounting},
     http::{
-        json::{HttpJsonRpcRequest, JsonRequestConverter, JsonResponseConverter, JsonRpcCall},
+        json::{
+            CreateJsonRpcIdFilter, HttpBatchJsonRpcRequest, HttpJsonRpcRequest,
+            JsonRequestConverter, JsonResponseConverter, JsonRpcCall, JsonRpcRequest,
+        },
         FilterNonSuccessfulHttpResponse, HttpRequestConverter, HttpResponseConverter,
     },
+    observability::ObservabilityLayer,
     retry::DoubleMaxResponseBytes,
-    ConvertServiceBuilder, HttpsOutcallError, IcError,
+    ConvertServiceBuilder,
 };
+use error::HttpClientError;
 use evm_rpc_types::RpcError;
 use http::{header::CONTENT_TYPE, HeaderValue, Request as HttpRequest, Response as HttpResponse};
 use ic_cdk::management_canister::{
@@ -41,25 +37,15 @@ pub mod error;
 pub mod legacy;
 mod observability;
 
-pub fn client<Request, Response, Error>(
+pub fn client<Request, Response>(
     retry: bool,
 ) -> impl Service<HttpRequest<Request>, Response = HttpResponse<Response>, Error = RpcError>
 where
     HttpRequest<Request>: GenerateRequestId,
     (Request, Response): JsonRpcCall<Request, Response>,
-    (Request, Response, Error): ObserveHttpCall<Request, Response, Error>,
+    (Request, Response): ObserveHttpCall<Request, Response>,
     Request: Serialize + Clone,
     Response: DeserializeOwned,
-    RpcError: From<Error>,
-    Error: From<IcError>
-        + From<JsonRequestConversionError>
-        + From<HttpRequestConversionError>
-        + From<ChargeCallerError>
-        + From<HttpResponseConversionError>
-        + From<FilterNonSuccessfulHttpResponseError<Vec<u8>>>
-        + From<JsonResponseConversionError>
-        + From<ConsistentResponseIdFilterError>
-        + HttpsOutcallError,
 {
     let maybe_retry = if retry {
         Some(RetryLayer::new(DoubleMaxResponseBytes))
@@ -74,14 +60,14 @@ where
         None
     };
     ServiceBuilder::new()
-        .map_err(|e: Error| RpcError::from(e))
+        .map_err(|e: HttpClientError| RpcError::from(e))
         .option_layer(maybe_retry)
         .option_layer(maybe_unique_id)
         .layer(
             ObservabilityLayer::new()
-                .on_request(<(Request, Response, Error)>::observe_request)
-                .on_response(<(Request, Response, Error)>::observe_response)
-                .on_error(<(Request, Response, Error)>::observe_error),
+                .on_request(<(Request, Response)>::observe_request)
+                .on_response(<(Request, Response)>::observe_response)
+                .on_error(<(Request, Response)>::observe_error),
         )
         .filter_response(CreateJsonRpcIdFilter::new())
         .layer(service_request_builder())
@@ -89,7 +75,7 @@ where
         .convert_response(FilterNonSuccessfulHttpResponse)
         .convert_response(HttpResponseConverter)
         .convert_request(CyclesAccounting::new(charging_policy_with_collateral()))
-        .service(canhttp::Client::new_with_error::<Error>())
+        .service(canhttp::Client::new_with_error::<HttpClientError>())
 }
 
 pub trait GenerateRequestId: Sized {
