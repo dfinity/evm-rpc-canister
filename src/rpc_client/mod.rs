@@ -1,8 +1,7 @@
 use crate::{
     add_metric_entry,
     http::{
-        charging_policy_with_collateral, error::HttpClientError, http_client,
-        service_request_builder,
+        charging_policy_with_collateral, client, error::HttpClientError, service_request_builder,
     },
     memory::{get_override_provider, rank_providers, record_ok_result},
     providers::{resolve_rpc_service, SupportedRpcService},
@@ -465,7 +464,7 @@ impl<Params, Output> MultiRpcRequest<Params, Output> {
     {
         let requests = self.create_json_rpc_requests();
 
-        let client = http_client(true).map_result(extract_json_rpc_response);
+        let client = client(true).map_result(extract_json_rpc_response);
 
         let (requests, errors) = requests.into_inner();
         let (_client, mut results) = canhttp::multi::parallel_call(client, requests).await;
