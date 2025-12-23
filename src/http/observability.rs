@@ -20,16 +20,16 @@ use http::{Request as HttpRequest, Response as HttpResponse};
 use ic_error_types::RejectCode;
 use std::fmt::Debug;
 
-pub trait ObserveHttpCall<Request, Response, Error> {
+pub trait ObserveHttpCall<Request, Response> {
     type RequestData;
 
     fn observe_request(request: &HttpRequest<Request>) -> Self::RequestData;
     fn observe_response(request_data: Self::RequestData, response: &HttpResponse<Response>);
-    fn observe_error(request_data: Self::RequestData, error: &Error);
+    fn observe_error(request_data: Self::RequestData, error: &HttpClientError);
 }
 
-impl<I, O> ObserveHttpCall<JsonRpcRequest<I>, JsonRpcResponse<O>, HttpClientError>
-    for (JsonRpcRequest<I>, JsonRpcResponse<O>, HttpClientError)
+impl<I, O> ObserveHttpCall<JsonRpcRequest<I>, JsonRpcResponse<O>>
+    for (JsonRpcRequest<I>, JsonRpcResponse<O>)
 where
     I: Debug,
     O: Debug,
