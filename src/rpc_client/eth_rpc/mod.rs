@@ -83,16 +83,16 @@ impl ResponseTransform {
         }
 
         match self {
-            Self::Call => {}
             Self::GetBlockByNumber => canonicalize_response::<Block>(body_bytes),
             Self::GetLogs => canonicalize_collection_response::<LogEntry>(body_bytes),
-            Self::GetTransactionCount => {}
             Self::GetTransactionReceipt => canonicalize_response::<TransactionReceipt>(body_bytes),
             Self::FeeHistory => canonicalize_response::<FeeHistory>(body_bytes),
             Self::SendRawTransaction => {
                 sanitize_send_raw_transaction_result(body_bytes, Parser::new())
             }
-            Self::Raw => canonicalize_response::<serde_json::Value>(body_bytes),
+            Self::Call | Self::GetTransactionCount | Self::Raw => {
+                canonicalize_response::<serde_json::Value>(body_bytes)
+            }
         }
     }
 }
