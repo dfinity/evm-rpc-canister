@@ -1,12 +1,13 @@
 use super::*;
 
-fn check_response_normalization(transform: &ResponseTransform, left: &str, right: &str) {
+fn check_response_normalization(transform: ResponseTransformEnvelope, left: &str, right: &str) {
     fn add_envelope(reply: &str) -> Vec<u8> {
         format!("{{\"jsonrpc\": \"2.0\", \"id\": 1, \"result\": {}}}", reply).into_bytes()
     }
 
     let mut left = add_envelope(left);
     let mut right = add_envelope(right);
+
     transform.apply(&mut left);
     transform.apply(&mut right);
     let left_string = String::from_utf8(left).unwrap();
@@ -17,7 +18,7 @@ fn check_response_normalization(transform: &ResponseTransform, left: &str, right
 #[test]
 fn fee_history_normalization() {
     check_response_normalization(
-        &ResponseTransform::FeeHistory,
+        ResponseTransformEnvelope::Single(ResponseTransform::FeeHistory),
         r#"{
         "baseFeePerGas": [
             "0x729d3f3b3",
@@ -114,7 +115,7 @@ fn fee_history_normalization() {
 #[test]
 fn block_normalization() {
     check_response_normalization(
-        &ResponseTransform::GetBlockByNumber,
+        ResponseTransformEnvelope::Single(ResponseTransform::GetBlockByNumber),
         r#"{
         "number": "0x10eb3c6",
         "hash": "0x85db6d6ad071d127795df4c5f1b04863629d7c2832c89550aa2771bf81c40c85",
@@ -189,7 +190,7 @@ fn block_normalization() {
 #[test]
 fn eth_get_logs_normalization() {
     check_response_normalization(
-        &ResponseTransform::GetLogs,
+        ResponseTransformEnvelope::Single(ResponseTransform::GetLogs),
         r#"[
         {
             "removed": false,
@@ -363,7 +364,7 @@ fn eth_get_logs_order_normalization() {
     };
 
     check_response_normalization(
-        &ResponseTransform::GetLogs,
+        ResponseTransformEnvelope::Single(ResponseTransform::GetLogs),
         &serde_json::to_string(&original_logs).unwrap(),
         &serde_json::to_string(&suffled_logs).unwrap(),
     )
@@ -372,7 +373,7 @@ fn eth_get_logs_order_normalization() {
 #[test]
 fn transaction_receipt_normalization() {
     check_response_normalization(
-        &ResponseTransform::GetTransactionReceipt,
+        ResponseTransformEnvelope::Single(ResponseTransform::GetTransactionReceipt),
         r#"{
         "type": "0x2",
         "blockHash": "0x82005d2f17b251900968f01b0ed482cb49b7e1d797342bc504904d442b64dbe4",
