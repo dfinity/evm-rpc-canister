@@ -1,16 +1,21 @@
 //! This module contains definitions for communicating witEthereum API using the [JSON RPC](https://ethereum.org/en/developers/docs/apis/json-rpc/)
 //! interface.
 
-use crate::rpc_client::{
-    eth_rpc_error::{sanitize_send_raw_transaction_result, Parser},
-    json::responses::{Block, FeeHistory, LogEntry, TransactionReceipt},
+use crate::{
+    logs::Priority,
+    rpc_client::{
+        eth_rpc_error::{sanitize_send_raw_transaction_result, Parser},
+        json::responses::{Block, FeeHistory, LogEntry, TransactionReceipt},
+    },
 };
 use canhttp::http::json::JsonRpcResponse;
+use canlog::log;
+use derive_more::From;
 use ic_cdk::query;
 use ic_management_canister_types::{HttpRequestResult, TransformArgs};
 use minicbor::{Decode, Encode};
-use serde::{de::DeserializeOwned, Serialize};
-use std::{fmt, fmt::Debug};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use std::{collections::BTreeMap, fmt, fmt::Debug};
 
 #[cfg(test)]
 mod tests;
@@ -27,6 +32,51 @@ pub const HEADER_SIZE_LIMIT: u64 = 2 * 1024;
 const HTTP_MAX_SIZE: u64 = 2_000_000;
 
 pub const MAX_PAYLOAD_SIZE: u64 = HTTP_MAX_SIZE - HEADER_SIZE_LIMIT;
+
+impl ResponseTransformEnvelope {
+    fn apply(&self, body: &mut Vec<u8>) {
+        match self {
+            ResponseTransformEnvelope::Single(transform) => {
+                if let Ok(response) =
+                    serde_json::from_slice::<JsonRpcResponse<serde_json::Value>>(body)
+                {
+                    let response = transform.apply(response);
+                    *body = serde_json::to_string(&response)
+                        .expect("BUG: failed to serialize response")
+                        .into_bytes();
+                }
+            }
+            ResponseTransformEnvelope::Batch(transforms) => {
+                if let Ok(responses) =
+                    serde_json::from_slice::<Vec<JsonRpcResponse<serde_json::Value>>>(body)
+                {
+                    let mut responses: Vec<_> = responses
+                        .into_iter()
+                        .map(
+                            |response| match transforms.get(&response.id().to_string()) {
+                                Some(transform) => transform.apply(response),
+                                None => response,
+                            },
+                        )
+                        .collect();
+                    responses.sort_by_key(|response| response.id().to_string());
+
+                    *body = serde_json::to_string(&responses)
+                        .expect("BUG: failed to serialize response")
+                        .into_bytes();
+                }
+            }
+        }
+    }
+}
+
+#[derive(Debug, Decode, Encode, From)]
+pub enum ResponseTransformEnvelope {
+    #[n(0)]
+    Single(#[n(0)] ResponseTransform),
+    #[n(1)]
+    Batch(#[n(0)] BTreeMap<String, ResponseTransform>),
+}
 
 /// Describes a payload transformation to execute before passing the HTTP response to consensus.
 /// The purpose of these transformations is to ensure that the response encoding is deterministic
@@ -52,46 +102,48 @@ pub enum ResponseTransform {
 }
 
 impl ResponseTransform {
-    fn apply(&self, body_bytes: &mut Vec<u8>) {
-        fn canonicalize_response<T>(body: &mut Vec<u8>)
+    fn apply(
+        &self,
+        response: JsonRpcResponse<serde_json::Value>,
+    ) -> JsonRpcResponse<serde_json::Value> {
+        fn canonicalize_response<T>(response: serde_json::Value) -> serde_json::Value
         where
             T: Serialize + DeserializeOwned,
         {
-            if let Ok(response) = serde_json::from_slice::<JsonRpcResponse<T>>(body) {
-                *body = serde_json::to_string(&response)
-                    .expect("BUG: failed to serialize response")
-                    .into_bytes();
-            }
-        }
-
-        fn canonicalize_collection_response<T>(body: &mut Vec<u8>)
-        where
-            T: Serialize + DeserializeOwned,
-        {
-            let mut response: JsonRpcResponse<Vec<T>> = match serde_json::from_slice(body) {
+            let response = match T::deserialize(&response) {
                 Ok(response) => response,
-                Err(_) => return,
+                Err(_) => return response,
             };
 
-            if let Ok(result) = response.as_result_mut() {
-                sort_by_hash(result);
-            }
+            serde_json::to_value(&response).expect("BUG: failed to serialize response")
+        }
 
-            *body = serde_json::to_string(&response)
-                .expect("BUG: failed to serialize response")
-                .into_bytes();
+        fn canonicalize_collection_response<T>(response: serde_json::Value) -> serde_json::Value
+        where
+            T: Serialize + DeserializeOwned,
+        {
+            let mut response = match Vec::<T>::deserialize(&response) {
+                Ok(response) => response,
+                Err(_) => return response,
+            };
+
+            sort_by_hash(&mut response);
+
+            serde_json::to_value(&response).expect("BUG: failed to serialize response")
         }
 
         match self {
-            Self::GetBlockByNumber => canonicalize_response::<Block>(body_bytes),
-            Self::GetLogs => canonicalize_collection_response::<LogEntry>(body_bytes),
-            Self::GetTransactionReceipt => canonicalize_response::<TransactionReceipt>(body_bytes),
-            Self::FeeHistory => canonicalize_response::<FeeHistory>(body_bytes),
-            Self::SendRawTransaction => {
-                sanitize_send_raw_transaction_result(body_bytes, Parser::new())
+            Self::GetBlockByNumber => response.map(canonicalize_response::<Block>),
+            Self::GetLogs => response.map(canonicalize_collection_response::<LogEntry>),
+            Self::GetTransactionReceipt => {
+                response.map(canonicalize_response::<TransactionReceipt>)
+            }
+            Self::FeeHistory => response.map(canonicalize_response::<FeeHistory>),
+            ResponseTransform::SendRawTransaction => {
+                sanitize_send_raw_transaction_result(response, Parser::new())
             }
             Self::Call | Self::GetTransactionCount | Self::Raw => {
-                canonicalize_response::<serde_json::Value>(body_bytes)
+                response.map(canonicalize_response::<serde_json::Value>)
             }
         }
     }
@@ -103,9 +155,16 @@ fn cleanup_response(args: TransformArgs) -> HttpRequestResult {
     args.response.headers.clear();
     let status_ok = args.response.status >= 200u16 && args.response.status < 300u16;
     if status_ok && !args.context.is_empty() {
-        let maybe_transform: Result<ResponseTransform, _> = minicbor::decode(&args.context[..]);
-        if let Ok(transform) = maybe_transform {
-            transform.apply(&mut args.response.body);
+        match minicbor::decode::<ResponseTransformEnvelope>(&args.context[..]) {
+            Ok(transform) => {
+                transform.apply(&mut args.response.body);
+            }
+            Err(e) => {
+                log!(
+                    Priority::Info,
+                    "Failed to decode context for response transformation: {e:?}"
+                );
+            }
         }
     }
     args.response
