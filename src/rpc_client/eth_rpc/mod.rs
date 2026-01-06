@@ -4,7 +4,6 @@
 use crate::rpc_client::{
     eth_rpc_error::{sanitize_send_raw_transaction_result, Parser},
     json::responses::{Block, FeeHistory, LogEntry, TransactionReceipt},
-    numeric::{TransactionCount, Wei},
 };
 use canhttp::http::json::JsonRpcResponse;
 use ic_cdk::query;
@@ -35,35 +34,37 @@ pub const MAX_PAYLOAD_SIZE: u64 = HTTP_MAX_SIZE - HEADER_SIZE_LIMIT;
 #[derive(Debug, Decode, Encode)]
 pub enum ResponseTransform {
     #[n(0)]
-    Block,
+    Call,
     #[n(1)]
-    LogEntries,
-    #[n(2)]
-    TransactionReceipt,
-    #[n(3)]
     FeeHistory,
+    #[n(2)]
+    GetBlockByNumber,
+    #[n(3)]
+    GetLogs,
     #[n(4)]
-    SendRawTransaction,
+    GetTransactionCount,
     #[n(5)]
+    GetTransactionReceipt,
+    #[n(6)]
+    SendRawTransaction,
+    #[n(7)]
     Raw,
 }
 
 impl ResponseTransform {
     fn apply(&self, body_bytes: &mut Vec<u8>) {
-        fn redact_response<T>(body: &mut Vec<u8>)
+        fn canonicalize_response<T>(body: &mut Vec<u8>)
         where
             T: Serialize + DeserializeOwned,
         {
-            let response: JsonRpcResponse<T> = match serde_json::from_slice(body) {
-                Ok(response) => response,
-                Err(_) => return,
-            };
-            *body = serde_json::to_string(&response)
-                .expect("BUG: failed to serialize response")
-                .into_bytes();
+            if let Ok(response) = serde_json::from_slice::<JsonRpcResponse<T>>(body) {
+                *body = serde_json::to_string(&response)
+                    .expect("BUG: failed to serialize response")
+                    .into_bytes();
+            }
         }
 
-        fn redact_collection_response<T>(body: &mut Vec<u8>)
+        fn canonicalize_collection_response<T>(body: &mut Vec<u8>)
         where
             T: Serialize + DeserializeOwned,
         {
@@ -82,14 +83,16 @@ impl ResponseTransform {
         }
 
         match self {
-            Self::Block => redact_response::<Block>(body_bytes),
-            Self::LogEntries => redact_collection_response::<LogEntry>(body_bytes),
-            Self::TransactionReceipt => redact_response::<TransactionReceipt>(body_bytes),
-            Self::FeeHistory => redact_response::<FeeHistory>(body_bytes),
+            Self::GetBlockByNumber => canonicalize_response::<Block>(body_bytes),
+            Self::GetLogs => canonicalize_collection_response::<LogEntry>(body_bytes),
+            Self::GetTransactionReceipt => canonicalize_response::<TransactionReceipt>(body_bytes),
+            Self::FeeHistory => canonicalize_response::<FeeHistory>(body_bytes),
             Self::SendRawTransaction => {
                 sanitize_send_raw_transaction_result(body_bytes, Parser::new())
             }
-            Self::Raw => redact_response::<serde_json::Value>(body_bytes),
+            Self::Call | Self::GetTransactionCount | Self::Raw => {
+                canonicalize_response::<serde_json::Value>(body_bytes)
+            }
         }
     }
 }
@@ -130,18 +133,6 @@ impl fmt::Display for ResponseSizeEstimate {
         write!(f, "{}", self.0)
     }
 }
-
-pub trait HttpResponsePayload {
-    fn response_transform() -> Option<ResponseTransform> {
-        None
-    }
-}
-
-impl<T: HttpResponsePayload> HttpResponsePayload for Option<T> {}
-
-impl HttpResponsePayload for TransactionCount {}
-
-impl HttpResponsePayload for Wei {}
 
 fn sort_by_hash<T: Serialize + DeserializeOwned>(to_sort: &mut [T]) {
     fn hash(input: &[u8]) -> [u8; 32] {
