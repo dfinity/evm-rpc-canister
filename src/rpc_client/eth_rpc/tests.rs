@@ -1,25 +1,61 @@
-use super::*;
+use super::{LogEntry, ResponseTransform, ResponseTransformEnvelope};
+use maplit::btreemap;
 
 fn check_response_normalization(transform: ResponseTransformEnvelope, left: &str, right: &str) {
-    fn add_envelope(reply: &str) -> Vec<u8> {
-        format!("{{\"jsonrpc\": \"2.0\", \"id\": 1, \"result\": {}}}", reply).into_bytes()
-    }
-
-    let mut left = add_envelope(left);
-    let mut right = add_envelope(right);
+    let mut left = left.to_string().into_bytes();
+    let mut right = right.to_string().into_bytes();
 
     transform.apply(&mut left);
     transform.apply(&mut right);
+
     let left_string = String::from_utf8(left).unwrap();
     let right_string = String::from_utf8(right).unwrap();
+
     assert_eq!(left_string, right_string);
 }
 
-#[test]
-fn fee_history_normalization() {
-    check_response_normalization(
-        ResponseTransformEnvelope::Single(ResponseTransform::FeeHistory),
-        r#"{
+mod batch_json_rpc_response_tests {
+    use super::*;
+
+    #[test]
+    fn should_normalize_batch_response() {
+        check_response_normalization(
+            ResponseTransformEnvelope::Batch(btreemap! {
+                "1".to_string() => ResponseTransform::Raw,
+                "2".to_string() => ResponseTransform::Call,
+                "3".to_string() => ResponseTransform::SendRawTransaction,
+            }),
+            r#"[
+                {"result": "0x00000000000000000000000000000000000000000000000000000000000003e8", "id": 2, "jsonrpc": "2.0"},
+                {"result": "0x5f2b4c3a6d8e9f0a1b2c3d4e5f67890abcdef1234567890abcdef1234567890a", "id": 3, "jsonrpc": "2.0"},
+                {"result": "0x1", "id": 1, "jsonrpc": "2.0"}
+            ]"#,
+            r#"[
+                {"jsonrpc": "2.0", "id": 1, "result": "0x1"},
+                {"jsonrpc": "2.0", "id": 3, "result": "Ok"},
+                {"jsonrpc": "2.0", "id": 2, "result": "0x00000000000000000000000000000000000000000000000000000000000003e8"}
+            ]"#,
+        )
+    }
+}
+
+mod single_json_rpc_response_tests {
+    use super::*;
+
+    #[test]
+    fn should_normalize_eth_call_response() {
+        check_single_response_normalization(
+            ResponseTransform::Call,
+            r#""0x00000000000000000000000000000000000000000000000000000000000003e8""#,
+            r#"     "0x00000000000000000000000000000000000000000000000000000000000003e8"   "#,
+        );
+    }
+
+    #[test]
+    fn should_normalize_eth_fee_history_response() {
+        check_single_response_normalization(
+            ResponseTransform::FeeHistory,
+            r#"{
         "baseFeePerGas": [
             "0x729d3f3b3",
             "0x766e503ea",
@@ -64,7 +100,7 @@ fn fee_history_normalization() {
             ]
         ]
     }"#,
-        r#"{
+            r#"{
         "gasUsedRatio": [
             0.6332004,
             0.47556506666666665,
@@ -109,14 +145,14 @@ fn fee_history_normalization() {
         ],
         "oldestBlock": "0x10f73fc"
     }"#,
-    )
-}
+        )
+    }
 
-#[test]
-fn block_normalization() {
-    check_response_normalization(
-        ResponseTransformEnvelope::Single(ResponseTransform::GetBlockByNumber),
-        r#"{
+    #[test]
+    fn should_normalize_eth_get_block_by_number_response() {
+        check_single_response_normalization(
+            ResponseTransform::GetBlockByNumber,
+            r#"{
         "number": "0x10eb3c6",
         "hash": "0x85db6d6ad071d127795df4c5f1b04863629d7c2832c89550aa2771bf81c40c85",
         "transactions": [
@@ -150,7 +186,7 @@ fn block_normalization() {
             }
         ]
     }"#,
-        r#"{
+            r#"{
         "hash": "0x85db6d6ad071d127795df4c5f1b04863629d7c2832c89550aa2771bf81c40c85",
         "number": "0x10eb3c6",
         "transactions": [
@@ -184,14 +220,14 @@ fn block_normalization() {
         ],
         "withdrawalsRoot": "0xedaa8043cdce8101ef827863eb0d808277d200a7a0ee77961934bd235dcb82c6"
     }"#,
-    )
-}
+        )
+    }
 
-#[test]
-fn eth_get_logs_normalization() {
-    check_response_normalization(
-        ResponseTransformEnvelope::Single(ResponseTransform::GetLogs),
-        r#"[
+    #[test]
+    fn should_normalize_eth_get_logs_response() {
+        check_single_response_normalization(
+            ResponseTransform::GetLogs,
+            r#"[
         {
             "removed": false,
             "blockHash": "0x8436209a391f7bc076123616ecb229602124eb6c1007f5eae84df8e098885d3c",
@@ -223,7 +259,7 @@ fn eth_get_logs_normalization() {
             "transactionIndex": "0x1f"
         }
     ]"#,
-        r#"[
+            r#"[
         {
             "address": "0xb44b5e756a894775fc32eddf3314bb1b1944dc34",
             "blockHash": "0x4205f2436ee7a90aa87a88ae6914ec6860971360995f463602a40803bff98f4d",
@@ -255,14 +291,14 @@ fn eth_get_logs_normalization() {
             "transactionIndex": "0x22"
         }
     ]"#,
-    );
-}
+        );
+    }
 
-#[test]
-fn eth_get_logs_order_normalization() {
-    use ic_crypto_test_utils_reproducible_rng::reproducible_rng;
-    use rand::prelude::SliceRandom;
-    const LOGS: &str = r#"[
+    #[test]
+    fn should_normalize_eth_get_logs_response_order() {
+        use ic_crypto_test_utils_reproducible_rng::reproducible_rng;
+        use rand::prelude::SliceRandom;
+        const LOGS: &str = r#"[
         {
             "address": "0xb44b5e756a894775fc32eddf3314bb1b1944dc34",
             "topics": [
@@ -354,27 +390,27 @@ fn eth_get_logs_order_normalization() {
             "removed": false
         }
     ]"#;
-    let rng = &mut reproducible_rng();
-    let original_logs: Vec<LogEntry> = serde_json::from_str(LOGS).unwrap();
-    assert!(original_logs.len() > 1);
-    let suffled_logs = {
-        let mut logs = original_logs.clone();
-        logs.shuffle(rng);
-        logs
-    };
+        let rng = &mut reproducible_rng();
+        let original_logs: Vec<LogEntry> = serde_json::from_str(LOGS).unwrap();
+        assert!(original_logs.len() > 1);
+        let shuffled_logs = {
+            let mut logs = original_logs.clone();
+            logs.shuffle(rng);
+            logs
+        };
 
-    check_response_normalization(
-        ResponseTransformEnvelope::Single(ResponseTransform::GetLogs),
-        &serde_json::to_string(&original_logs).unwrap(),
-        &serde_json::to_string(&suffled_logs).unwrap(),
-    )
-}
+        check_single_response_normalization(
+            ResponseTransform::GetLogs,
+            &serde_json::to_string(&original_logs).unwrap(),
+            &serde_json::to_string(&shuffled_logs).unwrap(),
+        )
+    }
 
-#[test]
-fn transaction_receipt_normalization() {
-    check_response_normalization(
-        ResponseTransformEnvelope::Single(ResponseTransform::GetTransactionReceipt),
-        r#"{
+    #[test]
+    fn should_normalize_eth_get_transaction_receipt_response() {
+        check_single_response_normalization(
+            ResponseTransform::GetTransactionReceipt,
+            r#"{
         "type": "0x2",
         "blockHash": "0x82005d2f17b251900968f01b0ed482cb49b7e1d797342bc504904d442b64dbe4",
         "transactionHash": "0x0e59bd032b9b22aca5e2784e4cf114783512db00988c716cf17a1cc755a0a93d",
@@ -390,7 +426,7 @@ fn transaction_receipt_normalization() {
         "transactionIndex": "0x32",
         "blockNumber": "0x4132ec"
     }"#,
-        r#"{
+            r#"{
         "transactionHash": "0x0e59bd032b9b22aca5e2784e4cf114783512db00988c716cf17a1cc755a0a93d",
         "blockHash": "0x82005d2f17b251900968f01b0ed482cb49b7e1d797342bc504904d442b64dbe4",
         "blockNumber": "0x4132ec",
@@ -406,5 +442,63 @@ fn transaction_receipt_normalization() {
         "transactionIndex": "0x32",
         "type": "0x2"
     }"#,
-    );
+        );
+    }
+
+    #[test]
+    fn should_normalize_eth_send_raw_transaction_response() {
+        check_single_response_normalization(
+            ResponseTransform::SendRawTransaction,
+            r#""0x5f2b4c3a6d8e9f0a1b2c3d4e5f67890abcdef1234567890abcdef1234567890a""#,
+            r#""0xcfa48c44dc89d18a898a42b4a5b02b6847a3c2019507d5571a481751c7a2f353""#,
+        );
+    }
+
+    #[test]
+    fn should_normalize_raw_json_response() {
+        check_single_response_normalization(
+            ResponseTransform::Raw,
+            r#"{
+            "balance": "0x38d7ea4c68000",
+            "address": "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+            "codeHash": "0x5c975abb2e0f1d3e6f0a1b2c3d4e5f67890123456789abcdefabcdefabcdefabcd",
+            "accountProof": [ "0xf9011a...abcd" ],
+            "nonce": "0x2",
+            "storageProof": [
+                { "key": "0x0", "value": "0x5", "proof": ["0xf9011a...1234"] },
+                { "key": "0x1", "value": "0x10", "proof": ["0xf9011a...5678"] }
+            ],
+            "storageHash": "0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b"
+        }
+        "#,
+            r#"{
+            "accountProof": [ "0xf9011a...abcd" ],
+            "address": "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+            "codeHash": "0x5c975abb2e0f1d3e6f0a1b2c3d4e5f67890123456789abcdefabcdefabcdefabcd",
+            "balance": "0x38d7ea4c68000",
+            "nonce": "0x2",
+            "storageHash": "0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b",
+            "storageProof": [
+                { "key": "0x0", "value": "0x5", "proof": ["0xf9011a...1234"] },
+                { "key": "0x1", "value": "0x10", "proof": ["0xf9011a...5678"] }
+            ]
+        }
+        "#,
+        );
+    }
+
+    fn check_single_response_normalization(transform: ResponseTransform, left: &str, right: &str) {
+        fn add_envelope(reply: &str) -> String {
+            format!("{{\"jsonrpc\": \"2.0\", \"id\": 1, \"result\": {}}}", reply)
+        }
+
+        let left = add_envelope(left);
+        let right = add_envelope(right);
+
+        check_response_normalization(
+            ResponseTransformEnvelope::Single(transform),
+            left.as_str(),
+            right.as_str(),
+        )
+    }
 }
