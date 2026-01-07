@@ -1,10 +1,22 @@
-mod cketh_conversion;
-
-use crate::{rpc_client::EthRpcClient, types::RpcMethod};
+use crate::{
+    rpc_client::{
+        json::{
+            requests::{
+                BlockSpec, EthCallParams, FeeHistoryParams, GetLogsParams,
+                GetTransactionCountParams,
+            },
+            Hash,
+        },
+        EthRpcClient,
+    },
+    types::RpcMethod,
+};
 use candid::Nat;
-use canhttp::multi::Timestamp;
+use canhttp::{http::json::JsonRpcRequest, multi::Timestamp};
 use ethers_core::{types::Transaction, utils::rlp};
-use evm_rpc_types::{BlockTag, Hex, Hex32, MultiRpcResult, Nat256, RpcResult, ValidationError};
+use evm_rpc_types::{
+    BlockTag, Hex, Hex32, MultiRpcResult, Nat256, RpcError, RpcResult, ValidationError,
+};
 
 /// Adapt the `EthRpcClient` to the `Candid` interface used by the EVM-RPC canister.
 pub struct CandidRpcClient {
@@ -26,41 +38,42 @@ impl CandidRpcClient {
         self,
         args: evm_rpc_types::GetLogsArgs,
     ) -> MultiRpcResult<Vec<evm_rpc_types::LogEntry>> {
-        use cketh_conversion::{from_log_entries, into_get_logs_param};
         self.client
-            .eth_get_logs(into_get_logs_param(args))
+            .eth_get_logs(GetLogsParams::from(args))
             .send_and_reduce()
             .await
-            .map(from_log_entries)
+            .map(|entries| {
+                entries
+                    .into_iter()
+                    .map(evm_rpc_types::LogEntry::from)
+                    .collect()
+            })
     }
 
     pub async fn eth_get_logs_cycles_cost(
         self,
         args: evm_rpc_types::GetLogsArgs,
     ) -> RpcResult<u128> {
-        use cketh_conversion::into_get_logs_param;
         self.client
-            .eth_get_logs(into_get_logs_param(args))
+            .eth_get_logs(GetLogsParams::from(args))
             .cycles_cost()
             .await
     }
 
     pub async fn eth_get_block_by_number(
         self,
-        block: BlockTag,
+        block_tag: BlockTag,
     ) -> MultiRpcResult<evm_rpc_types::Block> {
-        use cketh_conversion::{from_block, into_block_spec};
         self.client
-            .eth_get_block_by_number(into_block_spec(block))
+            .eth_get_block_by_number(BlockSpec::from(block_tag))
             .send_and_reduce()
             .await
-            .map(from_block)
+            .map(evm_rpc_types::Block::from)
     }
 
-    pub async fn eth_get_block_by_number_cycles_cost(self, block: BlockTag) -> RpcResult<u128> {
-        use cketh_conversion::into_block_spec;
+    pub async fn eth_get_block_by_number_cycles_cost(self, block_tag: BlockTag) -> RpcResult<u128> {
         self.client
-            .eth_get_block_by_number(into_block_spec(block))
+            .eth_get_block_by_number(BlockSpec::from(block_tag))
             .cycles_cost()
             .await
     }
@@ -69,18 +82,16 @@ impl CandidRpcClient {
         self,
         hash: Hex32,
     ) -> MultiRpcResult<Option<evm_rpc_types::TransactionReceipt>> {
-        use cketh_conversion::{from_transaction_receipt, into_hash};
         self.client
-            .eth_get_transaction_receipt(into_hash(hash))
+            .eth_get_transaction_receipt(Hash::from(hash))
             .send_and_reduce()
             .await
-            .map(|option| option.map(from_transaction_receipt))
+            .map(|maybe_receipt| maybe_receipt.map(evm_rpc_types::TransactionReceipt::from))
     }
 
     pub async fn eth_get_transaction_receipt_cycles_cost(self, hash: Hex32) -> RpcResult<u128> {
-        use cketh_conversion::into_hash;
         self.client
-            .eth_get_transaction_receipt(into_hash(hash))
+            .eth_get_transaction_receipt(Hash::from(hash))
             .cycles_cost()
             .await
     }
@@ -89,9 +100,8 @@ impl CandidRpcClient {
         self,
         args: evm_rpc_types::GetTransactionCountArgs,
     ) -> MultiRpcResult<Nat256> {
-        use cketh_conversion::into_get_transaction_count_params;
         self.client
-            .eth_get_transaction_count(into_get_transaction_count_params(args))
+            .eth_get_transaction_count(GetTransactionCountParams::from(args))
             .send_and_reduce()
             .await
             .map(Nat256::from)
@@ -101,9 +111,8 @@ impl CandidRpcClient {
         self,
         args: evm_rpc_types::GetTransactionCountArgs,
     ) -> RpcResult<u128> {
-        use cketh_conversion::into_get_transaction_count_params;
         self.client
-            .eth_get_transaction_count(into_get_transaction_count_params(args))
+            .eth_get_transaction_count(GetTransactionCountParams::from(args))
             .cycles_cost()
             .await
     }
@@ -112,21 +121,19 @@ impl CandidRpcClient {
         self,
         args: evm_rpc_types::FeeHistoryArgs,
     ) -> MultiRpcResult<evm_rpc_types::FeeHistory> {
-        use cketh_conversion::{from_fee_history, into_fee_history_params};
         self.client
-            .eth_fee_history(into_fee_history_params(args))
+            .eth_fee_history(FeeHistoryParams::from(args))
             .send_and_reduce()
             .await
-            .map(from_fee_history)
+            .map(evm_rpc_types::FeeHistory::from)
     }
 
     pub async fn eth_fee_history_cycles_cost(
         self,
         args: evm_rpc_types::FeeHistoryArgs,
     ) -> RpcResult<u128> {
-        use cketh_conversion::into_fee_history_params;
         self.client
-            .eth_fee_history(into_fee_history_params(args))
+            .eth_fee_history(FeeHistoryParams::from(args))
             .cycles_cost()
             .await
     }
@@ -135,13 +142,19 @@ impl CandidRpcClient {
         self,
         raw_signed_transaction_hex: Hex,
     ) -> MultiRpcResult<evm_rpc_types::SendRawTransactionStatus> {
-        use cketh_conversion::from_send_raw_transaction_result;
-        let transaction_hash = get_transaction_hash(&raw_signed_transaction_hex);
+        let tx_hash = get_transaction_hash(&raw_signed_transaction_hex);
         self.client
             .eth_send_raw_transaction(raw_signed_transaction_hex.to_string())
             .send_and_reduce()
             .await
-            .map(|result| from_send_raw_transaction_result(transaction_hash.clone(), result))
+            .map(
+                |result| match evm_rpc_types::SendRawTransactionStatus::from(result) {
+                    evm_rpc_types::SendRawTransactionStatus::Ok(_) => {
+                        evm_rpc_types::SendRawTransactionStatus::Ok(tx_hash.clone())
+                    }
+                    result => result,
+                },
+            )
     }
 
     pub async fn eth_send_raw_transaction_cycles_cost(
@@ -155,25 +168,22 @@ impl CandidRpcClient {
     }
 
     pub async fn eth_call(self, args: evm_rpc_types::CallArgs) -> MultiRpcResult<Hex> {
-        use cketh_conversion::{from_data, into_eth_call_params};
         self.client
-            .eth_call(into_eth_call_params(args))
+            .eth_call(EthCallParams::from(args))
             .send_and_reduce()
             .await
-            .map(from_data)
+            .map(Hex::from)
     }
 
     pub async fn eth_call_cycles_cost(self, args: evm_rpc_types::CallArgs) -> RpcResult<u128> {
-        use cketh_conversion::into_eth_call_params;
         self.client
-            .eth_call(into_eth_call_params(args))
+            .eth_call(EthCallParams::from(args))
             .cycles_cost()
             .await
     }
 
     pub async fn multi_request(self, json_rpc_payload: String) -> MultiRpcResult<String> {
-        use cketh_conversion::into_json_request;
-        let request = match into_json_request(json_rpc_payload) {
+        let request = match try_into_json_rpc_request(json_rpc_payload) {
             Ok(request) => request,
             Err(err) => return MultiRpcResult::Consistent(Err(err)),
         };
@@ -188,8 +198,7 @@ impl CandidRpcClient {
     }
 
     pub async fn multi_cycles_cost(self, json_rpc_payload: String) -> RpcResult<u128> {
-        use cketh_conversion::into_json_request;
-        let request = into_json_request(json_rpc_payload)?;
+        let request = try_into_json_rpc_request(json_rpc_payload)?;
         self.client
             .multi_request(
                 RpcMethod::Custom(request.method().to_string()),
@@ -224,4 +233,14 @@ pub fn validate_get_logs_block_range(
         }
     }
     Ok(())
+}
+
+fn try_into_json_rpc_request(
+    json_rpc_payload: String,
+) -> RpcResult<JsonRpcRequest<serde_json::Value>> {
+    serde_json::from_str(&json_rpc_payload).map_err(|e| {
+        RpcError::ValidationError(ValidationError::Custom(format!(
+            "Invalid JSON RPC request: {e}"
+        )))
+    })
 }
