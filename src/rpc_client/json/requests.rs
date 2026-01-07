@@ -29,8 +29,8 @@ impl From<GetTransactionCountParams> for (Address, BlockSpec) {
 impl From<evm_rpc_types::GetTransactionCountArgs> for GetTransactionCountParams {
     fn from(args: evm_rpc_types::GetTransactionCountArgs) -> Self {
         Self {
-            address: Address::new(args.address.into()),
-            block: args.block.into(),
+            address: Address::new(<[u8; 20]>::from(args.address)),
+            block: BlockSpec::from(args.block),
         }
     }
 }
@@ -61,7 +61,7 @@ impl From<evm_rpc_types::GetLogsArgs> for GetLogsParams {
             address: args
                 .addresses
                 .into_iter()
-                .map(|address| Address::new(address.into()))
+                .map(|address| Address::new(<[u8; 20]>::from(address)))
                 .collect(),
             topics: args
                 .topics
@@ -70,7 +70,7 @@ impl From<evm_rpc_types::GetLogsArgs> for GetLogsParams {
                 .map(|topic| {
                     topic
                         .into_iter()
-                        .map(|t| FixedSizeData::new(t.into()))
+                        .map(|t| FixedSizeData::new(<[u8; 32]>::from(t)))
                         .collect()
                 })
                 .collect(),
@@ -108,8 +108,8 @@ impl From<FeeHistoryParams> for (NumBlocks, BlockSpec, Vec<u8>) {
 impl From<evm_rpc_types::FeeHistoryArgs> for FeeHistoryParams {
     fn from(args: evm_rpc_types::FeeHistoryArgs) -> Self {
         Self {
-            block_count: args.block_count.into(),
-            highest_block: args.newest_block.into(),
+            block_count: NumBlocks::from(args.block_count),
+            highest_block: BlockSpec::from(args.newest_block),
             reward_percentiles: args.reward_percentiles.unwrap_or_default(),
         }
     }
@@ -128,7 +128,7 @@ pub enum BlockSpec {
 impl From<evm_rpc_types::BlockTag> for BlockSpec {
     fn from(value: evm_rpc_types::BlockTag) -> Self {
         match value {
-            evm_rpc_types::BlockTag::Number(n) => Self::Number(n.into()),
+            evm_rpc_types::BlockTag::Number(n) => Self::Number(BlockNumber::from(n)),
             evm_rpc_types::BlockTag::Latest => Self::Tag(BlockTag::Latest),
             evm_rpc_types::BlockTag::Safe => Self::Tag(BlockTag::Safe),
             evm_rpc_types::BlockTag::Finalized => Self::Tag(BlockTag::Finalized),
@@ -214,8 +214,8 @@ pub struct EthCallParams {
 impl From<evm_rpc_types::CallArgs> for EthCallParams {
     fn from(value: evm_rpc_types::CallArgs) -> Self {
         Self {
-            transaction: value.transaction.into(),
-            block: value.block.unwrap_or_default().into(),
+            transaction: TransactionRequest::from(value.transaction),
+            block: BlockSpec::from(value.block.unwrap_or_default()),
         }
     }
 }
@@ -320,21 +320,21 @@ impl From<evm_rpc_types::TransactionRequest> for TransactionRequest {
                 list.0
                     .into_iter()
                     .map(|entry| AccessListItem {
-                        address: Address::new(entry.address.into()),
+                        address: Address::new(<[u8; 20]>::from(entry.address)),
                         storage_keys: entry
                             .storage_keys
                             .into_iter()
-                            .map(|key| StorageKey::new(key.into()))
+                            .map(|key| StorageKey::new(<[u8; 32]>::from(key)))
                             .collect(),
                     })
                     .collect(),
             )
         }
         Self {
-            tx_type: tx_type.map(|t| JsonByte::new(t.into())),
+            tx_type: tx_type.map(|t| JsonByte::new(u8::from(t))),
             nonce: nonce.map(Amount::from),
-            to: to.map(|address| Address::new(address.into())),
-            from: from.map(|address| Address::new(address.into())),
+            to: to.map(|address| Address::new(<[u8; 20]>::from(address))),
+            from: from.map(|address| Address::new(<[u8; 20]>::from(address))),
             gas: gas.map(Amount::from),
             value: value.map(Amount::from),
             input: input.map(Data::from),

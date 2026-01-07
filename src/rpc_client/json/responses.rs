@@ -75,10 +75,10 @@ impl From<TransactionReceipt> for evm_rpc_types::TransactionReceipt {
     fn from(value: TransactionReceipt) -> Self {
         Self {
             block_hash: Hex32::from(value.block_hash.into_bytes()),
-            block_number: value.block_number.into(),
-            effective_gas_price: value.effective_gas_price.into(),
-            gas_used: value.gas_used.into(),
-            cumulative_gas_used: value.cumulative_gas_used.into(),
+            block_number: Nat256::from(value.block_number),
+            effective_gas_price: Nat256::from(value.effective_gas_price),
+            gas_used: Nat256::from(value.gas_used),
+            cumulative_gas_used: Nat256::from(value.cumulative_gas_used),
             status: value.status.map(|v| match v {
                 TransactionStatus::Success => Nat256::from(1_u8),
                 TransactionStatus::Failure => Nat256::from(0_u8),
@@ -96,7 +96,7 @@ impl From<TransactionReceipt> for evm_rpc_types::TransactionReceipt {
                 .collect(),
             logs_bloom: Hex256::from(value.logs_bloom.into_bytes()),
             to: value.to.map(|address| Hex20::from(address.into_bytes())),
-            transaction_index: value.transaction_index.into(),
+            transaction_index: Nat256::from(value.transaction_index),
             tx_type: HexByte::from(value.tx_type.into_byte()),
         }
     }
@@ -209,7 +209,7 @@ impl From<LogEntry> for evm_rpc_types::LogEntry {
                 .into_iter()
                 .map(|t| t.into_bytes().into())
                 .collect(),
-            data: value.data.0.into(),
+            data: Hex::from(value.data),
             block_hash: value.block_hash.map(|x| x.into_bytes().into()),
             block_number: value.block_number.map(Nat256::from),
             transaction_hash: value.transaction_hash.map(|x| x.into_bytes().into()),
@@ -304,22 +304,22 @@ impl From<Block> for evm_rpc_types::Block {
     fn from(value: Block) -> Self {
         Self {
             base_fee_per_gas: value.base_fee_per_gas.map(Nat256::from),
-            number: value.number.into(),
+            number: Nat256::from(value.number),
             difficulty: value.difficulty.map(Nat256::from),
             extra_data: Hex::from(value.extra_data.0),
-            gas_limit: value.gas_limit.into(),
-            gas_used: value.gas_used.into(),
+            gas_limit: Nat256::from(value.gas_limit),
+            gas_used: Nat256::from(value.gas_used),
             hash: Hex32::from(value.hash.into_bytes()),
             logs_bloom: Hex256::from(value.logs_bloom.into_bytes()),
-            miner: evm_rpc_types::Hex20::from(value.miner.into_bytes()),
+            miner: Hex20::from(value.miner.into_bytes()),
             mix_hash: Hex32::from(value.mix_hash.into_bytes()),
-            nonce: value.nonce.into(),
+            nonce: Nat256::from(value.nonce),
             parent_hash: Hex32::from(value.parent_hash.into_bytes()),
             receipts_root: Hex32::from(value.receipts_root.into_bytes()),
             sha3_uncles: Hex32::from(value.sha3_uncles.into_bytes()),
-            size: value.size.into(),
+            size: Nat256::from(value.size),
             state_root: Hex32::from(value.state_root.into_bytes()),
-            timestamp: value.timestamp.into(),
+            timestamp: Nat256::from(value.timestamp),
             // The field totalDifficulty was removed from the official Ethereum JSON RPC Block schema in
             // https://github.com/ethereum/execution-apis/pull/570 and as a consequence is inconsistent between different providers.
             // See https://github.com/internet-computer-protocol/evm-rpc-canister/issues/311.
@@ -363,7 +363,7 @@ pub struct FeeHistory {
 impl From<FeeHistory> for evm_rpc_types::FeeHistory {
     fn from(value: FeeHistory) -> Self {
         Self {
-            oldest_block: value.oldest_block.into(),
+            oldest_block: Nat256::from(value.oldest_block),
             base_fee_per_gas: value
                 .base_fee_per_gas
                 .into_iter()
