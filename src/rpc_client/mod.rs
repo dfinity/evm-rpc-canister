@@ -1,5 +1,3 @@
-use crate::rpc_client::eth_rpc::{ResponseTransform, ResponseTransformEnvelope};
-use crate::types::MetricRpcService;
 use crate::{
     add_metric_entry,
     http::{
@@ -8,11 +6,13 @@ use crate::{
     memory::{get_override_provider, rank_providers, record_ok_result},
     providers::{resolve_rpc_service, SupportedRpcService},
     rpc_client::{
-        eth_rpc::{ResponseSizeEstimate, HEADER_SIZE_LIMIT},
+        eth_rpc::{
+            ResponseSizeEstimate, ResponseTransform, ResponseTransformEnvelope, HEADER_SIZE_LIMIT,
+        },
         json::responses::RawJson,
         numeric::TransactionCount,
     },
-    types::{MetricRpcMethod, ResolvedRpcService, RpcMethod},
+    types::{MetricRpcMethod, MetricRpcService, ResolvedRpcService, RpcMethod},
 };
 use canhttp::{
     cycles::CyclesChargingPolicy,
@@ -33,7 +33,7 @@ use ic_cdk::management_canister::{
 };
 use json::{
     requests::{
-        BlockSpec, EthCallParams, FeeHistoryParams, GetBlockByNumberParams, GetLogsParam,
+        BlockSpec, EthCallParams, FeeHistoryParams, GetBlockByNumberParams, GetLogsParams,
         GetTransactionCountParams,
     },
     responses::{Block, Data, FeeHistory, LogEntry, SendRawTransactionResult, TransactionReceipt},
@@ -274,8 +274,8 @@ impl EthRpcClient {
 
     pub fn eth_get_logs(
         self,
-        params: GetLogsParam,
-    ) -> MultiRpcRequest<(GetLogsParam,), Vec<LogEntry>> {
+        params: GetLogsParams,
+    ) -> MultiRpcRequest<(GetLogsParams,), Vec<LogEntry>> {
         let response_size_estimate = self.response_size_estimate(1024 + HEADER_SIZE_LIMIT);
         let reduction = self.reduction_strategy();
         MultiRpcRequest::new(
