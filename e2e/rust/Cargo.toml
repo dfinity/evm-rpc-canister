@@ -9,9 +9,6 @@ edition = "2021"
 candid = { workspace = true }
 evm_rpc_types = { path = "../../evm_rpc_types" }
 ic-cdk = { workspace = true }
-ic-certified-map = { workspace = true }
-serde = { workspace = true }
-serde_bytes = { workspace = true }
 
 [build-dependencies]
 ic-cdk-bindgen = { workspace = true }

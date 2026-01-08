@@ -4,6 +4,7 @@ use crate::{
 };
 use canhttp::http::json::{JsonRpcError, JsonRpcResponse};
 use canlog::log;
+use serde::Deserialize;
 
 #[cfg(test)]
 mod tests;
@@ -181,15 +182,22 @@ impl ErrorParser for Parser {
 /// Sanitizes the response of `eth_sendRawTransaction` to hide implementation details of the various Ethereum clients
 /// queried by HTTP outcalls and the fact that `eth_sendRawTransaction` is not idempotent.
 /// The type `JsonRpcReply<Hash>` of the original response is transformed into `JsonRpcReply<SendRawTxResult>`.
-pub fn sanitize_send_raw_transaction_result<T: ErrorParser>(body_bytes: &mut Vec<u8>, parser: T) {
-    let response: JsonRpcResponse<Hash> = match serde_json::from_slice(body_bytes) {
-        Ok(response) => response,
-        Err(e) => {
-            log!(Priority::Debug, "Error deserializing: {:?}", e);
-            return;
-        }
-    };
+pub fn sanitize_send_raw_transaction_result<T: ErrorParser>(
+    response: JsonRpcResponse<serde_json::Value>,
+    parser: T,
+) -> JsonRpcResponse<serde_json::Value> {
     let (id, result) = response.into_parts();
+
+    let result = match result {
+        Ok(result) => match Hash::deserialize(&result) {
+            Ok(hash) => Ok(hash),
+            Err(e) => {
+                log!(Priority::Debug, "Error deserializing: {:?}", e);
+                return JsonRpcResponse::from_parts(id, Ok(result));
+            }
+        },
+        Err(e) => Err(e),
+    };
 
     let sanitized_result = match result {
         Ok(_) => Ok(SendRawTransactionResult::Ok),
@@ -222,10 +230,11 @@ pub fn sanitize_send_raw_transaction_result<T: ErrorParser>(body_bytes: &mut Vec
             }
         }
     };
-    let sanitized_reply: JsonRpcResponse<SendRawTransactionResult> =
-        JsonRpcResponse::from_parts(id, sanitized_result);
 
-    *body_bytes = serde_json::to_string(&sanitized_reply)
-        .expect("BUG: failed to serialize error response")
-        .into_bytes();
+    JsonRpcResponse::from_parts(
+        id,
+        sanitized_result.map(|result| {
+            serde_json::to_value(result).expect("BUG: failed to serialize error response")
+        }),
+    )
 }
