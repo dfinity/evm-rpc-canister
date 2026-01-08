@@ -3,7 +3,7 @@ use crate::http::error::HttpClientError;
 use crate::http::{charging_policy_with_collateral, client, service_request_builder};
 use crate::memory::{get_override_provider, record_ok_result};
 use crate::providers::{resolve_rpc_service, SupportedRpcService};
-use crate::rpc_client::eth_rpc::{ResponseSizeEstimate, ResponseTransform};
+use crate::rpc_client::eth_rpc::{ResponseSizeEstimate, ResponseTransformEnvelope};
 use crate::rpc_client::IcHttpRequest;
 use crate::types::MetricRpcService;
 use crate::types::{MetricRpcMethod, ResolvedRpcService, RpcMethod};
@@ -34,7 +34,7 @@ pub struct MultiRpcRequest<Params, Output> {
     method: RpcMethod,
     params: Params,
     response_size_estimate: ResponseSizeEstimate,
-    transform: ResponseTransform,
+    transform: ResponseTransformEnvelope,
     reduction_strategy: ReductionStrategy,
     _marker: std::marker::PhantomData<Output>,
 }
@@ -45,7 +45,7 @@ impl<Params, Output> MultiRpcRequest<Params, Output> {
         method: RpcMethod,
         params: Params,
         response_size_estimate: ResponseSizeEstimate,
-        transform: ResponseTransform,
+        transform: impl Into<ResponseTransformEnvelope>,
         reduction_strategy: ReductionStrategy,
     ) -> MultiRpcRequest<Params, Output> {
         MultiRpcRequest {
@@ -53,7 +53,7 @@ impl<Params, Output> MultiRpcRequest<Params, Output> {
             method,
             params,
             response_size_estimate,
-            transform,
+            transform: transform.into(),
             reduction_strategy,
             _marker: Default::default(),
         }
