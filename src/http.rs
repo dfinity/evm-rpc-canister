@@ -47,7 +47,8 @@ use tower::{
 };
 use tower_http::{set_header::SetRequestHeaderLayer, ServiceBuilderExt};
 
-pub fn json_rpc_request_arg(
+// Create the HTTP JSON-RPC request for the legacy `request` endpoint.
+pub fn legacy_json_rpc_request(
     service: RpcService,
     json_rpc_payload: &str,
     max_response_bytes: u64,
@@ -72,6 +73,10 @@ pub fn json_rpc_request_arg(
         .body(body)
         .map(|mut request| {
             request.extensions_mut().insert(service);
+            request.extensions_mut().insert(MetricRpcMethod {
+                method: "request".to_string(),
+                is_manual_request: true,
+            });
             request
         })
         .map_err(|e| {
@@ -84,20 +89,11 @@ pub async fn json_rpc_request(
     json_rpc_payload: &str,
     max_response_bytes: u64,
 ) -> RpcResult<HttpJsonRpcResponse<serde_json::Value>> {
-    let request = json_rpc_request_arg(service, json_rpc_payload, max_response_bytes)?;
-    http_client(
-        MetricRpcMethod {
-            method: "request".to_string(),
-            is_manual_request: true,
-        },
-        false,
-    )
-    .call(request)
-    .await
+    let request = legacy_json_rpc_request(service, json_rpc_payload, max_response_bytes)?;
+    http_client(false).call(request).await
 }
 
 pub fn http_client<I, O>(
-    rpc_method: MetricRpcMethod,
     retry: bool,
 ) -> impl Service<HttpJsonRpcRequest<I>, Response = HttpJsonRpcResponse<O>, Error = RpcError>
 where
@@ -122,7 +118,7 @@ where
             ObservabilityLayer::new()
                 .on_request(move |req: &HttpJsonRpcRequest<I>| {
                     let req_data = MetricData {
-                        method: rpc_method.clone(),
+                        method: metric_rpc_method(req).clone(),
                         service: MetricRpcService {
                             host: req.uri().host().unwrap().to_string(),
                             is_supported: has_supported_rpc_service(req),
@@ -241,13 +237,19 @@ where
         .service(canhttp::Client::new_with_error::<HttpClientError>())
 }
 
-fn has_supported_rpc_service<I>(req: &HttpJsonRpcRequest<I>) -> bool {
-    match req.extensions().get::<RpcService>() {
-        // The request should always have an `RpcService` extension,
-        // but default to `false` if not.
-        Some(RpcService::Custom(_)) | None => false,
-        _ => true,
-    }
+fn metric_rpc_method<I>(request: &HttpJsonRpcRequest<I>) -> &MetricRpcMethod {
+    request
+        .extensions()
+        .get::<MetricRpcMethod>()
+        .expect("`MetricRpcMethod` request extension missing")
+}
+
+fn has_supported_rpc_service<I>(request: &HttpJsonRpcRequest<I>) -> bool {
+    let service = request
+        .extensions()
+        .get::<RpcService>()
+        .expect("`RpcService` request extension missing");
+    !matches!(service, RpcService::Custom(_))
 }
 
 fn generate_request_id<I>(request: HttpJsonRpcRequest<I>) -> HttpJsonRpcRequest<I> {
