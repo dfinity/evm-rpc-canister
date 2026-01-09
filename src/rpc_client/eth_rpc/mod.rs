@@ -5,6 +5,7 @@ use crate::rpc_client::{
     eth_rpc_error::{sanitize_send_raw_transaction_result, Parser},
     json::responses::{Block, FeeHistory, LogEntry, TransactionReceipt},
 };
+use crate::types::RpcMethod;
 use canhttp::http::json::JsonRpcResponse;
 use ic_cdk::query;
 use ic_management_canister_types::{HttpRequestResult, TransformArgs};
@@ -93,6 +94,21 @@ impl ResponseTransform {
             Self::Call | Self::GetTransactionCount | Self::Raw => {
                 canonicalize_response::<serde_json::Value>(body_bytes)
             }
+        }
+    }
+}
+
+impl From<RpcMethod> for ResponseTransform {
+    fn from(method: RpcMethod) -> Self {
+        match method {
+            RpcMethod::EthCall => Self::Call,
+            RpcMethod::EthFeeHistory => Self::FeeHistory,
+            RpcMethod::EthGetLogs => Self::GetLogs,
+            RpcMethod::EthGetBlockByNumber => Self::GetBlockByNumber,
+            RpcMethod::EthGetTransactionCount => Self::GetTransactionCount,
+            RpcMethod::EthGetTransactionReceipt => Self::GetTransactionReceipt,
+            RpcMethod::EthSendRawTransaction => Self::SendRawTransaction,
+            RpcMethod::Custom(_) => Self::Raw,
         }
     }
 }
