@@ -8,7 +8,11 @@ use canhttp::{
 use evm_rpc_types::{RpcError, RpcResult, RpcService, ValidationError};
 use ic_management_canister_types::{TransformContext, TransformFunc};
 
-// Create the HTTP JSON-RPC request for the legacy `request` endpoint.
+/// Create the HTTP JSON-RPC request for the legacy `request` endpoint.
+///
+/// The `request` endpoint is deprecated but exists for backwards-compatibility.
+/// It has been replaced with the `multi_request` endpoint which, similarly to
+/// other RPC endpoints, aggregates the response from multiple RPC providers.
 pub fn json_rpc_request(
     service: RpcService,
     json_rpc_payload: &str,
