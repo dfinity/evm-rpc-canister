@@ -1,6 +1,6 @@
 use crate::{
     add_metric_entry,
-    http::error::HttpClientError,
+    http::error::{is_consensus_error, HttpClientError},
     logs::Priority,
     types::{MetricRpcMethod, MetricRpcService},
 };
@@ -16,7 +16,6 @@ use canhttp::{
 };
 use canlog::log;
 use evm_rpc_types::{LegacyRejectionCode, RpcService};
-use ic_error_types::RejectCode;
 use std::fmt::Debug;
 
 pub fn observe_http_json_rpc_request<I: Debug>(req: &HttpJsonRpcRequest<I>) -> MetricData {
@@ -172,15 +171,6 @@ fn from_request<I>(request: &HttpJsonRpcRequest<I>) -> MetricData {
         method,
         service,
         request_id,
-    }
-}
-
-fn is_consensus_error(error: &IcError) -> bool {
-    match error {
-        IcError::CallRejected { code, message } => {
-            code == &RejectCode::SysTransient && message.to_lowercase().contains("no consensus")
-        }
-        _ => false,
     }
 }
 

@@ -13,6 +13,7 @@ use canhttp::{
 use evm_rpc_types::{
     HttpOutcallError, LegacyRejectionCode, ProviderError, RpcError, ValidationError,
 };
+use ic_error_types::RejectCode;
 use thiserror::Error;
 
 #[derive(Clone, Debug, Error)]
@@ -133,5 +134,14 @@ impl From<HttpClientError> for RpcError {
                 RpcError::ValidationError(ValidationError::Custom(e.to_string()))
             }
         }
+    }
+}
+
+pub fn is_consensus_error(error: &IcError) -> bool {
+    match error {
+        IcError::CallRejected { code, message } => {
+            code == &RejectCode::SysTransient && message.to_lowercase().contains("no consensus")
+        }
+        _ => false,
     }
 }
