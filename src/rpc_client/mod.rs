@@ -7,7 +7,9 @@ use crate::{
     memory::{get_override_provider, rank_providers, record_ok_result},
     providers::{resolve_rpc_service, SupportedRpcService},
     rpc_client::{
-        eth_rpc::{ResponseSizeEstimate, ResponseTransform, HEADER_SIZE_LIMIT},
+        eth_rpc::{
+            ResponseSizeEstimate, ResponseTransform, ResponseTransformEnvelope, HEADER_SIZE_LIMIT,
+        },
         json::responses::RawJson,
         numeric::TransactionCount,
     },
@@ -415,7 +417,7 @@ pub struct MultiRpcRequest<Params, Output> {
     method: RpcMethod,
     params: Params,
     response_size_estimate: ResponseSizeEstimate,
-    transform: ResponseTransform,
+    transform: ResponseTransformEnvelope,
     reduction_strategy: ReductionStrategy,
     _marker: std::marker::PhantomData<Output>,
 }
@@ -426,7 +428,7 @@ impl<Params, Output> MultiRpcRequest<Params, Output> {
         method: RpcMethod,
         params: Params,
         response_size_estimate: ResponseSizeEstimate,
-        transform: ResponseTransform,
+        transform: impl Into<ResponseTransformEnvelope>,
         reduction_strategy: ReductionStrategy,
     ) -> MultiRpcRequest<Params, Output> {
         MultiRpcRequest {
@@ -434,7 +436,7 @@ impl<Params, Output> MultiRpcRequest<Params, Output> {
             method,
             params,
             response_size_estimate,
-            transform,
+            transform: transform.into(),
             reduction_strategy,
             _marker: Default::default(),
         }
