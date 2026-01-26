@@ -73,7 +73,7 @@ impl TryFrom<alloy_rpc_types::TransactionRequest> for TransactionRequest {
                 .map(|hashes| hashes.into_iter().map(Hex32::from).collect()),
             blobs: tx_request
                 .sidecar
-                .map(|sidecar| sidecar.blobs.into_iter().map(Hex::from).collect()),
+                .map(|sidecar| sidecar.blobs().iter().map(|b| Hex::from(*b)).collect()),
             chain_id: tx_request.chain_id.map(Nat256::from),
         })
     }

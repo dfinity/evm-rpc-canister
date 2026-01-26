@@ -71,10 +71,10 @@ tokio = { workspace = true }
 
 [workspace.dependencies]
 alloy-consensus = "1.1.2"
-alloy-primitives = "1.4.1"
-alloy-rpc-types = "1.1.2"
-alloy-sol-macro = "1.4.1"
-alloy-sol-types = "1.4.1"
+alloy-primitives = "1.5.2"
+alloy-rpc-types = "1.5.2"
+alloy-sol-macro = "1.5.2"
+alloy-sol-types = "1.5.2"
 assert_matches = "1.5.0"
 async-trait = "0.1.89"
 candid = { version = "0.10.20" }
