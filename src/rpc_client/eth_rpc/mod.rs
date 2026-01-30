@@ -1,15 +1,11 @@
 //! This module contains definitions for communicating witEthereum API using the [JSON RPC](https://ethereum.org/en/developers/docs/apis/json-rpc/)
 //! interface.
 
-use crate::{
-    logs::Priority,
-    rpc_client::{
-        eth_rpc_error::{sanitize_send_raw_transaction_result, Parser},
-        json::responses::{Block, FeeHistory, LogEntry, TransactionReceipt},
-    },
+use crate::rpc_client::{
+    eth_rpc_error::{sanitize_send_raw_transaction_result, Parser},
+    json::responses::{Block, FeeHistory, LogEntry, TransactionReceipt},
 };
 use canhttp::http::json::JsonRpcResponse;
-use canlog::log;
 use derive_more::From;
 use ic_cdk::query;
 use ic_management_canister_types::{HttpRequestResult, TransformArgs};
@@ -33,6 +29,14 @@ const HTTP_MAX_SIZE: u64 = 2_000_000;
 
 pub const MAX_PAYLOAD_SIZE: u64 = HTTP_MAX_SIZE - HEADER_SIZE_LIMIT;
 
+#[derive(Debug, Decode, Encode, From)]
+pub enum ResponseTransformEnvelope {
+    #[n(0)]
+    Single(#[n(0)] ResponseTransform),
+    #[n(1)]
+    Batch(#[n(0)] BTreeMap<String, ResponseTransform>),
+}
+
 impl ResponseTransformEnvelope {
     fn apply(&self, body: &mut Vec<u8>) {
         match self {
@@ -52,14 +56,19 @@ impl ResponseTransformEnvelope {
                 {
                     let mut responses: Vec<_> = responses
                         .into_iter()
-                        .map(
-                            |response| match transforms.get(&response.id().to_string()) {
+                        .map(|response| {
+                            let id = serde_json::to_string(response.id())
+                                .expect("BUG: Failed to serialize response ID");
+                            match transforms.get(&id) {
                                 Some(transform) => transform.apply(response),
                                 None => response,
-                            },
-                        )
+                            }
+                        })
                         .collect();
-                    responses.sort_by_key(|response| response.id().to_string());
+                    responses.sort_by_key(|response| {
+                        serde_json::to_string(response.id())
+                            .expect("BUG: Failed to serialize response ID")
+                    });
 
                     *body = serde_json::to_string(&responses)
                         .expect("BUG: failed to serialize response")
@@ -68,14 +77,6 @@ impl ResponseTransformEnvelope {
             }
         }
     }
-}
-
-#[derive(Debug, Decode, Encode, From)]
-pub enum ResponseTransformEnvelope {
-    #[n(0)]
-    Single(#[n(0)] ResponseTransform),
-    #[n(1)]
-    Batch(#[n(0)] BTreeMap<String, ResponseTransform>),
 }
 
 /// Describes a payload transformation to execute before passing the HTTP response to consensus.
@@ -155,16 +156,8 @@ fn cleanup_response(args: TransformArgs) -> HttpRequestResult {
     args.response.headers.clear();
     let status_ok = args.response.status >= 200u16 && args.response.status < 300u16;
     if status_ok && !args.context.is_empty() {
-        match minicbor::decode::<ResponseTransformEnvelope>(&args.context[..]) {
-            Ok(transform) => {
-                transform.apply(&mut args.response.body);
-            }
-            Err(e) => {
-                log!(
-                    Priority::Info,
-                    "Failed to decode context for response transformation: {e:?}"
-                );
-            }
+        if let Ok(transform) = minicbor::decode::<ResponseTransformEnvelope>(&args.context[..]) {
+            transform.apply(&mut args.response.body);
         }
     }
     args.response
