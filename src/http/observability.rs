@@ -134,6 +134,21 @@ pub fn observe_http_client_error(req_data: MetricData, error: &HttpClientError) 
             );
             add_status_code_metric(req_data.method, req_data.service, *status);
         }
+        // TODO DEFI-2565: Improve log message once `req_data` supports JSON-RPC batch requests
+        HttpClientError::InvalidJsonResponseId(
+            ConsistentResponseIdFilterError::InconsistentBatchIds {
+                status,
+                request_ids: _,
+                response_ids: _,
+            },
+        ) => {
+            log!(
+                Priority::TraceHttp,
+                "Invalid JSON RPC batch response: {}",
+                error
+            );
+            add_status_code_metric(req_data.method, req_data.service, *status);
+        }
         HttpClientError::NotHandledError(e) => {
             log!(Priority::Info, "BUG: Unexpected error: {}", e);
         }
