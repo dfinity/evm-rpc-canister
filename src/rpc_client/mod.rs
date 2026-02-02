@@ -1,7 +1,8 @@
 use crate::{
     add_metric_entry,
     http::{
-        charging_policy_with_collateral, http_client, service_request_builder, HttpClientError,
+        charging_policy_with_collateral, error::HttpClientError, http_client,
+        service_request_builder,
     },
     memory::{get_override_provider, rank_providers, record_ok_result},
     providers::{resolve_rpc_service, SupportedRpcService},
@@ -464,8 +465,7 @@ impl<Params, Output> MultiRpcRequest<Params, Output> {
     {
         let requests = self.create_json_rpc_requests();
 
-        let client = http_client(MetricRpcMethod::from(self.method.clone()), true)
-            .map_result(extract_json_rpc_response);
+        let client = http_client(true).map_result(extract_json_rpc_response);
 
         let (requests, errors) = requests.into_inner();
         let (_client, mut results) = canhttp::multi::parallel_call(client, requests).await;
@@ -569,6 +569,12 @@ impl<Params, Output> MultiRpcRequest<Params, Output> {
                 .map(|mut request| {
                     // Store the original `RpcService` for usage when recording metrics
                     request.extensions_mut().insert(provider.clone());
+                    // Store `MetricRpcMethod` for usage when recording metrics, which cannot simply
+                    // later be determined from the JSON-RPC request method since we distinguish
+                    // manual requests.
+                    request
+                        .extensions_mut()
+                        .insert(MetricRpcMethod::from(self.method.clone()));
                     request
                 });
             requests.insert_once(provider.clone(), request);
