@@ -5,7 +5,7 @@ use crate::rpc_client::{
     eth_rpc_error::{sanitize_send_raw_transaction_result, Parser},
     json::responses::{Block, FeeHistory, LogEntry, TransactionReceipt},
 };
-use canhttp::http::json::JsonRpcResponse;
+use canhttp::http::json::{Id, JsonRpcResponse};
 use derive_more::From;
 use ic_cdk::query;
 use ic_management_canister_types::{HttpRequestResult, TransformArgs};
@@ -35,6 +35,19 @@ pub enum ResponseTransformEnvelope {
     Single(#[n(0)] ResponseTransform),
     #[n(1)]
     Batch(#[n(0)] BTreeMap<String, ResponseTransform>),
+}
+
+impl From<BTreeMap<Id, ResponseTransform>> for ResponseTransformEnvelope {
+    fn from(transforms: BTreeMap<Id, ResponseTransform>) -> Self {
+        Self::from(BTreeMap::from_iter(transforms.into_iter().map(
+            |(id, transform)| {
+                (
+                    serde_json::to_string(&id).expect("Failed to serialize request ID"),
+                    transform,
+                )
+            },
+        )))
+    }
 }
 
 impl ResponseTransformEnvelope {

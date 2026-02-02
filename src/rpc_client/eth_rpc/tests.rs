@@ -1,4 +1,5 @@
 use super::{LogEntry, ResponseTransform, ResponseTransformEnvelope};
+use canhttp::http::json::Id;
 use maplit::btreemap;
 
 fn check_response_normalization(transform: ResponseTransformEnvelope, left: &str, right: &str) {
@@ -20,17 +21,20 @@ mod batch_json_rpc_response_tests {
     #[test]
     fn should_normalize_batch_response() {
         check_response_normalization(
-            ResponseTransformEnvelope::Batch(btreemap! {
-                "1".to_string() => ResponseTransform::Raw,
-                "2".to_string() => ResponseTransform::Call,
-                "3".to_string() => ResponseTransform::SendRawTransaction,
+            ResponseTransformEnvelope::from(btreemap! {
+                Id::String("1".to_string()) => ResponseTransform::Raw,
+                Id::Number(1) => ResponseTransform::Raw,
+                Id::Number(2) => ResponseTransform::Call,
+                Id::Number(3) => ResponseTransform::SendRawTransaction,
             }),
             r#"[
                 {"result": "0x00000000000000000000000000000000000000000000000000000000000003e8", "id": 2, "jsonrpc": "2.0"},
                 {"result": "0x5f2b4c3a6d8e9f0a1b2c3d4e5f67890abcdef1234567890abcdef1234567890a", "id": 3, "jsonrpc": "2.0"},
-                {"result": "0x1", "id": 1, "jsonrpc": "2.0"}
+                {"result": "0x1", "id": 1, "jsonrpc": "2.0"},
+                {"result": "0x2", "id": "1", "jsonrpc": "2.0"}
             ]"#,
             r#"[
+                {"jsonrpc": "2.0", "id": "1", "result": "0x2"},
                 {"jsonrpc": "2.0", "id": 1, "result": "0x1"},
                 {"jsonrpc": "2.0", "id": 3, "result": "Ok"},
                 {"jsonrpc": "2.0", "id": 2, "result": "0x00000000000000000000000000000000000000000000000000000000000003e8"}
