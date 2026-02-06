@@ -1740,7 +1740,7 @@ dependencies = [
  "ic-stable-structures",
  "ic-test-utilities-load-wasm",
  "maplit",
- "minicbor 1.1.0",
+ "minicbor 2.1.3",
  "num-traits",
  "pocket-ic",
  "proptest",
@@ -3026,11 +3026,11 @@ dependencies = [
 
 [[package]]
 name = "minicbor"
-version = "1.1.0"
+version = "2.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "734daad4ff3b880f23dc2a675dd74553fa8e583367aa7523f96a16e96a516b62"
+checksum = "f9a1119e42fbacc2bb65d860de6eb7c930562bc71d42dca026d06b0228231f77"
 dependencies = [
- "minicbor-derive 0.17.0",
+ "minicbor-derive 0.18.3",
 ]
 
 [[package]]
@@ -3046,9 +3046,9 @@ dependencies = [
 
 [[package]]
 name = "minicbor-derive"
-version = "0.17.0"
+version = "0.18.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "512ce2c37128698ea15c99b3518936c78a8b112b92468e7b95b9fa045666ebd8"
+checksum = "50fcf6ee04e942da7d65066bf427fe7bdd229256998809eeecee25db6dc9aac2"
 dependencies = [
  "proc-macro2",
  "quote",
