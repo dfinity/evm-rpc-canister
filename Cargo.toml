@@ -78,7 +78,7 @@ alloy-sol-types = "1.5.4"
 assert_matches = "1.5.0"
 async-trait = "0.1.89"
 candid = { version = "0.10.20" }
-canhttp = { version = "0.5.0", features = ["json", "multi"] }
+canhttp = { git = "https://github.com/dfinity/canhttp.git", branch = "gdemay/DEFI-2566-stopping", features = ["json", "multi"] }
 canlog = { version = "0.2.0", features = ["derive"] }
 candid_parser = { version = "0.3.0" }
 derive_more = { version = "2.1.1", features = ["from", "into"] }
@@ -97,7 +97,7 @@ ic-ethereum-types = "1.0.0"
 ic-management-canister-types = "0.5.0"
 ic-metrics-assert = { version = "0.4.0", features = ["pocket_ic"] }
 ic-metrics-encoder = "1.1"
-ic-pocket-canister-runtime = "0.3.0"
+ic-pocket-canister-runtime = { git = "https://github.com/dfinity/canhttp.git", branch = "gdemay/DEFI-2566-stopping" }
 ic-stable-structures = "0.6.9"
 maplit = "1.0.2"
 minicbor = { version = "1.1.0", features = ["alloc", "derive"] }

@@ -952,8 +952,7 @@ dependencies = [
 [[package]]
 name = "canhttp"
 version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ffbc8ab5b0f21e91df6387c5a53af0b6228cb6b5db9ed3ed4f12f08329028f43"
+source = "git+https://github.com/dfinity/canhttp.git?branch=gdemay%2FDEFI-2566-stopping#f8eec859504fe009711d6183c91b326ed0f2e216"
 dependencies = [
  "assert_matches",
  "ciborium",
@@ -1727,7 +1726,7 @@ dependencies = [
  "getrandom 0.2.17",
  "hex",
  "http",
- "ic-canister-runtime 0.1.2 (git+https://github.com/dfinity/canhttp.git?branch=gdemay%2FDEFI-2566-stopping)",
+ "ic-canister-runtime",
  "ic-cdk",
  "ic-crypto-test-utils-reproducible-rng",
  "ic-error-types",
@@ -1771,7 +1770,7 @@ dependencies = [
  "async-trait",
  "candid",
  "evm_rpc_types",
- "ic-canister-runtime 0.1.2 (git+https://github.com/dfinity/canhttp.git?branch=gdemay%2FDEFI-2566-stopping)",
+ "ic-canister-runtime",
  "serde",
  "serde_json",
  "strum 0.27.2",
@@ -2262,20 +2261,6 @@ dependencies = [
 [[package]]
 name = "ic-canister-runtime"
 version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21294a9ff21dec8e57315788ebaa6fe999cbf9b61a201943985299c49ef9b1ff"
-dependencies = [
- "async-trait",
- "candid",
- "ic-cdk",
- "ic-error-types",
- "serde",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "ic-canister-runtime"
-version = "0.1.2"
 source = "git+https://github.com/dfinity/canhttp.git?branch=gdemay%2FDEFI-2566-stopping#f8eec859504fe009711d6183c91b326ed0f2e216"
 dependencies = [
  "async-trait",
@@ -2442,13 +2427,12 @@ checksum = "8b5c7628eac357aecda461130f8074468be5aa4d258a002032d82d817f79f1f8"
 [[package]]
 name = "ic-pocket-canister-runtime"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ebbe23cfb4a3ab3e700505a8b1ab66ba0c4f6231e6dbdac11063529717c70fd"
+source = "git+https://github.com/dfinity/canhttp.git?branch=gdemay%2FDEFI-2566-stopping#f8eec859504fe009711d6183c91b326ed0f2e216"
 dependencies = [
  "async-trait",
  "candid",
  "canhttp",
- "ic-canister-runtime 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ic-canister-runtime",
  "ic-cdk",
  "ic-error-types",
  "pocket-ic",
