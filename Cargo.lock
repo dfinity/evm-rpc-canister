@@ -1727,7 +1727,7 @@ dependencies = [
  "getrandom 0.2.17",
  "hex",
  "http",
- "ic-canister-runtime",
+ "ic-canister-runtime 0.1.2 (git+https://github.com/dfinity/canhttp.git?branch=gdemay%2FDEFI-2566-stopping)",
  "ic-cdk",
  "ic-crypto-test-utils-reproducible-rng",
  "ic-error-types",
@@ -1771,7 +1771,7 @@ dependencies = [
  "async-trait",
  "candid",
  "evm_rpc_types",
- "ic-canister-runtime",
+ "ic-canister-runtime 0.1.2 (git+https://github.com/dfinity/canhttp.git?branch=gdemay%2FDEFI-2566-stopping)",
  "serde",
  "serde_json",
  "strum 0.27.2",
@@ -2269,6 +2269,19 @@ dependencies = [
  "candid",
  "ic-cdk",
  "ic-error-types",
+ "serde",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "ic-canister-runtime"
+version = "0.1.2"
+source = "git+https://github.com/dfinity/canhttp.git?branch=gdemay%2FDEFI-2566-stopping#f8eec859504fe009711d6183c91b326ed0f2e216"
+dependencies = [
+ "async-trait",
+ "candid",
+ "ic-cdk",
+ "ic-error-types",
  "regex-lite",
  "serde",
  "serde_bytes",
@@ -2435,7 +2448,7 @@ dependencies = [
  "async-trait",
  "candid",
  "canhttp",
- "ic-canister-runtime",
+ "ic-canister-runtime 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "ic-cdk",
  "ic-error-types",
  "pocket-ic",

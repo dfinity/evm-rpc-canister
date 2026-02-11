@@ -87,7 +87,7 @@ ethnum = { version = "1.5.2", features = ["serde"] }
 getrandom = { version = "0.2", features = ["custom"] }
 hex = "0.4.3"
 http = "1.4.0"
-ic-canister-runtime = "0.1.2"
+ic-canister-runtime = { git = "https://github.com/dfinity/canhttp.git", branch = "gdemay/DEFI-2566-stopping" }
 ic-cdk = "0.19.0"
 ic-cdk-bindgen = "0.1"
 ic-certified-map = "0.4"
