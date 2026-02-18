@@ -951,9 +951,9 @@ dependencies = [
 
 [[package]]
 name = "canhttp"
-version = "0.5.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ffbc8ab5b0f21e91df6387c5a53af0b6228cb6b5db9ed3ed4f12f08329028f43"
+checksum = "0de1e0d5fadebcd23ac73e532af6f64777fce85f92a635945ef796c002aaf2ae"
 dependencies = [
  "assert_matches",
  "ciborium",
@@ -2261,9 +2261,9 @@ dependencies = [
 
 [[package]]
 name = "ic-canister-runtime"
-version = "0.1.2"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21294a9ff21dec8e57315788ebaa6fe999cbf9b61a201943985299c49ef9b1ff"
+checksum = "03ed95be893b8d9b7309dcfd34aac7af9414f18ea8f14f71a065f89f5b94583c"
 dependencies = [
  "async-trait",
  "candid",
@@ -2428,9 +2428,9 @@ checksum = "8b5c7628eac357aecda461130f8074468be5aa4d258a002032d82d817f79f1f8"
 
 [[package]]
 name = "ic-pocket-canister-runtime"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ebbe23cfb4a3ab3e700505a8b1ab66ba0c4f6231e6dbdac11063529717c70fd"
+checksum = "6a5b0a7a699cca04dc47afa223318eea8af44a8dd1ce941c7353f20ca05577cc"
 dependencies = [
  "async-trait",
  "candid",
