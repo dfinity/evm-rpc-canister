@@ -5,13 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.1] - 2026-02-18
+## [0.4.0] - 2026-02-18
 
 ### Changed
 
-- Use `alloy-sol-macro` and `alloy-sol-types` crates instead of `alloy` ([#539](https://github.com/dfinity/evm-rpc-canister/pull/539))
+- **BREAKING:** Bump `ic-canister-runtime` to v0.2.0. See PR description for more details on the breaking changes. 
+  Notably, clients instances created with `EvmRpcClient::builder_for_ic()` now by default do **not** perform 
+  inter-canister calls if the canister performing the calls is stopping. 
+  To enable calls while the canister is stopping, the client can be initialized with a custom
+  [`ic_canister_runtime::IcRuntime`](https://docs.rs/ic-canister-runtime/0.2.0/ic_canister_runtime/struct.IcRuntime.html)
+  instance configured to allow such calls with the [`allow_calls_when_stopping`](https://docs.rs/ic-canister-runtime/0.2.0/ic_canister_runtime/struct.IcRuntime.html#method.allow_calls_when_stopping) method. ([#555](https://github.com/dfinity/evm-rpc-canister/pull/555))
 
-[0.3.1]: https://github.com/dfinity/evm-rpc-canister/compare/0.3.0..0.3.1
+[0.4.0]: https://github.com/dfinity/evm-rpc-canister/compare/evm_rpc_client-v0.3.0..evm_rpc_client-v0.4.0
 
 ## [0.3.0] - 2025-11-24
 
