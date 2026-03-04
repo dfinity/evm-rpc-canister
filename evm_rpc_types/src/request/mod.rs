@@ -184,3 +184,21 @@ pub struct AccessListEntry {
     #[serde(rename = "storageKeys")]
     pub storage_keys: Vec<Hex32>,
 }
+
+#[derive(Clone, Debug, PartialEq, Eq, CandidType, Deserialize)]
+pub struct GetLogsBatchArgs {
+    pub args: GetLogsArgs,
+    #[serde(rename = "maxBlockRange")]
+    pub max_block_range: Option<u32>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, CandidType, Deserialize)]
+pub enum BatchRequest {
+    EthFeeHistory(FeeHistoryArgs),
+    EthGetBlockByNumber(BlockTag),
+    EthGetLogs(GetLogsBatchArgs),
+    EthGetTransactionCount(GetTransactionCountArgs),
+    EthGetTransactionReceipt(Hex32),
+    EthSendRawTransaction(Hex),
+    EthCall(CallArgs),
+}
