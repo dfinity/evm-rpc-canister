@@ -4,9 +4,9 @@ pub(crate) mod alloy;
 use crate::{retry, EvmRpcClient, Runtime};
 use candid::CandidType;
 use evm_rpc_types::{
-    BlockTag, CallArgs, ConsensusStrategy, FeeHistoryArgs, GetLogsArgs, GetLogsRpcConfig,
-    GetTransactionCountArgs, Hex, Hex20, Hex32, MultiRpcResult, Nat256, RpcConfig, RpcResult,
-    RpcServices,
+    BatchRequest, BatchResult, BlockTag, CallArgs, ConsensusStrategy, FeeHistoryArgs, GetLogsArgs,
+    GetLogsRpcConfig, GetTransactionCountArgs, Hex, Hex20, Hex32, MultiRpcResult, Nat256,
+    RpcConfig, RpcResult, RpcServices,
 };
 use ic_canister_runtime::IcError;
 use serde::de::DeserializeOwned;
@@ -354,6 +354,39 @@ pub type SendRawTransactionRequestBuilder<R, C, P, Output> = RequestBuilder<
     Output,
 >;
 
+#[derive(Debug, Clone)]
+pub struct BatchRpcRequest(Vec<BatchRequest>);
+
+impl BatchRpcRequest {
+    pub fn new(params: Vec<BatchRequest>) -> Self {
+        Self(params)
+    }
+}
+
+impl EvmRpcRequest for BatchRpcRequest {
+    type Config = RpcConfig;
+    type Params = Vec<BatchRequest>;
+    type CandidOutput = MultiRpcResult<Vec<BatchResult>>;
+
+    fn endpoint(&self) -> EvmRpcEndpoint {
+        EvmRpcEndpoint::EthBatch
+    }
+
+    fn params(self) -> Self::Params {
+        self.0
+    }
+}
+
+pub type BatchRequestBuilder<R, C, P, Output> = RequestBuilder<
+    R,
+    C,
+    P,
+    <BatchRpcRequest as EvmRpcRequest>::Config,
+    <BatchRpcRequest as EvmRpcRequest>::Params,
+    <BatchRpcRequest as EvmRpcRequest>::CandidOutput,
+    Output,
+>;
+
 /// Ethereum RPC endpoint supported by the EVM RPC canister.
 pub trait EvmRpcRequest {
     /// Type of RPC config for that request.
@@ -373,6 +406,8 @@ pub trait EvmRpcRequest {
 /// Endpoint on the EVM RPC canister triggering a call to EVM providers.
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, EnumIter)]
 pub enum EvmRpcEndpoint {
+    /// `eth_batch` endpoint.
+    EthBatch,
     /// `eth_call` endpoint.
     Call,
     /// `eth_feeHistory` endpoint.
@@ -395,6 +430,7 @@ impl EvmRpcEndpoint {
     /// Method name on the EVM RPC canister
     pub fn rpc_method(&self) -> &'static str {
         match &self {
+            Self::EthBatch => "eth_batch",
             Self::Call => "eth_call",
             Self::FeeHistory => "eth_feeHistory",
             Self::GetBlockByNumber => "eth_getBlockByNumber",
@@ -409,6 +445,7 @@ impl EvmRpcEndpoint {
     /// Method name on the EVM RPC canister to estimate the amount of cycles for that request.
     pub fn cycles_cost_method(&self) -> &'static str {
         match &self {
+            Self::EthBatch => "eth_batchCyclesCost",
             Self::Call => "eth_callCyclesCost",
             Self::FeeHistory => "eth_feeHistoryCyclesCost",
             Self::GetBlockByNumber => "eth_getBlockByNumberCyclesCost",
@@ -781,6 +818,7 @@ impl<R: Runtime, C, P, Config, Params> RequestCostBuilder<R, C, P, Config, Param
 // This trait is not public, otherwise adding a new endpoint to the EVM RPC canister would be
 // a breaking change since it would add a new associated type to this trait.
 pub trait EvmRpcResponseConverter {
+    type BatchOutput;
     type CallOutput;
     type FeeHistoryOutput;
     type GetBlockByNumberOutput;
@@ -795,6 +833,7 @@ pub trait EvmRpcResponseConverter {
 pub struct CandidResponseConverter;
 
 impl EvmRpcResponseConverter for CandidResponseConverter {
+    type BatchOutput = MultiRpcResult<Vec<BatchResult>>;
     type CallOutput = MultiRpcResult<Hex>;
     type FeeHistoryOutput = MultiRpcResult<evm_rpc_types::FeeHistory>;
     type GetBlockByNumberOutput = MultiRpcResult<evm_rpc_types::Block>;

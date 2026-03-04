@@ -135,19 +135,19 @@ mod retry;
 use crate::request::RequestCost;
 use candid::{CandidType, Principal};
 use evm_rpc_types::{
-    BlockTag, CallArgs, ConsensusStrategy, FeeHistoryArgs, GetLogsArgs, GetTransactionCountArgs,
-    Hex, Hex32, RpcConfig, RpcResult, RpcServices,
+    BatchRequest, BlockTag, CallArgs, ConsensusStrategy, FeeHistoryArgs, GetLogsArgs,
+    GetTransactionCountArgs, Hex, Hex32, RpcConfig, RpcResult, RpcServices,
 };
 use ic_canister_runtime::{IcError, IcRuntime, Runtime};
 #[cfg(feature = "alloy")]
 pub use request::alloy::AlloyResponseConverter;
 use request::{
-    CallRequest, CallRequestBuilder, EvmRpcResponseConverter, FeeHistoryRequest,
-    FeeHistoryRequestBuilder, GetBlockByNumberRequest, GetBlockByNumberRequestBuilder,
-    GetLogsRequest, GetLogsRequestBuilder, GetTransactionCountRequest,
-    GetTransactionCountRequestBuilder, GetTransactionReceiptRequest,
-    GetTransactionReceiptRequestBuilder, JsonRequest, JsonRequestBuilder,
-    SendRawTransactionRequest, SendRawTransactionRequestBuilder,
+    BatchRequestBuilder, BatchRpcRequest, CallRequest, CallRequestBuilder,
+    EvmRpcResponseConverter, FeeHistoryRequest, FeeHistoryRequestBuilder,
+    GetBlockByNumberRequest, GetBlockByNumberRequestBuilder, GetLogsRequest,
+    GetLogsRequestBuilder, GetTransactionCountRequest, GetTransactionCountRequestBuilder,
+    GetTransactionReceiptRequest, GetTransactionReceiptRequestBuilder, JsonRequest,
+    JsonRequestBuilder, SendRawTransactionRequest, SendRawTransactionRequestBuilder,
 };
 pub use request::{CandidResponseConverter, EvmRpcConfig, EvmRpcEndpoint, Request, RequestBuilder};
 pub use retry::{DoubleCycles, NoRetry, RetryPolicy};
@@ -338,6 +338,21 @@ impl<R, C, P> ClientBuilder<R, C, P> {
 }
 
 impl<R, C: EvmRpcResponseConverter, P> EvmRpcClient<R, C, P> {
+    /// Call `eth_batch` on the EVM RPC canister.
+    ///
+    /// Sends a batch of JSON-RPC requests in a single HTTPS outcall per provider.
+    /// Responses are returned in the same order as the requests.
+    pub fn batch(
+        &self,
+        params: Vec<BatchRequest>,
+    ) -> BatchRequestBuilder<R, C, P, C::BatchOutput> {
+        RequestBuilder::new(
+            self.clone(),
+            BatchRpcRequest::new(params),
+            10_000_000_000,
+        )
+    }
+
     /// Call `eth_call` on the EVM RPC canister.
     ///
     /// # Examples
