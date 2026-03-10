@@ -20,8 +20,8 @@ use std::str::FromStr;
 pub use canlog::{LogFilter, RegexString, RegexSubstitution};
 pub use lifecycle::{InstallArgs, OverrideProvider};
 pub use request::{
-    AccessList, AccessListEntry, BatchRequest, BlockTag, CallArgs, FeeHistoryArgs,
-    GetLogsBatchArgs, GetLogsArgs, GetTransactionCountArgs, TransactionRequest,
+    AccessList, AccessListEntry, BatchRequest, BlockTag, CallArgs, FeeHistoryArgs, GetLogsArgs,
+    GetLogsBatchArgs, GetTransactionCountArgs, TransactionRequest,
 };
 pub use response::{Block, FeeHistory, LogEntry, SendRawTransactionStatus, TransactionReceipt};
 pub use result::{

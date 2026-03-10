@@ -142,12 +142,12 @@ use ic_canister_runtime::{IcError, IcRuntime, Runtime};
 #[cfg(feature = "alloy")]
 pub use request::alloy::AlloyResponseConverter;
 use request::{
-    BatchRequestBuilder, BatchRpcRequest, CallRequest, CallRequestBuilder,
-    EvmRpcResponseConverter, FeeHistoryRequest, FeeHistoryRequestBuilder,
-    GetBlockByNumberRequest, GetBlockByNumberRequestBuilder, GetLogsRequest,
-    GetLogsRequestBuilder, GetTransactionCountRequest, GetTransactionCountRequestBuilder,
-    GetTransactionReceiptRequest, GetTransactionReceiptRequestBuilder, JsonRequest,
-    JsonRequestBuilder, SendRawTransactionRequest, SendRawTransactionRequestBuilder,
+    BatchRequestBuilder, BatchRpcRequest, CallRequest, CallRequestBuilder, EvmRpcResponseConverter,
+    FeeHistoryRequest, FeeHistoryRequestBuilder, GetBlockByNumberRequest,
+    GetBlockByNumberRequestBuilder, GetLogsRequest, GetLogsRequestBuilder,
+    GetTransactionCountRequest, GetTransactionCountRequestBuilder, GetTransactionReceiptRequest,
+    GetTransactionReceiptRequestBuilder, JsonRequest, JsonRequestBuilder,
+    SendRawTransactionRequest, SendRawTransactionRequestBuilder,
 };
 pub use request::{CandidResponseConverter, EvmRpcConfig, EvmRpcEndpoint, Request, RequestBuilder};
 pub use retry::{DoubleCycles, NoRetry, RetryPolicy};
@@ -342,15 +342,8 @@ impl<R, C: EvmRpcResponseConverter, P> EvmRpcClient<R, C, P> {
     ///
     /// Sends a batch of JSON-RPC requests in a single HTTPS outcall per provider.
     /// Responses are returned in the same order as the requests.
-    pub fn batch(
-        &self,
-        params: Vec<BatchRequest>,
-    ) -> BatchRequestBuilder<R, C, P, C::BatchOutput> {
-        RequestBuilder::new(
-            self.clone(),
-            BatchRpcRequest::new(params),
-            10_000_000_000,
-        )
+    pub fn batch(&self, params: Vec<BatchRequest>) -> BatchRequestBuilder<R, C, P, C::BatchOutput> {
+        RequestBuilder::new(self.clone(), BatchRpcRequest::new(params), 10_000_000_000)
     }
 
     /// Call `eth_call` on the EVM RPC canister.

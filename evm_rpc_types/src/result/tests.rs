@@ -218,12 +218,12 @@ mod batch_result_backwards_compatibility {
     fn old_client_can_decode_pre_existing_variants() {
         let err: RpcError = RpcError::ProviderError(ProviderError::ProviderNotFound);
         let pre_existing_variants: Vec<BatchResult> = vec![
-            BatchResult::EthFeeHistory(Err(err.clone())),
-            BatchResult::EthGetBlockByNumber(Err(err.clone())),
-            BatchResult::EthGetLogs(Err(err.clone())),
-            BatchResult::EthGetTransactionCount(Err(err.clone())),
-            BatchResult::EthGetTransactionReceipt(Err(err.clone())),
-            BatchResult::EthSendRawTransaction(Err(err)),
+            BatchResult::EthFeeHistory(Box::new(Err(err.clone()))),
+            BatchResult::EthGetBlockByNumber(Box::new(Err(err.clone()))),
+            BatchResult::EthGetLogs(Box::new(Err(err.clone()))),
+            BatchResult::EthGetTransactionCount(Box::new(Err(err.clone()))),
+            BatchResult::EthGetTransactionReceipt(Box::new(Err(err.clone()))),
+            BatchResult::EthSendRawTransaction(Box::new(Err(err))),
         ];
         for variant in pre_existing_variants {
             let encoded = Encode!(&variant).unwrap();
@@ -253,12 +253,12 @@ mod batch_result_backwards_compatibility {
             // Exhaustive match ensures a compile-time error when a new variant is added,
             // reminding the developer to update this test.
             match value {
-                BatchResult::EthFeeHistory(v) => Ok(Self::EthFeeHistory(v)),
-                BatchResult::EthGetBlockByNumber(v) => Ok(Self::EthGetBlockByNumber(v)),
-                BatchResult::EthGetLogs(v) => Ok(Self::EthGetLogs(v)),
-                BatchResult::EthGetTransactionCount(v) => Ok(Self::EthGetTransactionCount(v)),
-                BatchResult::EthGetTransactionReceipt(v) => Ok(Self::EthGetTransactionReceipt(v)),
-                BatchResult::EthSendRawTransaction(v) => Ok(Self::EthSendRawTransaction(v)),
+                BatchResult::EthFeeHistory(v) => Ok(Self::EthFeeHistory(*v)),
+                BatchResult::EthGetBlockByNumber(v) => Ok(Self::EthGetBlockByNumber(*v)),
+                BatchResult::EthGetLogs(v) => Ok(Self::EthGetLogs(*v)),
+                BatchResult::EthGetTransactionCount(v) => Ok(Self::EthGetTransactionCount(*v)),
+                BatchResult::EthGetTransactionReceipt(v) => Ok(Self::EthGetTransactionReceipt(*v)),
+                BatchResult::EthSendRawTransaction(v) => Ok(Self::EthSendRawTransaction(*v)),
                 // New variants not present in the old interface.
                 BatchResult::EthCall(_) => Err("EthCall is not supported".to_string()),
             }

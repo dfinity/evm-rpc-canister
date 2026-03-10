@@ -200,5 +200,5 @@ pub enum BatchRequest {
     EthGetTransactionCount(GetTransactionCountArgs),
     EthGetTransactionReceipt(Hex32),
     EthSendRawTransaction(Hex),
-    EthCall(CallArgs),
+    EthCall(Box<CallArgs>),
 }
