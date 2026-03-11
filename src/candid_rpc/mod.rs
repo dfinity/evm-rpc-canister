@@ -1,5 +1,6 @@
 use crate::{
     rpc_client::{
+        eth_rpc::{ResponseTransform, HEADER_SIZE_LIMIT},
         json::{
             requests::{
                 BlockSpec, EthCallParams, FeeHistoryParams, GetLogsParams,
@@ -7,7 +8,7 @@ use crate::{
             },
             Hash,
         },
-        EthRpcClient,
+        BatchRequestItem, EthRpcClient,
     },
     types::RpcMethod,
 };
@@ -15,7 +16,8 @@ use candid::Nat;
 use canhttp::{http::json::JsonRpcRequest, multi::Timestamp};
 use ethers_core::{types::Transaction, utils::rlp};
 use evm_rpc_types::{
-    BlockTag, Hex, Hex32, MultiRpcResult, Nat256, RpcError, RpcResult, ValidationError,
+    BatchRequest, BatchResult, BlockTag, Hex, Hex32, MultiRpcResult, Nat256, RpcError, RpcResult,
+    ValidationError,
 };
 
 /// Adapt the `EthRpcClient` to the `Candid` interface used by the EVM-RPC canister.
@@ -182,6 +184,28 @@ impl CandidRpcClient {
             .await
     }
 
+    pub async fn eth_batch(self, requests: Vec<BatchRequest>) -> MultiRpcResult<Vec<BatchResult>> {
+        let batch_items: Vec<BatchRequestItem> =
+            requests.iter().map(batch_request_to_item).collect();
+        self.client
+            .eth_batch(batch_items)
+            .send_and_reduce()
+            .await
+            .map(|responses| {
+                responses
+                    .into_iter()
+                    .zip(requests.iter())
+                    .map(|(response, request)| json_rpc_response_to_batch_result(response, request))
+                    .collect()
+            })
+    }
+
+    pub async fn eth_batch_cycles_cost(self, requests: Vec<BatchRequest>) -> RpcResult<u128> {
+        let batch_items: Vec<BatchRequestItem> =
+            requests.iter().map(batch_request_to_item).collect();
+        self.client.eth_batch(batch_items).cycles_cost().await
+    }
+
     pub async fn multi_request(self, json_rpc_payload: String) -> MultiRpcResult<String> {
         let request = match try_into_json_rpc_request(json_rpc_payload) {
             Ok(request) => request,
@@ -243,4 +267,147 @@ fn try_into_json_rpc_request(
             "Invalid JSON RPC request: {e}"
         )))
     })
+}
+
+fn batch_request_to_item(request: &BatchRequest) -> BatchRequestItem {
+    fn to_value(v: impl serde::Serialize) -> serde_json::Value {
+        serde_json::to_value(v).expect("BUG: failed to serialize params")
+    }
+
+    match request {
+        BatchRequest::EthFeeHistory(args) => BatchRequestItem {
+            method: RpcMethod::EthFeeHistory,
+            params: to_value(FeeHistoryParams::from(args.clone())),
+            transform: ResponseTransform::FeeHistory,
+            response_size_estimate: 512 + HEADER_SIZE_LIMIT,
+        },
+        BatchRequest::EthGetBlockByNumber(tag) => BatchRequestItem {
+            method: RpcMethod::EthGetBlockByNumber,
+            params: to_value((BlockSpec::from(tag.clone()), false)),
+            transform: ResponseTransform::GetBlockByNumber,
+            response_size_estimate: 24 * 1024 + HEADER_SIZE_LIMIT,
+        },
+        BatchRequest::EthGetLogs(batch_args) => BatchRequestItem {
+            method: RpcMethod::EthGetLogs,
+            params: to_value((GetLogsParams::from(batch_args.args.clone()),)),
+            transform: ResponseTransform::GetLogs,
+            response_size_estimate: 1024 + HEADER_SIZE_LIMIT,
+        },
+        BatchRequest::EthGetTransactionCount(args) => BatchRequestItem {
+            method: RpcMethod::EthGetTransactionCount,
+            params: to_value(GetTransactionCountParams::from(args.clone())),
+            transform: ResponseTransform::GetTransactionCount,
+            response_size_estimate: 50 + HEADER_SIZE_LIMIT,
+        },
+        BatchRequest::EthGetTransactionReceipt(tx_hash) => BatchRequestItem {
+            method: RpcMethod::EthGetTransactionReceipt,
+            params: to_value((Hash::from(tx_hash.clone()),)),
+            transform: ResponseTransform::GetTransactionReceipt,
+            response_size_estimate: 700 + HEADER_SIZE_LIMIT,
+        },
+        BatchRequest::EthSendRawTransaction(raw_tx) => BatchRequestItem {
+            method: RpcMethod::EthSendRawTransaction,
+            params: to_value((raw_tx.to_string(),)),
+            transform: ResponseTransform::SendRawTransaction,
+            response_size_estimate: 256 + HEADER_SIZE_LIMIT,
+        },
+        BatchRequest::EthCall(args) => BatchRequestItem {
+            method: RpcMethod::EthCall,
+            params: to_value(EthCallParams::from(*args.clone())),
+            transform: ResponseTransform::Call,
+            response_size_estimate: 256 + HEADER_SIZE_LIMIT,
+        },
+    }
+}
+
+fn json_rpc_response_to_batch_result(
+    response: canhttp::http::json::JsonRpcResponse<serde_json::Value>,
+    request: &BatchRequest,
+) -> BatchResult {
+    let rpc_result = match response.into_result() {
+        Ok(value) => Ok(value),
+        Err(err) => Err(RpcError::JsonRpcError(evm_rpc_types::JsonRpcError {
+            code: err.code,
+            message: err.message,
+        })),
+    };
+
+    use crate::rpc_client::json::responses as json;
+
+    match request {
+        BatchRequest::EthFeeHistory(_) => BatchResult::EthFeeHistory(Box::new(
+            rpc_result.and_then(deserialize_response::<json::FeeHistory, _>),
+        )),
+        BatchRequest::EthGetBlockByNumber(_) => BatchResult::EthGetBlockByNumber(Box::new(
+            rpc_result.and_then(deserialize_response::<json::Block, _>),
+        )),
+        BatchRequest::EthGetLogs(_) => {
+            BatchResult::EthGetLogs(Box::new(rpc_result.and_then(|v| {
+                let entries: Vec<json::LogEntry> = serde_json::from_value(v).map_err(|e| {
+                    RpcError::ValidationError(ValidationError::Custom(format!(
+                        "Failed to deserialize response: {e}"
+                    )))
+                })?;
+                Ok(entries
+                    .into_iter()
+                    .map(evm_rpc_types::LogEntry::from)
+                    .collect())
+            })))
+        }
+        BatchRequest::EthGetTransactionCount(_) => {
+            BatchResult::EthGetTransactionCount(Box::new(rpc_result.and_then(|v| {
+                let count: ethnum::u256 = serde_json::from_value(v).map_err(|e| {
+                    RpcError::ValidationError(ValidationError::Custom(format!(
+                        "Failed to deserialize response: {e}"
+                    )))
+                })?;
+                Ok(Nat256::from_be_bytes(count.to_be_bytes()))
+            })))
+        }
+        BatchRequest::EthGetTransactionReceipt(_) => {
+            BatchResult::EthGetTransactionReceipt(Box::new(rpc_result.and_then(|v| {
+                let internal: Option<json::TransactionReceipt> = serde_json::from_value(v)
+                    .map_err(|e| {
+                        RpcError::ValidationError(ValidationError::Custom(format!(
+                            "Failed to deserialize response: {e}"
+                        )))
+                    })?;
+                Ok(internal.map(evm_rpc_types::TransactionReceipt::from))
+            })))
+        }
+        BatchRequest::EthSendRawTransaction(raw_tx) => {
+            let tx_hash = get_transaction_hash(raw_tx);
+            BatchResult::EthSendRawTransaction(Box::new(rpc_result.and_then(|v| {
+                let result: json::SendRawTransactionResult =
+                    serde_json::from_value(v).map_err(|e| {
+                        RpcError::ValidationError(ValidationError::Custom(format!(
+                            "Failed to deserialize response: {e}"
+                        )))
+                    })?;
+                let status = evm_rpc_types::SendRawTransactionStatus::from(result);
+                Ok(match status {
+                    evm_rpc_types::SendRawTransactionStatus::Ok(_) => {
+                        evm_rpc_types::SendRawTransactionStatus::Ok(tx_hash.clone())
+                    }
+                    other => other,
+                })
+            })))
+        }
+        BatchRequest::EthCall(_) => BatchResult::EthCall(Box::new(
+            rpc_result.and_then(deserialize_response::<json::Data, _>),
+        )),
+    }
+}
+
+fn deserialize_response<Internal, External>(value: serde_json::Value) -> RpcResult<External>
+where
+    Internal: serde::de::DeserializeOwned,
+    External: From<Internal>,
+{
+    let internal: Internal = serde_json::from_value(value).map_err(|e| {
+        RpcError::ValidationError(ValidationError::Custom(format!(
+            "Failed to deserialize response: {e}"
+        )))
+    })?;
+    Ok(External::from(internal))
 }

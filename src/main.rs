@@ -233,20 +233,26 @@ pub async fn eth_call_cycles_cost(
 
 #[update(name = "eth_batch")]
 pub async fn eth_batch(
-    _source: RpcServices,
-    _config: Option<RpcConfig>,
-    _requests: Vec<evm_rpc_types::BatchRequest>,
+    source: RpcServices,
+    config: Option<RpcConfig>,
+    requests: Vec<evm_rpc_types::BatchRequest>,
 ) -> Vec<MultiRpcResult<BatchResult>> {
-    todo!()
+    match CandidRpcClient::new(source, config, now()) {
+        Ok(source) => source.eth_batch(requests).await,
+        Err(err) => requests.iter().map(|_| Err(err.clone()).into()).collect(),
+    }
 }
 
 #[query(name = "eth_batchCyclesCost")]
 pub async fn eth_batch_cycles_cost(
-    _source: RpcServices,
-    _config: Option<RpcConfig>,
-    _requests: Vec<evm_rpc_types::BatchRequest>,
+    source: RpcServices,
+    config: Option<RpcConfig>,
+    requests: Vec<evm_rpc_types::BatchRequest>,
 ) -> RpcResult<u128> {
-    todo!()
+    match CandidRpcClient::new(source, config, now()) {
+        Ok(source) => source.eth_batch_cycles_cost(requests).await,
+        Err(err) => Err(err),
+    }
 }
 
 #[update(name = "multi_request")]
