@@ -698,35 +698,36 @@ impl MultiBatchRpcRequest {
     fn create_batch_requests(
         &self,
     ) -> MultiResults<RpcService, http::Request<BatchJsonRpcRequest<Value>>, RpcError> {
-        let ids: Vec<Id> = (0..self.requests.len())
-            .map(|_| next_request_id())
-            .collect();
-
-        let transform_envelope = ResponseTransformEnvelope::from(
-            ids.iter()
-                .zip(self.requests.iter())
-                .map(|(id, item)| (id.clone(), item.transform.clone()))
-                .collect::<BTreeMap<_, _>>(),
-        );
-
-        let transform_op = {
-            let mut buf = vec![];
-            minicbor::encode(&transform_envelope, &mut buf).unwrap();
-            buf
-        };
         let effective_size_estimate = self.response_size_estimate.get();
-
-        let batch_body: BatchJsonRpcRequest<Value> = ids
-            .iter()
-            .zip(self.requests.iter())
-            .map(|(id, item)| {
-                JsonRpcRequest::new(item.method.clone().name(), item.params.clone())
-                    .with_id(id.clone())
-            })
-            .collect();
 
         let mut requests = MultiResults::default();
         for provider in self.providers.iter() {
+            let ids: Vec<Id> = (0..self.requests.len())
+                .map(|_| next_request_id())
+                .collect();
+
+            let transform_envelope = ResponseTransformEnvelope::from(
+                ids.iter()
+                    .zip(self.requests.iter())
+                    .map(|(id, item)| (id.clone(), item.transform.clone()))
+                    .collect::<BTreeMap<_, _>>(),
+            );
+
+            let transform_op = {
+                let mut buf = vec![];
+                minicbor::encode(&transform_envelope, &mut buf).unwrap();
+                buf
+            };
+
+            let batch_body: BatchJsonRpcRequest<Value> = ids
+                .iter()
+                .zip(self.requests.iter())
+                .map(|(id, item)| {
+                    JsonRpcRequest::new(item.method.clone().name(), item.params.clone())
+                        .with_id(id.clone())
+                })
+                .collect();
+
             let request = resolve_rpc_service(provider.clone())
                 .map_err(RpcError::from)
                 .and_then(|rpc_service| rpc_service.post(&get_override_provider()))
@@ -738,9 +739,9 @@ impl MultiBatchRpcRequest {
                                 method: "cleanup_response".to_string(),
                                 principal: ic_cdk::api::canister_self(),
                             }),
-                            context: transform_op.clone(),
+                            context: transform_op,
                         })
-                        .body(batch_body.clone())
+                        .body(batch_body)
                         .expect("BUG: invalid request")
                 })
                 .map(|mut request| {
