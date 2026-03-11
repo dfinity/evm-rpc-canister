@@ -251,7 +251,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-serde",
  "alloy-sol-types",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "serde",
  "serde_json",
  "serde_with",
@@ -876,9 +876,9 @@ dependencies = [
 
 [[package]]
 name = "candid"
-version = "0.10.22"
+version = "0.10.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3b64a1b8e8c368f8ffd2aaa64c7189d0a84783ba162f64de647cefedb4f12c88"
+checksum = "601b519700ec333a2a2c7eb3e8e1eca89177055e3e1fb24ca42cbbb025986696"
 dependencies = [
  "anyhow",
  "binread",
@@ -899,9 +899,9 @@ dependencies = [
 
 [[package]]
 name = "candid_derive"
-version = "0.10.22"
+version = "0.10.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a3ad1d26683b72c7fd16c8b2e3ebacf8785c9532389286c89971c1770ee57ce"
+checksum = "f195a40cd3d199191fc8b534165fadd78c08a1f9666222addaf9f58593002a73"
 dependencies = [
  "lazy_static",
  "proc-macro2",
@@ -953,8 +953,7 @@ dependencies = [
 [[package]]
 name = "canhttp"
 version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0de1e0d5fadebcd23ac73e532af6f64777fce85f92a635945ef796c002aaf2ae"
+source = "git+https://github.com/dfinity/canhttp?branch=gdemay%2FDEFI-2565-json-rpc-batch-mock#49d49eb3f400f18a94786f5c546bee52427f63d9"
 dependencies = [
  "assert_matches",
  "ciborium",
@@ -2289,8 +2288,7 @@ dependencies = [
 [[package]]
 name = "ic-canister-runtime"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03ed95be893b8d9b7309dcfd34aac7af9414f18ea8f14f71a065f89f5b94583c"
+source = "git+https://github.com/dfinity/canhttp?branch=gdemay%2FDEFI-2565-json-rpc-batch-mock#49d49eb3f400f18a94786f5c546bee52427f63d9"
 dependencies = [
  "async-trait",
  "candid",
@@ -2456,8 +2454,7 @@ checksum = "8b5c7628eac357aecda461130f8074468be5aa4d258a002032d82d817f79f1f8"
 [[package]]
 name = "ic-pocket-canister-runtime"
 version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a5b0a7a699cca04dc47afa223318eea8af44a8dd1ce941c7353f20ca05577cc"
+source = "git+https://github.com/dfinity/canhttp?branch=gdemay%2FDEFI-2565-json-rpc-batch-mock#49d49eb3f400f18a94786f5c546bee52427f63d9"
 dependencies = [
  "async-trait",
  "candid",
@@ -2467,6 +2464,7 @@ dependencies = [
  "ic-error-types",
  "pocket-ic",
  "serde",
+ "serde_bytes",
  "serde_json",
  "tokio",
  "url",
@@ -3416,18 +3414,18 @@ checksum = "5be167a7af36ee22fe3115051bc51f6e6c7054c9348e28deb4f49bd6f705a315"
 
 [[package]]
 name = "pin-project"
-version = "1.1.10"
+version = "1.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "677f1add503faace112b9f1373e43e9e054bfdd22ff1a63c1bc485eaec6a6a8a"
+checksum = "f1749c7ed4bcaf4c3d0a3efc28538844fb29bcdd7d2b67b2be7e20ba861ff517"
 dependencies = [
  "pin-project-internal",
 ]
 
 [[package]]
 name = "pin-project-internal"
-version = "1.1.10"
+version = "1.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e918e4ff8c4549eb882f14b3a4bc8c8bc93de829416eacf579f1207a8fbf861"
+checksum = "d9b20ed30f105399776b9c883e68e536ef602a16ae6f596d2c473591d6ad64c6"
 dependencies = [
  "proc-macro2",
  "quote",
