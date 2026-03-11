@@ -3012,6 +3012,96 @@ mod request_cost_tests {
     }
 }
 
+mod batch {
+    use crate::setup::EvmRpcSetup;
+    use crate::RPC_SERVICES;
+    use alloy_primitives::address;
+    use canhttp::http::json::ConstantSizeId;
+    use evm_rpc_types::{BatchRequest, BatchResult, BlockTag, GetTransactionCountArgs, Nat256};
+    use ic_pocket_canister_runtime::{
+        BatchJsonRpcRequestMatcher, BatchJsonRpcResponse, MockHttpOutcallsBuilder,
+        SingleJsonRpcMatcher,
+    };
+    use serde_json::json;
+
+    fn get_transaction_count_batch_request(offset: u64) -> BatchJsonRpcRequestMatcher {
+        BatchJsonRpcRequestMatcher::batch(vec![
+            SingleJsonRpcMatcher::with_method("eth_getTransactionCount")
+                .with_params(json!([
+                    "0xdac17f958d2ee523a2206206994597c13d831ec7",
+                    "latest"
+                ]))
+                .with_id(offset),
+            SingleJsonRpcMatcher::with_method("eth_getTransactionCount")
+                .with_params(json!([
+                    "0xdac17f958d2ee523a2206206994597c13d831ec7",
+                    "finalized"
+                ]))
+                .with_id(offset + 1),
+        ])
+    }
+
+    fn get_transaction_count_batch_response(offset: u64) -> BatchJsonRpcResponse {
+        BatchJsonRpcResponse::from(vec![
+            json!({
+                "jsonrpc": "2.0",
+                "id": ConstantSizeId::from(offset).to_string(),
+                "result": "0x1"
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": ConstantSizeId::from(offset + 1).to_string(),
+                "result": "0x2"
+            }),
+        ])
+    }
+
+    #[tokio::test]
+    async fn should_batch() {
+        fn mocks(offset: u64) -> MockHttpOutcallsBuilder {
+            MockHttpOutcallsBuilder::new()
+                .given(get_transaction_count_batch_request(offset))
+                .respond_with(get_transaction_count_batch_response(offset))
+                .given(get_transaction_count_batch_request(offset + 2))
+                .respond_with(get_transaction_count_batch_response(offset + 2))
+                .given(get_transaction_count_batch_request(offset + 4))
+                .respond_with(get_transaction_count_batch_response(offset + 4))
+        }
+
+        let setup = EvmRpcSetup::new().await.mock_api_keys().await;
+        let mut offsets = (0..).step_by(6);
+
+        for source in RPC_SERVICES {
+            let result = setup
+                .client(mocks(offsets.next().unwrap()))
+                .with_rpc_sources(source.clone())
+                .with_candid()
+                .build()
+                .batch(vec![
+                    BatchRequest::EthGetTransactionCount(GetTransactionCountArgs::from((
+                        address!("0xdac17f958d2ee523a2206206994597c13d831ec7"),
+                        BlockTag::Latest,
+                    ))),
+                    BatchRequest::EthGetTransactionCount(GetTransactionCountArgs::from((
+                        address!("0xdac17f958d2ee523a2206206994597c13d831ec7"),
+                        BlockTag::Finalized,
+                    ))),
+                ])
+                .send()
+                .await
+                .expect_consistent();
+
+            assert_eq!(
+                result,
+                Ok(vec![
+                    BatchResult::EthGetTransactionCount(Box::new(Ok(Nat256::from(1_u64)))),
+                    BatchResult::EthGetTransactionCount(Box::new(Ok(Nat256::from(2_u64)))),
+                ])
+            );
+        }
+    }
+}
+
 fn assert_within(actual: u128, expected: u128, percentage_error: u8) {
     assert!(percentage_error <= 100);
     let error_margin = expected.saturating_mul(percentage_error as u128) / 100;
