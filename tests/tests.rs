@@ -3071,6 +3071,56 @@ mod batch {
         }
     }
 
+    #[tokio::test]
+    async fn should_be_consistent_when_other_response_inconsistent() {
+        fn mocks(offset: u64) -> MockHttpOutcallsBuilder {
+            let results = ["0x1", "0x2"];
+            //inconsistent response for first request in batch
+            let mut other_results = results.clone();
+            other_results[0] = "0x0";
+            MockHttpOutcallsBuilder::new()
+                .given(get_transaction_count_batch_request(offset))
+                .respond_with(get_transaction_count_batch_response(offset, &results))
+                .given(get_transaction_count_batch_request(offset + 2))
+                .respond_with(get_transaction_count_batch_response(offset + 2, &other_results))
+                .given(get_transaction_count_batch_request(offset + 4))
+                .respond_with(get_transaction_count_batch_response(offset + 4, &results))
+        }
+
+        let setup = EvmRpcSetup::new().await.mock_api_keys().await;
+        // 2 requests per batch and 3 providers per batch request
+        let mut offsets = (0..).step_by(6);
+
+        for source in RPC_SERVICES {
+            let result = setup
+                .client(mocks(offsets.next().unwrap()))
+                .with_rpc_sources(source.clone())
+                .with_candid()
+                .build()
+                .batch(vec![
+                    BatchRequest::EthGetTransactionCount(GetTransactionCountArgs::from((
+                        address!("0xdac17f958d2ee523a2206206994597c13d831ec7"),
+                        BlockTag::Latest,
+                    ))),
+                    BatchRequest::EthGetTransactionCount(GetTransactionCountArgs::from((
+                        address!("0xdac17f958d2ee523a2206206994597c13d831ec7"),
+                        BlockTag::Finalized,
+                    ))),
+                ])
+                .send()
+                .await
+                .expect_consistent();
+
+            assert_eq!(
+                result,
+                Ok(vec![
+                    BatchResult::EthGetTransactionCount(Box::new(Ok(Nat256::from(1_u64)))),
+                    BatchResult::EthGetTransactionCount(Box::new(Ok(Nat256::from(2_u64)))),
+                ])
+            );
+        }
+    }
+
     fn get_transaction_count_batch_request(offset: u64) -> BatchJsonRpcRequestMatcher {
         BatchJsonRpcRequestMatcher::batch(vec![
             SingleJsonRpcMatcher::with_method("eth_getTransactionCount")
