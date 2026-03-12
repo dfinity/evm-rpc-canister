@@ -280,125 +280,109 @@ impl EthRpcClient {
         )
     }
 
+    fn https_outcall_settings(
+        &self,
+        method: &RpcMethod,
+    ) -> (ResponseSizeEstimate, ResponseTransform) {
+        match method {
+            RpcMethod::EthCall => (
+                self.response_size_estimate(256 + HEADER_SIZE_LIMIT),
+                ResponseTransform::Call,
+            ),
+            RpcMethod::EthFeeHistory => (
+                // A typical response is slightly above 300 bytes.
+                self.response_size_estimate(512 + HEADER_SIZE_LIMIT),
+                ResponseTransform::FeeHistory,
+            ),
+            RpcMethod::EthGetLogs => (
+                self.response_size_estimate(1024 + HEADER_SIZE_LIMIT),
+                ResponseTransform::GetLogs,
+            ),
+            RpcMethod::EthGetBlockByNumber => {
+                let expected_block_size = match self.chain() {
+                    EthereumNetwork::SEPOLIA => 12 * 1024,
+                    EthereumNetwork::MAINNET => 24 * 1024,
+                    _ => 24 * 1024, // Default for unknown networks
+                };
+                (
+                    self.response_size_estimate(expected_block_size + HEADER_SIZE_LIMIT),
+                    ResponseTransform::GetBlockByNumber,
+                )
+            }
+            RpcMethod::EthGetTransactionCount => (
+                self.response_size_estimate(50 + HEADER_SIZE_LIMIT),
+                ResponseTransform::GetTransactionCount,
+            ),
+            RpcMethod::EthGetTransactionReceipt => (
+                self.response_size_estimate(700 + HEADER_SIZE_LIMIT),
+                ResponseTransform::GetTransactionReceipt,
+            ),
+            RpcMethod::EthSendRawTransaction => (
+                // A successful reply is under 256 bytes, but we expect most calls to end with an error
+                // since we submit the same transaction from multiple nodes.
+                self.response_size_estimate(256 + HEADER_SIZE_LIMIT),
+                ResponseTransform::SendRawTransaction,
+            ),
+            RpcMethod::Custom(_) => (
+                self.response_size_estimate(256 + HEADER_SIZE_LIMIT),
+                ResponseTransform::Raw,
+            ),
+        }
+    }
+
     pub fn eth_get_logs(
         self,
         params: GetLogsParams,
-    ) -> MultiRpcRequest<SinglePayload<(GetLogsParams,), Vec<LogEntry>>> {
-        let response_size_estimate = self.response_size_estimate(1024 + HEADER_SIZE_LIMIT);
-        let reduction = self.reduction_strategy();
-        MultiRpcRequest::new(
-            self.providers.services,
-            RpcMethod::EthGetLogs,
-            (params,),
-            response_size_estimate,
-            ResponseTransform::GetLogs,
-            reduction,
-        )
+    ) -> MultiRpcSingleRequest<(GetLogsParams,), Vec<LogEntry>> {
+        self.single_request(RpcMethod::EthGetLogs, (params,))
     }
 
     pub fn eth_get_block_by_number(
         self,
         block: BlockSpec,
-    ) -> MultiRpcRequest<SinglePayload<GetBlockByNumberParams, Block>> {
-        let expected_block_size = match self.chain() {
-            EthereumNetwork::SEPOLIA => 12 * 1024,
-            EthereumNetwork::MAINNET => 24 * 1024,
-            _ => 24 * 1024, // Default for unknown networks
-        };
-        let response_size_estimate =
-            self.response_size_estimate(expected_block_size + HEADER_SIZE_LIMIT);
-        let reduction_strategy = self.reduction_strategy();
-        MultiRpcRequest::new(
-            self.providers.services,
+    ) -> MultiRpcSingleRequest<GetBlockByNumberParams, Block> {
+        self.single_request(
             RpcMethod::EthGetBlockByNumber,
             GetBlockByNumberParams {
                 block,
                 include_full_transactions: false,
             },
-            response_size_estimate,
-            ResponseTransform::GetBlockByNumber,
-            reduction_strategy,
         )
     }
 
     pub fn eth_get_transaction_receipt(
         self,
         tx_hash: Hash,
-    ) -> MultiRpcRequest<SinglePayload<(Hash,), Option<TransactionReceipt>>> {
-        let response_size_estimate = self.response_size_estimate(700 + HEADER_SIZE_LIMIT);
-        let reduction_strategy = self.reduction_strategy();
-        MultiRpcRequest::new(
-            self.providers.services,
-            RpcMethod::EthGetTransactionReceipt,
-            (tx_hash,),
-            response_size_estimate,
-            ResponseTransform::GetTransactionReceipt,
-            reduction_strategy,
-        )
+    ) -> MultiRpcSingleRequest<(Hash,), Option<TransactionReceipt>> {
+        self.single_request(RpcMethod::EthGetTransactionReceipt, (tx_hash,))
     }
 
     pub fn eth_fee_history(
         self,
         params: FeeHistoryParams,
-    ) -> MultiRpcRequest<SinglePayload<FeeHistoryParams, FeeHistory>> {
-        // A typical response is slightly above 300 bytes.
-        let response_size_estimate = self.response_size_estimate(512 + HEADER_SIZE_LIMIT);
-        let reduction_strategy = self.reduction_strategy();
-        MultiRpcRequest::new(
-            self.providers.services,
-            RpcMethod::EthFeeHistory,
-            params,
-            response_size_estimate,
-            ResponseTransform::FeeHistory,
-            reduction_strategy,
-        )
+    ) -> MultiRpcSingleRequest<FeeHistoryParams, FeeHistory> {
+        self.single_request(RpcMethod::EthFeeHistory, params)
     }
 
     pub fn eth_send_raw_transaction(
         self,
         raw_signed_transaction_hex: String,
-    ) -> MultiRpcRequest<SinglePayload<(String,), SendRawTransactionResult>> {
-        // A successful reply is under 256 bytes, but we expect most calls to end with an error
-        // since we submit the same transaction from multiple nodes.
-        let response_size_estimate = self.response_size_estimate(256 + HEADER_SIZE_LIMIT);
-        let reduction_strategy = self.reduction_strategy();
-        MultiRpcRequest::new(
-            self.providers.services,
+    ) -> MultiRpcSingleRequest<(String,), SendRawTransactionResult> {
+        self.single_request(
             RpcMethod::EthSendRawTransaction,
             (raw_signed_transaction_hex,),
-            response_size_estimate,
-            ResponseTransform::SendRawTransaction,
-            reduction_strategy,
         )
     }
 
     pub fn eth_get_transaction_count(
         self,
         params: GetTransactionCountParams,
-    ) -> MultiRpcRequest<SinglePayload<GetTransactionCountParams, TransactionCount>> {
-        let response_size_estimate = self.response_size_estimate(50 + HEADER_SIZE_LIMIT);
-        let reduction_strategy = self.reduction_strategy();
-        MultiRpcRequest::new(
-            self.providers.services,
-            RpcMethod::EthGetTransactionCount,
-            params,
-            response_size_estimate,
-            ResponseTransform::GetTransactionCount,
-            reduction_strategy,
-        )
+    ) -> MultiRpcSingleRequest<GetTransactionCountParams, TransactionCount> {
+        self.single_request(RpcMethod::EthGetTransactionCount, params)
     }
 
-    pub fn eth_call(self, params: EthCallParams) -> MultiRpcRequest<SinglePayload<EthCallParams, Data>> {
-        let response_size_estimate = self.response_size_estimate(256 + HEADER_SIZE_LIMIT);
-        let reduction_strategy = self.reduction_strategy();
-        MultiRpcRequest::new(
-            self.providers.services,
-            RpcMethod::EthCall,
-            params,
-            response_size_estimate,
-            ResponseTransform::Call,
-            reduction_strategy,
-        )
+    pub fn eth_call(self, params: EthCallParams) -> MultiRpcSingleRequest<EthCallParams, Data> {
+        self.single_request(RpcMethod::EthCall, params)
     }
 
     pub fn eth_batch(self, requests: Vec<BatchRequestItem>) -> MultiRpcRequest<BatchPayload> {
@@ -422,15 +406,23 @@ impl EthRpcClient {
         self,
         method: RpcMethod,
         params: Option<&Value>,
-    ) -> MultiRpcRequest<SinglePayload<Option<&Value>, RawJson>> {
-        let response_size_estimate = self.response_size_estimate(256 + HEADER_SIZE_LIMIT);
+    ) -> MultiRpcSingleRequest<Option<&Value>, RawJson> {
+        self.single_request(method, params)
+    }
+
+    fn single_request<Params, Output>(
+        self,
+        method: RpcMethod,
+        params: Params,
+    ) -> MultiRpcSingleRequest<Params, Output> {
+        let (response_size_estimate, transform) = self.https_outcall_settings(&method);
         let reduction_strategy = self.reduction_strategy();
         MultiRpcRequest::new(
             self.providers.services,
             method,
             params,
             response_size_estimate,
-            ResponseTransform::Raw,
+            transform,
             reduction_strategy,
         )
     }
@@ -583,6 +575,10 @@ impl RequestPayload for BatchPayload {
     }
 }
 
+/// A single RPC request made to multiple providers.
+pub type MultiRpcSingleRequest<Params, Output> = MultiRpcRequest<SinglePayload<Params, Output>>;
+
+/// An RPC request made to a set of providers.
 pub struct MultiRpcRequest<Payload> {
     providers: BTreeSet<RpcService>,
     payload: Payload,
@@ -639,7 +635,7 @@ impl<P: RequestPayload> MultiRpcRequest<P> {
     }
 }
 
-impl<Params, Output> MultiRpcRequest<SinglePayload<Params, Output>> {
+impl<Params, Output> MultiRpcSingleRequest<Params, Output> {
     pub fn new(
         providers: BTreeSet<RpcService>,
         method: RpcMethod,
@@ -666,10 +662,7 @@ impl<Params, Output> MultiRpcRequest<SinglePayload<Params, Output>> {
         Params: Serialize + Clone + Debug,
         Output: Debug + Serialize + DeserializeOwned + PartialEq,
     {
-        let result = self
-            .parallel_call()
-            .await
-            .reduce(self.reduction_strategy);
+        let result = self.parallel_call().await.reduce(self.reduction_strategy);
         process_result(self.payload.method, result)
     }
 
