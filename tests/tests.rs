@@ -8,16 +8,18 @@ use candid::{CandidType, Encode, Principal};
 use canhttp::http::json::{ConstantSizeId, Id};
 use evm_rpc_client::{DoubleCycles, EvmRpcEndpoint, NoRetry, RequestBuilder};
 use evm_rpc_types::{
-    BlockTag, ConsensusStrategy, EthMainnetService, EthSepoliaService, GetLogsRpcConfig, Hex,
-    Hex32, HttpOutcallError, InstallArgs, JsonRpcError, LegacyRejectionCode, MultiRpcResult,
-    Nat256, ProviderError, RpcApi, RpcError, RpcResult, RpcService, RpcServices, ValidationError,
+    BatchRequest, BlockTag, ConsensusStrategy, EthMainnetService, EthSepoliaService,
+    GetLogsRpcConfig, GetTransactionCountArgs, Hex, Hex32, HttpOutcallError, InstallArgs,
+    JsonRpcError, LegacyRejectionCode, MultiRpcResult, Nat256, ProviderError, RpcApi, RpcError,
+    RpcResult, RpcService, RpcServices, ValidationError,
 };
 use ic_canister_runtime::CyclesWalletRuntime;
 use ic_error_types::RejectCode;
 use ic_http_types::HttpRequest;
 use ic_pocket_canister_runtime::{
-    CanisterHttpReject, CanisterHttpReply, JsonRpcRequestMatcher, JsonRpcResponse,
-    MockHttpOutcalls, MockHttpOutcallsBuilder, PocketIcRuntime,
+    BatchJsonRpcRequestMatcher, CanisterHttpReject, CanisterHttpReply, JsonRpcRequestMatcher,
+    JsonRpcResponse, MockHttpOutcalls, MockHttpOutcallsBuilder, PocketIcRuntime,
+    SingleJsonRpcMatcher,
 };
 use pocket_ic::{common::rest::CanisterHttpResponse, ErrorCode};
 use serde::de::DeserializeOwned;
@@ -2597,7 +2599,14 @@ mod cycles_cost_tests {
 
         for endpoint in EvmRpcEndpoint::iter() {
             match endpoint {
-                EvmRpcEndpoint::EthBatch => continue, // TODO: test once endpoint is implemented
+                EvmRpcEndpoint::EthBatch => {
+                    check(
+                        client.batch(vec![BatchRequest::EthGetTransactionCount(
+                            GetTransactionCountArgs::from((MOCK_ADDRESS, BlockTag::Latest)),
+                        )]),
+                    )
+                    .await;
+                }
                 EvmRpcEndpoint::Call => {
                     check(
                         client.call(
@@ -2668,7 +2677,14 @@ mod cycles_cost_tests {
 
         for endpoint in EvmRpcEndpoint::iter() {
             match endpoint {
-                EvmRpcEndpoint::EthBatch => continue, // TODO: test once endpoint is implemented
+                EvmRpcEndpoint::EthBatch => {
+                    check(
+                        client.batch(vec![BatchRequest::EthGetTransactionCount(
+                            GetTransactionCountArgs::from((MOCK_ADDRESS, BlockTag::Latest)),
+                        )]),
+                    )
+                    .await;
+                }
                 EvmRpcEndpoint::Call => {
                     check(
                         client.call(
