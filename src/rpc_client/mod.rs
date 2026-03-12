@@ -630,9 +630,7 @@ impl MultiBatchRpcRequest {
 
         // Transpose: from per-provider Vec<Response> to per-position MultiResults<Response>
         let mut per_position: Vec<MultiResults<RpcService, JsonRpcResponse<Value>, RpcError>> =
-            (0..batch_size)
-                .map(|_| MultiResults::default())
-                .collect();
+            (0..batch_size).map(|_| MultiResults::default()).collect();
 
         let (ok_results, errors) = multi_results.into_inner();
         for (service, responses) in ok_results {

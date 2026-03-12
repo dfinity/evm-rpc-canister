@@ -184,10 +184,7 @@ impl CandidRpcClient {
             .await
     }
 
-    pub async fn eth_batch(
-        self,
-        requests: Vec<BatchRequest>,
-    ) -> Vec<MultiRpcResult<BatchResult>> {
+    pub async fn eth_batch(self, requests: Vec<BatchRequest>) -> Vec<MultiRpcResult<BatchResult>> {
         let batch_items: Vec<BatchRequestItem> =
             requests.iter().map(batch_request_to_item).collect();
         self.client
