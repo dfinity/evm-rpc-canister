@@ -239,7 +239,10 @@ pub async fn eth_batch(
 ) -> Vec<MultiRpcResult<BatchResult>> {
     match CandidRpcClient::new(source, config, now()) {
         Ok(source) => source.eth_batch(requests).await,
-        Err(err) => requests.iter().map(|_| Err(err.clone()).into()).collect(),
+        Err(err) => requests
+            .iter()
+            .map(|_| Err(err.clone()).into())
+            .collect(),
     }
 }
 

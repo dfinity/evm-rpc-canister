@@ -184,20 +184,22 @@ impl CandidRpcClient {
             .await
     }
 
-    pub async fn eth_batch(self, requests: Vec<BatchRequest>) -> MultiRpcResult<Vec<BatchResult>> {
+    pub async fn eth_batch(
+        self,
+        requests: Vec<BatchRequest>,
+    ) -> Vec<MultiRpcResult<BatchResult>> {
         let batch_items: Vec<BatchRequestItem> =
             requests.iter().map(batch_request_to_item).collect();
         self.client
             .eth_batch(batch_items)
             .send_and_reduce()
             .await
-            .map(|responses| {
-                responses
-                    .into_iter()
-                    .zip(requests.iter())
-                    .map(|(response, request)| json_rpc_response_to_batch_result(response, request))
-                    .collect()
+            .into_iter()
+            .zip(requests.iter())
+            .map(|(result, request)| {
+                result.map(|response| json_rpc_response_to_batch_result(response, request))
             })
+            .collect()
     }
 
     pub async fn eth_batch_cycles_cost(self, requests: Vec<BatchRequest>) -> RpcResult<u128> {

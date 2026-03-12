@@ -624,9 +624,36 @@ pub struct MultiBatchRpcRequest {
 }
 
 impl MultiBatchRpcRequest {
-    pub async fn send_and_reduce(self) -> MultiRpcResult<Vec<JsonRpcResponse<Value>>> {
-        let result = self.parallel_call().await.reduce(self.reduction_strategy);
-        process_result(RpcMethod::Custom("eth_batch".to_string()), result)
+    pub async fn send_and_reduce(self) -> Vec<MultiRpcResult<JsonRpcResponse<Value>>> {
+        let batch_size = self.requests.len();
+        let multi_results = self.parallel_call().await;
+
+        // Transpose: from per-provider Vec<Response> to per-position MultiResults<Response>
+        let mut per_position: Vec<MultiResults<RpcService, JsonRpcResponse<Value>, RpcError>> =
+            (0..batch_size)
+                .map(|_| MultiResults::default())
+                .collect();
+
+        let (ok_results, errors) = multi_results.into_inner();
+        for (service, responses) in ok_results {
+            for (i, response) in responses.into_iter().enumerate() {
+                per_position[i].insert_once(service.clone(), Ok(response));
+            }
+        }
+        for (service, error) in errors {
+            for pos in per_position.iter_mut() {
+                pos.insert_once(service.clone(), Err(error.clone()));
+            }
+        }
+
+        let method = RpcMethod::Custom("eth_batch".to_string());
+        per_position
+            .into_iter()
+            .map(|results| {
+                let result = results.reduce(self.reduction_strategy.clone());
+                process_result(method.clone(), result)
+            })
+            .collect()
     }
 
     pub async fn cycles_cost(&self) -> RpcResult<u128> {
@@ -775,6 +802,7 @@ fn extract_json_rpc_response<O>(result: RpcResult<HttpJsonRpcResponse<O>>) -> Rp
     }
 }
 
+#[derive(Clone)]
 pub enum ReductionStrategy {
     ByEquality(ReduceWithEquality),
     ByThreshold(ReduceWithThreshold),
