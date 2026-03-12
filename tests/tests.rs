@@ -50,6 +50,8 @@ const MOCK_ADDRESS: Address = address!("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB
 const MOCK_INPUT_DATA: Bytes =
     bytes!("0x70a08231000000000000000000000000b25eA1D493B49a1DeD42aC5B1208cC618f9A9B80");
 
+const CONSENSUS_ERROR: &str = "No consensus could be reached. Replicas had different responses.";
+
 const RPC_SERVICES: &[RpcServices] = &[
     RpcServices::EthMainnet(None),
     RpcServices::EthSepolia(None),
@@ -1348,9 +1350,6 @@ async fn candid_rpc_should_return_inconsistent_results_with_error() {
 
 #[tokio::test]
 async fn candid_rpc_should_return_inconsistent_results_with_consensus_error() {
-    const CONSENSUS_ERROR: &str =
-        "No consensus could be reached. Replicas had different responses.";
-
     let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     let mocks = MockHttpOutcallsBuilder::new()
@@ -3014,16 +3013,18 @@ mod request_cost_tests {
 
 mod batch {
     use crate::setup::EvmRpcSetup;
-    use crate::RPC_SERVICES;
+    use crate::{CONSENSUS_ERROR, RPC_SERVICES};
     use alloy_primitives::address;
     use canhttp::http::json::ConstantSizeId;
     use evm_rpc_types::{
         BatchRequest, BatchResult, BlockTag, EthMainnetService, GetTransactionCountArgs,
-        MultiRpcResult, Nat256, RpcService, RpcServices,
+        HttpOutcallError, LegacyRejectionCode, MultiRpcResult, Nat256, RpcError, RpcService,
+        RpcServices,
     };
+    use ic_error_types::RejectCode;
     use ic_pocket_canister_runtime::{
-        BatchJsonRpcRequestMatcher, BatchJsonRpcResponse, MockHttpOutcallsBuilder,
-        SingleJsonRpcMatcher,
+        BatchJsonRpcRequestMatcher, BatchJsonRpcResponse, CanisterHttpReject,
+        MockHttpOutcallsBuilder, SingleJsonRpcMatcher,
     };
     use serde_json::json;
 
@@ -3144,6 +3145,94 @@ mod batch {
                 MultiRpcResult::Consistent(Ok(BatchResult::EthGetTransactionCount(Box::new(Ok(
                     Nat256::from(2_u64)
                 )))))
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn should_error_on_whole_batch_when_https_outcall_error() {
+        fn mocks(offset: u64) -> MockHttpOutcallsBuilder {
+            let results = ["0x1", "0x2"];
+            MockHttpOutcallsBuilder::new()
+                .given(get_transaction_count_batch_request(offset))
+                .respond_with(get_transaction_count_batch_response(offset, &results))
+                .given(get_transaction_count_batch_request(offset + 2))
+                .respond_with(
+                    CanisterHttpReject::with_reject_code(RejectCode::SysTransient)
+                        .with_message(CONSENSUS_ERROR),
+                )
+                .given(get_transaction_count_batch_request(offset + 4))
+                .respond_with(get_transaction_count_batch_response(offset + 4, &results))
+        }
+
+        let setup = EvmRpcSetup::new().await.mock_api_keys().await;
+        // 2 requests per batch and 3 providers per batch request
+        let mut offsets = (0..).step_by(6);
+
+        let results = setup
+            .client(mocks(offsets.next().unwrap()))
+            .with_rpc_sources(RpcServices::EthMainnet(None))
+            .with_candid()
+            .build()
+            .batch(vec![
+                BatchRequest::EthGetTransactionCount(GetTransactionCountArgs::from((
+                    address!("0xdac17f958d2ee523a2206206994597c13d831ec7"),
+                    BlockTag::Latest,
+                ))),
+                BatchRequest::EthGetTransactionCount(GetTransactionCountArgs::from((
+                    address!("0xdac17f958d2ee523a2206206994597c13d831ec7"),
+                    BlockTag::Finalized,
+                ))),
+            ])
+            .try_send()
+            .await
+            .unwrap();
+
+        assert_eq!(
+            results,
+            vec![
+                MultiRpcResult::Inconsistent(vec![
+                    (
+                        RpcService::EthMainnet(EthMainnetService::Ankr),
+                        Ok(BatchResult::EthGetTransactionCount(Box::new(Ok(
+                            Nat256::from(1_u64)
+                        ))))
+                    ),
+                    (
+                        RpcService::EthMainnet(EthMainnetService::PublicNode),
+                        Ok(BatchResult::EthGetTransactionCount(Box::new(Ok(
+                            Nat256::from(1_u64)
+                        ))))
+                    ),
+                    (
+                        RpcService::EthMainnet(EthMainnetService::BlockPi),
+                        Err(RpcError::HttpOutcallError(HttpOutcallError::IcError {
+                            code: LegacyRejectionCode::SysTransient,
+                            message: CONSENSUS_ERROR.to_string(),
+                        }))
+                    ),
+                ]),
+                MultiRpcResult::Inconsistent(vec![
+                    (
+                        RpcService::EthMainnet(EthMainnetService::Ankr),
+                        Ok(BatchResult::EthGetTransactionCount(Box::new(Ok(
+                            Nat256::from(2_u64)
+                        ))))
+                    ),
+                    (
+                        RpcService::EthMainnet(EthMainnetService::PublicNode),
+                        Ok(BatchResult::EthGetTransactionCount(Box::new(Ok(
+                            Nat256::from(2_u64)
+                        ))))
+                    ),
+                    (
+                        RpcService::EthMainnet(EthMainnetService::BlockPi),
+                        Err(RpcError::HttpOutcallError(HttpOutcallError::IcError {
+                            code: LegacyRejectionCode::SysTransient,
+                            message: CONSENSUS_ERROR.to_string(),
+                        }))
+                    ),
+                ]),
             ]
         );
     }
