@@ -2751,7 +2751,7 @@ mod cycles_cost_tests {
             assert_within(cycles_cost, expected_cycles_cost, five_percents);
 
             let cycles_before = setup.evm_rpc_canister_cycles_balance().await;
-            // Request with exact cycles amount should succeed
+            // Request with the exact cycles amount should succeed
             let result = request
                 .clone()
                 .with_cycles(cycles_cost)
@@ -2796,7 +2796,16 @@ mod cycles_cost_tests {
         let mut ids = 0_u64..;
         for endpoint in EvmRpcEndpoint::iter() {
             if endpoint == EvmRpcEndpoint::EthBatch {
-                continue; // TODO: mock once endpoint is implemented
+                for id in ids.by_ref().take(5) {
+                    mocks = mocks
+                        .given(BatchJsonRpcRequestMatcher::batch(vec![
+                            SingleJsonRpcMatcher::with_method("eth_getTransactionCount")
+                                .with_id(id),
+                        ]))
+                        .respond_with(CanisterHttpReply::with_status(403));
+                }
+                for _ in ids.by_ref().take(1) {}
+                continue;
             }
             let rpc_method = if endpoint == EvmRpcEndpoint::MultiRequest {
                 MOCK_REQUEST_METHOD
@@ -2819,7 +2828,71 @@ mod cycles_cost_tests {
             // To find out the expected_cycles_cost for a new endpoint, set the amount to 0
             // and run the test. It should fail and report the amount of cycles needed.
             match endpoint {
-                EvmRpcEndpoint::EthBatch => continue, // TODO: test once endpoint is implemented
+                EvmRpcEndpoint::EthBatch => {
+                    let batch_request = client.batch(vec![
+                        BatchRequest::EthGetTransactionCount(
+                            GetTransactionCountArgs::from((MOCK_ADDRESS, BlockTag::Latest)),
+                        ),
+                    ]);
+                    let five_percents = 5_u8;
+
+                    let cycles_cost = batch_request
+                        .clone()
+                        .request_cost()
+                        .send()
+                        .await
+                        .unwrap();
+                    // To find the expected value, set to 0 and run the test.
+                    assert_within(cycles_cost, 1_714_688_000, five_percents);
+
+                    let cycles_before = setup.evm_rpc_canister_cycles_balance().await;
+                    let results = batch_request
+                        .clone()
+                        .with_cycles(cycles_cost)
+                        .send()
+                        .await;
+                    for result in &results {
+                        if let MultiRpcResult::Consistent(Err(RpcError::ProviderError(
+                            ProviderError::TooFewCycles { .. },
+                        ))) = result
+                        {
+                            panic!(
+                                "BUG: estimated cycles cost was insufficient!: {result:?}"
+                            );
+                        }
+                    }
+                    let cycles_after = setup.evm_rpc_canister_cycles_balance().await;
+                    let cycles_consumed = cycles_before + cycles_cost - cycles_after;
+                    assert!(
+                        cycles_after > cycles_before,
+                        "BUG: not enough cycles requested. Requested {cycles_cost} cycles, but consumed {cycles_consumed} cycles"
+                    );
+
+                    let results = batch_request
+                        .with_cycles(cycles_cost - 1)
+                        .send()
+                        .await;
+                    let has_too_few_cycles = results.iter().any(|result| match result {
+                        MultiRpcResult::Inconsistent(pairs) => {
+                            pairs.iter().any(|(_, r)| {
+                                matches!(
+                                    r,
+                                    Err(RpcError::ProviderError(
+                                        ProviderError::TooFewCycles { .. }
+                                    ))
+                                )
+                            })
+                        }
+                        MultiRpcResult::Consistent(Err(RpcError::ProviderError(
+                            ProviderError::TooFewCycles { .. },
+                        ))) => true,
+                        _ => false,
+                    });
+                    assert!(
+                        has_too_few_cycles,
+                        "BUG: Expected at least one TooFewCycles error, but got {results:?}"
+                    );
+                }
                 EvmRpcEndpoint::Call => {
                     check(
                         &setup,
