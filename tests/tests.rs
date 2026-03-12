@@ -3024,51 +3024,21 @@ mod batch {
     };
     use serde_json::json;
 
-    fn get_transaction_count_batch_request(offset: u64) -> BatchJsonRpcRequestMatcher {
-        BatchJsonRpcRequestMatcher::batch(vec![
-            SingleJsonRpcMatcher::with_method("eth_getTransactionCount")
-                .with_params(json!([
-                    "0xdac17f958d2ee523a2206206994597c13d831ec7",
-                    "latest"
-                ]))
-                .with_id(offset),
-            SingleJsonRpcMatcher::with_method("eth_getTransactionCount")
-                .with_params(json!([
-                    "0xdac17f958d2ee523a2206206994597c13d831ec7",
-                    "finalized"
-                ]))
-                .with_id(offset + 1),
-        ])
-    }
-
-    fn get_transaction_count_batch_response(offset: u64) -> BatchJsonRpcResponse {
-        BatchJsonRpcResponse::from(vec![
-            json!({
-                "jsonrpc": "2.0",
-                "id": ConstantSizeId::from(offset).to_string(),
-                "result": "0x1"
-            }),
-            json!({
-                "jsonrpc": "2.0",
-                "id": ConstantSizeId::from(offset + 1).to_string(),
-                "result": "0x2"
-            }),
-        ])
-    }
-
     #[tokio::test]
-    async fn should_batch() {
+    async fn should_batch_transaction_count() {
         fn mocks(offset: u64) -> MockHttpOutcallsBuilder {
+            let results = ["0x1", "0x2"];
             MockHttpOutcallsBuilder::new()
                 .given(get_transaction_count_batch_request(offset))
-                .respond_with(get_transaction_count_batch_response(offset))
+                .respond_with(get_transaction_count_batch_response(offset, &results))
                 .given(get_transaction_count_batch_request(offset + 2))
-                .respond_with(get_transaction_count_batch_response(offset + 2))
+                .respond_with(get_transaction_count_batch_response(offset + 2, &results))
                 .given(get_transaction_count_batch_request(offset + 4))
-                .respond_with(get_transaction_count_batch_response(offset + 4))
+                .respond_with(get_transaction_count_batch_response(offset + 4, &results))
         }
 
         let setup = EvmRpcSetup::new().await.mock_api_keys().await;
+        // 2 requests per batch and 3 providers per batch request
         let mut offsets = (0..).step_by(6);
 
         for source in RPC_SERVICES {
@@ -3099,6 +3069,39 @@ mod batch {
                 ])
             );
         }
+    }
+
+    fn get_transaction_count_batch_request(offset: u64) -> BatchJsonRpcRequestMatcher {
+        BatchJsonRpcRequestMatcher::batch(vec![
+            SingleJsonRpcMatcher::with_method("eth_getTransactionCount")
+                .with_params(json!([
+                    "0xdac17f958d2ee523a2206206994597c13d831ec7",
+                    "latest"
+                ]))
+                .with_id(offset),
+            SingleJsonRpcMatcher::with_method("eth_getTransactionCount")
+                .with_params(json!([
+                    "0xdac17f958d2ee523a2206206994597c13d831ec7",
+                    "finalized"
+                ]))
+                .with_id(offset + 1),
+        ])
+    }
+
+    fn get_transaction_count_batch_response(offset: u64, results: &[&str]) -> BatchJsonRpcResponse {
+        BatchJsonRpcResponse::from(
+            results
+                .into_iter()
+                .enumerate()
+                .map(|(index, result)| {
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": ConstantSizeId::from(offset + index as u64).to_string(),
+                        "result": result
+                    })
+                })
+                .collect::<Vec<_>>(),
+        )
     }
 }
 
