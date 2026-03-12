@@ -283,7 +283,7 @@ impl EthRpcClient {
     pub fn eth_get_logs(
         self,
         params: GetLogsParams,
-    ) -> MultiRpcRequest<(GetLogsParams,), Vec<LogEntry>> {
+    ) -> MultiRpcRequest<SinglePayload<(GetLogsParams,), Vec<LogEntry>>> {
         let response_size_estimate = self.response_size_estimate(1024 + HEADER_SIZE_LIMIT);
         let reduction = self.reduction_strategy();
         MultiRpcRequest::new(
@@ -299,7 +299,7 @@ impl EthRpcClient {
     pub fn eth_get_block_by_number(
         self,
         block: BlockSpec,
-    ) -> MultiRpcRequest<GetBlockByNumberParams, Block> {
+    ) -> MultiRpcRequest<SinglePayload<GetBlockByNumberParams, Block>> {
         let expected_block_size = match self.chain() {
             EthereumNetwork::SEPOLIA => 12 * 1024,
             EthereumNetwork::MAINNET => 24 * 1024,
@@ -324,7 +324,7 @@ impl EthRpcClient {
     pub fn eth_get_transaction_receipt(
         self,
         tx_hash: Hash,
-    ) -> MultiRpcRequest<(Hash,), Option<TransactionReceipt>> {
+    ) -> MultiRpcRequest<SinglePayload<(Hash,), Option<TransactionReceipt>>> {
         let response_size_estimate = self.response_size_estimate(700 + HEADER_SIZE_LIMIT);
         let reduction_strategy = self.reduction_strategy();
         MultiRpcRequest::new(
@@ -340,7 +340,7 @@ impl EthRpcClient {
     pub fn eth_fee_history(
         self,
         params: FeeHistoryParams,
-    ) -> MultiRpcRequest<FeeHistoryParams, FeeHistory> {
+    ) -> MultiRpcRequest<SinglePayload<FeeHistoryParams, FeeHistory>> {
         // A typical response is slightly above 300 bytes.
         let response_size_estimate = self.response_size_estimate(512 + HEADER_SIZE_LIMIT);
         let reduction_strategy = self.reduction_strategy();
@@ -357,7 +357,7 @@ impl EthRpcClient {
     pub fn eth_send_raw_transaction(
         self,
         raw_signed_transaction_hex: String,
-    ) -> MultiRpcRequest<(String,), SendRawTransactionResult> {
+    ) -> MultiRpcRequest<SinglePayload<(String,), SendRawTransactionResult>> {
         // A successful reply is under 256 bytes, but we expect most calls to end with an error
         // since we submit the same transaction from multiple nodes.
         let response_size_estimate = self.response_size_estimate(256 + HEADER_SIZE_LIMIT);
@@ -375,7 +375,7 @@ impl EthRpcClient {
     pub fn eth_get_transaction_count(
         self,
         params: GetTransactionCountParams,
-    ) -> MultiRpcRequest<GetTransactionCountParams, TransactionCount> {
+    ) -> MultiRpcRequest<SinglePayload<GetTransactionCountParams, TransactionCount>> {
         let response_size_estimate = self.response_size_estimate(50 + HEADER_SIZE_LIMIT);
         let reduction_strategy = self.reduction_strategy();
         MultiRpcRequest::new(
@@ -388,7 +388,7 @@ impl EthRpcClient {
         )
     }
 
-    pub fn eth_call(self, params: EthCallParams) -> MultiRpcRequest<EthCallParams, Data> {
+    pub fn eth_call(self, params: EthCallParams) -> MultiRpcRequest<SinglePayload<EthCallParams, Data>> {
         let response_size_estimate = self.response_size_estimate(256 + HEADER_SIZE_LIMIT);
         let reduction_strategy = self.reduction_strategy();
         MultiRpcRequest::new(
@@ -401,7 +401,7 @@ impl EthRpcClient {
         )
     }
 
-    pub fn eth_batch(self, requests: Vec<BatchRequestItem>) -> MultiBatchRpcRequest {
+    pub fn eth_batch(self, requests: Vec<BatchRequestItem>) -> MultiRpcRequest<BatchPayload> {
         let total_estimate: u64 = requests
             .iter()
             .map(|r| r.response_size_estimate)
@@ -410,9 +410,9 @@ impl EthRpcClient {
         let response_size_estimate =
             ResponseSizeEstimate::new((total_estimate + HEADER_SIZE_LIMIT).min(MAX_PAYLOAD_SIZE));
         let reduction_strategy = self.reduction_strategy();
-        MultiBatchRpcRequest {
+        MultiRpcRequest {
             providers: self.providers.services,
-            requests,
+            payload: BatchPayload { requests },
             response_size_estimate,
             reduction_strategy,
         }
@@ -422,7 +422,7 @@ impl EthRpcClient {
         self,
         method: RpcMethod,
         params: Option<&Value>,
-    ) -> MultiRpcRequest<Option<&Value>, RawJson> {
+    ) -> MultiRpcRequest<SinglePayload<Option<&Value>, RawJson>> {
         let response_size_estimate = self.response_size_estimate(256 + HEADER_SIZE_LIMIT);
         let reduction_strategy = self.reduction_strategy();
         MultiRpcRequest::new(
@@ -436,147 +436,47 @@ impl EthRpcClient {
     }
 }
 
-pub struct MultiRpcRequest<Params, Output> {
-    providers: BTreeSet<RpcService>,
+/// Abstraction over the payload of a multi-provider request.
+/// Implemented by [`SinglePayload`] for single JSON-RPC methods
+/// and [`BatchPayload`] for batch requests.
+pub trait RequestPayload {
+    type HttpBody: Serialize;
+
+    fn create_http_requests(
+        &self,
+        providers: &BTreeSet<RpcService>,
+        response_size_estimate: u64,
+    ) -> MultiResults<RpcService, Request<Self::HttpBody>, RpcError>;
+}
+
+pub struct SinglePayload<Params, Output> {
     method: RpcMethod,
     params: Params,
-    response_size_estimate: ResponseSizeEstimate,
     transform: ResponseTransformEnvelope,
-    reduction_strategy: ReductionStrategy,
     _marker: std::marker::PhantomData<Output>,
 }
 
-impl<Params, Output> MultiRpcRequest<Params, Output> {
-    pub fn new(
-        providers: BTreeSet<RpcService>,
-        method: RpcMethod,
-        params: Params,
-        response_size_estimate: ResponseSizeEstimate,
-        transform: impl Into<ResponseTransformEnvelope>,
-        reduction_strategy: ReductionStrategy,
-    ) -> MultiRpcRequest<Params, Output> {
-        MultiRpcRequest {
-            providers,
-            method,
-            params,
-            response_size_estimate,
-            transform: transform.into(),
-            reduction_strategy,
-            _marker: Default::default(),
-        }
-    }
-}
+impl<Params: Serialize + Clone, Output> RequestPayload for SinglePayload<Params, Output> {
+    type HttpBody = JsonRpcRequest<Params>;
 
-impl<Params, Output> MultiRpcRequest<Params, Output> {
-    pub async fn send_and_reduce(self) -> MultiRpcResult<Output>
-    where
-        Params: Serialize + Clone + Debug,
-        Output: Debug + Serialize + DeserializeOwned + PartialEq,
-    {
-        let result = self.parallel_call().await.reduce(self.reduction_strategy);
-        process_result(self.method, result)
-    }
-
-    /// Query all providers in parallel and return all results.
-    /// It's up to the caller to decide how to handle the results, which could be inconsistent
-    /// (e.g., if different providers gave different responses).
-    /// This method is useful for querying data that is critical for the system to ensure that there is no single point of failure,
-    /// e.g., ethereum logs upon which ckETH will be minted.
-    async fn parallel_call(&self) -> MultiResults<RpcService, Output, RpcError>
-    where
-        Params: Serialize + Clone + Debug,
-        Output: Debug + DeserializeOwned,
-    {
-        let requests = self.create_json_rpc_requests();
-
-        let client = http_client(true).map_result(extract_json_rpc_response);
-
-        let (requests, errors) = requests.into_inner();
-        let (_client, mut results) = canhttp::multi::parallel_call(client, requests).await;
-        results.add_errors(errors);
-        let now = Timestamp::from_nanos_since_unix_epoch(ic_cdk::api::time());
-        results
-            .ok_results()
-            .keys()
-            .filter_map(SupportedRpcService::new)
-            .for_each(|service| record_ok_result(service, now));
-        assert_eq!(
-            results.len(),
-            self.providers.len(),
-            "BUG: expected 1 result per provider"
-        );
-        results
-    }
-
-    /// Estimate the exact cycles cost for the given request.
-    ///
-    /// *IMPORTANT*: the method is *synchronous* in a canister environment.
-    pub async fn cycles_cost(&self) -> RpcResult<u128>
-    where
-        Params: Serialize + Clone + Debug,
-    {
-        async fn extract_request(
-            request: IcHttpRequest,
-        ) -> Result<Response<IcHttpRequest>, HttpClientError> {
-            Ok(Response::new(request))
-        }
-
-        let requests = self.create_json_rpc_requests();
-
-        let client = service_request_builder()
-            .service_fn(extract_request)
-            .map_err(RpcError::from)
-            .map_response(Response::into_body);
-
-        let (requests, errors) = requests.into_inner();
-        if let Some(error) = errors.into_values().next() {
-            return Err(error);
-        }
-
-        let (_client, results) = canhttp::multi::parallel_call(client, requests).await;
-        let (requests, errors) = results.into_inner();
-        if !errors.is_empty() {
-            return Err(errors
-                .into_values()
-                .next()
-                .expect("BUG: errors is not empty"));
-        }
-        assert_eq!(
-            requests.len(),
-            self.providers.len(),
-            "BUG: expected 1 result per provider"
-        );
-
-        let mut cycles_to_attach = 0_u128;
-
-        let policy = charging_policy_with_collateral();
-        for request in requests.into_values() {
-            let request_cycles_cost = ic_cdk::management_canister::cost_http_request(&request);
-            cycles_to_attach += policy.cycles_to_charge(&request, request_cycles_cost)
-        }
-        Ok(cycles_to_attach)
-    }
-
-    fn create_json_rpc_requests(
+    fn create_http_requests(
         &self,
-    ) -> MultiResults<RpcService, Request<JsonRpcRequest<Params>>, RpcError>
-    where
-        Params: Clone,
-    {
+        providers: &BTreeSet<RpcService>,
+        response_size_estimate: u64,
+    ) -> MultiResults<RpcService, Request<Self::HttpBody>, RpcError> {
         let transform_op = {
             let mut buf = vec![];
             minicbor::encode(&self.transform, &mut buf).unwrap();
             buf
         };
-        let effective_size_estimate = self.response_size_estimate.get();
         let mut requests = MultiResults::default();
-        for provider in self.providers.iter() {
+        for provider in providers.iter() {
             let request = resolve_rpc_service(provider.clone())
                 .map_err(RpcError::from)
                 .and_then(|rpc_service| rpc_service.post(&get_override_provider()))
                 .map(|builder| {
                     builder
-                        .max_response_bytes(effective_size_estimate)
+                        .max_response_bytes(response_size_estimate)
                         .transform_context(TransformContext {
                             function: TransformFunc(candid::Func {
                                 method: "cleanup_response".to_string(),
@@ -591,11 +491,7 @@ impl<Params, Output> MultiRpcRequest<Params, Output> {
                         .expect("BUG: invalid request")
                 })
                 .map(|mut request| {
-                    // Store the original `RpcService` for usage when recording metrics
                     request.extensions_mut().insert(provider.clone());
-                    // Store `MetricRpcMethod` for usage when recording metrics, which cannot simply
-                    // later be determined from the JSON-RPC request method since we distinguish
-                    // manual requests.
                     request
                         .extensions_mut()
                         .insert(MetricRpcMethod::from(self.method.clone()));
@@ -616,117 +512,20 @@ pub struct BatchRequestItem {
     pub response_size_estimate: u64,
 }
 
-pub struct MultiBatchRpcRequest {
-    providers: BTreeSet<RpcService>,
+pub struct BatchPayload {
     requests: Vec<BatchRequestItem>,
-    response_size_estimate: ResponseSizeEstimate,
-    reduction_strategy: ReductionStrategy,
 }
 
-impl MultiBatchRpcRequest {
-    pub async fn send_and_reduce(self) -> Vec<MultiRpcResult<JsonRpcResponse<Value>>> {
-        let batch_size = self.requests.len();
-        let multi_results = self.parallel_call().await;
+impl RequestPayload for BatchPayload {
+    type HttpBody = BatchJsonRpcRequest<Value>;
 
-        // Transpose: from per-provider Vec<Response> to per-position MultiResults<Response>
-        let mut per_position: Vec<MultiResults<RpcService, JsonRpcResponse<Value>, RpcError>> =
-            (0..batch_size).map(|_| MultiResults::default()).collect();
-
-        let (ok_results, errors) = multi_results.into_inner();
-        for (service, responses) in ok_results {
-            for (i, response) in responses.into_iter().enumerate() {
-                per_position[i].insert_once(service.clone(), Ok(response));
-            }
-        }
-        for (service, error) in errors {
-            for pos in per_position.iter_mut() {
-                pos.insert_once(service.clone(), Err(error.clone()));
-            }
-        }
-
-        let method = RpcMethod::Custom("eth_batch".to_string());
-        per_position
-            .into_iter()
-            .map(|results| {
-                let result = results.reduce(self.reduction_strategy.clone());
-                process_result(method.clone(), result)
-            })
-            .collect()
-    }
-
-    pub async fn cycles_cost(&self) -> RpcResult<u128> {
-        async fn extract_request(
-            request: IcHttpRequest,
-        ) -> Result<Response<IcHttpRequest>, HttpClientError> {
-            Ok(Response::new(request))
-        }
-
-        let requests = self.create_batch_requests();
-
-        let client = service_request_builder()
-            .service_fn(extract_request)
-            .map_err(RpcError::from)
-            .map_response(Response::into_body);
-
-        let (requests, errors) = requests.into_inner();
-        if let Some(error) = errors.into_values().next() {
-            return Err(error);
-        }
-
-        let (_client, results) = canhttp::multi::parallel_call(client, requests).await;
-        let (requests, errors) = results.into_inner();
-        if !errors.is_empty() {
-            return Err(errors
-                .into_values()
-                .next()
-                .expect("BUG: errors is not empty"));
-        }
-        assert_eq!(
-            requests.len(),
-            self.providers.len(),
-            "BUG: expected 1 result per provider"
-        );
-
-        let mut cycles_to_attach = 0_u128;
-        let policy = charging_policy_with_collateral();
-        for request in requests.into_values() {
-            let request_cycles_cost = ic_cdk::management_canister::cost_http_request(&request);
-            cycles_to_attach += policy.cycles_to_charge(&request, request_cycles_cost)
-        }
-        Ok(cycles_to_attach)
-    }
-
-    async fn parallel_call(
+    fn create_http_requests(
         &self,
-    ) -> MultiResults<RpcService, Vec<JsonRpcResponse<Value>>, RpcError> {
-        let requests = self.create_batch_requests();
-
-        let client = http_batch_client().map_result(extract_batch_json_rpc_response);
-
-        let (requests, errors) = requests.into_inner();
-        let (_client, mut results) = canhttp::multi::parallel_call(client, requests).await;
-        results.add_errors(errors);
-        let now = Timestamp::from_nanos_since_unix_epoch(ic_cdk::api::time());
-        results
-            .ok_results()
-            .keys()
-            .filter_map(SupportedRpcService::new)
-            .for_each(|service| record_ok_result(service, now));
-        assert_eq!(
-            results.len(),
-            self.providers.len(),
-            "BUG: expected 1 result per provider"
-        );
-        results
-    }
-
-    fn create_batch_requests(
-        &self,
-    ) -> MultiResults<RpcService, http::Request<BatchJsonRpcRequest<Value>>, RpcError> {
-        let effective_size_estimate = self.response_size_estimate.get();
-
+        providers: &BTreeSet<RpcService>,
+        response_size_estimate: u64,
+    ) -> MultiResults<RpcService, Request<Self::HttpBody>, RpcError> {
         let mut requests = MultiResults::default();
-        for provider in self.providers.iter() {
+        for provider in providers.iter() {
             let ids: Vec<Id> = (0..self.requests.len())
                 .map(|_| next_request_id())
                 .collect();
@@ -758,7 +557,7 @@ impl MultiBatchRpcRequest {
                 .and_then(|rpc_service| rpc_service.post(&get_override_provider()))
                 .map(|builder| {
                     builder
-                        .max_response_bytes(effective_size_estimate)
+                        .max_response_bytes(response_size_estimate)
                         .transform_context(TransformContext {
                             function: TransformFunc(candid::Func {
                                 method: "cleanup_response".to_string(),
@@ -781,6 +580,188 @@ impl MultiBatchRpcRequest {
             requests.insert_once(provider.clone(), request);
         }
         requests
+    }
+}
+
+pub struct MultiRpcRequest<Payload> {
+    providers: BTreeSet<RpcService>,
+    payload: Payload,
+    response_size_estimate: ResponseSizeEstimate,
+    reduction_strategy: ReductionStrategy,
+}
+
+impl<P: RequestPayload> MultiRpcRequest<P> {
+    /// Estimate the exact cycles cost for the given request.
+    ///
+    /// *IMPORTANT*: the method is *synchronous* in a canister environment.
+    pub async fn cycles_cost(&self) -> RpcResult<u128> {
+        async fn extract_request(
+            request: IcHttpRequest,
+        ) -> Result<Response<IcHttpRequest>, HttpClientError> {
+            Ok(Response::new(request))
+        }
+
+        let requests = self
+            .payload
+            .create_http_requests(&self.providers, self.response_size_estimate.get());
+
+        let client = service_request_builder()
+            .service_fn(extract_request)
+            .map_err(RpcError::from)
+            .map_response(Response::into_body);
+
+        let (requests, errors) = requests.into_inner();
+        if let Some(error) = errors.into_values().next() {
+            return Err(error);
+        }
+
+        let (_client, results) = canhttp::multi::parallel_call(client, requests).await;
+        let (requests, errors) = results.into_inner();
+        if !errors.is_empty() {
+            return Err(errors
+                .into_values()
+                .next()
+                .expect("BUG: errors is not empty"));
+        }
+        assert_eq!(
+            requests.len(),
+            self.providers.len(),
+            "BUG: expected 1 result per provider"
+        );
+
+        let mut cycles_to_attach = 0_u128;
+        let policy = charging_policy_with_collateral();
+        for request in requests.into_values() {
+            let request_cycles_cost = ic_cdk::management_canister::cost_http_request(&request);
+            cycles_to_attach += policy.cycles_to_charge(&request, request_cycles_cost)
+        }
+        Ok(cycles_to_attach)
+    }
+}
+
+impl<Params, Output> MultiRpcRequest<SinglePayload<Params, Output>> {
+    pub fn new(
+        providers: BTreeSet<RpcService>,
+        method: RpcMethod,
+        params: Params,
+        response_size_estimate: ResponseSizeEstimate,
+        transform: impl Into<ResponseTransformEnvelope>,
+        reduction_strategy: ReductionStrategy,
+    ) -> Self {
+        MultiRpcRequest {
+            providers,
+            payload: SinglePayload {
+                method,
+                params,
+                transform: transform.into(),
+                _marker: Default::default(),
+            },
+            response_size_estimate,
+            reduction_strategy,
+        }
+    }
+
+    pub async fn send_and_reduce(self) -> MultiRpcResult<Output>
+    where
+        Params: Serialize + Clone + Debug,
+        Output: Debug + Serialize + DeserializeOwned + PartialEq,
+    {
+        let result = self
+            .parallel_call()
+            .await
+            .reduce(self.reduction_strategy);
+        process_result(self.payload.method, result)
+    }
+
+    /// Query all providers in parallel and return all results.
+    /// It's up to the caller to decide how to handle the results, which could be inconsistent
+    /// (e.g., if different providers gave different responses).
+    /// This method is useful for querying data that is critical for the system to ensure that there is no single point of failure,
+    /// e.g., ethereum logs upon which ckETH will be minted.
+    async fn parallel_call(&self) -> MultiResults<RpcService, Output, RpcError>
+    where
+        Params: Serialize + Clone + Debug,
+        Output: Debug + DeserializeOwned,
+    {
+        let requests = self
+            .payload
+            .create_http_requests(&self.providers, self.response_size_estimate.get());
+
+        let client = http_client(true).map_result(extract_json_rpc_response);
+
+        let (requests, errors) = requests.into_inner();
+        let (_client, mut results) = canhttp::multi::parallel_call(client, requests).await;
+        results.add_errors(errors);
+        let now = Timestamp::from_nanos_since_unix_epoch(ic_cdk::api::time());
+        results
+            .ok_results()
+            .keys()
+            .filter_map(SupportedRpcService::new)
+            .for_each(|service| record_ok_result(service, now));
+        assert_eq!(
+            results.len(),
+            self.providers.len(),
+            "BUG: expected 1 result per provider"
+        );
+        results
+    }
+}
+
+impl MultiRpcRequest<BatchPayload> {
+    pub async fn send_and_reduce(self) -> Vec<MultiRpcResult<JsonRpcResponse<Value>>> {
+        let batch_size = self.payload.requests.len();
+        let multi_results = self.parallel_call().await;
+
+        // Transpose: from per-provider Vec<Response> to per-position MultiResults<Response>
+        let mut per_position: Vec<MultiResults<RpcService, JsonRpcResponse<Value>, RpcError>> =
+            (0..batch_size).map(|_| MultiResults::default()).collect();
+
+        let (ok_results, errors) = multi_results.into_inner();
+        for (service, responses) in ok_results {
+            for (i, response) in responses.into_iter().enumerate() {
+                per_position[i].insert_once(service.clone(), Ok(response));
+            }
+        }
+        for (service, error) in errors {
+            for pos in per_position.iter_mut() {
+                pos.insert_once(service.clone(), Err(error.clone()));
+            }
+        }
+
+        let method = RpcMethod::Custom("eth_batch".to_string());
+        per_position
+            .into_iter()
+            .map(|results| {
+                let result = results.reduce(self.reduction_strategy.clone());
+                process_result(method.clone(), result)
+            })
+            .collect()
+    }
+
+    async fn parallel_call(
+        &self,
+    ) -> MultiResults<RpcService, Vec<JsonRpcResponse<Value>>, RpcError> {
+        let requests = self
+            .payload
+            .create_http_requests(&self.providers, self.response_size_estimate.get());
+
+        let client = http_batch_client().map_result(extract_batch_json_rpc_response);
+
+        let (requests, errors) = requests.into_inner();
+        let (_client, mut results) = canhttp::multi::parallel_call(client, requests).await;
+        results.add_errors(errors);
+        let now = Timestamp::from_nanos_since_unix_epoch(ic_cdk::api::time());
+        results
+            .ok_results()
+            .keys()
+            .filter_map(SupportedRpcService::new)
+            .for_each(|service| record_ok_result(service, now));
+        assert_eq!(
+            results.len(),
+            self.providers.len(),
+            "BUG: expected 1 result per provider"
+        );
+        results
     }
 }
 
