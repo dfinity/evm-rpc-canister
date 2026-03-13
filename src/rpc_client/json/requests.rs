@@ -1,7 +1,10 @@
-use crate::rpc_client::{
-    amount::Amount,
-    json::{responses::Data, FixedSizeData, Hash, JsonByte, StorageKey},
-    numeric::{BlockNumber, ChainId, GasAmount, NumBlocks, TransactionNonce, Wei, WeiPerGas},
+use crate::{
+    rpc_client::{
+        amount::Amount,
+        json::{responses::Data, FixedSizeData, Hash, JsonByte, StorageKey},
+        numeric::{BlockNumber, ChainId, GasAmount, NumBlocks, TransactionNonce, Wei, WeiPerGas},
+    },
+    types::RpcMethod,
 };
 use ic_ethereum_types::Address;
 use serde::{Deserialize, Serialize};
@@ -374,4 +377,75 @@ pub struct AccessListItem {
     /// Accessed storage keys
     #[serde(rename = "storageKeys")]
     pub storage_keys: Vec<StorageKey>,
+}
+
+/// Typed parameters for a single item in a batch JSON-RPC request.
+/// Variant names mirror [`evm_rpc_types::BatchRequest`].
+#[derive(Debug, Clone)]
+#[allow(clippy::enum_variant_names)]
+pub enum BatchRequestParams {
+    EthCall(Box<EthCallParams>),
+    EthFeeHistory(FeeHistoryParams),
+    EthGetBlockByNumber(GetBlockByNumberParams),
+    EthGetLogs(GetLogsParams),
+    EthGetTransactionCount(GetTransactionCountParams),
+    EthGetTransactionReceipt(Hash),
+    EthSendRawTransaction(String),
+}
+
+impl BatchRequestParams {
+    pub fn method(&self) -> RpcMethod {
+        match self {
+            Self::EthCall(_) => RpcMethod::EthCall,
+            Self::EthFeeHistory(_) => RpcMethod::EthFeeHistory,
+            Self::EthGetBlockByNumber(_) => RpcMethod::EthGetBlockByNumber,
+            Self::EthGetLogs(_) => RpcMethod::EthGetLogs,
+            Self::EthGetTransactionCount(_) => RpcMethod::EthGetTransactionCount,
+            Self::EthGetTransactionReceipt(_) => RpcMethod::EthGetTransactionReceipt,
+            Self::EthSendRawTransaction(_) => RpcMethod::EthSendRawTransaction,
+        }
+    }
+
+    pub fn serialize_params(&self) -> serde_json::Value {
+        fn to_value(v: impl serde::Serialize) -> serde_json::Value {
+            serde_json::to_value(v).expect("BUG: failed to serialize params")
+        }
+        match self {
+            Self::EthCall(params) => to_value(params.as_ref()),
+            Self::EthFeeHistory(params) => to_value(params),
+            Self::EthGetBlockByNumber(params) => to_value(params),
+            Self::EthGetLogs(params) => to_value((params,)),
+            Self::EthGetTransactionCount(params) => to_value(params),
+            Self::EthGetTransactionReceipt(hash) => to_value((hash,)),
+            Self::EthSendRawTransaction(raw_tx) => to_value((raw_tx,)),
+        }
+    }
+}
+
+impl From<evm_rpc_types::BatchRequest> for BatchRequestParams {
+    fn from(request: evm_rpc_types::BatchRequest) -> Self {
+        use evm_rpc_types::BatchRequest;
+        match request {
+            BatchRequest::EthCall(args) => Self::EthCall(Box::new(EthCallParams::from(*args))),
+            BatchRequest::EthFeeHistory(args) => Self::EthFeeHistory(FeeHistoryParams::from(args)),
+            BatchRequest::EthGetBlockByNumber(tag) => {
+                Self::EthGetBlockByNumber(GetBlockByNumberParams {
+                    block: BlockSpec::from(tag),
+                    include_full_transactions: false,
+                })
+            }
+            BatchRequest::EthGetLogs(batch_args) => {
+                Self::EthGetLogs(GetLogsParams::from(batch_args.args))
+            }
+            BatchRequest::EthGetTransactionCount(args) => {
+                Self::EthGetTransactionCount(GetTransactionCountParams::from(args))
+            }
+            BatchRequest::EthGetTransactionReceipt(tx_hash) => {
+                Self::EthGetTransactionReceipt(Hash::from(tx_hash))
+            }
+            BatchRequest::EthSendRawTransaction(raw_tx) => {
+                Self::EthSendRawTransaction(raw_tx.to_string())
+            }
+        }
+    }
 }

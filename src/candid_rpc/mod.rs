@@ -3,7 +3,7 @@ use crate::{
         eth_rpc::{ResponseTransform, HEADER_SIZE_LIMIT},
         json::{
             requests::{
-                BlockSpec, EthCallParams, FeeHistoryParams, GetLogsParams,
+                BatchRequestParams, BlockSpec, EthCallParams, FeeHistoryParams, GetLogsParams,
                 GetTransactionCountParams,
             },
             Hash,
@@ -269,53 +269,36 @@ fn try_into_json_rpc_request(
 }
 
 fn batch_request_to_item(request: &BatchRequest) -> BatchRequestItem {
-    fn to_value(v: impl serde::Serialize) -> serde_json::Value {
-        serde_json::to_value(v).expect("BUG: failed to serialize params")
+    let params = BatchRequestParams::from(request.clone());
+    let method = params.method();
+    let (transform, response_size_estimate) = batch_item_settings(&method);
+    BatchRequestItem {
+        method,
+        params: params.serialize_params(),
+        transform,
+        response_size_estimate,
     }
+}
 
-    match request {
-        BatchRequest::EthFeeHistory(args) => BatchRequestItem {
-            method: RpcMethod::EthFeeHistory,
-            params: to_value(FeeHistoryParams::from(args.clone())),
-            transform: ResponseTransform::FeeHistory,
-            response_size_estimate: 512 + HEADER_SIZE_LIMIT,
-        },
-        BatchRequest::EthGetBlockByNumber(tag) => BatchRequestItem {
-            method: RpcMethod::EthGetBlockByNumber,
-            params: to_value((BlockSpec::from(tag.clone()), false)),
-            transform: ResponseTransform::GetBlockByNumber,
-            response_size_estimate: 24 * 1024 + HEADER_SIZE_LIMIT,
-        },
-        BatchRequest::EthGetLogs(batch_args) => BatchRequestItem {
-            method: RpcMethod::EthGetLogs,
-            params: to_value((GetLogsParams::from(batch_args.args.clone()),)),
-            transform: ResponseTransform::GetLogs,
-            response_size_estimate: 1024 + HEADER_SIZE_LIMIT,
-        },
-        BatchRequest::EthGetTransactionCount(args) => BatchRequestItem {
-            method: RpcMethod::EthGetTransactionCount,
-            params: to_value(GetTransactionCountParams::from(args.clone())),
-            transform: ResponseTransform::GetTransactionCount,
-            response_size_estimate: 50 + HEADER_SIZE_LIMIT,
-        },
-        BatchRequest::EthGetTransactionReceipt(tx_hash) => BatchRequestItem {
-            method: RpcMethod::EthGetTransactionReceipt,
-            params: to_value((Hash::from(tx_hash.clone()),)),
-            transform: ResponseTransform::GetTransactionReceipt,
-            response_size_estimate: 700 + HEADER_SIZE_LIMIT,
-        },
-        BatchRequest::EthSendRawTransaction(raw_tx) => BatchRequestItem {
-            method: RpcMethod::EthSendRawTransaction,
-            params: to_value((raw_tx.to_string(),)),
-            transform: ResponseTransform::SendRawTransaction,
-            response_size_estimate: 256 + HEADER_SIZE_LIMIT,
-        },
-        BatchRequest::EthCall(args) => BatchRequestItem {
-            method: RpcMethod::EthCall,
-            params: to_value(EthCallParams::from(*args.clone())),
-            transform: ResponseTransform::Call,
-            response_size_estimate: 256 + HEADER_SIZE_LIMIT,
-        },
+fn batch_item_settings(method: &crate::types::RpcMethod) -> (ResponseTransform, u64) {
+    use crate::types::RpcMethod;
+    match method {
+        RpcMethod::EthCall => (ResponseTransform::Call, 256 + HEADER_SIZE_LIMIT),
+        RpcMethod::EthFeeHistory => (ResponseTransform::FeeHistory, 512 + HEADER_SIZE_LIMIT),
+        RpcMethod::EthGetBlockByNumber => {
+            (ResponseTransform::GetBlockByNumber, 24 * 1024 + HEADER_SIZE_LIMIT)
+        }
+        RpcMethod::EthGetLogs => (ResponseTransform::GetLogs, 1024 + HEADER_SIZE_LIMIT),
+        RpcMethod::EthGetTransactionCount => {
+            (ResponseTransform::GetTransactionCount, 50 + HEADER_SIZE_LIMIT)
+        }
+        RpcMethod::EthGetTransactionReceipt => {
+            (ResponseTransform::GetTransactionReceipt, 700 + HEADER_SIZE_LIMIT)
+        }
+        RpcMethod::EthSendRawTransaction => {
+            (ResponseTransform::SendRawTransaction, 256 + HEADER_SIZE_LIMIT)
+        }
+        RpcMethod::Custom(_) => (ResponseTransform::Raw, 256 + HEADER_SIZE_LIMIT),
     }
 }
 
