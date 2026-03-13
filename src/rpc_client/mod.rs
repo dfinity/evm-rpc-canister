@@ -1,3 +1,4 @@
+use crate::rpc_client::json::requests::{BatchRequestItemParams, BatchRequestParams};
 use crate::{
     add_metric_entry,
     http::{
@@ -385,7 +386,7 @@ impl EthRpcClient {
         self.single_request(RpcMethod::EthCall, params)
     }
 
-    pub fn eth_batch(self, requests: Vec<BatchRequestItem>) -> MultiRpcRequest<BatchPayload> {
+    pub fn eth_batch(self, batch_request: BatchRequestParams) -> MultiRpcRequest<BatchPayload> {
         let total_estimate: u64 = requests
             .iter()
             .map(|r| r.response_size_estimate)
@@ -427,6 +428,28 @@ impl EthRpcClient {
             transform,
             reduction_strategy,
         )
+    }
+
+    fn batch_request(self, params: BatchRequestParams) {
+        let (response_sizes, transforms): (Vec<_>, BTreeMap<_, _>) = params
+            .iter()
+            .map(|(id, request)| {
+                let (response_size, transform) = self.https_outcall_settings(&request.method());
+                (response_size, (id.clone(), transform))
+            })
+            .unzip();
+        let batch_response_size_estimate = self
+            .config
+            .response_size_estimate
+            .map(ResponseSizeEstimate::new)
+            .unwrap_or_else(|| {
+                let mut total_estimate = ResponseSizeEstimate::ZERO;
+                response_sizes.into_iter().for_each(|size| {
+                    total_estimate = total_estimate.saturating_add(size);
+                });
+                total_estimate
+            });
+        let transform = ResponseTransformEnvelope::from(transforms);
     }
 }
 
@@ -503,17 +526,8 @@ impl<Params: Serialize + Clone, Output> RequestPayload for SinglePayload<Params,
     }
 }
 
-/// A single item in a batch request, containing the pre-serialized JSON-RPC
-/// parameters and the metadata needed for response transformation and size estimation.
-pub struct BatchRequestItem {
-    pub method: RpcMethod,
-    pub params: Value,
-    pub transform: ResponseTransform,
-    pub response_size_estimate: u64,
-}
-
 pub struct BatchPayload {
-    requests: Vec<BatchRequestItem>,
+    requests: Vec<BatchRequestItemParams>,
     response_size_estimate: ResponseSizeEstimate,
 }
 
@@ -609,9 +623,7 @@ impl<P: RequestPayload> MultiRpcRequest<P> {
             Ok(Response::new(request))
         }
 
-        let requests = self
-            .payload
-            .create_http_requests(&self.providers);
+        let requests = self.payload.create_http_requests(&self.providers);
 
         let client = service_request_builder()
             .service_fn(extract_request)
@@ -688,9 +700,7 @@ impl<Params, Output> MultiRpcSingleRequest<Params, Output> {
         Params: Serialize + Clone + Debug,
         Output: Debug + DeserializeOwned,
     {
-        let requests = self
-            .payload
-            .create_http_requests(&self.providers);
+        let requests = self.payload.create_http_requests(&self.providers);
 
         let client = http_client(true).map_result(extract_json_rpc_response);
 
@@ -746,9 +756,7 @@ impl MultiRpcRequest<BatchPayload> {
     async fn parallel_call(
         &self,
     ) -> MultiResults<RpcService, Vec<JsonRpcResponse<Value>>, RpcError> {
-        let requests = self
-            .payload
-            .create_http_requests(&self.providers);
+        let requests = self.payload.create_http_requests(&self.providers);
 
         let client = http_batch_client().map_result(extract_batch_json_rpc_response);
 

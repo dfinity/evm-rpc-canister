@@ -1,9 +1,11 @@
+use crate::memory::next_request_id;
+use crate::rpc_client::json::requests::BatchRequestParams;
 use crate::{
     rpc_client::{
         eth_rpc::{ResponseTransform, HEADER_SIZE_LIMIT},
         json::{
             requests::{
-                BatchRequestParams, BlockSpec, EthCallParams, FeeHistoryParams, GetLogsParams,
+                BatchRequestItemParams, BlockSpec, EthCallParams, FeeHistoryParams, GetLogsParams,
                 GetTransactionCountParams,
             },
             Hash,
@@ -185,10 +187,10 @@ impl CandidRpcClient {
     }
 
     pub async fn eth_batch(self, requests: Vec<BatchRequest>) -> Vec<MultiRpcResult<BatchResult>> {
-        let batch_items: Vec<BatchRequestItem> =
-            requests.iter().map(batch_request_to_item).collect();
         self.client
-            .eth_batch(batch_items)
+            .eth_batch(BatchRequestParams::from_iter(requests, || {
+                next_request_id()
+            }))
             .send_and_reduce()
             .await
             .into_iter()
@@ -200,9 +202,12 @@ impl CandidRpcClient {
     }
 
     pub async fn eth_batch_cycles_cost(self, requests: Vec<BatchRequest>) -> RpcResult<u128> {
-        let batch_items: Vec<BatchRequestItem> =
-            requests.iter().map(batch_request_to_item).collect();
-        self.client.eth_batch(batch_items).cycles_cost().await
+        self.client
+            .eth_batch(BatchRequestParams::from_iter(requests, || {
+                next_request_id()
+            }))
+            .cycles_cost()
+            .await
     }
 
     pub async fn multi_request(self, json_rpc_payload: String) -> MultiRpcResult<String> {
@@ -266,40 +271,6 @@ fn try_into_json_rpc_request(
             "Invalid JSON RPC request: {e}"
         )))
     })
-}
-
-fn batch_request_to_item(request: &BatchRequest) -> BatchRequestItem {
-    let params = BatchRequestParams::from(request.clone());
-    let method = params.method();
-    let (transform, response_size_estimate) = batch_item_settings(&method);
-    BatchRequestItem {
-        method,
-        params: params.serialize_params(),
-        transform,
-        response_size_estimate,
-    }
-}
-
-fn batch_item_settings(method: &crate::types::RpcMethod) -> (ResponseTransform, u64) {
-    use crate::types::RpcMethod;
-    match method {
-        RpcMethod::EthCall => (ResponseTransform::Call, 256 + HEADER_SIZE_LIMIT),
-        RpcMethod::EthFeeHistory => (ResponseTransform::FeeHistory, 512 + HEADER_SIZE_LIMIT),
-        RpcMethod::EthGetBlockByNumber => {
-            (ResponseTransform::GetBlockByNumber, 24 * 1024 + HEADER_SIZE_LIMIT)
-        }
-        RpcMethod::EthGetLogs => (ResponseTransform::GetLogs, 1024 + HEADER_SIZE_LIMIT),
-        RpcMethod::EthGetTransactionCount => {
-            (ResponseTransform::GetTransactionCount, 50 + HEADER_SIZE_LIMIT)
-        }
-        RpcMethod::EthGetTransactionReceipt => {
-            (ResponseTransform::GetTransactionReceipt, 700 + HEADER_SIZE_LIMIT)
-        }
-        RpcMethod::EthSendRawTransaction => {
-            (ResponseTransform::SendRawTransaction, 256 + HEADER_SIZE_LIMIT)
-        }
-        RpcMethod::Custom(_) => (ResponseTransform::Raw, 256 + HEADER_SIZE_LIMIT),
-    }
 }
 
 fn json_rpc_response_to_batch_result(

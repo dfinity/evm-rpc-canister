@@ -180,6 +180,8 @@ fn cleanup_response(args: TransformArgs) -> HttpRequestResult {
 pub struct ResponseSizeEstimate(u64);
 
 impl ResponseSizeEstimate {
+    pub const ZERO: ResponseSizeEstimate = ResponseSizeEstimate(0);
+
     pub fn new(num_bytes: u64) -> Self {
         assert!(num_bytes > 0);
         assert!(num_bytes <= MAX_PAYLOAD_SIZE);
