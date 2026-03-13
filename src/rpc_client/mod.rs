@@ -396,8 +396,10 @@ impl EthRpcClient {
         let reduction_strategy = self.reduction_strategy();
         MultiRpcRequest {
             providers: self.providers.services,
-            payload: BatchPayload { requests },
-            response_size_estimate,
+            payload: BatchPayload {
+                requests,
+                response_size_estimate,
+            },
             reduction_strategy,
         }
     }
@@ -434,16 +436,18 @@ impl EthRpcClient {
 pub trait RequestPayload {
     type HttpBody: Serialize;
 
+    fn response_size_estimate(&self) -> u64;
+
     fn create_http_requests(
         &self,
         providers: &BTreeSet<RpcService>,
-        response_size_estimate: u64,
     ) -> MultiResults<RpcService, Request<Self::HttpBody>, RpcError>;
 }
 
 pub struct SinglePayload<Params, Output> {
     method: RpcMethod,
     params: Params,
+    response_size_estimate: ResponseSizeEstimate,
     transform: ResponseTransformEnvelope,
     _marker: std::marker::PhantomData<Output>,
 }
@@ -451,11 +455,15 @@ pub struct SinglePayload<Params, Output> {
 impl<Params: Serialize + Clone, Output> RequestPayload for SinglePayload<Params, Output> {
     type HttpBody = JsonRpcRequest<Params>;
 
+    fn response_size_estimate(&self) -> u64 {
+        self.response_size_estimate.get()
+    }
+
     fn create_http_requests(
         &self,
         providers: &BTreeSet<RpcService>,
-        response_size_estimate: u64,
     ) -> MultiResults<RpcService, Request<Self::HttpBody>, RpcError> {
+        let response_size_estimate = self.response_size_estimate();
         let transform_op = {
             let mut buf = vec![];
             minicbor::encode(&self.transform, &mut buf).unwrap();
@@ -506,16 +514,21 @@ pub struct BatchRequestItem {
 
 pub struct BatchPayload {
     requests: Vec<BatchRequestItem>,
+    response_size_estimate: ResponseSizeEstimate,
 }
 
 impl RequestPayload for BatchPayload {
     type HttpBody = BatchJsonRpcRequest<Value>;
 
+    fn response_size_estimate(&self) -> u64 {
+        self.response_size_estimate.get()
+    }
+
     fn create_http_requests(
         &self,
         providers: &BTreeSet<RpcService>,
-        response_size_estimate: u64,
     ) -> MultiResults<RpcService, Request<Self::HttpBody>, RpcError> {
+        let response_size_estimate = self.response_size_estimate();
         let mut requests = MultiResults::default();
         for provider in providers.iter() {
             let ids: Vec<Id> = (0..self.requests.len())
@@ -582,7 +595,6 @@ pub type MultiRpcSingleRequest<Params, Output> = MultiRpcRequest<SinglePayload<P
 pub struct MultiRpcRequest<Payload> {
     providers: BTreeSet<RpcService>,
     payload: Payload,
-    response_size_estimate: ResponseSizeEstimate,
     reduction_strategy: ReductionStrategy,
 }
 
@@ -599,7 +611,7 @@ impl<P: RequestPayload> MultiRpcRequest<P> {
 
         let requests = self
             .payload
-            .create_http_requests(&self.providers, self.response_size_estimate.get());
+            .create_http_requests(&self.providers);
 
         let client = service_request_builder()
             .service_fn(extract_request)
@@ -649,10 +661,10 @@ impl<Params, Output> MultiRpcSingleRequest<Params, Output> {
             payload: SinglePayload {
                 method,
                 params,
+                response_size_estimate,
                 transform: transform.into(),
                 _marker: Default::default(),
             },
-            response_size_estimate,
             reduction_strategy,
         }
     }
@@ -678,7 +690,7 @@ impl<Params, Output> MultiRpcSingleRequest<Params, Output> {
     {
         let requests = self
             .payload
-            .create_http_requests(&self.providers, self.response_size_estimate.get());
+            .create_http_requests(&self.providers);
 
         let client = http_client(true).map_result(extract_json_rpc_response);
 
@@ -736,7 +748,7 @@ impl MultiRpcRequest<BatchPayload> {
     ) -> MultiResults<RpcService, Vec<JsonRpcResponse<Value>>, RpcError> {
         let requests = self
             .payload
-            .create_http_requests(&self.providers, self.response_size_estimate.get());
+            .create_http_requests(&self.providers);
 
         let client = http_batch_client().map_result(extract_batch_json_rpc_response);
 
