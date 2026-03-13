@@ -5,6 +5,7 @@ use evm_rpc_types::Byte;
 use serde::Serialize;
 use std::fmt::{Debug, Display, Formatter, LowerHex, UpperHex};
 
+pub mod batch;
 pub mod requests;
 pub mod responses;
 #[cfg(test)]
