@@ -192,11 +192,9 @@ impl From<BatchResponse> for evm_rpc_types::BatchResult {
             BatchResponse::EthGetTransactionCount(count) => {
                 Self::EthGetTransactionCount(Box::new(Ok(count.into())))
             }
-            BatchResponse::EthGetTransactionReceipt(receipt) => {
-                Self::EthGetTransactionReceipt(Box::new(Ok(
-                    (*receipt).map(evm_rpc_types::TransactionReceipt::from),
-                )))
-            }
+            BatchResponse::EthGetTransactionReceipt(receipt) => Self::EthGetTransactionReceipt(
+                Box::new(Ok((*receipt).map(evm_rpc_types::TransactionReceipt::from))),
+            ),
             BatchResponse::EthSendRawTransaction(result) => {
                 Self::EthSendRawTransaction(Box::new(Ok(result.into())))
             }
