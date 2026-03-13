@@ -1,4 +1,4 @@
-use crate::rpc_client::json::batch::BatchRequestParams;
+use crate::rpc_client::json::batch::{BatchRequestParams, BatchResponse};
 use crate::{
     add_metric_entry,
     http::{
@@ -649,18 +649,20 @@ impl<Params, Output> MultiRpcSingleRequest<Params, Output> {
 }
 
 impl MultiRpcRequest<BatchRequestParams> {
-    pub async fn send_and_reduce(self) -> Vec<MultiRpcResult<JsonRpcResponse<Value>>> {
-        let batch_size = self.payload.len();
+    pub async fn send_and_reduce(self) -> Vec<MultiRpcResult<BatchResponse>> {
         let multi_results = self.parallel_call().await;
+        let params: Vec<_> = self.payload.iter().collect();
 
-        // Transpose: from per-provider Vec<Response> to per-position MultiResults<Response>
-        let mut per_position: Vec<MultiResults<RpcService, JsonRpcResponse<Value>, RpcError>> =
-            (0..batch_size).map(|_| MultiResults::default()).collect();
+        // Transpose: from per-provider Vec<Response> to per-position MultiResults<Response>,
+        // deserializing each item into a typed BatchResponse.
+        let mut per_position: Vec<MultiResults<RpcService, BatchResponse, RpcError>> =
+            (0..params.len()).map(|_| MultiResults::default()).collect();
 
         let (ok_results, errors) = multi_results.into_inner();
         for (service, responses) in ok_results {
             for (i, response) in responses.into_iter().enumerate() {
-                per_position[i].insert_once(service.clone(), Ok(response));
+                let result = params[i].deserialize_response(response);
+                per_position[i].insert_once(service.clone(), result);
             }
         }
         for (service, error) in errors {

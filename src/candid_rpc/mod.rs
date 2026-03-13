@@ -1,4 +1,4 @@
-use crate::rpc_client::json::batch::BatchRequestParams;
+use crate::rpc_client::json::batch::{BatchRequestParams, BatchResponse};
 use crate::{
     rpc_client::{
         json::{
@@ -193,7 +193,7 @@ impl CandidRpcClient {
             .into_iter()
             .zip(requests.iter())
             .map(|(result, request)| {
-                result.map(|response| json_rpc_response_to_batch_result(response, request))
+                result.map(|response| batch_response_to_batch_result(response, request))
             })
             .collect()
     }
@@ -268,94 +268,42 @@ fn try_into_json_rpc_request(
     })
 }
 
-fn json_rpc_response_to_batch_result(
-    response: canhttp::http::json::JsonRpcResponse<serde_json::Value>,
+fn batch_response_to_batch_result(
+    response: BatchResponse,
     request: &BatchRequest,
 ) -> BatchResult {
-    let rpc_result = match response.into_result() {
-        Ok(value) => Ok(value),
-        Err(err) => Err(RpcError::JsonRpcError(evm_rpc_types::JsonRpcError {
-            code: err.code,
-            message: err.message,
-        })),
-    };
-
-    use crate::rpc_client::json::responses as json;
-
-    match request {
-        BatchRequest::EthFeeHistory(_) => BatchResult::EthFeeHistory(Box::new(
-            rpc_result.and_then(deserialize_response::<json::FeeHistory, _>),
-        )),
-        BatchRequest::EthGetBlockByNumber(_) => BatchResult::EthGetBlockByNumber(Box::new(
-            rpc_result.and_then(deserialize_response::<json::Block, _>),
-        )),
-        BatchRequest::EthGetLogs(_) => {
-            BatchResult::EthGetLogs(Box::new(rpc_result.and_then(|v| {
-                let entries: Vec<json::LogEntry> = serde_json::from_value(v).map_err(|e| {
-                    RpcError::ValidationError(ValidationError::Custom(format!(
-                        "Failed to deserialize response: {e}"
-                    )))
-                })?;
-                Ok(entries
-                    .into_iter()
-                    .map(evm_rpc_types::LogEntry::from)
-                    .collect())
+    match response {
+        BatchResponse::EthCall(data) => BatchResult::EthCall(Box::new(Ok(Hex::from(data)))),
+        BatchResponse::EthFeeHistory(fh) => {
+            BatchResult::EthFeeHistory(Box::new(Ok(evm_rpc_types::FeeHistory::from(*fh))))
+        }
+        BatchResponse::EthGetBlockByNumber(block) => {
+            BatchResult::EthGetBlockByNumber(Box::new(Ok(evm_rpc_types::Block::from(*block))))
+        }
+        BatchResponse::EthGetLogs(entries) => BatchResult::EthGetLogs(Box::new(Ok(entries
+            .into_iter()
+            .map(evm_rpc_types::LogEntry::from)
+            .collect()))),
+        BatchResponse::EthGetTransactionCount(count) => {
+            BatchResult::EthGetTransactionCount(Box::new(Ok(Nat256::from(count))))
+        }
+        BatchResponse::EthGetTransactionReceipt(receipt) => {
+            BatchResult::EthGetTransactionReceipt(Box::new(Ok(
+                (*receipt).map(evm_rpc_types::TransactionReceipt::from)
+            )))
+        }
+        BatchResponse::EthSendRawTransaction(result) => {
+            let tx_hash = match request {
+                BatchRequest::EthSendRawTransaction(raw_tx) => get_transaction_hash(raw_tx),
+                _ => None,
+            };
+            let status = evm_rpc_types::SendRawTransactionStatus::from(result);
+            BatchResult::EthSendRawTransaction(Box::new(Ok(match status {
+                evm_rpc_types::SendRawTransactionStatus::Ok(_) => {
+                    evm_rpc_types::SendRawTransactionStatus::Ok(tx_hash)
+                }
+                other => other,
             })))
         }
-        BatchRequest::EthGetTransactionCount(_) => {
-            BatchResult::EthGetTransactionCount(Box::new(rpc_result.and_then(|v| {
-                let count: ethnum::u256 = serde_json::from_value(v).map_err(|e| {
-                    RpcError::ValidationError(ValidationError::Custom(format!(
-                        "Failed to deserialize response: {e}"
-                    )))
-                })?;
-                Ok(Nat256::from_be_bytes(count.to_be_bytes()))
-            })))
-        }
-        BatchRequest::EthGetTransactionReceipt(_) => {
-            BatchResult::EthGetTransactionReceipt(Box::new(rpc_result.and_then(|v| {
-                let internal: Option<json::TransactionReceipt> = serde_json::from_value(v)
-                    .map_err(|e| {
-                        RpcError::ValidationError(ValidationError::Custom(format!(
-                            "Failed to deserialize response: {e}"
-                        )))
-                    })?;
-                Ok(internal.map(evm_rpc_types::TransactionReceipt::from))
-            })))
-        }
-        BatchRequest::EthSendRawTransaction(raw_tx) => {
-            let tx_hash = get_transaction_hash(raw_tx);
-            BatchResult::EthSendRawTransaction(Box::new(rpc_result.and_then(|v| {
-                let result: json::SendRawTransactionResult =
-                    serde_json::from_value(v).map_err(|e| {
-                        RpcError::ValidationError(ValidationError::Custom(format!(
-                            "Failed to deserialize response: {e}"
-                        )))
-                    })?;
-                let status = evm_rpc_types::SendRawTransactionStatus::from(result);
-                Ok(match status {
-                    evm_rpc_types::SendRawTransactionStatus::Ok(_) => {
-                        evm_rpc_types::SendRawTransactionStatus::Ok(tx_hash.clone())
-                    }
-                    other => other,
-                })
-            })))
-        }
-        BatchRequest::EthCall(_) => BatchResult::EthCall(Box::new(
-            rpc_result.and_then(deserialize_response::<json::Data, _>),
-        )),
     }
-}
-
-fn deserialize_response<Internal, External>(value: serde_json::Value) -> RpcResult<External>
-where
-    Internal: serde::de::DeserializeOwned,
-    External: From<Internal>,
-{
-    let internal: Internal = serde_json::from_value(value).map_err(|e| {
-        RpcError::ValidationError(ValidationError::Custom(format!(
-            "Failed to deserialize response: {e}"
-        )))
-    })?;
-    Ok(External::from(internal))
 }
