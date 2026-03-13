@@ -316,9 +316,10 @@ type BatchResult = variant {
   EthSendRawTransaction : SendRawTransactionResult;
   EthCall : CallResult;
 };
-type MultiBatchResult = variant {
-  Consistent : variant { Ok : vec BatchResult; Err : RpcError };
-  Inconsistent : vec record { RpcService; variant { Ok : vec BatchResult; Err : RpcError } };
+type BatchItemResult = variant { Ok : BatchResult; Err : RpcError };
+type MultiBatchItemResult = variant {
+  Consistent : BatchItemResult;
+  Inconsistent : vec record { RpcService; BatchItemResult };
 };
 type JsonRequestResult = variant { Ok : text; Err : RpcError };
 type MultiJsonRequestResult = variant {
@@ -356,7 +357,7 @@ service : (InstallArgs) -> {
 
   // Send a batch of JSON-RPC requests in a single HTTPS outcall per provider.
   // Responses are returned in the same order as the requests.
-  eth_batch : (RpcServices, opt RpcConfig, vec BatchRequest) -> (MultiBatchResult);
+  eth_batch : (RpcServices, opt RpcConfig, vec BatchRequest) -> (vec MultiBatchItemResult);
   eth_batchCyclesCost : (RpcServices, opt RpcConfig, vec BatchRequest) -> (RequestCostResult) query;
 
   // Make a raw JSON-RPC request that sends the given JSON-RPC payload.

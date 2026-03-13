@@ -5,7 +5,7 @@ use evm_rpc_types::{BatchResult, MultiRpcResult};
 pub struct AlloyResponseConverter;
 
 impl EvmRpcResponseConverter for AlloyResponseConverter {
-    type BatchOutput = MultiRpcResult<Vec<BatchResult>>;
+    type BatchOutput = Vec<MultiRpcResult<BatchResult>>;
     type CallOutput = MultiRpcResult<alloy_primitives::Bytes>;
     type FeeHistoryOutput = MultiRpcResult<alloy_rpc_types::FeeHistory>;
     type GetBlockByNumberOutput = MultiRpcResult<alloy_rpc_types::Block>;

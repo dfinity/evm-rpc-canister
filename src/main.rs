@@ -236,7 +236,7 @@ pub async fn eth_batch(
     _source: RpcServices,
     _config: Option<RpcConfig>,
     _requests: Vec<evm_rpc_types::BatchRequest>,
-) -> MultiRpcResult<Vec<BatchResult>> {
+) -> Vec<MultiRpcResult<BatchResult>> {
     todo!()
 }
 

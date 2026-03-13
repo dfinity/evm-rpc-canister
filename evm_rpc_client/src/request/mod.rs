@@ -366,7 +366,7 @@ impl BatchRpcRequest {
 impl EvmRpcRequest for BatchRpcRequest {
     type Config = RpcConfig;
     type Params = Vec<BatchRequest>;
-    type CandidOutput = MultiRpcResult<Vec<BatchResult>>;
+    type CandidOutput = Vec<MultiRpcResult<BatchResult>>;
 
     fn endpoint(&self) -> EvmRpcEndpoint {
         EvmRpcEndpoint::EthBatch
@@ -833,7 +833,7 @@ pub trait EvmRpcResponseConverter {
 pub struct CandidResponseConverter;
 
 impl EvmRpcResponseConverter for CandidResponseConverter {
-    type BatchOutput = MultiRpcResult<Vec<BatchResult>>;
+    type BatchOutput = Vec<MultiRpcResult<BatchResult>>;
     type CallOutput = MultiRpcResult<Hex>;
     type FeeHistoryOutput = MultiRpcResult<evm_rpc_types::FeeHistory>;
     type GetBlockByNumberOutput = MultiRpcResult<evm_rpc_types::Block>;
