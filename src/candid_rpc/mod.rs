@@ -1,4 +1,4 @@
-use crate::rpc_client::json::batch::{BatchRequestParams, BatchResponse};
+use crate::rpc_client::json::batch::BatchRequestParams;
 use crate::{
     rpc_client::{
         json::{
@@ -193,7 +193,11 @@ impl CandidRpcClient {
             .into_iter()
             .zip(requests.iter())
             .map(|(result, request)| {
-                result.map(|response| batch_response_to_batch_result(response, request))
+                result.map(|response| {
+                    let mut batch_result = BatchResult::from(response);
+                    add_send_raw_transaction_hash(&mut batch_result, request);
+                    batch_result
+                })
             })
             .collect()
     }
@@ -268,42 +272,14 @@ fn try_into_json_rpc_request(
     })
 }
 
-fn batch_response_to_batch_result(
-    response: BatchResponse,
-    request: &BatchRequest,
-) -> BatchResult {
-    match response {
-        BatchResponse::EthCall(data) => BatchResult::EthCall(Box::new(Ok(Hex::from(data)))),
-        BatchResponse::EthFeeHistory(fh) => {
-            BatchResult::EthFeeHistory(Box::new(Ok(evm_rpc_types::FeeHistory::from(*fh))))
-        }
-        BatchResponse::EthGetBlockByNumber(block) => {
-            BatchResult::EthGetBlockByNumber(Box::new(Ok(evm_rpc_types::Block::from(*block))))
-        }
-        BatchResponse::EthGetLogs(entries) => BatchResult::EthGetLogs(Box::new(Ok(entries
-            .into_iter()
-            .map(evm_rpc_types::LogEntry::from)
-            .collect()))),
-        BatchResponse::EthGetTransactionCount(count) => {
-            BatchResult::EthGetTransactionCount(Box::new(Ok(Nat256::from(count))))
-        }
-        BatchResponse::EthGetTransactionReceipt(receipt) => {
-            BatchResult::EthGetTransactionReceipt(Box::new(Ok(
-                (*receipt).map(evm_rpc_types::TransactionReceipt::from)
-            )))
-        }
-        BatchResponse::EthSendRawTransaction(result) => {
-            let tx_hash = match request {
-                BatchRequest::EthSendRawTransaction(raw_tx) => get_transaction_hash(raw_tx),
-                _ => None,
-            };
-            let status = evm_rpc_types::SendRawTransactionStatus::from(result);
-            BatchResult::EthSendRawTransaction(Box::new(Ok(match status {
-                evm_rpc_types::SendRawTransactionStatus::Ok(_) => {
-                    evm_rpc_types::SendRawTransactionStatus::Ok(tx_hash)
-                }
-                other => other,
-            })))
+fn add_send_raw_transaction_hash(batch_result: &mut BatchResult, request: &BatchRequest) {
+    if let (
+        BatchResult::EthSendRawTransaction(inner),
+        BatchRequest::EthSendRawTransaction(raw_tx),
+    ) = (batch_result, request)
+    {
+        if let Ok(evm_rpc_types::SendRawTransactionStatus::Ok(hash)) = inner.as_mut() {
+            *hash = get_transaction_hash(raw_tx);
         }
     }
 }
