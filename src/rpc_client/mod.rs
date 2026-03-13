@@ -435,13 +435,12 @@ impl EthRpcClient {
 }
 
 /// Abstraction over the payload of a multi-provider request.
-/// Implemented by [`SinglePayload`] for single JSON-RPC methods
-/// and [`BatchRequestParams`] for batch requests.
 pub trait RequestPayload {
     type HttpBody: Serialize;
 
     /// Build the HTTP body and the corresponding response transform for one provider call.
-    /// Called once per provider in [`MultiRpcRequest::create_http_requests`].
+    ///
+    /// May be called multiple times, leading to potentially different results (e.g. different request ID).
     fn build_request(&self) -> (Self::HttpBody, ResponseTransformEnvelope);
     fn metric_method(&self) -> MetricRpcMethod;
 }
