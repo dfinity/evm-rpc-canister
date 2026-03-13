@@ -2600,11 +2600,9 @@ mod cycles_cost_tests {
         for endpoint in EvmRpcEndpoint::iter() {
             match endpoint {
                 EvmRpcEndpoint::EthBatch => {
-                    check(
-                        client.batch(vec![BatchRequest::EthGetTransactionCount(
-                            GetTransactionCountArgs::from((MOCK_ADDRESS, BlockTag::Latest)),
-                        )]),
-                    )
+                    check(client.batch(vec![BatchRequest::EthGetTransactionCount(
+                        GetTransactionCountArgs::from((MOCK_ADDRESS, BlockTag::Latest)),
+                    )]))
                     .await;
                 }
                 EvmRpcEndpoint::Call => {
@@ -2678,11 +2676,9 @@ mod cycles_cost_tests {
         for endpoint in EvmRpcEndpoint::iter() {
             match endpoint {
                 EvmRpcEndpoint::EthBatch => {
-                    check(
-                        client.batch(vec![BatchRequest::EthGetTransactionCount(
-                            GetTransactionCountArgs::from((MOCK_ADDRESS, BlockTag::Latest)),
-                        )]),
-                    )
+                    check(client.batch(vec![BatchRequest::EthGetTransactionCount(
+                        GetTransactionCountArgs::from((MOCK_ADDRESS, BlockTag::Latest)),
+                    )]))
                     .await;
                 }
                 EvmRpcEndpoint::Call => {
@@ -2829,36 +2825,23 @@ mod cycles_cost_tests {
             // and run the test. It should fail and report the amount of cycles needed.
             match endpoint {
                 EvmRpcEndpoint::EthBatch => {
-                    let batch_request = client.batch(vec![
-                        BatchRequest::EthGetTransactionCount(
-                            GetTransactionCountArgs::from((MOCK_ADDRESS, BlockTag::Latest)),
-                        ),
-                    ]);
+                    let batch_request = client.batch(vec![BatchRequest::EthGetTransactionCount(
+                        GetTransactionCountArgs::from((MOCK_ADDRESS, BlockTag::Latest)),
+                    )]);
                     let five_percents = 5_u8;
 
-                    let cycles_cost = batch_request
-                        .clone()
-                        .request_cost()
-                        .send()
-                        .await
-                        .unwrap();
+                    let cycles_cost = batch_request.clone().request_cost().send().await.unwrap();
                     // To find the expected value, set to 0 and run the test.
                     assert_within(cycles_cost, 1_883_110_400, five_percents);
 
                     let cycles_before = setup.evm_rpc_canister_cycles_balance().await;
-                    let results = batch_request
-                        .clone()
-                        .with_cycles(cycles_cost)
-                        .send()
-                        .await;
+                    let results = batch_request.clone().with_cycles(cycles_cost).send().await;
                     for result in &results {
                         if let MultiRpcResult::Consistent(Err(RpcError::ProviderError(
                             ProviderError::TooFewCycles { .. },
                         ))) = result
                         {
-                            panic!(
-                                "BUG: estimated cycles cost was insufficient!: {result:?}"
-                            );
+                            panic!("BUG: estimated cycles cost was insufficient!: {result:?}");
                         }
                     }
                     let cycles_after = setup.evm_rpc_canister_cycles_balance().await;
@@ -2868,21 +2851,14 @@ mod cycles_cost_tests {
                         "BUG: not enough cycles requested. Requested {cycles_cost} cycles, but consumed {cycles_consumed} cycles"
                     );
 
-                    let results = batch_request
-                        .with_cycles(cycles_cost - 1)
-                        .send()
-                        .await;
+                    let results = batch_request.with_cycles(cycles_cost - 1).send().await;
                     let has_too_few_cycles = results.iter().any(|result| match result {
-                        MultiRpcResult::Inconsistent(pairs) => {
-                            pairs.iter().any(|(_, r)| {
-                                matches!(
-                                    r,
-                                    Err(RpcError::ProviderError(
-                                        ProviderError::TooFewCycles { .. }
-                                    ))
-                                )
-                            })
-                        }
+                        MultiRpcResult::Inconsistent(pairs) => pairs.iter().any(|(_, r)| {
+                            matches!(
+                                r,
+                                Err(RpcError::ProviderError(ProviderError::TooFewCycles { .. }))
+                            )
+                        }),
                         MultiRpcResult::Consistent(Err(RpcError::ProviderError(
                             ProviderError::TooFewCycles { .. },
                         ))) => true,

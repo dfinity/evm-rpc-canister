@@ -417,10 +417,12 @@ impl EthRpcClient {
             .response_size_estimate
             .map(ResponseSizeEstimate::new)
             .unwrap_or_else(|| {
-                params.iter().fold(ResponseSizeEstimate::ZERO, |total, item| {
-                    let (size, _) = self.https_outcall_settings(&item.method());
-                    total.saturating_add(size)
-                })
+                params
+                    .iter()
+                    .fold(ResponseSizeEstimate::ZERO, |total, item| {
+                        let (size, _) = self.https_outcall_settings(&item.method());
+                        total.saturating_add(size)
+                    })
             });
         let reduction_strategy = self.reduction_strategy();
         MultiRpcRequest {
