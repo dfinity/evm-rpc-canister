@@ -2,15 +2,14 @@ use crate::memory::next_request_id;
 use crate::rpc_client::json::requests::BatchRequestParams;
 use crate::{
     rpc_client::{
-        eth_rpc::{ResponseTransform, HEADER_SIZE_LIMIT},
         json::{
             requests::{
-                BatchRequestItemParams, BlockSpec, EthCallParams, FeeHistoryParams, GetLogsParams,
+                BlockSpec, EthCallParams, FeeHistoryParams, GetLogsParams,
                 GetTransactionCountParams,
             },
             Hash,
         },
-        BatchRequestItem, EthRpcClient,
+        EthRpcClient,
     },
     types::RpcMethod,
 };
@@ -187,10 +186,10 @@ impl CandidRpcClient {
     }
 
     pub async fn eth_batch(self, requests: Vec<BatchRequest>) -> Vec<MultiRpcResult<BatchResult>> {
+        let batch_params =
+            BatchRequestParams::from_iter(requests.iter().cloned(), next_request_id);
         self.client
-            .eth_batch(BatchRequestParams::from_iter(requests, || {
-                next_request_id()
-            }))
+            .eth_batch(batch_params)
             .send_and_reduce()
             .await
             .into_iter()

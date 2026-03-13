@@ -479,6 +479,10 @@ impl BatchRequestParams {
         Self(batch)
     }
 
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
     pub fn into_iter(self) -> impl Iterator<Item = (json::Id, BatchRequestItemParams)> {
         self.0.into_iter()
     }
