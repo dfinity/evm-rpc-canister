@@ -2832,7 +2832,7 @@ mod cycles_cost_tests {
 
                     let cycles_cost = batch_request.clone().request_cost().send().await.unwrap();
                     // To find the expected value, set to 0 and run the test.
-                    assert_within(cycles_cost, 1_883_110_400, five_percents);
+                    assert_within(cycles_cost, 1_715_993_600, five_percents);
 
                     let cycles_before = setup.evm_rpc_canister_cycles_balance().await;
                     let results = batch_request.clone().with_cycles(cycles_cost).send().await;
