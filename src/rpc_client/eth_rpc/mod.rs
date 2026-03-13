@@ -191,6 +191,27 @@ impl ResponseSizeEstimate {
     pub fn get(self) -> u64 {
         self.0
     }
+
+    /// Add two response size estimates, saturating at [`MAX_PAYLOAD_SIZE`].
+    ///
+    /// ```
+    /// # use evm_rpc::rpc_client::eth_rpc::ResponseSizeEstimate;
+    /// let a = ResponseSizeEstimate::new(100);
+    /// let b = ResponseSizeEstimate::new(200);
+    /// assert_eq!(a.saturating_add(b).get(), 300);
+    /// ```
+    ///
+    /// The result is capped at [`MAX_PAYLOAD_SIZE`]:
+    ///
+    /// ```
+    /// # use evm_rpc::rpc_client::eth_rpc::{ResponseSizeEstimate, MAX_PAYLOAD_SIZE};
+    /// let a = ResponseSizeEstimate::new(MAX_PAYLOAD_SIZE);
+    /// let b = ResponseSizeEstimate::new(1);
+    /// assert_eq!(a.saturating_add(b).get(), MAX_PAYLOAD_SIZE);
+    /// ```
+    pub fn saturating_add(self, rhs: ResponseSizeEstimate) -> ResponseSizeEstimate {
+        ResponseSizeEstimate::new(self.0.saturating_add(rhs.0).min(MAX_PAYLOAD_SIZE))
+    }
 }
 
 impl fmt::Display for ResponseSizeEstimate {
