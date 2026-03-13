@@ -237,6 +237,7 @@ mod batch_result_backwards_compatibility {
     /// `BatchResult` without the `EthCall` variant, simulating a client
     /// compiled against an older version of the Candid interface.
     #[derive(Clone, Debug, PartialEq, CandidType, Deserialize)]
+    #[allow(clippy::large_enum_variant, clippy::enum_variant_names)] //test code
     enum OldBatchResult {
         EthFeeHistory(RpcResult<FeeHistory>),
         EthGetBlockByNumber(RpcResult<Block>),

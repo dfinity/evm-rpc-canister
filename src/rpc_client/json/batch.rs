@@ -19,6 +19,9 @@ use canhttp::http::json::JsonRpcResponse;
 use evm_rpc_types::{JsonRpcError, RpcError, RpcResult, ValidationError};
 use serde::Serialize;
 
+// TODO DEFI-2665: remove annotation
+#[allow(dead_code)]
+
 /// Typed parameters for a single item in a batch JSON-RPC request.
 /// Variant names mirror [`evm_rpc_types::BatchRequest`].
 #[derive(Debug, Clone)]
