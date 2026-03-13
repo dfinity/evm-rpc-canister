@@ -6,8 +6,10 @@ use crate::{
     },
     types::RpcMethod,
 };
+use canhttp::http::json;
 use ic_ethereum_types::Address;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::{
     fmt,
     fmt::{Display, Formatter},
@@ -383,7 +385,7 @@ pub struct AccessListItem {
 /// Variant names mirror [`evm_rpc_types::BatchRequest`].
 #[derive(Debug, Clone)]
 #[allow(clippy::enum_variant_names)]
-pub enum BatchRequestParams {
+pub enum BatchRequestItemParams {
     EthCall(Box<EthCallParams>),
     EthFeeHistory(FeeHistoryParams),
     EthGetBlockByNumber(GetBlockByNumberParams),
@@ -393,7 +395,7 @@ pub enum BatchRequestParams {
     EthSendRawTransaction(String),
 }
 
-impl BatchRequestParams {
+impl BatchRequestItemParams {
     pub fn method(&self) -> RpcMethod {
         match self {
             Self::EthCall(_) => RpcMethod::EthCall,
@@ -422,7 +424,7 @@ impl BatchRequestParams {
     }
 }
 
-impl From<evm_rpc_types::BatchRequest> for BatchRequestParams {
+impl From<evm_rpc_types::BatchRequest> for BatchRequestItemParams {
     fn from(request: evm_rpc_types::BatchRequest) -> Self {
         use evm_rpc_types::BatchRequest;
         match request {
@@ -447,5 +449,41 @@ impl From<evm_rpc_types::BatchRequest> for BatchRequestParams {
                 Self::EthSendRawTransaction(raw_tx.to_string())
             }
         }
+    }
+}
+
+pub struct BatchRequestParams(BTreeMap<json::Id, BatchRequestItemParams>);
+
+impl BatchRequestParams {
+    /// Builds a [`BatchRequestParams`] from an iterator of items convertible to
+    /// [`BatchRequestItemParams`], assigning each item a unique JSON-RPC ID
+    /// produced by `id_generator`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `id_generator` produces a duplicate ID.
+    /// ```
+    pub fn from_iter<T, I, G>(iter: T, id_generator: G) -> Self
+    where
+        I: Into<BatchRequestItemParams>,
+        T: IntoIterator<Item = I>,
+        G: Fn() -> json::Id,
+    {
+        let mut batch = BTreeMap::new();
+        for item in iter.into_iter() {
+            assert!(
+                batch.insert(id_generator(), item.into()).is_none(),
+                "BUG: generated JSON-RPC request ID is not unique!"
+            );
+        }
+        Self(batch)
+    }
+
+    pub fn into_iter(self) -> impl Iterator<Item = (json::Id, BatchRequestItemParams)> {
+        self.0.into_iter()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&json::Id, &BatchRequestItemParams)> {
+        self.0.iter()
     }
 }
