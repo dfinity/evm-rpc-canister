@@ -1,4 +1,3 @@
-use crate::memory::next_request_id;
 use crate::rpc_client::json::requests::BatchRequestParams;
 use crate::{
     rpc_client::{
@@ -186,8 +185,7 @@ impl CandidRpcClient {
     }
 
     pub async fn eth_batch(self, requests: Vec<BatchRequest>) -> Vec<MultiRpcResult<BatchResult>> {
-        let batch_params =
-            BatchRequestParams::from_iter(requests.iter().cloned(), next_request_id);
+        let batch_params = BatchRequestParams::from_iter(requests.iter().cloned());
         self.client
             .eth_batch(batch_params)
             .send_and_reduce()
@@ -202,9 +200,7 @@ impl CandidRpcClient {
 
     pub async fn eth_batch_cycles_cost(self, requests: Vec<BatchRequest>) -> RpcResult<u128> {
         self.client
-            .eth_batch(BatchRequestParams::from_iter(requests, || {
-                next_request_id()
-            }))
+            .eth_batch(BatchRequestParams::from_iter(requests))
             .cycles_cost()
             .await
     }

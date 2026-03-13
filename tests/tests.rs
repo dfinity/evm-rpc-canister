@@ -3367,7 +3367,8 @@ fn assert_within(actual: u128, expected: u128, percentage_error: u8) {
     let upper_bound = expected.saturating_add(error_margin);
     assert!(
         lower_bound <= actual && actual <= upper_bound,
-        "Expected {} <= {} <= {}",
+        "Expected exactly {}. Tolerate {} <= {} <= {}",
+        expected,
         lower_bound,
         actual,
         upper_bound

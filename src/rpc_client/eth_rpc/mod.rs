@@ -29,7 +29,7 @@ const HTTP_MAX_SIZE: u64 = 2_000_000;
 
 pub const MAX_PAYLOAD_SIZE: u64 = HTTP_MAX_SIZE - HEADER_SIZE_LIMIT;
 
-#[derive(Debug, Decode, Encode, From)]
+#[derive(Clone, Debug, Decode, Encode, From)]
 pub enum ResponseTransformEnvelope {
     #[n(0)]
     Single(#[n(0)] ResponseTransform),

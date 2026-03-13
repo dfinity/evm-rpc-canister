@@ -5,7 +5,7 @@ use crate::{
         charging_policy_with_collateral, error::HttpClientError, http_batch_client, http_client,
         service_request_builder,
     },
-    memory::{get_override_provider, rank_providers, record_ok_result},
+    memory::{get_override_provider, next_request_id, rank_providers, record_ok_result},
     providers::{resolve_rpc_service, SupportedRpcService},
     rpc_client::{
         eth_rpc::{
@@ -412,31 +412,21 @@ impl EthRpcClient {
     }
 
     fn batch_request(self, params: BatchRequestParams) -> MultiRpcRequest<BatchRequestParams> {
-        let (response_sizes, transforms): (Vec<_>, BTreeMap<_, _>) = params
-            .iter()
-            .map(|(id, request)| {
-                let (response_size, transform) = self.https_outcall_settings(&request.method());
-                (response_size, (id.clone(), transform))
-            })
-            .unzip();
         let response_size_estimate = self
             .config
             .response_size_estimate
             .map(ResponseSizeEstimate::new)
             .unwrap_or_else(|| {
-                let mut total_estimate = ResponseSizeEstimate::ZERO;
-                response_sizes.into_iter().for_each(|size| {
-                    total_estimate = total_estimate.saturating_add(size);
-                });
-                total_estimate
+                params.iter().fold(ResponseSizeEstimate::ZERO, |total, item| {
+                    let (size, _) = self.https_outcall_settings(&item.method());
+                    total.saturating_add(size)
+                })
             });
-        let transform = ResponseTransformEnvelope::from(transforms);
         let reduction_strategy = self.reduction_strategy();
         MultiRpcRequest {
             providers: self.providers.services,
             payload: params,
             response_size_estimate,
-            transform,
             reduction_strategy,
         }
     }
@@ -446,25 +436,33 @@ impl EthRpcClient {
 /// Implemented by [`SinglePayload`] for single JSON-RPC methods
 /// and [`BatchRequestParams`] for batch requests.
 pub trait RequestPayload {
-    type HttpBody: Serialize + Clone;
+    type HttpBody: Serialize;
 
-    fn http_body(&self) -> Self::HttpBody;
+    /// Build the HTTP body and the corresponding response transform for one provider call.
+    /// Called once per provider in [`MultiRpcRequest::create_http_requests`].
+    fn build_request(&self) -> (Self::HttpBody, ResponseTransformEnvelope);
     fn metric_method(&self) -> MetricRpcMethod;
 }
 
 impl RequestPayload for BatchRequestParams {
     type HttpBody = canhttp::http::json::BatchJsonRpcRequest<serde_json::Value>;
 
-    fn http_body(&self) -> Self::HttpBody {
-        self.iter()
+    fn build_request(&self) -> (Self::HttpBody, ResponseTransformEnvelope) {
+        let ids: Vec<_> = (0..self.len()).map(|_| next_request_id()).collect();
+        let body = ids
+            .iter()
+            .zip(self.iter())
             .map(|(id, item)| {
-                canhttp::http::json::JsonRpcRequest::new(
-                    item.method().name(),
-                    item.serialize_params(),
-                )
-                .with_id(id.clone())
+                JsonRpcRequest::new(item.method().name(), item.serialize_params())
+                    .with_id(id.clone())
             })
-            .collect()
+            .collect();
+        let transform = ResponseTransformEnvelope::from(
+            ids.into_iter()
+                .zip(self.iter().map(|item| item.transform()))
+                .collect::<BTreeMap<_, _>>(),
+        );
+        (body, transform)
     }
 
     fn metric_method(&self) -> MetricRpcMethod {
@@ -475,14 +473,16 @@ impl RequestPayload for BatchRequestParams {
 pub struct SinglePayload<Params, Output> {
     method: RpcMethod,
     params: Params,
+    transform: ResponseTransformEnvelope,
     _marker: std::marker::PhantomData<Output>,
 }
 
 impl<Params: Serialize + Clone, Output> RequestPayload for SinglePayload<Params, Output> {
     type HttpBody = JsonRpcRequest<Params>;
 
-    fn http_body(&self) -> Self::HttpBody {
-        JsonRpcRequest::new(self.method.clone().name(), self.params.clone())
+    fn build_request(&self) -> (Self::HttpBody, ResponseTransformEnvelope) {
+        let body = JsonRpcRequest::new(self.method.clone().name(), self.params.clone());
+        (body, self.transform.clone())
     }
 
     fn metric_method(&self) -> MetricRpcMethod {
@@ -498,22 +498,21 @@ pub struct MultiRpcRequest<Payload> {
     providers: BTreeSet<RpcService>,
     payload: Payload,
     response_size_estimate: ResponseSizeEstimate,
-    transform: ResponseTransformEnvelope,
     reduction_strategy: ReductionStrategy,
 }
 
 impl<P: RequestPayload> MultiRpcRequest<P> {
     fn create_http_requests(&self) -> MultiResults<RpcService, Request<P::HttpBody>, RpcError> {
         let response_size_estimate = self.response_size_estimate.get();
-        let transform_op = {
-            let mut buf = vec![];
-            minicbor::encode(&self.transform, &mut buf).unwrap();
-            buf
-        };
-        let body = self.payload.http_body();
         let metric_method = self.payload.metric_method();
         let mut requests = MultiResults::default();
         for provider in self.providers.iter() {
+            let (body, transform) = self.payload.build_request();
+            let transform_op = {
+                let mut buf = vec![];
+                minicbor::encode(&transform, &mut buf).unwrap();
+                buf
+            };
             let request = resolve_rpc_service(provider.clone())
                 .map_err(RpcError::from)
                 .and_then(|rpc_service| rpc_service.post(&get_override_provider()))
@@ -525,9 +524,9 @@ impl<P: RequestPayload> MultiRpcRequest<P> {
                                 method: "cleanup_response".to_string(),
                                 principal: ic_cdk::api::canister_self(),
                             }),
-                            context: transform_op.clone(),
+                            context: transform_op,
                         })
-                        .body(body.clone())
+                        .body(body)
                         .expect("BUG: invalid request")
                 })
                 .map(|mut request| {
@@ -600,10 +599,10 @@ impl<Params, Output> MultiRpcSingleRequest<Params, Output> {
             payload: SinglePayload {
                 method,
                 params,
+                transform: transform.into(),
                 _marker: Default::default(),
             },
             response_size_estimate,
-            transform: transform.into(),
             reduction_strategy,
         }
     }
