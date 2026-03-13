@@ -1,4 +1,4 @@
-use crate::rpc_client::json::requests::BatchRequestParams;
+use crate::rpc_client::json::batch::BatchRequestParams;
 use crate::{
     rpc_client::{
         json::{
