@@ -342,8 +342,15 @@ impl<R, C: EvmRpcResponseConverter, P> EvmRpcClient<R, C, P> {
     ///
     /// Sends a batch of JSON-RPC requests in a single HTTPS outcall per provider.
     /// Responses are returned in the same order as the requests.
-    pub fn batch(&self, params: Vec<BatchRequest>) -> BatchRequestBuilder<R, C, P, C::BatchOutput> {
-        RequestBuilder::new(self.clone(), BatchRpcRequest::new(params), 10_000_000_000)
+    pub fn batch<I: IntoIterator<Item = BatchRequest>>(
+        &self,
+        params: I,
+    ) -> BatchRequestBuilder<R, C, P, C::BatchOutput> {
+        RequestBuilder::new(
+            self.clone(),
+            BatchRpcRequest::new(params.into_iter().collect()),
+            10_000_000_000,
+        )
     }
 
     /// Call `eth_call` on the EVM RPC canister.
