@@ -1,3 +1,4 @@
+// TODO 2665: add doc to the Candid file.
 type Block = record {
   miner : text;
   totalDifficulty : opt nat;
