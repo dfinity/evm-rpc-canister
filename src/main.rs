@@ -231,8 +231,8 @@ pub async fn eth_call_cycles_cost(
     }
 }
 
-#[update(name = "eth_batch")]
-pub async fn eth_batch(
+#[update(name = "batch")]
+pub async fn batch(
     _source: RpcServices,
     _config: Option<RpcConfig>,
     _requests: Vec<evm_rpc_types::BatchRequest>,
@@ -240,8 +240,8 @@ pub async fn eth_batch(
     todo!()
 }
 
-#[query(name = "eth_batchCyclesCost")]
-pub async fn eth_batch_cycles_cost(
+#[query(name = "batchCyclesCost")]
+pub async fn batch_cycles_cost(
     _source: RpcServices,
     _config: Option<RpcConfig>,
     _requests: Vec<evm_rpc_types::BatchRequest>,

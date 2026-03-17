@@ -338,7 +338,7 @@ impl<R, C, P> ClientBuilder<R, C, P> {
 }
 
 impl<R, C: EvmRpcResponseConverter, P> EvmRpcClient<R, C, P> {
-    /// Call `eth_batch` on the EVM RPC canister.
+    /// Call `batch` on the EVM RPC canister.
     ///
     /// Sends a batch of JSON-RPC requests in a single HTTPS outcall per provider.
     /// Responses are returned in the same order as the requests.

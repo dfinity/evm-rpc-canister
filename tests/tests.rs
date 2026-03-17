@@ -2598,7 +2598,7 @@ mod cycles_cost_tests {
 
         for endpoint in EvmRpcEndpoint::iter() {
             match endpoint {
-                EvmRpcEndpoint::EthBatch => continue, // TODO: test once endpoint is implemented
+                EvmRpcEndpoint::Batch => continue, // TODO: test once endpoint is implemented
                 EvmRpcEndpoint::Call => {
                     check(
                         client.call(
@@ -2669,7 +2669,7 @@ mod cycles_cost_tests {
 
         for endpoint in EvmRpcEndpoint::iter() {
             match endpoint {
-                EvmRpcEndpoint::EthBatch => continue, // TODO: test once endpoint is implemented
+                EvmRpcEndpoint::Batch => continue, // TODO: test once endpoint is implemented
                 EvmRpcEndpoint::Call => {
                     check(
                         client.call(
@@ -2780,7 +2780,7 @@ mod cycles_cost_tests {
         let mut mocks = MockHttpOutcallsBuilder::new();
         let mut ids = 0_u64..;
         for endpoint in EvmRpcEndpoint::iter() {
-            if endpoint == EvmRpcEndpoint::EthBatch {
+            if endpoint == EvmRpcEndpoint::Batch {
                 continue; // TODO: mock once endpoint is implemented
             }
             let rpc_method = if endpoint == EvmRpcEndpoint::MultiRequest {
@@ -2804,7 +2804,7 @@ mod cycles_cost_tests {
             // To find out the expected_cycles_cost for a new endpoint, set the amount to 0
             // and run the test. It should fail and report the amount of cycles needed.
             match endpoint {
-                EvmRpcEndpoint::EthBatch => continue, // TODO: test once endpoint is implemented
+                EvmRpcEndpoint::Batch => continue, // TODO: test once endpoint is implemented
                 EvmRpcEndpoint::Call => {
                     check(
                         &setup,

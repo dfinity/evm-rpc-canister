@@ -358,8 +358,8 @@ service : (InstallArgs) -> {
 
   // Send a batch of JSON-RPC requests in a single HTTPS outcall per provider.
   // Responses are returned in the same order as the requests.
-  eth_batch : (RpcServices, opt RpcConfig, vec BatchRequest) -> (vec MultiBatchItemResult);
-  eth_batchCyclesCost : (RpcServices, opt RpcConfig, vec BatchRequest) -> (RequestCostResult) query;
+  batch : (RpcServices, opt RpcConfig, vec BatchRequest) -> (vec MultiBatchItemResult);
+  batchCyclesCost : (RpcServices, opt RpcConfig, vec BatchRequest) -> (RequestCostResult) query;
 
   // Make a raw JSON-RPC request that sends the given JSON-RPC payload.
   // This endpoint should be used instead of the `request` endpoint as it allows aggregating the responses from

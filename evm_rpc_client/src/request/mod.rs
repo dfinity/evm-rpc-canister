@@ -369,7 +369,7 @@ impl EvmRpcRequest for BatchRpcRequest {
     type CandidOutput = Vec<MultiRpcResult<BatchResult>>;
 
     fn endpoint(&self) -> EvmRpcEndpoint {
-        EvmRpcEndpoint::EthBatch
+        EvmRpcEndpoint::Batch
     }
 
     fn params(self) -> Self::Params {
@@ -406,8 +406,8 @@ pub trait EvmRpcRequest {
 /// Endpoint on the EVM RPC canister triggering a call to EVM providers.
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, EnumIter)]
 pub enum EvmRpcEndpoint {
-    /// `eth_batch` endpoint.
-    EthBatch,
+    /// `batch` endpoint.
+    Batch,
     /// `eth_call` endpoint.
     Call,
     /// `eth_feeHistory` endpoint.
@@ -430,7 +430,7 @@ impl EvmRpcEndpoint {
     /// Method name on the EVM RPC canister
     pub fn rpc_method(&self) -> &'static str {
         match &self {
-            Self::EthBatch => "eth_batch",
+            Self::Batch => "batch",
             Self::Call => "eth_call",
             Self::FeeHistory => "eth_feeHistory",
             Self::GetBlockByNumber => "eth_getBlockByNumber",
@@ -445,7 +445,7 @@ impl EvmRpcEndpoint {
     /// Method name on the EVM RPC canister to estimate the amount of cycles for that request.
     pub fn cycles_cost_method(&self) -> &'static str {
         match &self {
-            Self::EthBatch => "eth_batchCyclesCost",
+            Self::Batch => "batchCyclesCost",
             Self::Call => "eth_callCyclesCost",
             Self::FeeHistory => "eth_feeHistoryCyclesCost",
             Self::GetBlockByNumber => "eth_getBlockByNumberCyclesCost",
