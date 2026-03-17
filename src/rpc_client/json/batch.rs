@@ -66,10 +66,10 @@ impl BatchRequestItemParams {
             Self::EthCall(params) => to_value(params.as_ref()),
             Self::EthFeeHistory(params) => to_value(params),
             Self::EthGetBlockByNumber(params) => to_value(params),
-            Self::EthGetLogs(params) => to_value((params,)),
+            Self::EthGetLogs(params) => to_value(params),
             Self::EthGetTransactionCount(params) => to_value(params),
-            Self::EthGetTransactionReceipt(hash) => to_value((hash,)),
-            Self::EthSendRawTransaction(raw_tx) => to_value((raw_tx,)),
+            Self::EthGetTransactionReceipt(hash) => to_value(hash),
+            Self::EthSendRawTransaction(raw_tx) => to_value(raw_tx),
         }
     }
 
