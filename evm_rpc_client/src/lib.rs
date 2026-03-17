@@ -346,11 +346,9 @@ impl<R, C: EvmRpcResponseConverter, P> EvmRpcClient<R, C, P> {
         &self,
         params: I,
     ) -> BatchRequestBuilder<R, C, P, C::BatchOutput> {
-        RequestBuilder::new(
-            self.clone(),
-            BatchRpcRequest::new(params.into_iter().collect()),
-            10_000_000_000,
-        )
+        let params: Vec<_> = params.into_iter().collect();
+        let cycles = params.len() as u128 * 10_000_000_000;
+        RequestBuilder::new(self.clone(), BatchRpcRequest::new(params), cycles)
     }
 
     /// Call `eth_call` on the EVM RPC canister.
