@@ -34,17 +34,17 @@ thread_local! {
     static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> =
         RefCell::new(MemoryManager::init(DefaultMemoryImpl::default()));
     static IS_DEMO_ACTIVE: RefCell<Cell<bool, StableMemory>> =
-        RefCell::new(Cell::init(MEMORY_MANAGER.with_borrow(|m| m.get(IS_DEMO_ACTIVE_MEMORY_ID)), false).expect("Unable to read demo status from stable memory"));
+        RefCell::new(Cell::init(MEMORY_MANAGER.with_borrow(|m| m.get(IS_DEMO_ACTIVE_MEMORY_ID)), false));
     static API_KEY_MAP: RefCell<StableBTreeMap<ProviderId, ApiKey, StableMemory>> =
         RefCell::new(StableBTreeMap::init(MEMORY_MANAGER.with_borrow(|m| m.get(API_KEY_MAP_MEMORY_ID))));
     static MANAGE_API_KEYS: RefCell<ic_stable_structures::Vec<Principal, StableMemory>> =
-        RefCell::new(ic_stable_structures::Vec::init(MEMORY_MANAGER.with_borrow(|m| m.get(MANAGE_API_KEYS_MEMORY_ID))).expect("Unable to read API key principals from stable memory"));
+        RefCell::new(ic_stable_structures::Vec::init(MEMORY_MANAGER.with_borrow(|m| m.get(MANAGE_API_KEYS_MEMORY_ID))));
     static LOG_FILTER: RefCell<Cell<StorableLogFilter, StableMemory>> =
-        RefCell::new(Cell::init(MEMORY_MANAGER.with_borrow(|m| m.get(LOG_FILTER_MEMORY_ID)), StorableLogFilter::default()).expect("Unable to read log message filter from stable memory"));
+        RefCell::new(Cell::init(MEMORY_MANAGER.with_borrow(|m| m.get(LOG_FILTER_MEMORY_ID)), StorableLogFilter::default()));
     static OVERRIDE_PROVIDER: RefCell<Cell<OverrideProvider, StableMemory>> =
-        RefCell::new(Cell::init(MEMORY_MANAGER.with_borrow(|m| m.get(OVERRIDE_PROVIDER_MEMORY_ID)), OverrideProvider::default()).expect("Unable to read provider override from stable memory"));
+        RefCell::new(Cell::init(MEMORY_MANAGER.with_borrow(|m| m.get(OVERRIDE_PROVIDER_MEMORY_ID)), OverrideProvider::default()));
     static NUM_SUBNET_NODES: RefCell<Cell<u32, StableMemory>> =
-        RefCell::new(Cell::init(MEMORY_MANAGER.with_borrow(|m| m.get(NUM_SUBNET_NODES_MEMORY_ID)), crate::constants::NODES_IN_SUBNET).expect("Unable to read number of subnet nodes from stable memory"));
+        RefCell::new(Cell::init(MEMORY_MANAGER.with_borrow(|m| m.get(NUM_SUBNET_NODES_MEMORY_ID)), crate::constants::NODES_IN_SUBNET));
 }
 
 pub fn get_api_key(provider_id: ProviderId) -> Option<ApiKey> {
@@ -69,9 +69,7 @@ pub fn set_api_key_principals(new_principals: Vec<Principal>) {
             principals.pop();
         }
         for principal in new_principals {
-            principals
-                .push(&principal)
-                .expect("Error while adding API key principal");
+            principals.push(&principal);
         }
     });
 }
@@ -82,8 +80,7 @@ pub fn is_demo_active() -> bool {
 
 pub fn set_demo_active(is_active: bool) {
     IS_DEMO_ACTIVE.with_borrow_mut(|demo| {
-        demo.set(is_active)
-            .expect("Error while storing new demo status")
+        demo.set(is_active);
     });
 }
 
@@ -93,9 +90,7 @@ pub fn get_log_filter() -> LogFilter {
 
 pub fn set_log_filter(filter: LogFilter) {
     LOG_FILTER.with_borrow_mut(|state| {
-        state
-            .set(filter.into())
-            .expect("Error while updating log message filter")
+        state.set(filter.into());
     });
 }
 
@@ -105,9 +100,7 @@ pub fn get_override_provider() -> OverrideProvider {
 
 pub fn set_override_provider(provider: OverrideProvider) {
     OVERRIDE_PROVIDER.with_borrow_mut(|state| {
-        state
-            .set(provider)
-            .expect("Error while updating override provider")
+        state.set(provider);
     });
 }
 
@@ -124,9 +117,7 @@ pub fn get_num_subnet_nodes() -> u32 {
 
 pub fn set_num_subnet_nodes(nodes: u32) {
     NUM_SUBNET_NODES.with_borrow_mut(|state| {
-        state
-            .set(nodes)
-            .expect("Error while updating number of subnet nodes")
+        state.set(nodes);
     });
 }
 

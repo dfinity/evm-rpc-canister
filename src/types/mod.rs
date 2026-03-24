@@ -238,6 +238,10 @@ impl Storable for ApiKey {
         self.0.to_bytes()
     }
 
+    fn into_bytes(self) -> Vec<u8> {
+        self.0.to_bytes().into_owned()
+    }
+
     fn from_bytes(bytes: Cow<[u8]>) -> Self {
         Self(String::from_bytes(bytes))
     }
@@ -256,6 +260,9 @@ impl Storable for StorableLogFilter {
         serde_json::to_vec(self)
             .expect("Error while serializing `LogFilter`")
             .into()
+    }
+    fn into_bytes(self) -> Vec<u8> {
+        self.to_bytes().into_owned()
     }
     fn from_bytes(bytes: Cow<[u8]>) -> Self {
         serde_json::from_slice(&bytes).expect("Error while deserializing `LogFilter`")
@@ -414,6 +421,10 @@ impl Storable for OverrideProvider {
         serde_json::to_vec(self)
             .expect("Error while serializing `OverrideProvider`")
             .into()
+    }
+
+    fn into_bytes(self) -> Vec<u8> {
+        self.to_bytes().into_owned()
     }
 
     fn from_bytes(bytes: Cow<[u8]>) -> Self {
