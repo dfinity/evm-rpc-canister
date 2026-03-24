@@ -10,7 +10,6 @@ use evm_rpc_client::{AlloyResponseConverter, ClientBuilder, EvmRpcClient, NoRetr
 use evm_rpc_types::{InstallArgs, Provider, RpcResult, RpcService};
 use ic_canister_runtime::{CyclesWalletRuntime, Runtime};
 use ic_http_types::{HttpRequest, HttpResponse};
-use ic_management_canister_types::{CanisterId, CanisterSettings};
 use ic_metrics_assert::{MetricsAssert, PocketIcAsyncHttpQuery};
 use ic_pocket_canister_runtime::{MockHttpOutcalls, PocketIcRuntime};
 use ic_test_utilities_load_wasm::load_wasm;
@@ -29,8 +28,8 @@ pub struct EvmRpcSetup {
     pub env: Arc<PocketIc>,
     pub caller: Principal,
     pub controller: Principal,
-    pub evm_rpc_canister_id: CanisterId,
-    pub wallet_canister_id: CanisterId,
+    pub evm_rpc_canister_id: Principal,
+    pub wallet_canister_id: Principal,
 }
 
 impl EvmRpcSetup {
@@ -53,15 +52,10 @@ impl EvmRpcSetup {
         let env = Arc::new(pocket_ic);
 
         let controller = DEFAULT_CONTROLLER_TEST_ID;
-        let evm_rpc_canister_id = env
-            .create_canister_with_settings(
-                None,
-                Some(CanisterSettings {
-                    controllers: Some(vec![controller]),
-                    ..CanisterSettings::default()
-                }),
-            )
-            .await;
+        let evm_rpc_canister_id = env.create_canister().await;
+        env.set_controllers(evm_rpc_canister_id, None, vec![controller])
+            .await
+            .unwrap();
         env.add_cycles(evm_rpc_canister_id, INITIAL_CYCLES).await;
         env.install_canister(
             evm_rpc_canister_id,
@@ -73,14 +67,10 @@ impl EvmRpcSetup {
 
         let wallet = DEFAULT_CALLER_TEST_ID;
         let wallet_canister_id = env
-            .create_canister_with_id(
-                None,
-                Some(CanisterSettings {
-                    controllers: Some(vec![controller]),
-                    ..CanisterSettings::default()
-                }),
-                wallet,
-            )
+            .create_canister_with_id(None, None, wallet)
+            .await
+            .unwrap();
+        env.set_controllers(wallet_canister_id, None, vec![controller])
             .await
             .unwrap();
         env.add_cycles(wallet_canister_id, u64::MAX as u128).await;
@@ -301,7 +291,7 @@ impl PocketIcAsyncHttpQuery for EvmRpcSetup {
         &self.env
     }
 
-    fn get_canister_id(&self) -> CanisterId {
+    fn get_canister_id(&self) -> Principal {
         self.evm_rpc_canister_id
     }
 }

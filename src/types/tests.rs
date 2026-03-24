@@ -83,6 +83,10 @@ mod decode_legacy_log_filter {
                 .into()
         }
 
+        fn into_bytes(self) -> Vec<u8> {
+            self.to_bytes().into_owned()
+        }
+
         fn from_bytes(bytes: Cow<[u8]>) -> Self {
             serde_json::from_slice(&bytes).expect("Error while deserializing `LogFilter`")
         }
