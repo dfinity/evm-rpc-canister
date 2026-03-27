@@ -31,6 +31,7 @@ ic-http-types = { workspace = true }
 ic-metrics-encoder = { workspace = true }
 ic-stable-structures = { workspace = true }
 ic-cdk = { workspace = true }
+ic-cdk-management-canister = { workspace = true }
 ic-management-canister-types = { workspace = true }
 maplit = { workspace = true }
 minicbor = { workspace = true }
@@ -70,15 +71,15 @@ strum = { workspace = true }
 tokio = { workspace = true }
 
 [workspace.dependencies]
-alloy-consensus = "1.5.2"
-alloy-primitives = "1.5.4"
-alloy-rpc-types = "1.5.2"
-alloy-sol-macro = "1.5.4"
-alloy-sol-types = "1.5.4"
+alloy-consensus = "1.7.3"
+alloy-primitives = "1.5.7"
+alloy-rpc-types = "1.7.3"
+alloy-sol-macro = "1.5.7"
+alloy-sol-types = "1.5.7"
 assert_matches = "1.5.0"
 async-trait = "0.1.89"
-candid = "0.10.20"
-canhttp = { git = "https://github.com/dfinity/canhttp", branch = "gdemay/DEFI-2565-json-rpc-batch-mock", features = ["json", "multi"] }
+candid = "0.10.26"
+canhttp = { version = "0.6.0", features = ["json", "multi"] }
 canlog = { version = "0.2.0", features = ["derive"] }
 candid_parser = "0.3.0"
 derive_more = { version = "2.1.1", features = ["from", "into"] }
@@ -87,33 +88,34 @@ ethnum = { version = "1.5.2", features = ["serde"] }
 getrandom = { version = "0.2", features = ["custom"] }
 hex = "0.4.3"
 http = "1.4.0"
-ic-canister-runtime = { git = "https://github.com/dfinity/canhttp", branch = "gdemay/DEFI-2565-json-rpc-batch-mock" }
-ic-cdk = "0.19.0"
-ic-cdk-bindgen = "0.1"
+ic-canister-runtime = "0.2.2"
+ic-cdk = "0.20.0"
+ic-cdk-bindgen = "0.2"
+ic-cdk-management-canister = "0.1.1"
 ic-certified-map = "0.4"
 ic-http-types = "0.1.0"
 ic-error-types = "0.2"
 ic-ethereum-types = "1.0.0"
-ic-management-canister-types = "0.5.0"
+ic-management-canister-types = "0.7.1"
 ic-metrics-assert = { version = "0.4.0", features = ["pocket_ic"] }
 ic-metrics-encoder = "1.1"
-ic-pocket-canister-runtime = { git = "https://github.com/dfinity/canhttp", branch = "gdemay/DEFI-2565-json-rpc-batch-mock" }
-ic-stable-structures = "0.6.9"
+ic-pocket-canister-runtime = "0.4.2"
+ic-stable-structures = "0.7.2"
 maplit = "1.0.2"
-minicbor = { version = "1.1.0", features = ["alloc", "derive"] }
+minicbor = { version = "2.2.1", features = ["alloc", "derive"] }
 num-bigint = "0.4.6"
 num-traits = "0.2.19"
 pocket-ic = "12.0.0"
-proptest = "1.9.0"
+proptest = "1.11.0"
 rand = "0.8.5"
 regex = "1.12"
 serde = "1.0"
 serde_json = "1.0"
 serde_bytes = "0.11.19"
 sha2 = "0.10.9"
-strum = { version = "0.27.2", features = ["derive"] }
+strum = { version = "0.28.0", features = ["derive"] }
 thousands = "0.2"
-tokio = "1.49.0"
+tokio = "1.50.0"
 tower = "0.5.3"
 tower-http = "0.6.8"
 thiserror = "2.0.18"

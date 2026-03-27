@@ -20,7 +20,7 @@ use canhttp::{
 use error::HttpClientError;
 use evm_rpc_types::RpcError;
 use http::{header::CONTENT_TYPE, HeaderValue};
-use ic_cdk::management_canister::{
+use ic_management_canister_types::{
     HttpRequestArgs as IcHttpRequest, HttpRequestResult as IcHttpResponse, TransformArgs,
 };
 use observability::{

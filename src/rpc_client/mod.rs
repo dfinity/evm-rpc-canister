@@ -29,7 +29,7 @@ use evm_rpc_types::{
     RpcService, RpcServices,
 };
 use http::{Request, Response};
-use ic_cdk::management_canister::{
+use ic_management_canister_types::{
     HttpRequestArgs as IcHttpRequest, TransformContext, TransformFunc,
 };
 use json::{
@@ -527,7 +527,7 @@ impl<Params, Output> MultiRpcRequest<Params, Output> {
 
         let policy = charging_policy_with_collateral();
         for request in requests.into_values() {
-            let request_cycles_cost = ic_cdk::management_canister::cost_http_request(&request);
+            let request_cycles_cost = ic_cdk_management_canister::cost_http_request(&request);
             cycles_to_attach += policy.cycles_to_charge(&request, request_cycles_cost)
         }
         Ok(cycles_to_attach)
