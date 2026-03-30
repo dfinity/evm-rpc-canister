@@ -180,23 +180,23 @@ pub enum BatchResponse {
 impl From<BatchResponse> for evm_rpc_types::BatchResult {
     fn from(response: BatchResponse) -> Self {
         match response {
-            BatchResponse::EthCall(data) => Self::EthCall(Box::new(Ok(data.into()))),
-            BatchResponse::EthFeeHistory(fh) => Self::EthFeeHistory(Box::new(Ok((*fh).into()))),
+            BatchResponse::EthCall(data) => Self::EthCall(Ok(data.into())),
+            BatchResponse::EthFeeHistory(fh) => Self::EthFeeHistory(Ok((*fh).into())),
             BatchResponse::EthGetBlockByNumber(block) => {
                 Self::EthGetBlockByNumber(Box::new(Ok((*block).into())))
             }
-            BatchResponse::EthGetLogs(entries) => Self::EthGetLogs(Box::new(Ok(entries
+            BatchResponse::EthGetLogs(entries) => Self::EthGetLogs(Ok(entries
                 .into_iter()
                 .map(evm_rpc_types::LogEntry::from)
-                .collect()))),
+                .collect())),
             BatchResponse::EthGetTransactionCount(count) => {
-                Self::EthGetTransactionCount(Box::new(Ok(count.into())))
+                Self::EthGetTransactionCount(Ok(count.into()))
             }
             BatchResponse::EthGetTransactionReceipt(receipt) => Self::EthGetTransactionReceipt(
                 Box::new(Ok((*receipt).map(evm_rpc_types::TransactionReceipt::from))),
             ),
             BatchResponse::EthSendRawTransaction(result) => {
-                Self::EthSendRawTransaction(Box::new(Ok(result.into())))
+                Self::EthSendRawTransaction(Ok(result.into()))
             }
         }
     }

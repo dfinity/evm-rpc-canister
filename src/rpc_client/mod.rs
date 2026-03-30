@@ -30,7 +30,7 @@ use evm_rpc_types::{
     RpcService, RpcServices,
 };
 use http::{Request, Response};
-use ic_cdk::management_canister::{
+use ic_management_canister_types::{
     HttpRequestArgs as IcHttpRequest, TransformContext, TransformFunc,
 };
 use json::{
@@ -382,7 +382,7 @@ impl EthRpcClient {
         self.single_request(RpcMethod::EthCall, params)
     }
 
-    pub fn eth_batch(self, params: BatchRequestParams) -> MultiRpcRequest<BatchRequestParams> {
+    pub fn batch(self, params: BatchRequestParams) -> MultiRpcRequest<BatchRequestParams> {
         self.batch_request(params)
     }
 
@@ -467,7 +467,7 @@ impl RequestPayload for BatchRequestParams {
     }
 
     fn metric_method(&self) -> MetricRpcMethod {
-        MetricRpcMethod::from(RpcMethod::Custom("eth_batch".to_string()))
+        MetricRpcMethod::from(RpcMethod::Custom("batch".to_string()))
     }
 }
 
@@ -579,7 +579,7 @@ impl<P: RequestPayload> MultiRpcRequest<P> {
         let mut cycles_to_attach = 0_u128;
         let policy = charging_policy_with_collateral();
         for request in requests.into_values() {
-            let request_cycles_cost = ic_cdk::management_canister::cost_http_request(&request);
+            let request_cycles_cost = ic_cdk_management_canister::cost_http_request(&request);
             cycles_to_attach += policy.cycles_to_charge(&request, request_cycles_cost)
         }
         Ok(cycles_to_attach)
@@ -672,7 +672,7 @@ impl MultiRpcRequest<BatchRequestParams> {
             }
         }
 
-        let method = RpcMethod::Custom("eth_batch".to_string());
+        let method = RpcMethod::Custom("batch".to_string());
         per_position
             .into_iter()
             .map(|results| {

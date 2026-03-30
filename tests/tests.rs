@@ -2599,7 +2599,7 @@ mod cycles_cost_tests {
 
         for endpoint in EvmRpcEndpoint::iter() {
             match endpoint {
-                EvmRpcEndpoint::EthBatch => {
+                EvmRpcEndpoint::Batch => {
                     check(client.batch(vec![BatchRequest::EthGetTransactionCount(
                         GetTransactionCountArgs::from((MOCK_ADDRESS, BlockTag::Latest)),
                     )]))
@@ -2675,7 +2675,7 @@ mod cycles_cost_tests {
 
         for endpoint in EvmRpcEndpoint::iter() {
             match endpoint {
-                EvmRpcEndpoint::EthBatch => {
+                EvmRpcEndpoint::Batch => {
                     check(client.batch(vec![BatchRequest::EthGetTransactionCount(
                         GetTransactionCountArgs::from((MOCK_ADDRESS, BlockTag::Latest)),
                     )]))
@@ -2791,7 +2791,7 @@ mod cycles_cost_tests {
         let mut mocks = MockHttpOutcallsBuilder::new();
         let mut ids = 0_u64..;
         for endpoint in EvmRpcEndpoint::iter() {
-            if endpoint == EvmRpcEndpoint::EthBatch {
+            if endpoint == EvmRpcEndpoint::Batch {
                 for id in ids.by_ref().take(5) {
                     mocks = mocks
                         .given(BatchJsonRpcRequestMatcher::batch(vec![
@@ -2824,7 +2824,7 @@ mod cycles_cost_tests {
             // To find out the expected_cycles_cost for a new endpoint, set the amount to 0
             // and run the test. It should fail and report the amount of cycles needed.
             match endpoint {
-                EvmRpcEndpoint::EthBatch => {
+                EvmRpcEndpoint::Batch => {
                     let batch_request = client.batch(vec![BatchRequest::EthGetTransactionCount(
                         GetTransactionCountArgs::from((MOCK_ADDRESS, BlockTag::Latest)),
                     )]);

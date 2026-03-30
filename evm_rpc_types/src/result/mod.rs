@@ -117,13 +117,13 @@ impl<T> From<RpcResult<T>> for MultiRpcResult<T> {
 
 #[derive(Clone, Debug, PartialEq, CandidType, Deserialize)]
 pub enum BatchResult {
-    EthFeeHistory(Box<RpcResult<FeeHistory>>),
+    EthFeeHistory(RpcResult<FeeHistory>),
     EthGetBlockByNumber(Box<RpcResult<Block>>),
-    EthGetLogs(Box<RpcResult<Vec<LogEntry>>>),
-    EthGetTransactionCount(Box<RpcResult<Nat256>>),
+    EthGetLogs(RpcResult<Vec<LogEntry>>),
+    EthGetTransactionCount(RpcResult<Nat256>),
     EthGetTransactionReceipt(Box<RpcResult<Option<TransactionReceipt>>>),
-    EthSendRawTransaction(Box<RpcResult<SendRawTransactionStatus>>),
-    EthCall(Box<RpcResult<Hex>>),
+    EthSendRawTransaction(RpcResult<SendRawTransactionStatus>),
+    EthCall(RpcResult<Hex>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, CandidType, Deserialize, Error)]

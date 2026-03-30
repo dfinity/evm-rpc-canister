@@ -19,11 +19,11 @@ use evm_rpc::{
 use evm_rpc_types::{
     BatchResult, Hex32, HttpOutcallError, MultiRpcResult, RpcConfig, RpcResult, RpcServices,
 };
-use ic_cdk::management_canister::{
-    HttpRequestArgs as IcHttpRequest, HttpRequestResult as IcHttpResponse, TransformArgs,
-};
 use ic_cdk::{api::is_controller, query, update};
 use ic_http_types::{HttpRequest, HttpResponse, HttpResponseBuilder};
+use ic_management_canister_types::{
+    HttpRequestArgs as IcHttpRequest, HttpRequestResult as IcHttpResponse, TransformArgs,
+};
 use ic_metrics_encoder::MetricsEncoder;
 use std::str::FromStr;
 use tower::Service;
@@ -231,26 +231,26 @@ pub async fn eth_call_cycles_cost(
     }
 }
 
-#[update(name = "eth_batch")]
-pub async fn eth_batch(
+#[update(name = "batch")]
+pub async fn batch(
     source: RpcServices,
     config: Option<RpcConfig>,
     requests: Vec<evm_rpc_types::BatchRequest>,
 ) -> Vec<MultiRpcResult<BatchResult>> {
     match CandidRpcClient::new(source, config, now()) {
-        Ok(source) => source.eth_batch(requests).await,
+        Ok(source) => source.batch(requests).await,
         Err(err) => requests.iter().map(|_| Err(err.clone()).into()).collect(),
     }
 }
 
-#[query(name = "eth_batchCyclesCost")]
-pub async fn eth_batch_cycles_cost(
+#[query(name = "batchCyclesCost")]
+pub async fn batch_cycles_cost(
     source: RpcServices,
     config: Option<RpcConfig>,
     requests: Vec<evm_rpc_types::BatchRequest>,
 ) -> RpcResult<u128> {
     match CandidRpcClient::new(source, config, now()) {
-        Ok(source) => source.eth_batch_cycles_cost(requests).await,
+        Ok(source) => source.batch_cycles_cost(requests).await,
         Err(err) => Err(err),
     }
 }
@@ -328,7 +328,7 @@ async fn request_cost(
 
         let request_cost_with_collateral = charging_policy_with_collateral().cycles_to_charge(
             &request,
-            ic_cdk::management_canister::cost_http_request(&request),
+            ic_cdk_management_canister::cost_http_request(&request),
         );
 
         Ok(request_cost_with_collateral)
