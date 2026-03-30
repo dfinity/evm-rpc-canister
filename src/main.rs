@@ -16,7 +16,9 @@ use evm_rpc::{
     providers::{find_provider, PROVIDERS, SERVICE_PROVIDER_MAP},
     types::{OverrideProvider, Provider, ProviderId, RpcAccess, RpcAuth},
 };
-use evm_rpc_types::{Hex32, HttpOutcallError, MultiRpcResult, RpcConfig, RpcResult, RpcServices};
+use evm_rpc_types::{
+    BatchResult, Hex32, HttpOutcallError, MultiRpcResult, RpcConfig, RpcResult, RpcServices,
+};
 use ic_cdk::{api::is_controller, query, update};
 use ic_http_types::{HttpRequest, HttpResponse, HttpResponseBuilder};
 use ic_management_canister_types::{
@@ -227,6 +229,24 @@ pub async fn eth_call_cycles_cost(
         Ok(source) => source.eth_call_cycles_cost(args).await,
         Err(err) => Err(err),
     }
+}
+
+#[update(name = "batch")]
+pub async fn batch(
+    _source: RpcServices,
+    _config: Option<RpcConfig>,
+    _requests: Vec<evm_rpc_types::BatchRequest>,
+) -> Vec<MultiRpcResult<BatchResult>> {
+    todo!()
+}
+
+#[query(name = "batchCyclesCost")]
+pub async fn batch_cycles_cost(
+    _source: RpcServices,
+    _config: Option<RpcConfig>,
+    _requests: Vec<evm_rpc_types::BatchRequest>,
+) -> RpcResult<u128> {
+    todo!()
 }
 
 #[update(name = "multi_request")]

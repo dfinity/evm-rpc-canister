@@ -4,7 +4,10 @@ mod tests;
 #[cfg(feature = "alloy")]
 mod alloy;
 
-use crate::RpcService;
+use crate::{
+    Block, FeeHistory, Hex, LogEntry, Nat256, RpcService, SendRawTransactionStatus,
+    TransactionReceipt,
+};
 use candid::{CandidType, Deserialize};
 use ic_error_types::RejectCode;
 use std::fmt::Debug;
@@ -110,6 +113,17 @@ impl<T> From<RpcResult<T>> for MultiRpcResult<T> {
     fn from(result: RpcResult<T>) -> Self {
         MultiRpcResult::Consistent(result)
     }
+}
+
+#[derive(Clone, Debug, PartialEq, CandidType, Deserialize)]
+pub enum BatchResult {
+    EthFeeHistory(RpcResult<FeeHistory>),
+    EthGetBlockByNumber(Box<RpcResult<Block>>),
+    EthGetLogs(RpcResult<Vec<LogEntry>>),
+    EthGetTransactionCount(RpcResult<Nat256>),
+    EthGetTransactionReceipt(Box<RpcResult<Option<TransactionReceipt>>>),
+    EthSendRawTransaction(RpcResult<SendRawTransactionStatus>),
+    EthCall(RpcResult<Hex>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, CandidType, Deserialize, Error)]

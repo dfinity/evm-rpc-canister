@@ -20,13 +20,13 @@ use std::str::FromStr;
 pub use canlog::{LogFilter, RegexString, RegexSubstitution};
 pub use lifecycle::{InstallArgs, OverrideProvider};
 pub use request::{
-    AccessList, AccessListEntry, BlockTag, CallArgs, FeeHistoryArgs, GetLogsArgs,
-    GetTransactionCountArgs, TransactionRequest,
+    AccessList, AccessListEntry, BatchRequest, BlockTag, CallArgs, FeeHistoryArgs, GetLogsArgs,
+    GetLogsBatchArgs, GetTransactionCountArgs, TransactionRequest,
 };
 pub use response::{Block, FeeHistory, LogEntry, SendRawTransactionStatus, TransactionReceipt};
 pub use result::{
-    HttpOutcallError, JsonRpcError, LegacyRejectionCode, MultiRpcResult, ProviderError, RpcError,
-    RpcResult, ValidationError,
+    BatchResult, HttpOutcallError, JsonRpcError, LegacyRejectionCode, MultiRpcResult,
+    ProviderError, RpcError, RpcResult, ValidationError,
 };
 pub use rpc_client::{
     ConsensusStrategy, EthMainnetService, EthSepoliaService, GetLogsRpcConfig, HttpHeader,

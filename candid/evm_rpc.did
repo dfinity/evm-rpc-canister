@@ -1,3 +1,4 @@
+// TODO 2665: add doc to the Candid file.
 type Block = record {
   miner : text;
   totalDifficulty : opt nat;
@@ -294,6 +295,33 @@ type ValidationError = variant {
   Custom : text;
   InvalidHex : text;
 };
+type GetLogsBatchArgs = record {
+  args : GetLogsArgs;
+  maxBlockRange : opt nat32;
+};
+type BatchRequest = variant {
+  EthFeeHistory : FeeHistoryArgs;
+  EthGetBlockByNumber : BlockTag;
+  EthGetLogs : GetLogsBatchArgs;
+  EthGetTransactionCount : GetTransactionCountArgs;
+  EthGetTransactionReceipt : text;
+  EthSendRawTransaction : text;
+  EthCall : CallArgs;
+};
+type BatchResult = variant {
+  EthFeeHistory : FeeHistoryResult;
+  EthGetBlockByNumber : GetBlockByNumberResult;
+  EthGetLogs : GetLogsResult;
+  EthGetTransactionCount : GetTransactionCountResult;
+  EthGetTransactionReceipt : GetTransactionReceiptResult;
+  EthSendRawTransaction : SendRawTransactionResult;
+  EthCall : CallResult;
+};
+type BatchItemResult = variant { Ok : BatchResult; Err : RpcError };
+type MultiBatchItemResult = variant {
+  Consistent : BatchItemResult;
+  Inconsistent : vec record { RpcService; BatchItemResult };
+};
 type JsonRequestResult = variant { Ok : text; Err : RpcError };
 type MultiJsonRequestResult = variant {
   Consistent : JsonRequestResult;
@@ -327,6 +355,11 @@ service : (InstallArgs) -> {
   // Call the `eth_call` RPC method and return the resulting output.
   eth_call : (RpcServices, opt RpcConfig, CallArgs) -> (MultiCallResult);
   eth_callCyclesCost : (RpcServices, opt RpcConfig, CallArgs) -> (RequestCostResult) query;
+
+  // Send a batch of JSON-RPC requests in a single HTTPS outcall per provider.
+  // Responses are returned in the same order as the requests.
+  batch : (RpcServices, opt RpcConfig, vec BatchRequest) -> (vec MultiBatchItemResult);
+  batchCyclesCost : (RpcServices, opt RpcConfig, vec BatchRequest) -> (RequestCostResult) query;
 
   // Make a raw JSON-RPC request that sends the given JSON-RPC payload.
   // This endpoint should be used instead of the `request` endpoint as it allows aggregating the responses from

@@ -1,10 +1,11 @@
 use crate::request::EvmRpcResponseConverter;
-use evm_rpc_types::MultiRpcResult;
+use evm_rpc_types::{BatchResult, MultiRpcResult};
 
 /// Defines [alloy](alloy.rs) response types.
 pub struct AlloyResponseConverter;
 
 impl EvmRpcResponseConverter for AlloyResponseConverter {
+    type BatchOutput = Vec<MultiRpcResult<BatchResult>>;
     type CallOutput = MultiRpcResult<alloy_primitives::Bytes>;
     type FeeHistoryOutput = MultiRpcResult<alloy_rpc_types::FeeHistory>;
     type GetBlockByNumberOutput = MultiRpcResult<alloy_rpc_types::Block>;
