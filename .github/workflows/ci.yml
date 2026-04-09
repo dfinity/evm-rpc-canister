@@ -18,9 +18,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@master
+        uses: actions/checkout@61b9e3751b92087fd0b06925ba6dd6314e06f089 # master
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
 
       - run: rustup component add clippy
 
@@ -46,9 +46,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@master
+        uses: actions/checkout@61b9e3751b92087fd0b06925ba6dd6314e06f089 # master
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
 
       - run: rustup component add clippy
 
@@ -62,14 +62,14 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@master
+        uses: actions/checkout@61b9e3751b92087fd0b06925ba6dd6314e06f089 # master
 
       - name: Docker build
         run: |
           ./scripts/docker-build
 
       - name: Archive Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: evm_rpc.wasm.gz
           path: evm_rpc.wasm.gz
@@ -85,15 +85,15 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: 'Checkout'
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: 'Download artifacts'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: evm_rpc.wasm.gz
 
       - name: 'Install `ic-wasm`'
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@80e6af7a2ec7f280fffe2d0a9d3a12a9d11d86e9 # v2.75.1
         with:
           tool: ic-wasm
 
@@ -106,10 +106,10 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@master
+        uses: actions/checkout@61b9e3751b92087fd0b06925ba6dd6314e06f089 # master
 
       - name: Download Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: evm_rpc.wasm.gz
       
@@ -126,11 +126,11 @@ jobs:
           echo "WALLET_WASM_PATH=$GITHUB_WORKSPACE/wallet.wasm.gz" >> "$GITHUB_ENV"
  
       - name: Install PocketIC server
-        uses: dfinity/pocketic@main
+        uses: dfinity/pocketic@20c33db1aa87cc6ece50857ac632c37acf5e0322 # main
         with:
           pocket-ic-server-version: "12.0.0"
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
 
       - name: Cargo test
         run: cargo test --workspace --all-features -- --test-threads=2 --nocapture
@@ -139,12 +139,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@master
+        uses: actions/checkout@61b9e3751b92087fd0b06925ba6dd6314e06f089 # master
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
 
       - name: Install dfx
-        uses: dfinity/setup-dfx@main
+        uses: dfinity/setup-dfx@e50c04f104ee4285ec010f10609483cf41e4d365 # main
 
       - name: Start dfx
         run: dfx start --background
@@ -159,7 +159,7 @@ jobs:
         run: scripts/examples evm_rpc 'Number = 20000000'
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@8789b3e21e6c11b2697f5eb56eddae542f746c10 # v1.7.0
 
       - name: Run anvil
         run: anvil &
