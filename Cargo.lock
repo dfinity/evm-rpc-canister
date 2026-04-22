@@ -2401,7 +2401,7 @@ dependencies = [
 [[package]]
 name = "ic-crypto-test-utils-reproducible-rng"
 version = "0.9.0"
-source = "git+https://github.com/dfinity/ic?rev=release-2024-09-26_01-31-base#35153c7cb7b9d1da60472ca7e94c693e418f87bd"
+source = "git+https://github.com/dfinity/ic?rev=release-2026-04-16_04-20-base#719ff387aab462ce5759c4c20c30de959fe9538c"
 dependencies = [
  "rand 0.8.6",
  "rand_chacha 0.3.1",
@@ -2525,7 +2525,7 @@ dependencies = [
 [[package]]
 name = "ic-test-utilities-load-wasm"
 version = "0.9.0"
-source = "git+https://github.com/dfinity/ic?rev=release-2024-09-26_01-31-base#35153c7cb7b9d1da60472ca7e94c693e418f87bd"
+source = "git+https://github.com/dfinity/ic?rev=release-2026-04-16_04-20-base#719ff387aab462ce5759c4c20c30de959fe9538c"
 dependencies = [
  "cargo_metadata",
  "escargot",
