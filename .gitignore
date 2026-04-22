@@ -1,6 +1,7 @@
 node_modules/
 target/
 .dfx/
+.icp/
 .mops/
 .idea/
 

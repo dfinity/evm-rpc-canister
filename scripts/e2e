@@ -1,15 +1,34 @@
 #!/usr/bin/env bash
 # Reinstall all canisters and run E2E tests in your local environment.
-(
-    dfx canister create --all &&
-    npm run generate &&
-    dfx deploy evm_rpc --mode reinstall -y &&
-    dfx deploy evm_rpc_local --mode reinstall -y &&
-    dfx deploy evm_rpc_demo --mode reinstall -y &&
-    dfx deploy evm_rpc_staging --mode reinstall -y &&
-    dfx deploy e2e_rust &&
-    dfx canister call e2e_rust test &&
-    dfx deploy e2e_motoko &&
-    dfx canister call e2e_motoko test &&
-    echo Done
-)
+
+set -euo pipefail
+
+# Make sure we always run from the project root
+SCRIPTS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd "$SCRIPTS_DIR/.."
+
+npm run generate
+
+icp deploy --mode reinstall --yes evm_rpc evm_rpc_local evm_rpc_demo evm_rpc_staging
+
+# e2e_motoko makes canister-to-canister calls with cycles attached.
+for c in evm_rpc evm_rpc_staging; do
+    icp canister top-up "$c" --amount 1t
+done
+
+evm_rpc_id=$(icp canister status evm_rpc --id-only)
+evm_rpc_staging_id=$(icp canister status evm_rpc_staging --id-only)
+
+cat > e2e/motoko/init.args <<EOF
+(principal "$evm_rpc_id", principal "$evm_rpc_staging_id")
+EOF
+
+# e2e_rust bakes in the evm_rpc_staging principal at build time via std::env!
+CANISTER_ID_EVM_RPC_STAGING="$evm_rpc_staging_id" icp deploy --mode reinstall --yes e2e_rust
+icp canister call e2e_rust test '()'
+
+icp deploy --mode reinstall --yes e2e_motoko
+icp canister top-up e2e_motoko --amount 1t
+icp canister call e2e_motoko test '()'
+
+echo Done

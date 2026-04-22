@@ -143,11 +143,23 @@ jobs:
 
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
 
-      - name: Install dfx
-        uses: dfinity/setup-dfx@e50c04f104ee4285ec010f10609483cf41e4d365 # main
+      - name: Install icp-cli
+        run: |
+          curl --proto '=https' --tlsv1.2 -LsSf https://github.com/dfinity/icp-cli/releases/download/v0.2.3/icp-cli-installer.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - name: Start dfx
-        run: dfx start --background
+      - name: Install didc
+        run: |
+          sudo curl -sSL "https://github.com/dfinity/candid/releases/latest/download/didc-linux64" -o /usr/local/bin/didc
+          sudo chmod +x /usr/local/bin/didc
+
+      - name: Install mops (Motoko toolchain manager)
+        run: |
+          curl -fsSL cli.mops.one/install.sh | sh
+          echo "$HOME/.mops/bin" >> "$GITHUB_PATH"
+
+      - name: Start local network
+        run: icp network start -d
 
       - name: Install npm packages
         run: npm ci

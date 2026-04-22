@@ -2,3 +2,6 @@
 base = "0.11.0"
 evm = "./lib/motoko/src"
 "json.mo" = "0.1.2"
+
+[toolchain]
+moc = "1.6.0"

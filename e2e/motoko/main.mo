@@ -1,5 +1,4 @@
-import EvmRpc "canister:evm_rpc";
-import EvmRpcStaging "canister:evm_rpc_staging";
+import EvmRpc "mo:evm/declarations/evm_rpc";
 
 import Buffer "mo:base/Buffer";
 import Cycles "mo:base/ExperimentalCycles";
@@ -9,17 +8,20 @@ import Principal "mo:base/Principal";
 import Text "mo:base/Text";
 import Evm "mo:evm";
 
-shared ({ caller = installer }) persistent actor class Main() {
+shared ({ caller = installer }) persistent actor class Main(evmRpc : Principal, evmRpcStaging : Principal) {
     type TestCategory = { #staging; #production };
 
     // (`subnet name`, `nodes in subnet`, `expected cycles for JSON-RPC call`)
     type SubnetTarget = (Text, Nat32, Nat);
     transient let fiduciarySubnet : SubnetTarget = ("fiduciary", 34, 400_299_200);
 
+    transient let evmRpcActor : EvmRpc.Service = actor (Principal.toText(evmRpc));
+    transient let evmRpcStagingActor : EvmRpc.Service = actor (Principal.toText(evmRpcStaging));
+
     transient let testTargets = [
-        // (`canister module`, `canister type`, `subnet`)
-        (EvmRpc, #production, fiduciarySubnet),
-        (EvmRpcStaging, #staging, fiduciarySubnet),
+        // (`canister principal`, `canister actor`, `canister type`, `subnet`)
+        (evmRpc, evmRpcActor, #production, fiduciarySubnet),
+        (evmRpcStaging, evmRpcStagingActor, #staging, fiduciarySubnet),
     ];
 
     // (`RPC service`, `method`)
@@ -38,7 +40,7 @@ shared ({ caller = installer }) persistent actor class Main() {
         let errors = Buffer.Buffer<Text>(0);
         var relevantTestCount = 0;
         let pending : Buffer.Buffer<async ()> = Buffer.Buffer(100);
-        label targets for ((canister, testCategory, (subnetName, nodesInSubnet, expectedCycles)) in testTargets.vals()) {
+        label targets for ((canisterPrincipal, canister, testCategory, (subnetName, nodesInSubnet, expectedCycles)) in testTargets.vals()) {
             if (testCategory != category) {
                 continue targets;
             };
@@ -120,10 +122,10 @@ shared ({ caller = installer }) persistent actor class Main() {
             };
 
             // Candid-RPC methods
-            type RpcResult<T> = { #Ok : T; #Err : canister.RpcError };
+            type RpcResult<T> = { #Ok : T; #Err : EvmRpc.RpcError };
             type MultiRpcResult<T> = {
                 #Consistent : RpcResult<T>;
-                #Inconsistent : [(canister.RpcService, RpcResult<T>)];
+                #Inconsistent : [(EvmRpc.RpcService, RpcResult<T>)];
             };
 
             func assertOk<T>(networkName : Text, method : Text, result : MultiRpcResult<T>) {
