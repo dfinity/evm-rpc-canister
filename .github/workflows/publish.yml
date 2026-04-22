@@ -16,13 +16,13 @@ jobs:
       cancel-in-progress: true
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 0
 
       - name: "Download build for Release Candidate"
         #     Adapted from [Internet Identity](https://github.com/dfinity/internet-identity/blob/c33e9f65a8045cbedde6f96cfb7f7cb677694fc9/.github/workflows/deploy-rc.yml#L22)
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
           script: |
             // Find all artifacts for the production build, and filter for non-expired main artifacts
@@ -65,7 +65,7 @@ jobs:
           echo "EVM_RPC_CANISTER_WASM_GZ_SHA256=$SHA256" >> "$GITHUB_ENV"
 
       - name: "Install parse-changelog"
-        uses: taiki-e/install-action@parse-changelog
+        uses: taiki-e/install-action@aae713f08c6f60f48c96bc317278d72757f5c408 # parse-changelog
 
       - name: "Run release-plz"
         id: release-plz
@@ -99,7 +99,7 @@ jobs:
           CHANGELOG="$notes" envsubst < release_notes.md >> ${{ github.workspace }}-RELEASE.txt
 
       - name: "Create Github release"
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2.6.1
         with:
           draft: true
           tag_name: ${{ env.RELEASE_TAG}}
