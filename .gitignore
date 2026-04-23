@@ -4,6 +4,7 @@ target/
 .icp/
 .mops/
 .idea/
+mops.lock
 
 *.generated.did
 *.wasm
