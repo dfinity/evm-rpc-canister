@@ -153,6 +153,11 @@ jobs:
           sudo curl -sSL "https://github.com/dfinity/candid/releases/latest/download/didc-linux64" -o /usr/local/bin/didc
           sudo chmod +x /usr/local/bin/didc
 
+      - name: Install ic-wasm
+        uses: taiki-e/install-action@80e6af7a2ec7f280fffe2d0a9d3a12a9d11d86e9 # v2.75.1
+        with:
+          tool: ic-wasm
+
       - name: Install mops (Motoko toolchain manager)
         run: |
           curl -fsSL cli.mops.one/install.sh | sh
