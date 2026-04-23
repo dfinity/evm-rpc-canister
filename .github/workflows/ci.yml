@@ -149,9 +149,13 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Install didc
+        env:
+          DIDC_VERSION: "2025-12-18"
+          DIDC_SHA256: "32693c76d9c6fe0f273f2c1ebf7e48ba3c383e925e5afd17dd264a06aed9fbcc"
         run: |
-          sudo curl -sSL "https://github.com/dfinity/candid/releases/latest/download/didc-linux64" -o /usr/local/bin/didc
-          sudo chmod +x /usr/local/bin/didc
+          curl --proto '=https' --tlsv1.2 -fsSL "https://github.com/dfinity/candid/releases/download/${DIDC_VERSION}/didc-linux64" -o /tmp/didc
+          echo "${DIDC_SHA256}  /tmp/didc" | sha256sum -c -
+          sudo install -m 0755 /tmp/didc /usr/local/bin/didc
 
       - name: Install ic-wasm
         uses: taiki-e/install-action@80e6af7a2ec7f280fffe2d0a9d3a12a9d11d86e9 # v2.75.1
@@ -159,9 +163,14 @@ jobs:
           tool: ic-wasm
 
       - name: Install mops (Motoko toolchain manager)
+        env:
+          MOPS_VERSION: "2.12.2"
+          # Build hash published at https://cli.mops.one/ for version 2.12.2
+          MOPS_SHA256: "1a7b5985d5d055696a24f5347735561c63c30aeb27db91d385d3738f4ae09125"
         run: |
-          curl -fsSL cli.mops.one/install.sh | sh
-          echo "$HOME/.mops/bin" >> "$GITHUB_PATH"
+          curl --proto '=https' --tlsv1.2 -fsSL "https://x344g-ziaaa-aaaap-abl7a-cai.icp0.io/versions/${MOPS_VERSION}.tgz" -o /tmp/mops.tgz
+          echo "${MOPS_SHA256}  /tmp/mops.tgz" | sha256sum -c -
+          sudo npm install -g --no-fund --no-audit /tmp/mops.tgz
 
       - name: Start local network
         run: icp network start -d

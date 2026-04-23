@@ -19,9 +19,9 @@ shared ({ caller = installer }) persistent actor class Main(evmRpc : Principal, 
     transient let evmRpcStagingActor : EvmRpc.Service = actor (Principal.toText(evmRpcStaging));
 
     transient let testTargets = [
-        // (`canister principal`, `canister actor`, `canister type`, `subnet`)
-        (evmRpc, evmRpcActor, #production, fiduciarySubnet),
-        (evmRpcStaging, evmRpcStagingActor, #staging, fiduciarySubnet),
+        // (`canister actor`, `canister type`, `subnet`)
+        (evmRpcActor, #production, fiduciarySubnet),
+        (evmRpcStagingActor, #staging, fiduciarySubnet),
     ];
 
     // (`RPC service`, `method`)
@@ -40,7 +40,7 @@ shared ({ caller = installer }) persistent actor class Main(evmRpc : Principal, 
         let errors = Buffer.Buffer<Text>(0);
         var relevantTestCount = 0;
         let pending : Buffer.Buffer<async ()> = Buffer.Buffer(100);
-        label targets for ((canisterPrincipal, canister, testCategory, (subnetName, nodesInSubnet, expectedCycles)) in testTargets.vals()) {
+        label targets for ((canister, testCategory, (subnetName, nodesInSubnet, expectedCycles)) in testTargets.vals()) {
             if (testCategory != category) {
                 continue targets;
             };

@@ -1,1 +1,7 @@
+// Placeholder init args so `icp.yaml` loads cleanly. `scripts/e2e` rewrites
+// this file with the deployed `evm_rpc` and `evm_rpc_staging` principals
+// before calling `icp deploy e2e_motoko`. Running `icp deploy e2e_motoko`
+// without first running `scripts/e2e` will install the Motoko canister with
+// the management-canister principal as both targets and the `test` call will
+// fail loudly.
 (principal "aaaaa-aa", principal "aaaaa-aa")
