@@ -1747,7 +1747,7 @@ dependencies = [
  "num-traits",
  "pocket-ic",
  "proptest",
- "rand 0.8.6",
+ "rand 0.9.4",
  "regex",
  "serde",
  "serde_bytes",
