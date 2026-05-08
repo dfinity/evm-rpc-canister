@@ -174,15 +174,7 @@ jobs:
   checks-pass:
     # Always run this job!
     if: always()
-    needs:
-      [
-        lint,
-        cargo-doc,
-        reproducible-build,
-        check-canister-wasm-endpoints,
-        cargo-test,
-        e2e,
-      ]
+    needs: [lint, cargo-doc, reproducible-build, check-canister-wasm-endpoints, cargo-test, e2e]
     runs-on: ubuntu-latest
     steps:
       - run: |
