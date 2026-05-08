@@ -166,3 +166,18 @@ jobs:
 
       - name: Run local examples with Foundry
         run: scripts/examples evm_rpc_local 'Number = 0'
+
+  # Single aggregator status check. Configure GitHub branch protection
+  # to require `checks-pass` so that any failing, cancelled, or skipped
+  # upstream job blocks the merge, without having to enumerate every
+  # individual job in the ruleset.
+  checks-pass:
+    # Always run this job!
+    if: always()
+    needs: [lint, cargo-doc, reproducible-build, check-canister-wasm-endpoints, cargo-test, e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          if [[ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}" == "true" ]]; then
+            exit 1
+          fi
