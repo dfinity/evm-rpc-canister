@@ -471,6 +471,8 @@ async fn eth_get_block_by_number_pre_london_fork_should_succeed() {
                     excess_blob_gas: None,
                     parent_beacon_block_root: None,
                     requests_hash: None,
+                    block_access_list_hash: None,
+                    slot_number: None,
                 },
                 total_difficulty: None,
                 size: Some(U256::from(0x21c_u64)),
