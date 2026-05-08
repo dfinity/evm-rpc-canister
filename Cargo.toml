@@ -58,7 +58,6 @@ candid_parser = { workspace = true }
 evm_rpc_client = { path = "evm_rpc_client", features = ["alloy"] }
 ic-canister-runtime = { workspace = true, features = ["wallet"] }
 ic-pocket-canister-runtime = { workspace = true }
-ic-crypto-test-utils-reproducible-rng = { git = "https://github.com/dfinity/ic", rev = "release-2026-04-16_04-20-base" }
 ic-error-types = { workspace = true }
 ic-metrics-assert = { workspace = true }
 ic-test-utilities-load-wasm = { git = "https://github.com/dfinity/ic", rev = "release-2026-04-16_04-20-base" }
