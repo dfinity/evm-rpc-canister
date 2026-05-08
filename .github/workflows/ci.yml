@@ -95,7 +95,7 @@ jobs:
       - name: 'Install `ic-wasm`'
         uses: taiki-e/install-action@80e6af7a2ec7f280fffe2d0a9d3a12a9d11d86e9 # v2.75.1
         with:
-          tool: ic-wasm
+          tool: ic-wasm@0.9.10
 
       - name: 'Check canister endpoints'
         run: |
