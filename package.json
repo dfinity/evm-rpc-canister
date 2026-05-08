@@ -9,6 +9,6 @@
     "sources": "mops sources"
   },
   "devDependencies": {
-    "ic-mops": "^2.5.1"
+    "ic-mops": "^0.27.2"
   }
 }

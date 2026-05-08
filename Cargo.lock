@@ -1775,7 +1775,6 @@ dependencies = [
  "ic-canister-runtime",
  "ic-cdk",
  "ic-cdk-management-canister",
- "ic-crypto-test-utils-reproducible-rng",
  "ic-error-types",
  "ic-ethereum-types",
  "ic-http-types",
@@ -2448,15 +2447,6 @@ dependencies = [
  "serde",
  "serde_bytes",
  "sha2 0.10.9",
-]
-
-[[package]]
-name = "ic-crypto-test-utils-reproducible-rng"
-version = "0.9.0"
-source = "git+https://github.com/dfinity/ic?rev=release-2026-04-16_04-20-base#719ff387aab462ce5759c4c20c30de959fe9538c"
-dependencies = [
- "rand 0.8.6",
- "rand_chacha 0.3.1",
 ]
 
 [[package]]
