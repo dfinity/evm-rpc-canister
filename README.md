@@ -24,78 +24,51 @@ Refer to the [Reproducible Builds](#reproducible-builds) section for information
 
 ## Quick Start
 
-Add the following to your `dfx.json` config file (replace the `ic` principal with any option from the list of available canisters above):
+Add the following to your `icp.yaml` config file:
 
-```json
-{
-  "canisters": {
-    "evm_rpc": {
-      "type": "custom",
-      "candid": "https://github.com/internet-computer-protocol/evm-rpc-canister/releases/latest/download/evm_rpc.did",
-      "wasm": "https://github.com/internet-computer-protocol/evm-rpc-canister/releases/latest/download/evm_rpc.wasm.gz",
-      "remote": {
-        "id": {
-          "ic": "7hfb6-caaaa-aaaar-qadga-cai"
-        }
-      },
-      "init_arg": "(record {})"
-    }
-  }
-}
+```yaml
+canisters:
+  - name: evm_rpc
+    init_args: "(record {})"
+    build:
+      steps:
+        - type: pre-built
+          url: https://github.com/internet-computer-protocol/evm-rpc-canister/releases/latest/download/evm_rpc.wasm.gz
 ```
 
 Run the following commands to deploy the canister in your local environment:
 
 ```sh
-# Start the local replica
-dfx start --background
+# Start the local network
+icp network start -d
 
 # Locally deploy the `evm_rpc` canister
-dfx deploy evm_rpc --argument '(record {})'
+icp deploy evm_rpc
 ```
 
-The EVM RPC canister also supports [`dfx deps pull`](https://internetcomputer.org/docs/current/references/cli-reference/dfx-deps). Add the following to your `dfx.json` file:
-
-```json
-{
-  "canisters": {
-    "evm_rpc": {
-      "type": "pull",
-      "id": "7hfb6-caaaa-aaaar-qadga-cai"
-    }
-  }
-}
-```
-
-Next, run the following commands:
-
-```sh
-# Start the local replica
-dfx start --background
-
-# Locally deploy the `evm_rpc` canister
-dfx deps pull
-dfx deps init evm_rpc --argument '(record {})'
-dfx deps deploy
-```
+To call the canister already deployed on the IC mainnet, use the principal `7hfb6-caaaa-aaaar-qadga-cai` directly — no local deployment required.
 
 ## Examples
 
 ### JSON-RPC (IC mainnet)
 
 ```bash
-dfx canister call evm_rpc request '(variant {Chain=0x1},"{\"jsonrpc\":\"2.0\",\"method\":\"eth_gasPrice\",\"params\":[],\"id\":1}",1000)' --wallet $(dfx identity get-wallet --ic) --with-cycles 1000000000 --ic
+icp canister call 7hfb6-caaaa-aaaar-qadga-cai request '(variant {Chain=0x1},"{\"jsonrpc\":\"2.0\",\"method\":\"eth_gasPrice\",\"params\":[],\"id\":1}",1000)' --cycles 1000000000 --network ic
 ```
 
-### JSON-RPC (local replica)
+### JSON-RPC (local network)
+
+Managed local networks include a proxy canister that forwards calls with cycles attached. Retrieve its principal from `icp network status`:
 
 ```bash
+PROXY=$(icp network status --json | jq -r .proxy_canister_principal)
+
 # Use a custom provider
-dfx canister call evm_rpc request '(variant {Custom=record {url="https://cloudflare-eth.com"}},"{\"jsonrpc\":\"2.0\",\"method\":\"eth_gasPrice\",\"params\":[],\"id\":1}",1000)' --wallet $(dfx identity get-wallet) --with-cycles 1000000000
-dfx canister call evm_rpc request '(variant {Custom=record {url="https://ethereum.publicnode.com"}},"{\"jsonrpc\":\"2.0\",\"method\":\"eth_gasPrice\",\"params\":[],\"id\":1}",1000)' --wallet $(dfx identity get-wallet) --with-cycles 1000000000
+icp canister call evm_rpc request '(variant {Custom=record {url="https://cloudflare-eth.com"}},"{\"jsonrpc\":\"2.0\",\"method\":\"eth_gasPrice\",\"params\":[],\"id\":1}",1000)' --proxy "$PROXY" --cycles 1000000000
+icp canister call evm_rpc request '(variant {Custom=record {url="https://ethereum.publicnode.com"}},"{\"jsonrpc\":\"2.0\",\"method\":\"eth_gasPrice\",\"params\":[],\"id\":1}",1000)' --proxy "$PROXY" --cycles 1000000000
 
 # Use a specific EVM chain
-dfx canister call evm_rpc request '(variant {Chain=0x1},"{\"jsonrpc\":\"2.0\",\"method\":\"eth_gasPrice\",\"params\":[],\"id\":1}",1000)' --wallet $(dfx identity get-wallet) --with-cycles 1000000000
+icp canister call evm_rpc request '(variant {Chain=0x1},"{\"jsonrpc\":\"2.0\",\"method\":\"eth_gasPrice\",\"params\":[],\"id\":1}",1000)' --proxy "$PROXY" --cycles 1000000000
 ```
 
 ## Reproducible Builds
@@ -120,15 +93,21 @@ git clone https://github.com/internet-computer-protocol/evm-rpc-canister
 cd evm-rpc-canister
 npm install
 
-# Deploy to the local replica
-dfx start --background
+# `icp`, `ic-wasm`, and `mops` are installed as versioned devDependencies.
+# Put them on PATH, or prefix invocations with `npx`.
+export PATH="$PWD/node_modules/.bin:$PATH"
+
+# Deploy to the local network
+icp network start -d
 npm run generate
-dfx deploy evm_rpc
+icp deploy evm_rpc
 
 # Alternatively, deploy and run test suite
-dfx start --background
+icp network start -d
 scripts/e2e
 ```
+
+`scripts/e2e` and `npm run generate:declarations` also require [`didc`](https://github.com/dfinity/candid/releases) on PATH.
 
 Regenerate language bindings with the `generate` [npm script](https://docs.npmjs.com/cli/v10/using-npm/scripts):
 

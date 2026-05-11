@@ -1,0 +1,69 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/dfinity/icp-cli/main/docs/schemas/icp-yaml-schema.json
+
+canisters:
+  - name: evm_rpc
+    init_args: "(record {})"
+    recipe:
+      type: "@dfinity/rust@v3.2.0"
+      configuration:
+        package: evm_rpc
+        candid: candid/evm_rpc.did
+        locked: true
+        compress: true
+
+  - name: evm_rpc_demo
+    init_args: "(record {demo = opt true})"
+    recipe:
+      type: "@dfinity/rust@v3.2.0"
+      configuration:
+        package: evm_rpc
+        candid: candid/evm_rpc.did
+        locked: true
+        compress: true
+
+  - name: evm_rpc_local
+    init_args: '( record {  overrideProvider = opt record { overrideUrl = opt record { pattern = ".*"; replacement = "http://127.0.0.1:8545" } } })'
+    recipe:
+      type: "@dfinity/rust@v3.2.0"
+      configuration:
+        package: evm_rpc
+        candid: candid/evm_rpc.did
+        locked: true
+        compress: true
+
+  - name: evm_rpc_staging
+    init_args: "(record {})"
+    recipe:
+      type: "@dfinity/rust@v3.2.0"
+      configuration:
+        package: evm_rpc
+        candid: candid/evm_rpc.did
+        locked: true
+        compress: true
+
+  - name: evm_rpc_playground
+    init_args: '(record {demo = opt false; manageApiKeys = opt vec {principal "mf7xa-laaaa-aaaar-qaaaa-cai"}; logFilter = null})'
+    recipe:
+      type: "@dfinity/rust@v3.2.0"
+      configuration:
+        package: evm_rpc
+        candid: candid/evm_rpc.did
+        locked: true
+        compress: true
+
+  - name: e2e_rust
+    recipe:
+      type: "@dfinity/rust@v3.2.0"
+      configuration:
+        package: e2e
+        candid: e2e/rust/e2e_rust.did
+        locked: true
+
+  - name: e2e_motoko
+    init_args:
+      path: e2e/motoko/init.args
+      format: candid
+    recipe:
+      type: "@dfinity/motoko@v4.1.0"
+      configuration:
+        main: e2e/motoko/main.mo
