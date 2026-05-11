@@ -92,10 +92,10 @@ jobs:
         with:
           name: evm_rpc.wasm.gz
 
-      - name: 'Install `ic-wasm`'
-        uses: taiki-e/install-action@80e6af7a2ec7f280fffe2d0a9d3a12a9d11d86e9 # v2.75.1
-        with:
-          tool: ic-wasm
+      - name: 'Install npm packages'
+        run: |
+          npm ci
+          echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
 
       - name: 'Check canister endpoints'
         run: |
@@ -143,10 +143,10 @@ jobs:
 
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
 
-      - name: Install icp-cli
+      - name: Install npm packages
         run: |
-          curl --proto '=https' --tlsv1.2 -LsSf https://github.com/dfinity/icp-cli/releases/download/v0.2.3/icp-cli-installer.sh | sh
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          npm ci
+          echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
 
       - name: Install didc
         env:
@@ -157,26 +157,8 @@ jobs:
           echo "${DIDC_SHA256}  /tmp/didc" | sha256sum -c -
           sudo install -m 0755 /tmp/didc /usr/local/bin/didc
 
-      - name: Install ic-wasm
-        uses: taiki-e/install-action@80e6af7a2ec7f280fffe2d0a9d3a12a9d11d86e9 # v2.75.1
-        with:
-          tool: ic-wasm
-
-      - name: Install mops (Motoko toolchain manager)
-        env:
-          MOPS_VERSION: "2.12.2"
-          # Build hash published at https://cli.mops.one/ for version 2.12.2
-          MOPS_SHA256: "1a7b5985d5d055696a24f5347735561c63c30aeb27db91d385d3738f4ae09125"
-        run: |
-          curl --proto '=https' --tlsv1.2 -fsSL "https://x344g-ziaaa-aaaap-abl7a-cai.icp0.io/versions/${MOPS_VERSION}.tgz" -o /tmp/mops.tgz
-          echo "${MOPS_SHA256}  /tmp/mops.tgz" | sha256sum -c -
-          sudo npm install -g --no-fund --no-audit /tmp/mops.tgz
-
       - name: Start local network
         run: icp network start -d
-
-      - name: Install npm packages
-        run: npm ci
 
       - name: Run E2E tests
         run: scripts/e2e

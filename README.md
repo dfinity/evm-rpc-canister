@@ -93,6 +93,10 @@ git clone https://github.com/internet-computer-protocol/evm-rpc-canister
 cd evm-rpc-canister
 npm install
 
+# `icp`, `ic-wasm`, and `mops` are installed as versioned devDependencies.
+# Put them on PATH, or prefix invocations with `npx`.
+export PATH="$PWD/node_modules/.bin:$PATH"
+
 # Deploy to the local network
 icp network start -d
 npm run generate
@@ -102,6 +106,8 @@ icp deploy evm_rpc
 icp network start -d
 scripts/e2e
 ```
+
+`scripts/e2e` and `npm run generate:declarations` also require [`didc`](https://github.com/dfinity/candid/releases) on PATH.
 
 Regenerate language bindings with the `generate` [npm script](https://docs.npmjs.com/cli/v10/using-npm/scripts):
 
