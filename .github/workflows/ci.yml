@@ -92,9 +92,14 @@ jobs:
         with:
           name: evm_rpc.wasm.gz
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@739bfe42ca9233c5e6aca07c1a25a9d34aca49b0 # v6.0.7
+        with:
+          version: 10.9.0
+
       - name: 'Install npm packages'
         run: |
-          npm ci
+          pnpm install --frozen-lockfile
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
 
       - name: 'Check canister endpoints'
@@ -143,9 +148,14 @@ jobs:
 
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@739bfe42ca9233c5e6aca07c1a25a9d34aca49b0 # v6.0.7
+        with:
+          version: 10.9.0
+
       - name: Install npm packages
         run: |
-          npm ci
+          pnpm install --frozen-lockfile
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
 
       - name: Install didc
