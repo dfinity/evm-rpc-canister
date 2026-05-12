@@ -3192,21 +3192,15 @@ mod batch {
                 MultiRpcResult::Inconsistent(vec![
                     (
                         RpcService::EthMainnet(EthMainnetService::Ankr),
-                        Ok(BatchResult::EthGetTransactionCount(Ok(
-                            Nat256::from(1_u64)
-                        )))
+                        Ok(BatchResult::EthGetTransactionCount(Ok(Nat256::from(1_u64))))
                     ),
                     (
                         RpcService::EthMainnet(EthMainnetService::BlockPi),
-                        Ok(BatchResult::EthGetTransactionCount(Ok(
-                            Nat256::from(0_u64)
-                        )))
+                        Ok(BatchResult::EthGetTransactionCount(Ok(Nat256::from(0_u64))))
                     ),
                     (
                         RpcService::EthMainnet(EthMainnetService::PublicNode),
-                        Ok(BatchResult::EthGetTransactionCount(Ok(
-                            Nat256::from(1_u64)
-                        )))
+                        Ok(BatchResult::EthGetTransactionCount(Ok(Nat256::from(1_u64))))
                     ),
                 ]),
                 MultiRpcResult::Consistent(Ok(BatchResult::EthGetTransactionCount(Ok(
@@ -3261,15 +3255,11 @@ mod batch {
                 MultiRpcResult::Inconsistent(vec![
                     (
                         RpcService::EthMainnet(EthMainnetService::Ankr),
-                        Ok(BatchResult::EthGetTransactionCount(Ok(
-                            Nat256::from(1_u64)
-                        )))
+                        Ok(BatchResult::EthGetTransactionCount(Ok(Nat256::from(1_u64))))
                     ),
                     (
                         RpcService::EthMainnet(EthMainnetService::PublicNode),
-                        Ok(BatchResult::EthGetTransactionCount(Ok(
-                            Nat256::from(1_u64)
-                        )))
+                        Ok(BatchResult::EthGetTransactionCount(Ok(Nat256::from(1_u64))))
                     ),
                     (
                         RpcService::EthMainnet(EthMainnetService::BlockPi),
@@ -3282,15 +3272,11 @@ mod batch {
                 MultiRpcResult::Inconsistent(vec![
                     (
                         RpcService::EthMainnet(EthMainnetService::Ankr),
-                        Ok(BatchResult::EthGetTransactionCount(Ok(
-                            Nat256::from(2_u64)
-                        )))
+                        Ok(BatchResult::EthGetTransactionCount(Ok(Nat256::from(2_u64))))
                     ),
                     (
                         RpcService::EthMainnet(EthMainnetService::PublicNode),
-                        Ok(BatchResult::EthGetTransactionCount(Ok(
-                            Nat256::from(2_u64)
-                        )))
+                        Ok(BatchResult::EthGetTransactionCount(Ok(Nat256::from(2_u64))))
                     ),
                     (
                         RpcService::EthMainnet(EthMainnetService::BlockPi),
