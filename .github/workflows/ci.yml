@@ -18,9 +18,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@master
+        uses: actions/checkout@61b9e3751b92087fd0b06925ba6dd6314e06f089 # master
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
 
       - run: rustup component add clippy
 
@@ -46,9 +46,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@master
+        uses: actions/checkout@61b9e3751b92087fd0b06925ba6dd6314e06f089 # master
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
 
       - run: rustup component add clippy
 
@@ -62,14 +62,14 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@master
+        uses: actions/checkout@61b9e3751b92087fd0b06925ba6dd6314e06f089 # master
 
       - name: Docker build
         run: |
           ./scripts/docker-build
 
       - name: Archive Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: evm_rpc.wasm.gz
           path: evm_rpc.wasm.gz
@@ -85,17 +85,17 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: 'Checkout'
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: 'Download artifacts'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: evm_rpc.wasm.gz
 
-      - name: 'Install `ic-wasm`'
-        uses: taiki-e/install-action@v2
-        with:
-          tool: ic-wasm
+      - name: 'Install npm packages'
+        run: |
+          npm ci
+          echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
 
       - name: 'Check canister endpoints'
         run: |
@@ -106,10 +106,10 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@master
+        uses: actions/checkout@61b9e3751b92087fd0b06925ba6dd6314e06f089 # master
 
       - name: Download Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: evm_rpc.wasm.gz
       
@@ -126,11 +126,11 @@ jobs:
           echo "WALLET_WASM_PATH=$GITHUB_WORKSPACE/wallet.wasm.gz" >> "$GITHUB_ENV"
  
       - name: Install PocketIC server
-        uses: dfinity/pocketic@main
+        uses: dfinity/pocketic@20c33db1aa87cc6ece50857ac632c37acf5e0322 # main
         with:
           pocket-ic-server-version: "12.0.0"
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
 
       - name: Cargo test
         run: cargo test --workspace --all-features -- --test-threads=2 --nocapture
@@ -139,18 +139,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@master
+        uses: actions/checkout@61b9e3751b92087fd0b06925ba6dd6314e06f089 # master
 
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Install dfx
-        uses: dfinity/setup-dfx@main
-
-      - name: Start dfx
-        run: dfx start --background
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
 
       - name: Install npm packages
-        run: npm ci
+        run: |
+          npm ci
+          echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
+
+      - name: Install didc
+        env:
+          DIDC_VERSION: "2025-12-18"
+          DIDC_SHA256: "32693c76d9c6fe0f273f2c1ebf7e48ba3c383e925e5afd17dd264a06aed9fbcc"
+        run: |
+          curl --proto '=https' --tlsv1.2 -fsSL "https://github.com/dfinity/candid/releases/download/${DIDC_VERSION}/didc-linux64" -o /tmp/didc
+          echo "${DIDC_SHA256}  /tmp/didc" | sha256sum -c -
+          sudo install -m 0755 /tmp/didc /usr/local/bin/didc
+
+      - name: Start local network
+        run: icp network start -d
 
       - name: Run E2E tests
         run: scripts/e2e
@@ -159,10 +167,25 @@ jobs:
         run: scripts/examples evm_rpc 'Number = 20000000'
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@8789b3e21e6c11b2697f5eb56eddae542f746c10 # v1.7.0
 
       - name: Run anvil
         run: anvil &
 
       - name: Run local examples with Foundry
         run: scripts/examples evm_rpc_local 'Number = 0'
+
+  # Single aggregator status check. Configure GitHub branch protection
+  # to require `checks-pass` so that any failing, cancelled, or skipped
+  # upstream job blocks the merge, without having to enumerate every
+  # individual job in the ruleset.
+  checks-pass:
+    # Always run this job!
+    if: always()
+    needs: [lint, cargo-doc, reproducible-build, check-canister-wasm-endpoints, cargo-test, e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          if [[ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}" == "true" ]]; then
+            exit 1
+          fi

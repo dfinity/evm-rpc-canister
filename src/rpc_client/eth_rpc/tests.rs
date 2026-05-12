@@ -300,8 +300,8 @@ mod single_json_rpc_response_tests {
 
     #[test]
     fn should_normalize_eth_get_logs_response_order() {
-        use ic_crypto_test_utils_reproducible_rng::reproducible_rng;
         use rand::prelude::SliceRandom;
+        use rand::SeedableRng;
         const LOGS: &str = r#"[
         {
             "address": "0xb44b5e756a894775fc32eddf3314bb1b1944dc34",
@@ -394,7 +394,7 @@ mod single_json_rpc_response_tests {
             "removed": false
         }
     ]"#;
-        let rng = &mut reproducible_rng();
+        let rng = &mut rand::rngs::StdRng::seed_from_u64(0);
         let original_logs: Vec<LogEntry> = serde_json::from_str(LOGS).unwrap();
         assert!(original_logs.len() > 1);
         let shuffled_logs = {
