@@ -960,9 +960,9 @@ dependencies = [
 
 [[package]]
 name = "canhttp"
-version = "0.6.0"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd028a993fb0de8618fc03b5734114e81c54a0ec297873bba4375bd445ab5fd0"
+checksum = "3e75ff17a5d4f3fc49a427383b3284f728dd32c457710d5b98b1823ed94caac1"
 dependencies = [
  "assert_matches",
  "ciborium",
@@ -978,7 +978,7 @@ dependencies = [
  "pin-project",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.0",
  "thiserror 2.0.18",
  "tower",
  "tower-layer",
@@ -2345,9 +2345,9 @@ dependencies = [
 
 [[package]]
 name = "ic-canister-runtime"
-version = "0.2.2"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c35d580504ea1434b09d756085ffb7aac053094349e274781f91e21fe5e8efae"
+checksum = "da5bf7cb1426e5485da0e2b0b8da4f11b7b24a2a56cb127b53720ecf8495c2e0"
 dependencies = [
  "async-trait",
  "candid",
@@ -2508,9 +2508,9 @@ dependencies = [
 
 [[package]]
 name = "ic-metrics-assert"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "44a54a56b268fae5165b4ad0ca95324400b9ed20c8c42b541496bda1618736a1"
+checksum = "525a4d3109e6f8112005dba666abf287ba1ba8a9c58dd2ff9e4f7cef05e0655b"
 dependencies = [
  "async-trait",
  "candid",
@@ -2528,9 +2528,9 @@ checksum = "36e10842d8cc059a437567811d966cd8fab06e79d3382e4535db2a501cadb192"
 
 [[package]]
 name = "ic-pocket-canister-runtime"
-version = "0.4.2"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "deb2db89fa09d3ea6f160c6f0863714d6d8c66ded5bdeef3eb21c99c6edfbfbe"
+checksum = "5e146e94e9a81871c75a70e9e597e802947d4aba12c32e19d0fa178e7391cb37"
 dependencies = [
  "async-trait",
  "candid",
@@ -2575,9 +2575,9 @@ dependencies = [
 
 [[package]]
 name = "ic-transport-types"
-version = "0.40.1"
+version = "0.45.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2e7706e55836e8104c98149ec0796d20d5213fef972ac01b544657d410f1883"
+checksum = "4a775244756a5d97ff19b08071a946a4b4896904e35deb036bf215e80f2e703d"
 dependencies = [
  "candid",
  "hex",
@@ -3476,9 +3476,9 @@ dependencies = [
 
 [[package]]
 name = "pocket-ic"
-version = "12.0.0"
+version = "13.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03c0fe19b920be1485cdd3d58a70abfa768c2608f8349864d950791fe1a5c193"
+checksum = "e30621a12b204880522340df8327930d1b7fdefd784c9fc6093b311440fa0506"
 dependencies = [
  "backoff",
  "base64 0.13.1",
@@ -3492,7 +3492,6 @@ dependencies = [
  "schemars 0.8.22",
  "semver 1.0.28",
  "serde",
- "serde_bytes",
  "serde_cbor",
  "serde_json",
  "sha2 0.10.9",
