@@ -70,7 +70,7 @@ strum = { workspace = true }
 tokio = { workspace = true }
 
 [workspace.dependencies]
-alloy-consensus = "2.0.1"
+alloy-consensus = "2.0.5"
 alloy-primitives = "1.6.0"
 alloy-rpc-types = "2.0.1"
 alloy-sol-macro = "1.6.0"
