@@ -101,7 +101,7 @@ ic-metrics-encoder = "1.1"
 ic-pocket-canister-runtime = "0.5.0"
 ic-stable-structures = "0.7.2"
 maplit = "1.0.2"
-minicbor = { version = "2.2.1", features = ["alloc", "derive"] }
+minicbor = { version = "2.2.2", features = ["alloc", "derive"] }
 num-bigint = "0.4.6"
 num-traits = "0.2.19"
 pocket-ic = "13.0.0"
