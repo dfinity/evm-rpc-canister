@@ -91,15 +91,20 @@ Run the following commands to set up a local development environment:
 # Clone the repository and install dependencies
 git clone https://github.com/internet-computer-protocol/evm-rpc-canister
 cd evm-rpc-canister
-npm install
+
+# This repo requires Node 24+ and uses pnpm. Either enable Corepack (bundled with Node):
+corepack enable && corepack prepare pnpm@10.9.0 --activate
+# ...or install pnpm directly:
+#   npm install -g pnpm@10.9.0
+pnpm install
 
 # `icp`, `ic-wasm`, and `mops` are installed as versioned devDependencies.
-# Put them on PATH, or prefix invocations with `npx`.
+# Put them on PATH, or prefix invocations with `pnpm exec`.
 export PATH="$PWD/node_modules/.bin:$PATH"
 
 # Deploy to the local network
 icp network start -d
-npm run generate
+pnpm generate
 icp deploy evm_rpc
 
 # Alternatively, deploy and run test suite
@@ -107,12 +112,12 @@ icp network start -d
 scripts/e2e
 ```
 
-`scripts/e2e` and `npm run generate:declarations` also require [`didc`](https://github.com/dfinity/candid/releases) on PATH.
+`scripts/e2e` and `pnpm generate:declarations` also require [`didc`](https://github.com/dfinity/candid/releases) on PATH.
 
-Regenerate language bindings with the `generate` [npm script](https://docs.npmjs.com/cli/v10/using-npm/scripts):
+Regenerate language bindings with the `generate` [pnpm script](https://pnpm.io/cli/run):
 
 ```bash
-npm run generate
+pnpm generate
 ```
 
 ## Learn More

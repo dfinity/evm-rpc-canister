@@ -1,8 +1,12 @@
 {
   "name": "eth-rpc",
   "version": "0.1.0",
+  "packageManager": "pnpm@10.9.0",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
-    "generate": "npm run generate:did && npm run generate:declarations",
+    "generate": "pnpm run generate:did && pnpm run generate:declarations",
     "generate:did": "cargo run > candid/evm_rpc.generated.did",
     "generate:declarations": "mkdir -p lib/motoko/src/declarations && bash -eo pipefail -c \"didc bind candid/evm_rpc.did -t mo | awk '/public type Self = .* -> async actor \\\\{/ { sub(/-> async actor \\\\{.*/, \\\"-> async Service;\\\"); print; print \\\"  public type Service = actor {\\\"; next } { print }' > lib/motoko/src/declarations/evm_rpc.mo\"",
     "postinstall": "mops install",
@@ -12,5 +16,11 @@
     "@icp-sdk/ic-wasm": "0.9.10",
     "@icp-sdk/icp-cli": "0.2.3",
     "ic-mops": "2.13.2"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@icp-sdk/ic-wasm",
+      "@icp-sdk/icp-cli"
+    ]
   }
 }
