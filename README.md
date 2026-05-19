@@ -92,7 +92,7 @@ Run the following commands to set up a local development environment:
 git clone https://github.com/internet-computer-protocol/evm-rpc-canister
 cd evm-rpc-canister
 
-# This repo uses pnpm. Either enable Corepack (ships with Node 16.10+):
+# This repo requires Node 24+ and uses pnpm. Either enable Corepack (bundled with Node):
 corepack enable && corepack prepare pnpm@10.9.0 --activate
 # ...or install pnpm directly:
 #   npm install -g pnpm@10.9.0

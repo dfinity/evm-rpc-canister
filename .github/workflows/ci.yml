@@ -92,12 +92,17 @@ jobs:
         with:
           name: evm_rpc.wasm.gz
 
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+
       - name: Install pnpm
         uses: pnpm/action-setup@739bfe42ca9233c5e6aca07c1a25a9d34aca49b0 # v6.0.7
         with:
           version: 10.9.0
 
-      - name: 'Install npm packages'
+      - name: 'Install pnpm packages'
         run: |
           pnpm install --frozen-lockfile
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
@@ -148,12 +153,17 @@ jobs:
 
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
 
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+
       - name: Install pnpm
         uses: pnpm/action-setup@739bfe42ca9233c5e6aca07c1a25a9d34aca49b0 # v6.0.7
         with:
           version: 10.9.0
 
-      - name: Install npm packages
+      - name: Install pnpm packages
         run: |
           pnpm install --frozen-lockfile
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
