@@ -1,7 +1,9 @@
 [tools]
 node = "24"
 pnpm = "10.9.0"
-rust = { version = "1.91.0", components = "rustfmt,clippy", targets = "wasm32-unknown-unknown" }
 
 [env]
 _.path = ["./node_modules/.bin"]
+
+[settings]
+idiomatic_version_file_enable_tools = ["rust"]
