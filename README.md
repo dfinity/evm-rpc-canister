@@ -92,15 +92,20 @@ Run the following commands to set up a local development environment:
 git clone https://github.com/internet-computer-protocol/evm-rpc-canister
 cd evm-rpc-canister
 
-# This repo requires Node 24+ and uses pnpm. Either enable Corepack (bundled with Node):
-corepack enable && corepack prepare pnpm@10.9.0 --activate
-# ...or install pnpm directly:
-#   npm install -g pnpm@10.9.0
+# One-time: enable mise shell activation so mise-managed tools and
+# `node_modules/.bin` are added to your PATH inside the project directory.
+# See https://mise.jdx.dev/getting-started.html for your shell.
+eval "$(mise activate bash)"
+
+# Install Node, pnpm, and Rust via mise (https://mise.jdx.dev):
+mise install
+
+# Install project dependencies (icp, ic-wasm, mops):
 pnpm install
 
-# `icp`, `ic-wasm`, and `mops` are installed as versioned devDependencies.
-# Put them on PATH, or prefix invocations with `pnpm exec`.
-export PATH="$PWD/node_modules/.bin:$PATH"
+# With mise shell activation enabled, `node_modules/.bin` is on your PATH
+# inside the project directory, so `icp`, `ic-wasm`, and `mops` are directly
+# callable. Without activation, prefix with `mise exec --`.
 
 # Deploy to the local network
 icp network start -d
