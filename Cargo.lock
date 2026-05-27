@@ -939,9 +939,9 @@ dependencies = [
 
 [[package]]
 name = "candid_parser"
-version = "0.3.1"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "50e7b872ea5d7b8b445b7b15134ccb7d71e53882c4b5db62e706f9f8a8637c50"
+checksum = "470a4cf0c110e217e54ab3d21c4a9c290736c4a70ab6263d65155522d4b93fb6"
 dependencies = [
  "anyhow",
  "candid",
@@ -1773,7 +1773,7 @@ dependencies = [
  "alloy-rpc-types",
  "assert_matches",
  "candid",
- "candid_parser 0.3.1",
+ "candid_parser 0.3.2",
  "canhttp",
  "canlog",
  "derive_more 2.1.1",
