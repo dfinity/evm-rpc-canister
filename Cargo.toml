@@ -86,7 +86,7 @@ ethers-core = "2.0"
 ethnum = { version = "1.5.2", features = ["serde"] }
 getrandom = { version = "0.2", features = ["custom"] }
 hex = "0.4.3"
-http = "1.4.0"
+http = "1.4.1"
 ic-canister-runtime = "0.2.2"
 ic-cdk = "0.20.0"
 ic-cdk-bindgen = "0.2"
