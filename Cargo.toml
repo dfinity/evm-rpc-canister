@@ -80,7 +80,7 @@ async-trait = "0.1.89"
 candid = "0.10.29"
 canhttp = { version = "0.6.0", features = ["json", "multi"] }
 canlog = { version = "0.2.0", features = ["derive"] }
-candid_parser = "0.3.2"
+candid_parser = "0.4.0"
 derive_more = { version = "2.1.1", features = ["from", "into"] }
 ethers-core = "2.0"
 ethnum = { version = "1.5.2", features = ["serde"] }
