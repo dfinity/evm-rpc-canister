@@ -21,6 +21,9 @@
     "onlyBuiltDependencies": [
       "@icp-sdk/ic-wasm",
       "@icp-sdk/icp-cli"
-    ]
+    ],
+    "overrides": {
+      "decompress": "npm:@xhmikosr/decompress@11.1.3"
+    }
   }
 }
