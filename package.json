@@ -23,7 +23,8 @@
       "@icp-sdk/icp-cli"
     ],
     "overrides": {
-      "decompress": "npm:@xhmikosr/decompress@11.1.3"
+      "decompress": "npm:@xhmikosr/decompress@11.1.3",
+      "brace-expansion": "5.0.7"
     }
   }
 }
