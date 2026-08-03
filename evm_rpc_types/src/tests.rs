@@ -6,7 +6,11 @@ use proptest::{
     prop_assert, prop_assert_eq, proptest,
 };
 use serde::{de::DeserializeOwned, Serialize};
-use std::{ops::RangeInclusive, str::FromStr};
+use std::{
+    collections::{HashMap, HashSet},
+    ops::RangeInclusive,
+    str::FromStr,
+};
 
 mod nat256 {
     use super::*;
@@ -143,6 +147,32 @@ mod hex_string {
             let double_digit_hex_parsed: HexByte = double_digit_hex.parse().unwrap();
             assert_eq!(double_digit_hex_parsed, expected_value);
         }
+    }
+
+    #[test]
+    fn should_allow_hex_values_as_hash_keys() {
+        let address = Hex20::from_str("0xdAC17F958D2ee523a2206206994597C13D831ec7").unwrap();
+        let tx_hash =
+            Hex32::from_str("0xdd5d4b18923d7aae953c7996d791118102e889bea37b48a651157a4890e4746f")
+                .unwrap();
+        let byte = HexByte::from(0x2_u8);
+        let bytes = Hex::from(vec![0xde, 0xad, 0xbe, 0xef]);
+        let bloom = Hex256::from([0xab; 256]);
+
+        let mut balances = HashMap::new();
+        balances.insert(address.clone(), Nat256::from(1_u8));
+
+        assert_eq!(balances.get(&address), Some(&Nat256::from(1_u8)));
+
+        let tx_hashes = HashSet::from([tx_hash.clone()]);
+        let bytes_values = HashSet::from([bytes.clone()]);
+        let byte_values = HashSet::from([byte.clone()]);
+        let bloom_values = HashSet::from([bloom.clone()]);
+
+        assert!(tx_hashes.contains(&tx_hash));
+        assert!(bytes_values.contains(&bytes));
+        assert!(byte_values.contains(&byte));
+        assert!(bloom_values.contains(&bloom));
     }
 
     fn encode_decode_roundtrip<T>(value: &str) -> Result<(), TestCaseError>

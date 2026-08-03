@@ -131,7 +131,7 @@ impl_from_unchecked!( Nat256, usize u8 u16 u32 u64 u128 );
 macro_rules! impl_hex_string {
     ($name: ident($data: ty)) => {
         #[doc = concat!("Ethereum hex-string (String representation is prefixed by 0x) wrapping a `", stringify!($data), "`. ")]
-        #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+        #[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
         #[serde(try_from = "String", into = "String")]
         pub struct $name($data);
 
@@ -243,7 +243,7 @@ impl Hex256 {
 /// such as `0x0` or `0x1` into a byte. By default,
 /// `FromHex::from_hex` will return `Err(FromHexError::OddLength)`
 /// when trying to decode such strings.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Byte([u8; 1]);
 
 impl Byte {
