@@ -243,7 +243,7 @@ mod providers {
     use canhttp::multi::Timestamp;
     use evm_rpc_types::{
         ConsensusStrategy, EthMainnetService, EthSepoliaService, L2MainnetService, ProviderError,
-        RpcServices,
+        RpcApi, RpcServices,
     };
     use proptest::arbitrary::any;
     use proptest::proptest;
@@ -294,6 +294,71 @@ mod providers {
                 Timestamp::default()
             ).unwrap();
         }
+    }
+
+    #[test]
+    fn should_reject_duplicate_custom_providers() {
+        let duplicate = RpcApi {
+            url: "https://eth-mainnet.g.alchemy.com/v2/some-key".to_string(),
+            headers: None,
+        };
+        let services = RpcServices::Custom {
+            chain_id: 1,
+            services: vec![duplicate.clone(), duplicate],
+        };
+
+        let providers = Providers::new(services, ConsensusStrategy::Equality, Timestamp::default());
+        assert_matches!(providers, Err(ProviderError::InvalidRpcConfig(_)));
+    }
+
+    #[test]
+    fn should_reject_duplicate_named_providers() {
+        let services = RpcServices::EthMainnet(Some(vec![
+            EthMainnetService::Alchemy,
+            EthMainnetService::Alchemy,
+        ]));
+
+        let providers = Providers::new(services, ConsensusStrategy::Equality, Timestamp::default());
+        assert_matches!(providers, Err(ProviderError::InvalidRpcConfig(_)));
+    }
+
+    #[test]
+    fn should_reject_duplicate_providers_under_threshold() {
+        let duplicate = RpcApi {
+            url: "https://eth-mainnet.g.alchemy.com/v2/some-key".to_string(),
+            headers: None,
+        };
+        let services = RpcServices::Custom {
+            chain_id: 1,
+            services: vec![duplicate.clone(), duplicate],
+        };
+        let strategy = ConsensusStrategy::Threshold {
+            total: Some(2),
+            min: 1,
+        };
+
+        let providers = Providers::new(services, strategy, Timestamp::default());
+        assert_matches!(providers, Err(ProviderError::InvalidRpcConfig(_)));
+    }
+
+    #[test]
+    fn should_accept_distinct_custom_providers_with_different_api_keys() {
+        let services = RpcServices::Custom {
+            chain_id: 1,
+            services: vec![
+                RpcApi {
+                    url: "https://eth-mainnet.g.alchemy.com/v2/key-a".to_string(),
+                    headers: None,
+                },
+                RpcApi {
+                    url: "https://eth-mainnet.g.alchemy.com/v2/key-b".to_string(),
+                    headers: None,
+                },
+            ],
+        };
+
+        let providers = Providers::new(services, ConsensusStrategy::Equality, Timestamp::default());
+        assert!(providers.is_ok());
     }
 
     #[test]
