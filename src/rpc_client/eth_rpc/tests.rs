@@ -506,3 +506,21 @@ mod single_json_rpc_response_tests {
         )
     }
 }
+
+mod response_size_estimate {
+    use crate::rpc_client::eth_rpc::{ResponseSizeEstimate, MAX_PAYLOAD_SIZE};
+
+    #[test]
+    fn should_add_estimates() {
+        let a = ResponseSizeEstimate::new(100);
+        let b = ResponseSizeEstimate::new(200);
+        assert_eq!(a.saturating_add(b).get(), 300);
+    }
+
+    #[test]
+    fn should_saturate_at_max_payload_size() {
+        let a = ResponseSizeEstimate::new(MAX_PAYLOAD_SIZE);
+        let b = ResponseSizeEstimate::new(1);
+        assert_eq!(a.saturating_add(b).get(), MAX_PAYLOAD_SIZE);
+    }
+}

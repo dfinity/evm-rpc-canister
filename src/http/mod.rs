@@ -8,8 +8,9 @@ use canhttp::{
     cycles::{ChargeCaller, CyclesAccounting},
     http::{
         json::{
-            CreateJsonRpcIdFilter, HttpJsonRpcRequest, HttpJsonRpcResponse, JsonRequestConverter,
-            JsonResponseConverter,
+            BatchJsonRpcRequest, BatchJsonRpcResponse, CreateJsonRpcIdFilter,
+            HttpBatchJsonRpcRequest, HttpBatchJsonRpcResponse, HttpJsonRpcRequest,
+            HttpJsonRpcResponse, JsonRequestConverter, JsonResponseConverter,
         },
         FilterNonSuccessfulHttpResponse, HttpRequestConverter, HttpResponseConverter,
     },
@@ -103,6 +104,26 @@ pub fn service_request_builder<I>() -> JsonRpcServiceBuilder<I> {
         )
         .convert_request(JsonRequestConverter::<I>::new())
         .convert_request(HttpRequestConverter)
+}
+
+pub fn http_batch_client<I, O>(
+) -> impl Service<HttpBatchJsonRpcRequest<I>, Response = HttpBatchJsonRpcResponse<O>, Error = RpcError>
+where
+    I: Serialize + Clone + Debug,
+    O: DeserializeOwned + Debug,
+{
+    ServiceBuilder::new()
+        .map_err(|e: HttpClientError| RpcError::from(e))
+        .filter_response(CreateJsonRpcIdFilter::<
+            BatchJsonRpcRequest<I>,
+            BatchJsonRpcResponse<O>,
+        >::new())
+        .layer(service_request_builder())
+        .convert_response(JsonResponseConverter::new())
+        .convert_response(FilterNonSuccessfulHttpResponse)
+        .convert_response(HttpResponseConverter)
+        .convert_request(CyclesAccounting::new(charging_policy_with_collateral()))
+        .service(canhttp::Client::new_with_error::<HttpClientError>())
 }
 
 pub fn charging_policy_with_collateral(

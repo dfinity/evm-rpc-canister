@@ -8,16 +8,18 @@ use candid::{CandidType, Encode, Principal};
 use canhttp::http::json::{ConstantSizeId, Id};
 use evm_rpc_client::{DoubleCycles, EvmRpcEndpoint, NoRetry, RequestBuilder};
 use evm_rpc_types::{
-    BlockTag, ConsensusStrategy, EthMainnetService, EthSepoliaService, GetLogsRpcConfig, Hex,
-    Hex32, HttpOutcallError, InstallArgs, JsonRpcError, LegacyRejectionCode, MultiRpcResult,
-    Nat256, ProviderError, RpcApi, RpcError, RpcResult, RpcService, RpcServices, ValidationError,
+    BatchRequest, BlockTag, ConsensusStrategy, EthMainnetService, EthSepoliaService,
+    GetLogsRpcConfig, GetTransactionCountArgs, Hex, Hex32, HttpOutcallError, InstallArgs,
+    JsonRpcError, LegacyRejectionCode, MultiRpcResult, Nat256, ProviderError, RpcApi, RpcError,
+    RpcResult, RpcService, RpcServices, ValidationError,
 };
 use ic_canister_runtime::CyclesWalletRuntime;
 use ic_error_types::RejectCode;
 use ic_http_types::HttpRequest;
 use ic_pocket_canister_runtime::{
-    CanisterHttpReject, CanisterHttpReply, JsonRpcRequestMatcher, JsonRpcResponse,
-    MockHttpOutcalls, MockHttpOutcallsBuilder, PocketIcRuntime,
+    BatchJsonRpcRequestMatcher, CanisterHttpReject, CanisterHttpReply, JsonRpcRequestMatcher,
+    JsonRpcResponse, MockHttpOutcalls, MockHttpOutcallsBuilder, PocketIcRuntime,
+    SingleJsonRpcMatcher,
 };
 use pocket_ic::{common::rest::CanisterHttpResponse, ErrorCode};
 use serde::de::DeserializeOwned;
@@ -49,6 +51,8 @@ const MOCK_TRANSACTION_HASH: B256 =
 const MOCK_ADDRESS: Address = address!("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
 const MOCK_INPUT_DATA: Bytes =
     bytes!("0x70a08231000000000000000000000000b25eA1D493B49a1DeD42aC5B1208cC618f9A9B80");
+
+const CONSENSUS_ERROR: &str = "No consensus could be reached. Replicas had different responses.";
 
 const RPC_SERVICES: &[RpcServices] = &[
     RpcServices::EthMainnet(None),
@@ -1350,9 +1354,6 @@ async fn candid_rpc_should_return_inconsistent_results_with_error() {
 
 #[tokio::test]
 async fn candid_rpc_should_return_inconsistent_results_with_consensus_error() {
-    const CONSENSUS_ERROR: &str =
-        "No consensus could be reached. Replicas had different responses.";
-
     let setup = EvmRpcSetup::new().await.mock_api_keys().await;
 
     let mocks = MockHttpOutcallsBuilder::new()
@@ -2600,7 +2601,12 @@ mod cycles_cost_tests {
 
         for endpoint in EvmRpcEndpoint::iter() {
             match endpoint {
-                EvmRpcEndpoint::Batch => continue, // TODO: test once endpoint is implemented
+                EvmRpcEndpoint::Batch => {
+                    check(client.batch(vec![BatchRequest::EthGetTransactionCount(
+                        GetTransactionCountArgs::from((MOCK_ADDRESS, BlockTag::Latest)),
+                    )]))
+                    .await;
+                }
                 EvmRpcEndpoint::Call => {
                     check(
                         client.call(
@@ -2671,7 +2677,12 @@ mod cycles_cost_tests {
 
         for endpoint in EvmRpcEndpoint::iter() {
             match endpoint {
-                EvmRpcEndpoint::Batch => continue, // TODO: test once endpoint is implemented
+                EvmRpcEndpoint::Batch => {
+                    check(client.batch(vec![BatchRequest::EthGetTransactionCount(
+                        GetTransactionCountArgs::from((MOCK_ADDRESS, BlockTag::Latest)),
+                    )]))
+                    .await;
+                }
                 EvmRpcEndpoint::Call => {
                     check(
                         client.call(
@@ -2738,7 +2749,7 @@ mod cycles_cost_tests {
             assert_within(cycles_cost, expected_cycles_cost, five_percents);
 
             let cycles_before = setup.evm_rpc_canister_cycles_balance().await;
-            // Request with exact cycles amount should succeed
+            // Request with the exact cycles amount should succeed
             let result = request
                 .clone()
                 .with_cycles(cycles_cost)
@@ -2783,7 +2794,16 @@ mod cycles_cost_tests {
         let mut ids = 0_u64..;
         for endpoint in EvmRpcEndpoint::iter() {
             if endpoint == EvmRpcEndpoint::Batch {
-                continue; // TODO: mock once endpoint is implemented
+                for id in ids.by_ref().take(5) {
+                    mocks = mocks
+                        .given(BatchJsonRpcRequestMatcher::batch(vec![
+                            SingleJsonRpcMatcher::with_method("eth_getTransactionCount")
+                                .with_id(id),
+                        ]))
+                        .respond_with(CanisterHttpReply::with_status(403));
+                }
+                for _ in ids.by_ref().take(1) {}
+                continue;
             }
             let rpc_method = if endpoint == EvmRpcEndpoint::MultiRequest {
                 MOCK_REQUEST_METHOD
@@ -2806,7 +2826,51 @@ mod cycles_cost_tests {
             // To find out the expected_cycles_cost for a new endpoint, set the amount to 0
             // and run the test. It should fail and report the amount of cycles needed.
             match endpoint {
-                EvmRpcEndpoint::Batch => continue, // TODO: test once endpoint is implemented
+                EvmRpcEndpoint::Batch => {
+                    let batch_request = client.batch(vec![BatchRequest::EthGetTransactionCount(
+                        GetTransactionCountArgs::from((MOCK_ADDRESS, BlockTag::Latest)),
+                    )]);
+                    let five_percents = 5_u8;
+
+                    let cycles_cost = batch_request.clone().request_cost().send().await.unwrap();
+                    // To find the expected value, set to 0 and run the test.
+                    assert_within(cycles_cost, 1_715_993_600, five_percents);
+
+                    let cycles_before = setup.evm_rpc_canister_cycles_balance().await;
+                    let results = batch_request.clone().with_cycles(cycles_cost).send().await;
+                    for result in &results {
+                        if let MultiRpcResult::Consistent(Err(RpcError::ProviderError(
+                            ProviderError::TooFewCycles { .. },
+                        ))) = result
+                        {
+                            panic!("BUG: estimated cycles cost was insufficient!: {result:?}");
+                        }
+                    }
+                    let cycles_after = setup.evm_rpc_canister_cycles_balance().await;
+                    let cycles_consumed = cycles_before + cycles_cost - cycles_after;
+                    assert!(
+                        cycles_after > cycles_before,
+                        "BUG: not enough cycles requested. Requested {cycles_cost} cycles, but consumed {cycles_consumed} cycles"
+                    );
+
+                    let results = batch_request.with_cycles(cycles_cost - 1).send().await;
+                    let has_too_few_cycles = results.iter().any(|result| match result {
+                        MultiRpcResult::Inconsistent(pairs) => pairs.iter().any(|(_, r)| {
+                            matches!(
+                                r,
+                                Err(RpcError::ProviderError(ProviderError::TooFewCycles { .. }))
+                            )
+                        }),
+                        MultiRpcResult::Consistent(Err(RpcError::ProviderError(
+                            ProviderError::TooFewCycles { .. },
+                        ))) => true,
+                        _ => false,
+                    });
+                    assert!(
+                        has_too_few_cycles,
+                        "BUG: Expected at least one TooFewCycles error, but got {results:?}"
+                    );
+                }
                 EvmRpcEndpoint::Call => {
                     check(
                         &setup,
@@ -3014,6 +3078,252 @@ mod request_cost_tests {
     }
 }
 
+mod batch {
+    use crate::setup::EvmRpcSetup;
+    use crate::{CONSENSUS_ERROR, RPC_SERVICES};
+    use alloy_primitives::address;
+    use canhttp::http::json::ConstantSizeId;
+    use evm_rpc_types::{
+        BatchRequest, BatchResult, BlockTag, EthMainnetService, GetTransactionCountArgs,
+        HttpOutcallError, LegacyRejectionCode, MultiRpcResult, Nat256, RpcError, RpcService,
+        RpcServices,
+    };
+    use ic_error_types::RejectCode;
+    use ic_pocket_canister_runtime::{
+        BatchJsonRpcRequestMatcher, BatchJsonRpcResponse, CanisterHttpReject,
+        MockHttpOutcallsBuilder, SingleJsonRpcMatcher,
+    };
+    use serde_json::json;
+
+    #[tokio::test]
+    async fn should_batch_transaction_count() {
+        fn mocks(offset: u64) -> MockHttpOutcallsBuilder {
+            let results = ["0x1", "0x2"];
+            MockHttpOutcallsBuilder::new()
+                .given(get_transaction_count_batch_request(offset))
+                .respond_with(get_transaction_count_batch_response(offset, &results))
+                .given(get_transaction_count_batch_request(offset + 2))
+                .respond_with(get_transaction_count_batch_response(offset + 2, &results))
+                .given(get_transaction_count_batch_request(offset + 4))
+                .respond_with(get_transaction_count_batch_response(offset + 4, &results))
+        }
+
+        let setup = EvmRpcSetup::new().await.mock_api_keys().await;
+        // 2 requests per batch and 3 providers per batch request
+        let mut offsets = (0..).step_by(6);
+
+        for source in RPC_SERVICES {
+            let results = setup
+                .client(mocks(offsets.next().unwrap()))
+                .with_rpc_sources(source.clone())
+                .with_candid()
+                .build()
+                .batch(vec![
+                    BatchRequest::EthGetTransactionCount(GetTransactionCountArgs::from((
+                        address!("0xdac17f958d2ee523a2206206994597c13d831ec7"),
+                        BlockTag::Latest,
+                    ))),
+                    BatchRequest::EthGetTransactionCount(GetTransactionCountArgs::from((
+                        address!("0xdac17f958d2ee523a2206206994597c13d831ec7"),
+                        BlockTag::Finalized,
+                    ))),
+                ])
+                .send()
+                .await;
+
+            assert_eq!(
+                results,
+                vec![
+                    MultiRpcResult::Consistent(Ok(BatchResult::EthGetTransactionCount(Ok(
+                        Nat256::from(1_u64)
+                    )))),
+                    MultiRpcResult::Consistent(Ok(BatchResult::EthGetTransactionCount(Ok(
+                        Nat256::from(2_u64)
+                    ))))
+                ]
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn should_be_consistent_when_other_response_inconsistent() {
+        fn mocks(offset: u64) -> MockHttpOutcallsBuilder {
+            let results = ["0x1", "0x2"];
+            //inconsistent response for first request in batch
+            let mut other_results = results;
+            other_results[0] = "0x0";
+            MockHttpOutcallsBuilder::new()
+                .given(get_transaction_count_batch_request(offset))
+                .respond_with(get_transaction_count_batch_response(offset, &results))
+                .given(get_transaction_count_batch_request(offset + 2))
+                .respond_with(get_transaction_count_batch_response(
+                    offset + 2,
+                    &other_results,
+                ))
+                .given(get_transaction_count_batch_request(offset + 4))
+                .respond_with(get_transaction_count_batch_response(offset + 4, &results))
+        }
+
+        let setup = EvmRpcSetup::new().await.mock_api_keys().await;
+        // 2 requests per batch and 3 providers per batch request
+        let mut offsets = (0..).step_by(6);
+
+        let results = setup
+            .client(mocks(offsets.next().unwrap()))
+            .with_rpc_sources(RpcServices::EthMainnet(None))
+            .with_candid()
+            .build()
+            .batch(vec![
+                BatchRequest::EthGetTransactionCount(GetTransactionCountArgs::from((
+                    address!("0xdac17f958d2ee523a2206206994597c13d831ec7"),
+                    BlockTag::Latest,
+                ))),
+                BatchRequest::EthGetTransactionCount(GetTransactionCountArgs::from((
+                    address!("0xdac17f958d2ee523a2206206994597c13d831ec7"),
+                    BlockTag::Finalized,
+                ))),
+            ])
+            .send()
+            .await;
+
+        assert_eq!(
+            results,
+            vec![
+                MultiRpcResult::Inconsistent(vec![
+                    (
+                        RpcService::EthMainnet(EthMainnetService::Ankr),
+                        Ok(BatchResult::EthGetTransactionCount(Ok(Nat256::from(1_u64))))
+                    ),
+                    (
+                        RpcService::EthMainnet(EthMainnetService::BlockPi),
+                        Ok(BatchResult::EthGetTransactionCount(Ok(Nat256::from(0_u64))))
+                    ),
+                    (
+                        RpcService::EthMainnet(EthMainnetService::PublicNode),
+                        Ok(BatchResult::EthGetTransactionCount(Ok(Nat256::from(1_u64))))
+                    ),
+                ]),
+                MultiRpcResult::Consistent(Ok(BatchResult::EthGetTransactionCount(Ok(
+                    Nat256::from(2_u64)
+                ))))
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn should_error_on_whole_batch_when_https_outcall_error() {
+        fn mocks(offset: u64) -> MockHttpOutcallsBuilder {
+            let results = ["0x1", "0x2"];
+            MockHttpOutcallsBuilder::new()
+                .given(get_transaction_count_batch_request(offset))
+                .respond_with(get_transaction_count_batch_response(offset, &results))
+                .given(get_transaction_count_batch_request(offset + 2))
+                .respond_with(
+                    CanisterHttpReject::with_reject_code(RejectCode::SysTransient)
+                        .with_message(CONSENSUS_ERROR),
+                )
+                .given(get_transaction_count_batch_request(offset + 4))
+                .respond_with(get_transaction_count_batch_response(offset + 4, &results))
+        }
+
+        let setup = EvmRpcSetup::new().await.mock_api_keys().await;
+        // 2 requests per batch and 3 providers per batch request
+        let mut offsets = (0..).step_by(6);
+
+        let results = setup
+            .client(mocks(offsets.next().unwrap()))
+            .with_rpc_sources(RpcServices::EthMainnet(None))
+            .with_candid()
+            .build()
+            .batch(vec![
+                BatchRequest::EthGetTransactionCount(GetTransactionCountArgs::from((
+                    address!("0xdac17f958d2ee523a2206206994597c13d831ec7"),
+                    BlockTag::Latest,
+                ))),
+                BatchRequest::EthGetTransactionCount(GetTransactionCountArgs::from((
+                    address!("0xdac17f958d2ee523a2206206994597c13d831ec7"),
+                    BlockTag::Finalized,
+                ))),
+            ])
+            .try_send()
+            .await
+            .unwrap();
+
+        assert_eq!(
+            results,
+            vec![
+                MultiRpcResult::Inconsistent(vec![
+                    (
+                        RpcService::EthMainnet(EthMainnetService::Ankr),
+                        Ok(BatchResult::EthGetTransactionCount(Ok(Nat256::from(1_u64))))
+                    ),
+                    (
+                        RpcService::EthMainnet(EthMainnetService::PublicNode),
+                        Ok(BatchResult::EthGetTransactionCount(Ok(Nat256::from(1_u64))))
+                    ),
+                    (
+                        RpcService::EthMainnet(EthMainnetService::BlockPi),
+                        Err(RpcError::HttpOutcallError(HttpOutcallError::IcError {
+                            code: LegacyRejectionCode::SysTransient,
+                            message: CONSENSUS_ERROR.to_string(),
+                        }))
+                    ),
+                ]),
+                MultiRpcResult::Inconsistent(vec![
+                    (
+                        RpcService::EthMainnet(EthMainnetService::Ankr),
+                        Ok(BatchResult::EthGetTransactionCount(Ok(Nat256::from(2_u64))))
+                    ),
+                    (
+                        RpcService::EthMainnet(EthMainnetService::PublicNode),
+                        Ok(BatchResult::EthGetTransactionCount(Ok(Nat256::from(2_u64))))
+                    ),
+                    (
+                        RpcService::EthMainnet(EthMainnetService::BlockPi),
+                        Err(RpcError::HttpOutcallError(HttpOutcallError::IcError {
+                            code: LegacyRejectionCode::SysTransient,
+                            message: CONSENSUS_ERROR.to_string(),
+                        }))
+                    ),
+                ]),
+            ]
+        );
+    }
+
+    fn get_transaction_count_batch_request(offset: u64) -> BatchJsonRpcRequestMatcher {
+        BatchJsonRpcRequestMatcher::batch(vec![
+            SingleJsonRpcMatcher::with_method("eth_getTransactionCount")
+                .with_params(json!([
+                    "0xdac17f958d2ee523a2206206994597c13d831ec7",
+                    "latest"
+                ]))
+                .with_id(offset),
+            SingleJsonRpcMatcher::with_method("eth_getTransactionCount")
+                .with_params(json!([
+                    "0xdac17f958d2ee523a2206206994597c13d831ec7",
+                    "finalized"
+                ]))
+                .with_id(offset + 1),
+        ])
+    }
+
+    fn get_transaction_count_batch_response(offset: u64, results: &[&str]) -> BatchJsonRpcResponse {
+        BatchJsonRpcResponse::from(
+            results
+                .iter()
+                .enumerate()
+                .map(|(index, result)| {
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": ConstantSizeId::from(offset + index as u64).to_string(),
+                        "result": result
+                    })
+                })
+                .collect::<Vec<_>>(),
+        )
+    }
+}
+
 fn assert_within(actual: u128, expected: u128, percentage_error: u8) {
     assert!(percentage_error <= 100);
     let error_margin = expected.saturating_mul(percentage_error as u128) / 100;
@@ -3021,7 +3331,8 @@ fn assert_within(actual: u128, expected: u128, percentage_error: u8) {
     let upper_bound = expected.saturating_add(error_margin);
     assert!(
         lower_bound <= actual && actual <= upper_bound,
-        "Expected {} <= {} <= {}",
+        "Expected exactly {}. Tolerate {} <= {} <= {}",
+        expected,
         lower_bound,
         actual,
         upper_bound

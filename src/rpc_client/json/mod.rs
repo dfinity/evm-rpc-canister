@@ -5,8 +5,6 @@ use evm_rpc_types::Byte;
 use serde::Serialize;
 use std::fmt::{Debug, Display, Formatter, LowerHex, UpperHex};
 
-// TODO DEFI-2665: remove annotation
-#[allow(dead_code)]
 pub mod batch;
 pub mod requests;
 pub mod responses;
