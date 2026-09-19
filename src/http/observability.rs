@@ -172,11 +172,8 @@ fn from_request<I>(request: &HttpJsonRpcRequest<I>) -> MetricData {
         .extensions()
         .get::<RpcService>()
         .expect("`RpcService` request extension missing");
-    let host = request
-        .uri()
-        .host()
-        .expect("Could not extract host from request URI")
-        .to_string();
+    // Runs before cycles accounting, so panicking here would reject the whole call.
+    let host = request.uri().host().unwrap_or("(unknown)").to_string();
     let service = MetricRpcService {
         host,
         is_supported: !matches!(rpc_service, RpcService::Custom(_)),

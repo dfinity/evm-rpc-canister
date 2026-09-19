@@ -26,7 +26,7 @@ use canhttp::{
 };
 use evm_rpc_types::{
     ConsensusStrategy, JsonRpcError, MultiRpcResult, ProviderError, RpcConfig, RpcError, RpcResult,
-    RpcService, RpcServices,
+    RpcService, RpcServices, ValidationError,
 };
 use http::{Request, Response};
 use ic_management_canister_types::{
@@ -550,7 +550,7 @@ impl<Params, Output> MultiRpcRequest<Params, Output> {
             let request = resolve_rpc_service(provider.clone())
                 .map_err(RpcError::from)
                 .and_then(|rpc_service| rpc_service.post(&get_override_provider()))
-                .map(|builder| {
+                .and_then(|builder| {
                     builder
                         .max_response_bytes(effective_size_estimate)
                         .transform_context(TransformContext {
@@ -564,7 +564,11 @@ impl<Params, Output> MultiRpcRequest<Params, Output> {
                             self.method.clone().name(),
                             self.params.clone(),
                         ))
-                        .expect("BUG: invalid request")
+                        .map_err(|e| {
+                            RpcError::ValidationError(ValidationError::Custom(format!(
+                                "Invalid request: {e}"
+                            )))
+                        })
                 })
                 .map(|mut request| {
                     // Store the original `RpcService` for usage when recording metrics

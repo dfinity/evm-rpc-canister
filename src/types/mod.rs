@@ -42,7 +42,18 @@ impl ResolvedRpcService {
         override_provider: &OverrideProvider,
     ) -> Result<http::request::Builder, RpcError> {
         let api = self.api(override_provider)?;
-        let mut request_builder = http::Request::post(api.url);
+        // The URL is never part of the error, since it can contain an API key.
+        let url = api
+            .url
+            .parse::<http::Uri>()
+            .map_err(|e| format!("Invalid URL: {e}"))
+            .and_then(|url| match url.host() {
+                Some(_) => Ok(url),
+                None => Err("Invalid URL: missing host".to_string()),
+            })
+            .map_err(|e| RpcError::ValidationError(ValidationError::Custom(e)))?;
+
+        let mut request_builder = http::Request::post(url);
         for HttpHeader { name, value } in api.headers.unwrap_or_default() {
             request_builder = request_builder.header(name, value);
         }
