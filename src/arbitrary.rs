@@ -19,8 +19,17 @@ pub fn arb_rpc_services() -> impl Strategy<Value = RpcServices> {
 pub fn arb_custom_rpc_services(
     num_providers: impl Into<SizeRange>,
 ) -> impl Strategy<Value = RpcServices> {
-    (any::<u64>(), vec(arb_rpc_api(), num_providers))
-        .prop_map(|(chain_id, services)| RpcServices::Custom { chain_id, services })
+    (any::<u64>(), vec(arb_rpc_api(), num_providers)).prop_map(|(chain_id, services)| {
+        let services = services
+            .into_iter()
+            .enumerate()
+            .map(|(i, mut api)| {
+                api.url = format!("{}#{i}", api.url);
+                api
+            })
+            .collect();
+        RpcServices::Custom { chain_id, services }
+    })
 }
 
 fn arb_rpc_api() -> impl Strategy<Value = RpcApi> {
