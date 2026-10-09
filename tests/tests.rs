@@ -9,8 +9,9 @@ use canhttp::http::json::{ConstantSizeId, Id};
 use evm_rpc_client::{DoubleCycles, EvmRpcEndpoint, NoRetry, RequestBuilder};
 use evm_rpc_types::{
     BlockTag, ConsensusStrategy, EthMainnetService, EthSepoliaService, GetLogsRpcConfig, Hex,
-    Hex32, HttpOutcallError, InstallArgs, JsonRpcError, LegacyRejectionCode, MultiRpcResult,
-    Nat256, ProviderError, RpcApi, RpcError, RpcResult, RpcService, RpcServices, ValidationError,
+    Hex32, HttpHeader, HttpOutcallError, InstallArgs, JsonRpcError, LegacyRejectionCode,
+    MultiRpcResult, Nat256, ProviderError, RpcApi, RpcError, RpcResult, RpcService, RpcServices,
+    ValidationError,
 };
 use ic_canister_runtime::CyclesWalletRuntime;
 use ic_error_types::RejectCode;
@@ -982,6 +983,49 @@ async fn candid_rpc_should_allow_unexpected_response_fields() {
             "0x5115c07eb1f20a9d6410db0916ed3df626cfdab161d3904f45c8c8b65c90d0be"
         ))
     );
+}
+
+#[tokio::test]
+async fn candid_rpc_should_return_validation_error_for_invalid_custom_rpc_api() {
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
+
+    // `RpcApi` is caller-controlled and used to make the canister trap.
+    for (url, headers) in [
+        ("", None),
+        ("http://exa mple.com", None),
+        ("/foo", None),
+        (
+            "https://cloudflare-eth.com",
+            Some(vec![HttpHeader {
+                name: "invalid header".to_string(),
+                value: "value".to_string(),
+            }]),
+        ),
+    ] {
+        let result = setup
+            .client(MockHttpOutcalls::never())
+            .with_rpc_sources(RpcServices::Custom {
+                chain_id: 1,
+                services: vec![RpcApi {
+                    url: url.to_string(),
+                    headers,
+                }],
+            })
+            .build()
+            .get_transaction_count((
+                address!("0xdac17f958d2ee523a2206206994597c13d831ec7"),
+                BlockNumberOrTag::Latest,
+            ))
+            .send()
+            .await
+            .expect_consistent();
+
+        assert_matches!(
+            result,
+            Err(RpcError::ValidationError(ValidationError::Custom(_))),
+            "expected a validation error for url {url:?}"
+        );
+    }
 }
 
 #[tokio::test]

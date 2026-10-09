@@ -220,3 +220,67 @@ mod override_provider {
         }
     }
 }
+
+mod resolved_rpc_service_post {
+    use crate::types::{OverrideProvider, ResolvedRpcService};
+    use assert_matches::assert_matches;
+    use evm_rpc_types::{RpcApi, RpcError, ValidationError};
+    use ic_management_canister_types::HttpHeader;
+
+    fn post(url: &str, headers: Option<Vec<HttpHeader>>) -> Result<http::Request<()>, RpcError> {
+        ResolvedRpcService::Api(RpcApi {
+            url: url.to_string(),
+            headers,
+        })
+        .post(&OverrideProvider::default())
+        .and_then(|builder| {
+            builder.body(()).map_err(|e| {
+                RpcError::ValidationError(ValidationError::Custom(format!("Invalid request: {e}")))
+            })
+        })
+    }
+
+    #[test]
+    fn should_accept_valid_url() {
+        let request = post("https://cloudflare-eth.com/v1/mainnet", None).unwrap();
+        assert_eq!(request.uri().host(), Some("cloudflare-eth.com"));
+    }
+
+    #[test]
+    fn should_return_validation_error_for_invalid_url() {
+        // These used to panic while building the request or while reading the host.
+        for url in [
+            "",                    // empty
+            "http://exa mple.com", // invalid URI character
+            "/foo",                // parses, but has no host
+        ] {
+            assert_matches!(
+                post(url, None),
+                Err(RpcError::ValidationError(ValidationError::Custom(_))),
+                "expected a validation error for url {url:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn should_leave_schemeless_url_to_the_management_canister() {
+        // `foo` parses as an authority, so it has a host. The management canister rejects it
+        // anyway, since an outcall URL has to be HTTPS.
+        let request = post("foo", None).unwrap();
+        assert_eq!(request.uri().host(), Some("foo"));
+    }
+
+    #[test]
+    fn should_return_validation_error_for_invalid_header() {
+        assert_matches!(
+            post(
+                "https://cloudflare-eth.com",
+                Some(vec![HttpHeader {
+                    name: "invalid header".to_string(),
+                    value: "value".to_string(),
+                }]),
+            ),
+            Err(RpcError::ValidationError(ValidationError::Custom(_)))
+        );
+    }
+}
