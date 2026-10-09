@@ -29,7 +29,7 @@ const HTTP_MAX_SIZE: u64 = 2_000_000;
 
 pub const MAX_PAYLOAD_SIZE: u64 = HTTP_MAX_SIZE - HEADER_SIZE_LIMIT;
 
-#[derive(Debug, Decode, Encode, From)]
+#[derive(Clone, Debug, Decode, Encode, From)]
 pub enum ResponseTransformEnvelope {
     #[n(0)]
     Single(#[n(0)] ResponseTransform),
@@ -95,7 +95,7 @@ impl ResponseTransformEnvelope {
 /// Describes a payload transformation to execute before passing the HTTP response to consensus.
 /// The purpose of these transformations is to ensure that the response encoding is deterministic
 /// (the field order is the same).
-#[derive(Debug, Decode, Encode)]
+#[derive(Clone, Debug, Decode, Encode)]
 pub enum ResponseTransform {
     #[n(0)]
     Call,
@@ -180,6 +180,8 @@ fn cleanup_response(args: TransformArgs) -> HttpRequestResult {
 pub struct ResponseSizeEstimate(u64);
 
 impl ResponseSizeEstimate {
+    pub const ZERO: ResponseSizeEstimate = ResponseSizeEstimate(0);
+
     pub fn new(num_bytes: u64) -> Self {
         assert!(num_bytes > 0);
         assert!(num_bytes <= MAX_PAYLOAD_SIZE);
@@ -190,6 +192,11 @@ impl ResponseSizeEstimate {
     /// This number should be less than `MAX_PAYLOAD_SIZE`.
     pub fn get(self) -> u64 {
         self.0
+    }
+
+    /// Add two response size estimates, saturating at [`MAX_PAYLOAD_SIZE`].
+    pub fn saturating_add(self, rhs: ResponseSizeEstimate) -> ResponseSizeEstimate {
+        ResponseSizeEstimate::new(self.0.saturating_add(rhs.0).min(MAX_PAYLOAD_SIZE))
     }
 }
 
