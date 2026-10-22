@@ -3028,6 +3028,269 @@ fn assert_within(actual: u128, expected: u128, percentage_error: u8) {
     );
 }
 
+mod response_field_order_tests {
+    use super::*;
+    use async_trait::async_trait;
+    use ic_pocket_canister_runtime::ExecuteHttpOutcallMocks;
+    use pocket_ic::{
+        common::rest::{CanisterHttpReply as PocketIcCanisterHttpReply, MockCanisterHttpResponse},
+        nonblocking::PocketIc,
+    };
+    use std::{collections::BTreeMap, time::Duration};
+
+    // Providers may serve requests from nodes running different Ethereum clients, which return the
+    // same JSON-RPC response with the fields of JSON objects in a different order. Since each
+    // replica may reach a different node, the response transform must normalize the field order
+    // for the replicas to reach consensus.
+    #[tokio::test]
+    async fn should_reach_consensus_when_replicas_receive_fields_in_different_order() {
+        async fn check<Converter, Config, Params, CandidOutput, T: Debug>(
+            failures: &mut Vec<String>,
+            endpoint: EvmRpcEndpoint,
+            request: RequestBuilder<
+                CyclesWalletRuntime<PocketIcRuntime<'_>>,
+                Converter,
+                NoRetry,
+                Config,
+                Params,
+                CandidOutput,
+                MultiRpcResult<T>,
+            >,
+        ) where
+            Config: CandidType + Clone + Send,
+            Params: CandidType + Clone + Send,
+            CandidOutput: Into<MultiRpcResult<T>> + CandidType + DeserializeOwned,
+        {
+            let result = request.send().await;
+            if !matches!(result, MultiRpcResult::Consistent(Ok(_))) {
+                failures.push(format!("{endpoint:?}: {result:?}"));
+            }
+        }
+
+        let setup = EvmRpcSetup::new().await.mock_api_keys().await;
+        let nodes_in_subnet = setup.get_nodes_in_subnet().await as usize;
+        assert!(
+            nodes_in_subnet > 1,
+            "Need several replicas to receive different responses"
+        );
+        let mocks = || ReversedFieldOrderMocks {
+            nodes_in_subnet,
+            responses: BTreeMap::from([
+                ("eth_call", call_response()),
+                ("eth_feeHistory", fee_history_response()),
+                ("eth_gasPrice", JsonRpcResponse::from(MOCK_REQUEST_RESPONSE)),
+                ("eth_getBlockByNumber", get_block_by_number_response()),
+                ("eth_getLogs", get_logs_response()),
+                ("eth_getTransactionCount", get_transaction_count_response()),
+                (
+                    "eth_getTransactionReceipt",
+                    get_transaction_receipt_response(),
+                ),
+                ("eth_sendRawTransaction", send_raw_transaction_response()),
+            ]),
+        };
+        let client = setup.client_with_http_mocks(mocks()).build();
+        let mut failures = vec![];
+
+        for endpoint in EvmRpcEndpoint::iter() {
+            match endpoint {
+                EvmRpcEndpoint::Batch => continue, // TODO: test once endpoint is implemented
+                EvmRpcEndpoint::Call => {
+                    check(
+                        &mut failures,
+                        endpoint,
+                        client.call(
+                            alloy_rpc_types::TransactionRequest::default()
+                                .to(MOCK_ADDRESS)
+                                .input(alloy_rpc_types::TransactionInput::from(MOCK_INPUT_DATA)),
+                        ),
+                    )
+                    .await
+                }
+                EvmRpcEndpoint::FeeHistory => {
+                    check(
+                        &mut failures,
+                        endpoint,
+                        client.fee_history((3_u64, BlockNumberOrTag::Latest)),
+                    )
+                    .await
+                }
+                EvmRpcEndpoint::GetBlockByNumber => {
+                    check(
+                        &mut failures,
+                        endpoint,
+                        client.get_block_by_number(BlockNumberOrTag::Latest),
+                    )
+                    .await
+                }
+                EvmRpcEndpoint::GetLogs => {
+                    check(&mut failures, endpoint, client.get_logs(vec![MOCK_ADDRESS])).await
+                }
+                EvmRpcEndpoint::GetTransactionCount => {
+                    check(
+                        &mut failures,
+                        endpoint,
+                        client.get_transaction_count((MOCK_ADDRESS, BlockNumberOrTag::Latest)),
+                    )
+                    .await
+                }
+                EvmRpcEndpoint::GetTransactionReceipt => {
+                    check(
+                        &mut failures,
+                        endpoint,
+                        client.get_transaction_receipt(MOCK_TRANSACTION_HASH),
+                    )
+                    .await
+                }
+                EvmRpcEndpoint::MultiRequest => {
+                    check(
+                        &mut failures,
+                        endpoint,
+                        client.multi_request(json!({
+                            "id" : ConstantSizeId::from(0_u64).to_string(),
+                            "jsonrpc": "2.0",
+                            "method": "eth_gasPrice",
+                        })),
+                    )
+                    .await
+                }
+                EvmRpcEndpoint::SendRawTransaction => {
+                    check(
+                        &mut failures,
+                        endpoint,
+                        client.send_raw_transaction(MOCK_TRANSACTION),
+                    )
+                    .await
+                }
+            }
+        }
+
+        // The legacy `request` endpoint is not supported by the client.
+        let result = setup
+            .request(
+                &setup.new_mock_http_runtime_with_wallet_and_http_mocks(mocks()),
+                (
+                    RpcService::Custom(RpcApi {
+                        url: MOCK_REQUEST_URL.to_string(),
+                        headers: None,
+                    }),
+                    &json!({
+                        "jsonrpc": "2.0",
+                        "id": 0,
+                        "method": "eth_getTransactionReceipt",
+                        "params": [MOCK_TRANSACTION_HASH],
+                    })
+                    .to_string(),
+                    10_000,
+                ),
+                10_000_000_000,
+            )
+            .await;
+        if result.is_err() {
+            failures.push(format!("request: {result:?}"));
+        }
+
+        assert!(
+            failures.is_empty(),
+            "Replicas did not reach consensus for some endpoints:\n{}",
+            failures.join("\n")
+        );
+    }
+
+    /// Mocks HTTP outcalls such that the replicas receive the same JSON-RPC response for the
+    /// requested method, but about half of them with the fields of every JSON object in reverse
+    /// order, so that no response is received by enough replicas to reach consensus unless the
+    /// response transform normalizes the field order.
+    ///
+    /// Unlike [`MockHttpOutcalls`], the mocks neither match requests nor check the response size.
+    struct ReversedFieldOrderMocks {
+        nodes_in_subnet: usize,
+        responses: BTreeMap<&'static str, JsonRpcResponse>,
+    }
+
+    #[async_trait]
+    impl ExecuteHttpOutcallMocks for ReversedFieldOrderMocks {
+        async fn execute_http_outcall_mocks(&mut self, env: &PocketIc) {
+            while let Some(request) = tick_until_http_request(env).await {
+                let request_body: Value = serde_json::from_slice(&request.body).unwrap();
+                let method = request_body["method"].as_str().unwrap();
+                let id: Id = serde_json::from_value(request_body["id"].clone()).unwrap();
+                let response = self
+                    .responses
+                    .get(method)
+                    .unwrap_or_else(|| panic!("No mock response for method {method}"))
+                    .clone()
+                    .with_raw_id(id);
+                let CanisterHttpResponse::CanisterHttpReply(reply) =
+                    CanisterHttpResponse::from(response)
+                else {
+                    panic!("BUG: expected a reply");
+                };
+                let body: Value = serde_json::from_slice(&reply.body).unwrap();
+                let reply_with_field_order = |reverse: bool| {
+                    CanisterHttpResponse::CanisterHttpReply(PocketIcCanisterHttpReply {
+                        body: to_json_with_field_order(&body, reverse).into_bytes(),
+                        ..reply.clone()
+                    })
+                };
+                env.mock_canister_http_response(MockCanisterHttpResponse {
+                    subnet_id: request.subnet_id,
+                    request_id: request.request_id,
+                    response: reply_with_field_order(false),
+                    additional_responses: (1..self.nodes_in_subnet)
+                        .map(|i| reply_with_field_order(i % 2 == 1))
+                        .collect(),
+                })
+                .await;
+            }
+        }
+    }
+
+    // Same as the polling done by `MockHttpOutcalls`, which is not public.
+    async fn tick_until_http_request(
+        env: &PocketIc,
+    ) -> Option<pocket_ic::common::rest::CanisterHttpRequest> {
+        for _ in 0..10 {
+            if let Some(request) = env.get_canister_http().await.into_iter().next() {
+                return Some(request);
+            }
+            env.tick().await;
+            env.advance_time(Duration::from_nanos(1)).await;
+        }
+        None
+    }
+
+    fn to_json_with_field_order(value: &Value, reverse: bool) -> String {
+        match value {
+            Value::Object(fields) => {
+                let mut fields: Vec<_> = fields
+                    .iter()
+                    .map(|(name, value)| {
+                        format!(
+                            "{}:{}",
+                            Value::from(name.as_str()),
+                            to_json_with_field_order(value, reverse)
+                        )
+                    })
+                    .collect();
+                if reverse {
+                    fields.reverse();
+                }
+                format!("{{{}}}", fields.join(","))
+            }
+            Value::Array(values) => format!(
+                "[{}]",
+                values
+                    .iter()
+                    .map(|value| to_json_with_field_order(value, reverse))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            ),
+            _ => value.to_string(),
+        }
+    }
+}
+
 fn fee_history_request() -> JsonRpcRequestMatcher {
     JsonRpcRequestMatcher::with_method("eth_feeHistory")
         .with_params(json!(["0x3", "latest", []]))
@@ -3151,6 +3414,45 @@ fn get_transaction_count_response() -> JsonRpcResponse {
         "jsonrpc": "2.0",
         "id": ConstantSizeId::ZERO.to_string(),
         "result": "0x1"
+    }))
+}
+
+fn get_transaction_receipt_response() -> JsonRpcResponse {
+    JsonRpcResponse::from(json!({
+        "jsonrpc": "2.0",
+        "id": ConstantSizeId::ZERO.to_string(),
+        "result": {
+            "blockHash": "0x5115c07eb1f20a9d6410db0916ed3df626cfdab161d3904f45c8c8b65c90d0be",
+            "blockNumber": "0x11a85ab",
+            "contractAddress": null,
+            "cumulativeGasUsed": "0xf02aed",
+            "effectiveGasPrice": "0x63c00ee76",
+            "from": "0x0aa8ebb6ad5a8e499e550ae2c461197624c6e667",
+            "gasUsed": "0x7d89",
+            "logs": [
+                {
+                    "address": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+                    "topics": [
+                        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                        "0x000000000000000000000000a9d1e08c7793af67e9d92fe308d5697fb81d3e43",
+                        "0x00000000000000000000000078cccfb3d517cd4ed6d045e263e134712288ace2"
+                    ],
+                    "data": "0x000000000000000000000000000000000000000000000000000000003b9c6433",
+                    "blockNumber": "0x11a85ab",
+                    "transactionHash": "0xdd5d4b18923d7aae953c7996d791118102e889bea37b48a651157a4890e4746f",
+                    "transactionIndex": "0xd9",
+                    "blockHash": "0x5115c07eb1f20a9d6410db0916ed3df626cfdab161d3904f45c8c8b65c90d0be",
+                    "logIndex": "0xe8",
+                    "removed": false
+                }
+            ],
+            "logsBloom": format!("0x{}", "0".repeat(512)),
+            "status": "0x1",
+            "to": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+            "transactionHash": "0xdd5d4b18923d7aae953c7996d791118102e889bea37b48a651157a4890e4746f",
+            "transactionIndex": "0xd9",
+            "type": "0x2"
+        }
     }))
 }
 

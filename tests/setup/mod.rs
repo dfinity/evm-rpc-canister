@@ -11,7 +11,7 @@ use evm_rpc_types::{InstallArgs, Provider, RpcResult, RpcService};
 use ic_canister_runtime::{CyclesWalletRuntime, Runtime};
 use ic_http_types::{HttpRequest, HttpResponse};
 use ic_metrics_assert::{MetricsAssert, PocketIcAsyncHttpQuery};
-use ic_pocket_canister_runtime::{MockHttpOutcalls, PocketIcRuntime};
+use ic_pocket_canister_runtime::{ExecuteHttpOutcallMocks, MockHttpOutcalls, PocketIcRuntime};
 use ic_test_utilities_load_wasm::load_wasm;
 use num_traits::ToPrimitive;
 use pocket_ic::{nonblocking::PocketIc, ErrorCode, PocketIcBuilder, RejectResponse};
@@ -117,8 +117,16 @@ impl EvmRpcSetup {
         mocks: impl Into<MockHttpOutcalls>,
     ) -> ClientBuilder<CyclesWalletRuntime<PocketIcRuntime<'_>>, AlloyResponseConverter, NoRetry>
     {
+        self.client_with_http_mocks(mocks.into())
+    }
+
+    pub fn client_with_http_mocks(
+        &self,
+        mocks: impl ExecuteHttpOutcallMocks + 'static,
+    ) -> ClientBuilder<CyclesWalletRuntime<PocketIcRuntime<'_>>, AlloyResponseConverter, NoRetry>
+    {
         EvmRpcClient::builder(
-            self.new_mock_http_runtime_with_wallet(mocks),
+            self.new_mock_http_runtime_with_wallet_and_http_mocks(mocks),
             self.evm_rpc_canister_id,
         )
         .with_alloy()
@@ -128,9 +136,16 @@ impl EvmRpcSetup {
         &self,
         mocks: impl Into<MockHttpOutcalls>,
     ) -> CyclesWalletRuntime<PocketIcRuntime<'_>> {
+        self.new_mock_http_runtime_with_wallet_and_http_mocks(mocks.into())
+    }
+
+    pub fn new_mock_http_runtime_with_wallet_and_http_mocks(
+        &self,
+        mocks: impl ExecuteHttpOutcallMocks + 'static,
+    ) -> CyclesWalletRuntime<PocketIcRuntime<'_>> {
         CyclesWalletRuntime::new(
             // Call the cycles wallet as controller so we are allowed to attach cycles
-            PocketIcRuntime::new(self.env.as_ref(), self.controller).with_http_mocks(mocks.into()),
+            PocketIcRuntime::new(self.env.as_ref(), self.controller).with_http_mocks(mocks),
             self.wallet_canister_id,
         )
     }
