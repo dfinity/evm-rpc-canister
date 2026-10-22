@@ -1795,6 +1795,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-rpc-types",
  "assert_matches",
+ "async-trait",
  "candid",
  "candid_parser 0.4.1",
  "canhttp",
