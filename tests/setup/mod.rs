@@ -117,29 +117,14 @@ impl EvmRpcSetup {
         mocks: impl Into<MockHttpOutcalls>,
     ) -> ClientBuilder<CyclesWalletRuntime<PocketIcRuntime<'_>>, AlloyResponseConverter, NoRetry>
     {
-        self.client_with_http_mocks(mocks.into())
-    }
-
-    pub fn client_with_http_mocks(
-        &self,
-        mocks: impl ExecuteHttpOutcallMocks + 'static,
-    ) -> ClientBuilder<CyclesWalletRuntime<PocketIcRuntime<'_>>, AlloyResponseConverter, NoRetry>
-    {
         EvmRpcClient::builder(
-            self.new_mock_http_runtime_with_wallet_and_http_mocks(mocks),
+            self.new_mock_http_runtime_with_wallet(mocks.into()),
             self.evm_rpc_canister_id,
         )
         .with_alloy()
     }
 
     pub fn new_mock_http_runtime_with_wallet(
-        &self,
-        mocks: impl Into<MockHttpOutcalls>,
-    ) -> CyclesWalletRuntime<PocketIcRuntime<'_>> {
-        self.new_mock_http_runtime_with_wallet_and_http_mocks(mocks.into())
-    }
-
-    pub fn new_mock_http_runtime_with_wallet_and_http_mocks(
         &self,
         mocks: impl ExecuteHttpOutcallMocks + 'static,
     ) -> CyclesWalletRuntime<PocketIcRuntime<'_>> {
