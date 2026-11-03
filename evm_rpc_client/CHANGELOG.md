@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-11-03
+
+### Changed
+
+- Types for batch calls ([#558](https://github.com/dfinity/evm-rpc-canister/pull/558))
+
+[0.4.1]: https://github.com/dfinity/evm-rpc-canister/compare/0.4.0..0.4.1
+
 ## [0.4.0] - 2026-02-18
 
 ### Changed
