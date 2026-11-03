@@ -91,15 +91,25 @@ Run the following commands to set up a local development environment:
 # Clone the repository and install dependencies
 git clone https://github.com/internet-computer-protocol/evm-rpc-canister
 cd evm-rpc-canister
-npm install
 
-# `icp`, `ic-wasm`, and `mops` are installed as versioned devDependencies.
-# Put them on PATH, or prefix invocations with `npx`.
-export PATH="$PWD/node_modules/.bin:$PATH"
+# One-time: enable mise shell activation so mise-managed tools and
+# `node_modules/.bin` are added to your PATH inside the project directory.
+# See https://mise.jdx.dev/getting-started.html for your shell.
+eval "$(mise activate bash)"
+
+# Install Node, pnpm, and Rust via mise (https://mise.jdx.dev):
+mise install
+
+# Install project dependencies (icp, ic-wasm, mops):
+pnpm install
+
+# With mise shell activation enabled, `node_modules/.bin` is on your PATH
+# inside the project directory, so `icp`, `ic-wasm`, and `mops` are directly
+# callable. Without activation, prefix with `mise exec --`.
 
 # Deploy to the local network
 icp network start -d
-npm run generate
+pnpm generate
 icp deploy evm_rpc
 
 # Alternatively, deploy and run test suite
@@ -107,12 +117,12 @@ icp network start -d
 scripts/e2e
 ```
 
-`scripts/e2e` and `npm run generate:declarations` also require [`didc`](https://github.com/dfinity/candid/releases) on PATH.
+`scripts/e2e` and `pnpm generate:declarations` also require [`didc`](https://github.com/dfinity/candid/releases) on PATH.
 
-Regenerate language bindings with the `generate` [npm script](https://docs.npmjs.com/cli/v10/using-npm/scripts):
+Regenerate language bindings with the `generate` [pnpm script](https://pnpm.io/cli/run):
 
 ```bash
-npm run generate
+pnpm generate
 ```
 
 ## Learn More
