@@ -5,19 +5,6 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.2.0] - 2026-11-03
-
-### Changed
-
-- Derive Hash for evm_rpc_types hex wrappers ([#596](https://github.com/dfinity/evm-rpc-canister/pull/596))
-- Types for batch calls ([#558](https://github.com/dfinity/evm-rpc-canister/pull/558))
-
-### Fixed
-
-- Unbreak main from alloy 2.0, rand 0.9, and ic-mops 2.x bumps ([#579](https://github.com/dfinity/evm-rpc-canister/pull/579))
-
-[3.2.0]: https://github.com/dfinity/evm-rpc-canister/compare/3.1.1..3.2.0
-
 ## [3.1.1] - 2026-02-18
 
 ### Changed
