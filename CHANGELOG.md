@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.0] - 2026-11-03
+
+### Fixed
+
+- Normalize the responses of `eth_getTransactionReceipt`, `eth_call` and `eth_getTransactionCount` before consensus, so that replicas agree when providers return JSON fields in a different order ([#541](https://github.com/dfinity/evm-rpc-canister/pull/541), [#547](https://github.com/dfinity/evm-rpc-canister/pull/547), [#655](https://github.com/dfinity/evm-rpc-canister/pull/655))
+
+### Changed
+
+- Bump `ic-cdk` to v0.20.2, Rust to v1.97.1 and upgrade dependencies ([#560](https://github.com/dfinity/evm-rpc-canister/pull/560), [#569](https://github.com/dfinity/evm-rpc-canister/pull/569), [#579](https://github.com/dfinity/evm-rpc-canister/pull/579), [#601](https://github.com/dfinity/evm-rpc-canister/pull/601), [#621](https://github.com/dfinity/evm-rpc-canister/pull/621))
+
+[2.9.0]: https://github.com/dfinity/evm-rpc-canister/compare/evm_rpc-v2.8.0...evm_rpc-v2.9.0
+
 ## [2.8.0] - 2025-11-17
 
 ### Changed
