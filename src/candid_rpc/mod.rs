@@ -1,3 +1,4 @@
+use crate::rpc_client::json::batch::BatchRequestParams;
 use crate::{
     rpc_client::{
         json::{
@@ -15,7 +16,8 @@ use candid::Nat;
 use canhttp::{http::json::JsonRpcRequest, multi::Timestamp};
 use ethers_core::{types::Transaction, utils::rlp};
 use evm_rpc_types::{
-    BlockTag, Hex, Hex32, MultiRpcResult, Nat256, RpcError, RpcResult, ValidationError,
+    BatchRequest, BatchResult, BlockTag, Hex, Hex32, MultiRpcResult, Nat256, RpcError, RpcResult,
+    ValidationError,
 };
 
 /// Adapt the `EthRpcClient` to the `Candid` interface used by the EVM-RPC canister.
@@ -182,6 +184,31 @@ impl CandidRpcClient {
             .await
     }
 
+    pub async fn batch(self, requests: Vec<BatchRequest>) -> Vec<MultiRpcResult<BatchResult>> {
+        let batch_params = BatchRequestParams::from_iter(requests.iter().cloned());
+        self.client
+            .batch(batch_params)
+            .send_and_reduce()
+            .await
+            .into_iter()
+            .zip(requests.iter())
+            .map(|(result, request)| {
+                result.map(|response| {
+                    let mut batch_result = BatchResult::from(response);
+                    add_send_raw_transaction_hash(&mut batch_result, request);
+                    batch_result
+                })
+            })
+            .collect()
+    }
+
+    pub async fn batch_cycles_cost(self, requests: Vec<BatchRequest>) -> RpcResult<u128> {
+        self.client
+            .batch(BatchRequestParams::from_iter(requests))
+            .cycles_cost()
+            .await
+    }
+
     pub async fn multi_request(self, json_rpc_payload: String) -> MultiRpcResult<String> {
         let request = match try_into_json_rpc_request(json_rpc_payload) {
             Ok(request) => request,
@@ -243,4 +270,16 @@ fn try_into_json_rpc_request(
             "Invalid JSON RPC request: {e}"
         )))
     })
+}
+
+fn add_send_raw_transaction_hash(batch_result: &mut BatchResult, request: &BatchRequest) {
+    if let (
+        BatchResult::EthSendRawTransaction(inner),
+        BatchRequest::EthSendRawTransaction(raw_tx),
+    ) = (batch_result, request)
+    {
+        if let Ok(evm_rpc_types::SendRawTransactionStatus::Ok(hash)) = inner.as_mut() {
+            *hash = get_transaction_hash(raw_tx);
+        }
+    }
 }
