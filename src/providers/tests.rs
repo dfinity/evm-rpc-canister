@@ -86,13 +86,25 @@ mod supported_rpc_service {
     use evm_rpc_types::{EthMainnetService, EthSepoliaService, L2MainnetService};
     use std::collections::BTreeSet;
 
+    // LlamaRPC is defunct: the variants are kept for Candid compatibility, but the providers are
+    // no longer supported.
+    fn is_disabled(service: &SupportedRpcService) -> bool {
+        matches!(
+            service,
+            SupportedRpcService::EthMainnet(EthMainnetService::Llama)
+                | SupportedRpcService::ArbitrumOne(L2MainnetService::Llama)
+                | SupportedRpcService::BaseMainnet(L2MainnetService::Llama)
+                | SupportedRpcService::OptimismMainnet(L2MainnetService::Llama)
+        )
+    }
+
     #[test]
     fn should_have_all_supported_providers() {
         fn assert_same_set(
             left: impl Iterator<Item = SupportedRpcService>,
             right: &[SupportedRpcService],
         ) {
-            let left: BTreeSet<_> = left.collect();
+            let left: BTreeSet<_> = left.filter(|service| !is_disabled(service)).collect();
             let right: BTreeSet<_> = right.iter().copied().collect();
             assert_eq!(left, right);
         }

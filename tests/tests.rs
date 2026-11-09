@@ -9,8 +9,9 @@ use canhttp::http::json::{ConstantSizeId, Id};
 use evm_rpc_client::{DoubleCycles, EvmRpcEndpoint, NoRetry, RequestBuilder};
 use evm_rpc_types::{
     BlockTag, ConsensusStrategy, EthMainnetService, EthSepoliaService, GetLogsRpcConfig, Hex,
-    Hex32, HttpOutcallError, InstallArgs, JsonRpcError, LegacyRejectionCode, MultiRpcResult,
-    Nat256, ProviderError, RpcApi, RpcError, RpcResult, RpcService, RpcServices, ValidationError,
+    Hex32, HttpOutcallError, InstallArgs, JsonRpcError, L2MainnetService, LegacyRejectionCode,
+    MultiRpcResult, Nat256, ProviderError, RpcApi, RpcError, RpcResult, RpcService, RpcServices,
+    ValidationError,
 };
 use ic_canister_runtime::CyclesWalletRuntime;
 use ic_error_types::RejectCode;
@@ -976,6 +977,35 @@ async fn candid_rpc_should_err_without_cycles() {
                 received: 0,
             }))
         )
+    }
+}
+
+#[tokio::test]
+async fn candid_rpc_should_err_for_disabled_llama_provider() {
+    let setup = EvmRpcSetup::new().await.mock_api_keys().await;
+
+    for source in [
+        RpcServices::EthMainnet(Some(vec![EthMainnetService::Llama])),
+        RpcServices::ArbitrumOne(Some(vec![L2MainnetService::Llama])),
+        RpcServices::BaseMainnet(Some(vec![L2MainnetService::Llama])),
+        RpcServices::OptimismMainnet(Some(vec![L2MainnetService::Llama])),
+    ] {
+        let result = setup
+            .client(MockHttpOutcalls::never())
+            .with_rpc_sources(source)
+            .build()
+            .get_transaction_receipt(b256!(
+                "0xdd5d4b18923d7aae953c7996d791118102e889bea37b48a651157a4890e4746f"
+            ))
+            .send()
+            .await
+            .expect_consistent();
+        assert_eq!(
+            result,
+            Err(RpcError::ProviderError(
+                ProviderError::MissingRequiredProvider
+            ))
+        );
     }
 }
 

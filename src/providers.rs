@@ -257,40 +257,6 @@ pub const PROVIDERS: &[Provider] = &[
             L2MainnetService::PublicNode,
         )),
     },
-    Provider {
-        provider_id: 22,
-        chain_id: ETH_MAINNET_CHAIN_ID,
-        access: RpcAccess::Unauthenticated {
-            public_url: "https://eth.llamarpc.com",
-        },
-        alias: Some(SupportedRpcService::EthMainnet(EthMainnetService::Llama)),
-    },
-    Provider {
-        provider_id: 23,
-        chain_id: ARBITRUM_ONE_CHAIN_ID,
-        access: RpcAccess::Unauthenticated {
-            public_url: "https://arbitrum.llamarpc.com",
-        },
-        alias: Some(SupportedRpcService::ArbitrumOne(L2MainnetService::Llama)),
-    },
-    Provider {
-        provider_id: 24,
-        chain_id: BASE_MAINNET_CHAIN_ID,
-        access: RpcAccess::Unauthenticated {
-            public_url: "https://base.llamarpc.com",
-        },
-        alias: Some(SupportedRpcService::BaseMainnet(L2MainnetService::Llama)),
-    },
-    Provider {
-        provider_id: 25,
-        chain_id: OPTIMISM_MAINNET_CHAIN_ID,
-        access: RpcAccess::Unauthenticated {
-            public_url: "https://optimism.llamarpc.com",
-        },
-        alias: Some(SupportedRpcService::OptimismMainnet(
-            L2MainnetService::Llama,
-        )),
-    },
 ];
 
 thread_local! {
@@ -399,7 +365,6 @@ impl SupportedRpcService {
             SupportedRpcService::EthMainnet(EthMainnetService::PublicNode),
             SupportedRpcService::EthMainnet(EthMainnetService::Alchemy),
             SupportedRpcService::EthMainnet(EthMainnetService::Cloudflare),
-            SupportedRpcService::EthMainnet(EthMainnetService::Llama),
         ]
     }
 
@@ -419,7 +384,6 @@ impl SupportedRpcService {
             SupportedRpcService::ArbitrumOne(L2MainnetService::PublicNode),
             SupportedRpcService::ArbitrumOne(L2MainnetService::Alchemy),
             SupportedRpcService::ArbitrumOne(L2MainnetService::Ankr),
-            SupportedRpcService::ArbitrumOne(L2MainnetService::Llama),
         ]
     }
 
@@ -429,7 +393,6 @@ impl SupportedRpcService {
             SupportedRpcService::BaseMainnet(L2MainnetService::PublicNode),
             SupportedRpcService::BaseMainnet(L2MainnetService::Alchemy),
             SupportedRpcService::BaseMainnet(L2MainnetService::Ankr),
-            SupportedRpcService::BaseMainnet(L2MainnetService::Llama),
         ]
     }
 
@@ -439,7 +402,6 @@ impl SupportedRpcService {
             SupportedRpcService::OptimismMainnet(L2MainnetService::PublicNode),
             SupportedRpcService::OptimismMainnet(L2MainnetService::Alchemy),
             SupportedRpcService::OptimismMainnet(L2MainnetService::Ankr),
-            SupportedRpcService::OptimismMainnet(L2MainnetService::Llama),
         ]
     }
 }
