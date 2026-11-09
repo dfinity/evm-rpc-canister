@@ -388,9 +388,10 @@ impl SupportedRpcService {
     }
 
     // Order of providers matters!
-    // The threshold consensus strategy will consider the first `total` providers in the order
-    // they are specified (taking the default ones first, followed by the non default ones if necessary)
-    // if the providers are not explicitly specified by the caller.
+    // If the caller doesn't specify providers, they are ranked by their number of successful
+    // responses in the last 20 minutes, with ties broken by this order. The ranking is reset
+    // on every upgrade and failures don't lower a provider's rank, so this order decides
+    // which providers are used after an upgrade. Keep unreliable providers last.
     pub const fn eth_mainnet() -> &'static [SupportedRpcService] {
         &[
             SupportedRpcService::EthMainnet(EthMainnetService::BlockPi),
