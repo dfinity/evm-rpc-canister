@@ -238,12 +238,13 @@ mod eth_get_transaction_count {
 
 mod providers {
     use crate::arbitrary::{arb_custom_rpc_services, arb_rpc_services};
+    use crate::providers::SupportedRpcService;
     use crate::rpc_client::Providers;
     use assert_matches::assert_matches;
     use canhttp::multi::Timestamp;
     use evm_rpc_types::{
-        ConsensusStrategy, EthMainnetService, EthSepoliaService, L2MainnetService, ProviderError,
-        RpcService, RpcServices,
+        ConsensusStrategy, EthMainnetService, L2MainnetService, ProviderError, RpcService,
+        RpcServices,
     };
     use maplit::btreeset;
     use proptest::arbitrary::any;
@@ -258,9 +259,11 @@ mod providers {
     //    since that number can no longer be decreased afterwards without a breaking change.
     #[test]
     fn should_have_stable_number_of_providers() {
-        assert_eq!(EthMainnetService::all().len(), 6);
-        assert_eq!(EthSepoliaService::all().len(), 5);
-        assert_eq!(L2MainnetService::all().len(), 5);
+        assert_eq!(SupportedRpcService::eth_mainnet().len(), 5);
+        assert_eq!(SupportedRpcService::eth_sepolia().len(), 5);
+        assert_eq!(SupportedRpcService::arbitrum_one().len(), 4);
+        assert_eq!(SupportedRpcService::base_mainnet().len(), 4);
+        assert_eq!(SupportedRpcService::optimism_mainnet().len(), 4);
     }
 
     proptest! {
@@ -402,23 +405,23 @@ mod providers {
             for (default_services, max_total) in [
                 (
                     RpcServices::EthMainnet(None),
-                    EthMainnetService::all().len(),
+                    SupportedRpcService::eth_mainnet().len(),
                 ),
                 (
                     RpcServices::EthSepolia(None),
-                    EthSepoliaService::all().len(),
+                    SupportedRpcService::eth_sepolia().len(),
                 ),
                 (
                     RpcServices::ArbitrumOne(None),
-                    L2MainnetService::all().len(),
+                    SupportedRpcService::arbitrum_one().len(),
                 ),
                 (
                     RpcServices::BaseMainnet(None),
-                    L2MainnetService::all().len(),
+                    SupportedRpcService::base_mainnet().len(),
                 ),
                 (
                     RpcServices::OptimismMainnet(None),
-                    L2MainnetService::all().len(),
+                    SupportedRpcService::optimism_mainnet().len(),
                 ),
             ] {
                 let strategy = ConsensusStrategy::Threshold {
