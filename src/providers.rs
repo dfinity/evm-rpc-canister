@@ -388,17 +388,18 @@ impl SupportedRpcService {
     }
 
     // Order of providers matters!
-    // The threshold consensus strategy will consider the first `total` providers in the order
-    // they are specified (taking the default ones first, followed by the non default ones if necessary)
-    // if the providers are not explicitly specified by the caller.
+    // If the caller doesn't specify providers, they are ranked by their number of successful
+    // responses in the last 20 minutes, with ties broken by this order. The ranking is reset
+    // on every upgrade and failures don't lower a provider's rank, so this order decides
+    // which providers are used after an upgrade. Keep unreliable providers last.
     pub const fn eth_mainnet() -> &'static [SupportedRpcService] {
         &[
             SupportedRpcService::EthMainnet(EthMainnetService::BlockPi),
             SupportedRpcService::EthMainnet(EthMainnetService::Ankr),
             SupportedRpcService::EthMainnet(EthMainnetService::PublicNode),
-            SupportedRpcService::EthMainnet(EthMainnetService::Llama),
             SupportedRpcService::EthMainnet(EthMainnetService::Alchemy),
             SupportedRpcService::EthMainnet(EthMainnetService::Cloudflare),
+            SupportedRpcService::EthMainnet(EthMainnetService::Llama),
         ]
     }
 
@@ -414,31 +415,31 @@ impl SupportedRpcService {
 
     pub const fn arbitrum_one() -> &'static [SupportedRpcService] {
         &[
-            SupportedRpcService::ArbitrumOne(L2MainnetService::Llama),
             SupportedRpcService::ArbitrumOne(L2MainnetService::BlockPi),
             SupportedRpcService::ArbitrumOne(L2MainnetService::PublicNode),
             SupportedRpcService::ArbitrumOne(L2MainnetService::Alchemy),
             SupportedRpcService::ArbitrumOne(L2MainnetService::Ankr),
+            SupportedRpcService::ArbitrumOne(L2MainnetService::Llama),
         ]
     }
 
     pub const fn base_mainnet() -> &'static [SupportedRpcService] {
         &[
-            SupportedRpcService::BaseMainnet(L2MainnetService::Llama),
             SupportedRpcService::BaseMainnet(L2MainnetService::BlockPi),
             SupportedRpcService::BaseMainnet(L2MainnetService::PublicNode),
             SupportedRpcService::BaseMainnet(L2MainnetService::Alchemy),
             SupportedRpcService::BaseMainnet(L2MainnetService::Ankr),
+            SupportedRpcService::BaseMainnet(L2MainnetService::Llama),
         ]
     }
 
     pub const fn optimism_mainnet() -> &'static [SupportedRpcService] {
         &[
-            SupportedRpcService::OptimismMainnet(L2MainnetService::Llama),
             SupportedRpcService::OptimismMainnet(L2MainnetService::BlockPi),
             SupportedRpcService::OptimismMainnet(L2MainnetService::PublicNode),
             SupportedRpcService::OptimismMainnet(L2MainnetService::Alchemy),
             SupportedRpcService::OptimismMainnet(L2MainnetService::Ankr),
+            SupportedRpcService::OptimismMainnet(L2MainnetService::Llama),
         ]
     }
 }

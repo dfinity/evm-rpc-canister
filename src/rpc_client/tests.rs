@@ -243,8 +243,9 @@ mod providers {
     use canhttp::multi::Timestamp;
     use evm_rpc_types::{
         ConsensusStrategy, EthMainnetService, EthSepoliaService, L2MainnetService, ProviderError,
-        RpcServices,
+        RpcService, RpcServices,
     };
+    use maplit::btreeset;
     use proptest::arbitrary::any;
     use proptest::proptest;
 
@@ -313,6 +314,54 @@ mod providers {
             let providers =
                 Providers::new(default_services, strategy.clone(), Timestamp::default());
             assert_matches!(providers, Err(ProviderError::InvalidRpcConfig(_)));
+        }
+    }
+
+    // Without any successful responses (e.g. after an upgrade), the default providers are chosen
+    // by their order in `src/providers.rs`, which must not put unreliable providers first.
+    #[test]
+    fn should_choose_default_providers_without_ranking_data() {
+        // The ckETH minter uses a 3-out-of-4 threshold.
+        assert_eq!(
+            Providers::new(
+                RpcServices::EthMainnet(None),
+                ConsensusStrategy::Threshold {
+                    total: Some(4),
+                    min: 3,
+                },
+                Timestamp::default()
+            )
+            .unwrap()
+            .services,
+            btreeset! {
+                RpcService::EthMainnet(EthMainnetService::BlockPi),
+                RpcService::EthMainnet(EthMainnetService::Ankr),
+                RpcService::EthMainnet(EthMainnetService::PublicNode),
+                RpcService::EthMainnet(EthMainnetService::Alchemy),
+            }
+        );
+
+        for (services, to_rpc_service) in [
+            (
+                RpcServices::ArbitrumOne(None),
+                RpcService::ArbitrumOne as fn(L2MainnetService) -> RpcService,
+            ),
+            (RpcServices::BaseMainnet(None), RpcService::BaseMainnet),
+            (
+                RpcServices::OptimismMainnet(None),
+                RpcService::OptimismMainnet,
+            ),
+        ] {
+            assert_eq!(
+                Providers::new(services, ConsensusStrategy::Equality, Timestamp::default())
+                    .unwrap()
+                    .services,
+                btreeset! {
+                    to_rpc_service(L2MainnetService::BlockPi),
+                    to_rpc_service(L2MainnetService::PublicNode),
+                    to_rpc_service(L2MainnetService::Alchemy),
+                }
+            );
         }
     }
 
