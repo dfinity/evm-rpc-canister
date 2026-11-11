@@ -149,6 +149,12 @@ impl Providers {
             return Err(ProviderError::ProviderNotFound);
         }
 
+        // Reject services without a provider (e.g. the defunct `Llama` services) up front, so that
+        // a request and its cycles cost query fail the same way, without any HTTP outcalls.
+        for service in &providers {
+            resolve_rpc_service(service.clone())?;
+        }
+
         Ok(Self {
             chain,
             services: providers,

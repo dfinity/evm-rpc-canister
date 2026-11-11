@@ -989,17 +989,39 @@ async fn candid_rpc_should_err_for_disabled_llama_provider() {
         RpcServices::ArbitrumOne(Some(vec![L2MainnetService::Llama])),
         RpcServices::BaseMainnet(Some(vec![L2MainnetService::Llama])),
         RpcServices::OptimismMainnet(Some(vec![L2MainnetService::Llama])),
+        RpcServices::EthMainnet(Some(vec![
+            EthMainnetService::BlockPi,
+            EthMainnetService::Llama,
+            EthMainnetService::PublicNode,
+        ])),
+        RpcServices::ArbitrumOne(Some(vec![
+            L2MainnetService::BlockPi,
+            L2MainnetService::Llama,
+            L2MainnetService::PublicNode,
+        ])),
     ] {
-        let result = setup
+        let request = setup
             .client(MockHttpOutcalls::never())
             .with_rpc_sources(source)
+            // The other providers in the mixed lists alone would be enough to reach this threshold.
+            .with_consensus_strategy(ConsensusStrategy::Threshold {
+                total: None,
+                min: 1,
+            })
             .build()
             .get_transaction_receipt(b256!(
                 "0xdd5d4b18923d7aae953c7996d791118102e889bea37b48a651157a4890e4746f"
+            ));
+
+        let cycles_cost = request.clone().request_cost().send().await;
+        assert_eq!(
+            cycles_cost,
+            Err(RpcError::ProviderError(
+                ProviderError::MissingRequiredProvider
             ))
-            .send()
-            .await
-            .expect_consistent();
+        );
+
+        let result = request.send().await.expect_consistent();
         assert_eq!(
             result,
             Err(RpcError::ProviderError(

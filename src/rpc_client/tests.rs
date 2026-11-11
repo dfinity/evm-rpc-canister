@@ -365,6 +365,37 @@ mod providers {
         }
     }
 
+    #[test]
+    fn should_fail_when_service_has_no_provider() {
+        for strategy in [
+            ConsensusStrategy::Equality,
+            ConsensusStrategy::Threshold {
+                total: None,
+                min: 1,
+            },
+        ] {
+            for services in [
+                RpcServices::EthMainnet(Some(vec![EthMainnetService::Llama])),
+                RpcServices::EthMainnet(Some(vec![
+                    EthMainnetService::BlockPi,
+                    EthMainnetService::Llama,
+                    EthMainnetService::PublicNode,
+                ])),
+                RpcServices::ArbitrumOne(Some(vec![
+                    L2MainnetService::Alchemy,
+                    L2MainnetService::Llama,
+                ])),
+                RpcServices::BaseMainnet(Some(vec![L2MainnetService::Llama])),
+                RpcServices::OptimismMainnet(Some(vec![L2MainnetService::Llama])),
+            ] {
+                assert_eq!(
+                    Providers::new(services, strategy.clone(), Timestamp::default()),
+                    Err(ProviderError::MissingRequiredProvider)
+                );
+            }
+        }
+    }
+
     proptest! {
         #[test]
         fn should_fail_when_threshold_larger_than_number_of_supported_providers(min in any::<u8>()) {
