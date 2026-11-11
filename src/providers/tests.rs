@@ -1,5 +1,5 @@
 mod static_map {
-    use crate::providers::{PROVIDERS, SERVICE_PROVIDER_MAP};
+    use crate::providers::{PROVIDERS, RETIRED_PROVIDER_IDS, SERVICE_PROVIDER_MAP};
     use std::collections::{BTreeSet, HashMap};
 
     use crate::{
@@ -9,8 +9,9 @@ mod static_map {
 
     #[test]
     fn test_provider_id_sequence() {
-        for (i, provider) in PROVIDERS.iter().enumerate() {
-            assert_eq!(provider.provider_id, i as u64);
+        let mut expected = (0..).filter(|id| !RETIRED_PROVIDER_IDS.contains(id));
+        for provider in PROVIDERS {
+            assert_eq!(Some(provider.provider_id), expected.next());
         }
     }
 

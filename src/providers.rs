@@ -259,6 +259,11 @@ pub const PROVIDERS: &[Provider] = &[
     },
 ];
 
+/// IDs of removed providers. Never assign them to another provider: callers may still pass
+/// them as `RpcService::Provider` and must keep getting `ProviderNotFound`.
+/// - 22-25: LlamaRPC (Ethereum, Arbitrum, Base, Optimism)
+pub const RETIRED_PROVIDER_IDS: &[ProviderId] = &[22, 23, 24, 25];
+
 thread_local! {
     pub static PROVIDER_MAP: BTreeMap<ProviderId, Provider> =
         PROVIDERS.iter()
