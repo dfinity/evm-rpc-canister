@@ -1,5 +1,5 @@
 mod static_map {
-    use crate::providers::{PROVIDERS, SERVICE_PROVIDER_MAP};
+    use crate::providers::{PROVIDERS, RETIRED_PROVIDER_IDS, SERVICE_PROVIDER_MAP};
     use std::collections::{BTreeSet, HashMap};
 
     use crate::{
@@ -9,8 +9,9 @@ mod static_map {
 
     #[test]
     fn test_provider_id_sequence() {
-        for (i, provider) in PROVIDERS.iter().enumerate() {
-            assert_eq!(provider.provider_id, i as u64);
+        let mut expected = (0..).filter(|id| !RETIRED_PROVIDER_IDS.contains(id));
+        for provider in PROVIDERS {
+            assert_eq!(Some(provider.provider_id), expected.next());
         }
     }
 
@@ -86,15 +87,32 @@ mod supported_rpc_service {
     use evm_rpc_types::{EthMainnetService, EthSepoliaService, L2MainnetService};
     use std::collections::BTreeSet;
 
+    // LlamaRPC is defunct: the variants are kept for Candid compatibility, but the providers are
+    // no longer supported.
+    fn is_disabled(service: &SupportedRpcService) -> bool {
+        matches!(
+            service,
+            SupportedRpcService::EthMainnet(EthMainnetService::Llama)
+                | SupportedRpcService::ArbitrumOne(L2MainnetService::Llama)
+                | SupportedRpcService::BaseMainnet(L2MainnetService::Llama)
+                | SupportedRpcService::OptimismMainnet(L2MainnetService::Llama)
+        )
+    }
+
     #[test]
     fn should_have_all_supported_providers() {
         fn assert_same_set(
             left: impl Iterator<Item = SupportedRpcService>,
             right: &[SupportedRpcService],
         ) {
-            let left: BTreeSet<_> = left.collect();
+            let left: BTreeSet<_> = left.filter(|service| !is_disabled(service)).collect();
             let right: BTreeSet<_> = right.iter().copied().collect();
             assert_eq!(left, right);
+            crate::providers::SERVICE_PROVIDER_MAP.with(|map| {
+                for service in &right {
+                    assert!(map.contains_key(service), "no provider for {service:?}");
+                }
+            });
         }
 
         assert_same_set(

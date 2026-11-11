@@ -27,7 +27,6 @@ shared ({ caller = installer }) persistent actor class Main(evmRpc : Principal, 
     // (`RPC service`, `method`)
     transient let ignoredTests = [
         (#EthMainnet(#BlockPi), ?"eth_sendRawTransaction"), // "Private transaction replacement (same nonce) with gas price change lower than 10% is not allowed within 30 sec from the previous transaction."
-        (#EthMainnet(#Llama), ?"eth_sendRawTransaction"), // Non-standard error message
         (#ArbitrumOne(#Ankr), null), // Need API key
         (#BaseMainnet(#Ankr), null), // Need API key
         (#EthMainnet(#Ankr), null), // Need API key
@@ -157,8 +156,8 @@ shared ({ caller = installer }) persistent actor class Main(evmRpc : Principal, 
             };
 
             // All RPC services suitable for E2E testing
-            let mainnetServices = [#Ankr, #BlockPi, #PublicNode, #Llama];
-            let l2Services = [#Ankr, #BlockPi, #PublicNode, #Llama];
+            let mainnetServices = [#Ankr, #BlockPi, #PublicNode];
+            let l2Services = [#Ankr, #BlockPi, #PublicNode];
             let allServices : [(Text, EvmRpc.RpcServices)] = [
                 (
                     "Ethereum",

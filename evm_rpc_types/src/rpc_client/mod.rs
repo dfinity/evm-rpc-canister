@@ -129,6 +129,7 @@ pub enum EthMainnetService {
     BlockPi,
     PublicNode,
     Cloudflare,
+    /// No longer supported: requests using this service fail with `MissingRequiredProvider`.
     Llama,
 }
 
@@ -185,6 +186,7 @@ pub enum L2MainnetService {
     Ankr,
     BlockPi,
     PublicNode,
+    /// No longer supported: requests using this service fail with `MissingRequiredProvider`.
     Llama,
 }
 

@@ -82,7 +82,7 @@ pub async fn test() {
             RpcServices::EthMainnet(Some(vec![
                 // EthMainnetService::Ankr, // Need API key
                 EthMainnetService::BlockPi,
-                EthMainnetService::Llama,
+                EthMainnetService::Cloudflare,
                 EthMainnetService::PublicNode,
             ])),
             Some(RpcConfig {
