@@ -36,6 +36,7 @@ type EthMainnetService = variant {
   BlockPi;
   Cloudflare;
   PublicNode;
+  // No longer supported: requests using this service fail with `MissingRequiredProvider`.
   Llama;
 };
 type EthSepoliaService = variant {
@@ -50,6 +51,7 @@ type L2MainnetService = variant {
   Ankr;
   BlockPi;
   PublicNode;
+  // No longer supported: requests using this service fail with `MissingRequiredProvider`.
   Llama;
 };
 type FeeHistory = record {
