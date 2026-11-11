@@ -107,6 +107,11 @@ mod supported_rpc_service {
             let left: BTreeSet<_> = left.filter(|service| !is_disabled(service)).collect();
             let right: BTreeSet<_> = right.iter().copied().collect();
             assert_eq!(left, right);
+            crate::providers::SERVICE_PROVIDER_MAP.with(|map| {
+                for service in &right {
+                    assert!(map.contains_key(service), "no provider for {service:?}");
+                }
+            });
         }
 
         assert_same_set(
