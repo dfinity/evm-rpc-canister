@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.10.0] - 2026-11-16
+
+### Removed
+
+- **Breaking**: Stop using the defunct LlamaRPC provider, so that the canister no longer makes any HTTPS outcalls to it. The `Llama` variants of `EthMainnetService` and `L2MainnetService` are kept in the Candid interface, but any request listing `Llama`, alone or together with other providers, as well as its cycles cost query, is now rejected with `MissingRequiredProvider`. With one provider less, the maximum `total` for the `Threshold` consensus strategy with default providers drops from 6 to 5 on Ethereum and from 5 to 4 on Arbitrum, Base and Optimism ([#659](https://github.com/dfinity/evm-rpc-canister/pull/659), [#660](https://github.com/dfinity/evm-rpc-canister/pull/660))
+
+[2.10.0]: https://github.com/dfinity/evm-rpc-canister/compare/evm_rpc-v2.9.0...evm_rpc-v2.10.0
+
 ## [2.9.0] - 2026-11-03
 
 ### Fixed
