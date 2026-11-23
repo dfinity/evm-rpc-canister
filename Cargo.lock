@@ -905,9 +905,9 @@ dependencies = [
 
 [[package]]
 name = "candid"
-version = "0.10.35"
+version = "0.10.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5cdba86ff862a2cc6b244f273a8713ffdf82b84254470e90bd029ee87c283f25"
+checksum = "a253dd9596f4b17d3fab70379d4a6b421a996b2e556f2389fdd18d1d988ff733"
 dependencies = [
  "anyhow",
  "binrw",
@@ -928,9 +928,9 @@ dependencies = [
 
 [[package]]
 name = "candid_derive"
-version = "0.10.35"
+version = "0.10.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13501edc1f9c9f057d5d84171a13ee1fe4255705f9027a3fac64b5949cbdd170"
+checksum = "48fb0884cb905b01bc3e7566e3d01f33cace6779b76384f70aea8552cef6a942"
 dependencies = [
  "lazy_static",
  "proc-macro2",
@@ -1689,7 +1689,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1814,7 +1814,7 @@ dependencies = [
  "ic-error-types",
  "ic-ethereum-types",
  "ic-http-types",
- "ic-management-canister-types 0.7.1",
+ "ic-management-canister-types 0.11.0",
  "ic-metrics-assert",
  "ic-metrics-encoder",
  "ic-pocket-canister-runtime",
@@ -1870,7 +1870,7 @@ dependencies = [
  "canlog",
  "hex",
  "ic-error-types",
- "ic-management-canister-types 0.7.1",
+ "ic-management-canister-types 0.11.0",
  "num-bigint",
  "proptest",
  "serde",
@@ -2541,6 +2541,17 @@ name = "ic-management-canister-types"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51705516ed4d23f24e8d714a70fe9d7ec17106cfd830d5434a1b29f583ef70ee"
+dependencies = [
+ "candid",
+ "serde",
+ "serde_bytes",
+]
+
+[[package]]
+name = "ic-management-canister-types"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b3e3162bdfbdbc6ca3b4bfa8145f9ba19cddaf3eb8d1af8dc7be6a39557b76c2"
 dependencies = [
  "candid",
  "serde",
@@ -4127,7 +4138,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4907,7 +4918,7 @@ dependencies = [
  "getrandom 0.4.2",
  "once_cell",
  "rustix",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5642,7 +5653,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
